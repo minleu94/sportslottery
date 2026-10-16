@@ -1,0 +1,10 @@
+{
+  "observed_at_utc": "2026-10-14T22:50:18.2212647Z",
+  "task_name": "SportsLottery-Research-Pipeline",
+  "state": "Ready",
+  "enabled": true,
+  "last_run_time_utc": "2026-10-14T22:36:20.0000000Z",
+  "last_task_result": 0,
+  "next_run_time_utc": "2026-10-14T22:51:19.0000000Z",
+  "logon_type": "Interactive"
+}

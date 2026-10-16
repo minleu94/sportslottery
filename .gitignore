@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local Data directory (Redirected to F: drive via Junction, >1GB research ledgers)
+data/
+data
+
+# Local file lock markers
+*.lock
+
+# Local backups
+backups/
+
+# Pytest caches & temporary test workspaces
+.pytest_cache/
+.pytest*
+artifacts/pytest*
+artifacts/optimization_*/installed*/
+artifacts/optimization_*/portable_workspace*/
+artifacts/optimization_*/recovery*/
+
+# Packaging and build
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+graphify-out/cache/
+

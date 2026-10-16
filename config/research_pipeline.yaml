@@ -1,0 +1,47 @@
+# Wallet-free scheduled research pipeline. The data root is intentionally
+# separate from data/cache, data/historical, model artifacts, and the wallet.
+cadence_minutes: 15
+pregame_lead_minutes: 60
+max_odds_age_minutes: 15
+max_attempts_per_stage: 3
+force_refresh: true
+desktop_notifications: true
+parlay_total_node_budget: 1000000
+parlay_batch_node_budget: 25000
+parlay_total_seconds: 120
+data_root: data/research_pipeline
+
+# Alliance IDs verified from the archived Playsport navigation fixture:
+# 1 MLB, 2 NPB, 3 NBA, 4 soccer, 6 CPBL, 7 WNBA, 9 KBO, 93 NFL.
+alliances: ["1", "2", "3", "4", "6", "7", "9", "93"]
+
+parlay_tiers:
+  - {name: "10-25x", min: 10, max: 25}
+  - {name: "25-75x", min: 25, max: 75}
+  - {name: "75-200x", min: 75, max: 200}
+  - {name: "200-500x", min: 200, max: 500}
+
+# The isolated Elo research state starts from neutral 1500 and builds a complete
+# official schedule ledger from this date before relying on imported state.
+# This is a disclosed experiment prior, not a calibrated model.
+model_update:
+  enabled: true
+  seed_existing_official_checkpoint: true
+  bootstrap_start_date: "2025-03-01"
+  bootstrap_initialization: neutral_1500_official_warmup
+  max_days_per_update: 7
+  warmup_max_days_per_update: 7
+  # Reconcile explicitly rescheduled, unresolved MLB gamePks through the
+  # authoritative per-game live feed; each run is bounded independently.
+  max_reschedule_live_feed_fetches_per_run: 20
+  watermark_path: model_state/live_mlb_elo.json
+
+# Refresh the training cache used by the isolated Penaltyblog adapter. The
+# adapter itself excludes any match on/after the prediction date (PIT filter).
+soccer_model_update:
+  enabled: true
+  leagues: {"eng.1": "E0", "esp.1": "SP1"}
+  seasons: ["2324", "2425", "2526", "2627"]
+  refresh_interval_hours: 6
+  max_attempts: 3
+  minimum_matches_per_league: 60

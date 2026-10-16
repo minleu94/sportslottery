@@ -1,0 +1,20 @@
+{
+  "command": [
+    "C:\\Program Files\\Python311\\python.exe",
+    "-m",
+    "pytest",
+    "tests",
+    "-q",
+    "--color=no",
+    "--basetemp",
+    "artifacts/pytest-root-audited-final",
+    "--junitxml",
+    "C:\\Projects\\PythonProjects\\sportslottery\\artifacts\\research_completion_20261014\\pytest-final.xml"
+  ],
+  "started_at": "2026-10-14T01:38:52.780502+00:00",
+  "completed_at": "2026-10-14T01:39:48.777823+00:00",
+  "returncode": 0,
+  "source_hash_before": "18d6137e599daf3cd644fadfa79d4196e7879090d3682cc513dfa1b7b6b366ed",
+  "source_hash_after": "18d6137e599daf3cd644fadfa79d4196e7879090d3682cc513dfa1b7b6b366ed",
+  "source_unchanged": true
+}

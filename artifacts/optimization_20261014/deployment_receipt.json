@@ -1,0 +1,21 @@
+{
+  "wheel_sha256": "f581151b4d0e21492adce0717a5d72b5d0d5b17ee677b62b1d2c486ef354bf4d",
+  "version": "2.0.1",
+  "independent_install_root": "C:\\Projects\\PythonProjects\\sportslottery\\artifacts\\optimization_20261014\\installed_release",
+  "workspace": "C:\\Projects\\PythonProjects\\sportslottery\\artifacts\\optimization_20261014\\portable_workspace_release",
+  "dry_run_exit_code": 0,
+  "dry_run_stderr": "",
+  "packaged_source_files": 114,
+  "all_packaged_sources_match": true,
+  "required_resources": {
+    "app.py": true,
+    "main.py": true,
+    "core/research_mlb.py": true,
+    "config/research_pipeline.yaml": true,
+    "scripts/install_research_task.ps1": true,
+    "pages/1_指標與資料來源.py": true,
+    "pages/2_資料健康與研究工具.py": true,
+    "pages/__init__.py": true
+  },
+  "installed_files_match": true
+}

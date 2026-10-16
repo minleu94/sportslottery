@@ -1,0 +1,32 @@
+{
+  "matches": [
+    {
+      "match_id": "9_1",
+      "event_id": "9_1",
+      "canonical_event_id": "KBO_9_1",
+      "league": "KBO",
+      "canonical_league": "KBO",
+      "source_competition": "KBO (韓棒)",
+      "playsport_game_id": "2026101491001",
+      "sport": "baseball",
+      "alliance_id": "9",
+      "game_time": "PM 05:30",
+      "start_time_utc": "2026-10-14T09:30:00+00:00",
+      "away_team": "斗山熊",
+      "home_team": "雙子",
+      "_identity_incomplete": false,
+      "_identity_source": "teaminfo_h3_rows",
+      "_identity_diagnostic": null,
+      "away_pitcher": "郭彬",
+      "home_pitcher": "Carlos Carrasco",
+      "options": [],
+      "_cached_at": 1791940487.6194892,
+      "_cached_iso": "2026-10-14T01:14:47.619489+00:00",
+      "_is_stale_cache": false,
+      "_cache_status": "LIVE",
+      "_source_url": "https://www.playsport.cc/predict/scale?allianceid=9"
+    }
+  ],
+  "cached_at": 1791940487.6194892,
+  "cached_iso": "2026-10-14T01:14:47.619489+00:00"
+}

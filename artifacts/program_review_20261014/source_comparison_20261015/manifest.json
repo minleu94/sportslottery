@@ -1,0 +1,32 @@
+[
+  {
+    "file": "nba_scoreboard_20261014.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261014",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:38:41.398113+00:00",
+    "sha256": "d7b909c80f1f0596c286f173307c978590ffc84ce8cfe38e3143c3fcd628de5b",
+    "byte_count": 93400,
+    "events": 7,
+    "teams": 0
+  },
+  {
+    "file": "nba_scoreboard_20261015.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261015",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:38:41.639645+00:00",
+    "sha256": "ebdf1d1368c66783ccc986b9bc650007a48931d7d73cfa3c1964bcedad937c07",
+    "byte_count": 15644,
+    "events": 2,
+    "teams": 0
+  },
+  {
+    "file": "nba_teams.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:38:42.029796+00:00",
+    "sha256": "9133e21f5de866c269df1d9e6e49bf20cf84b9e856313cabfbdb4e1845895e99",
+    "byte_count": 134851,
+    "events": null,
+    "teams": 30
+  }
+]

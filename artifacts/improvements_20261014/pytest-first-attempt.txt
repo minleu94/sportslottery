@@ -1,0 +1,104 @@
+.....................................................ssssss............. [ 19%]
+........................................................................ [ 39%]
+........................................................................ [ 58%]
+........................................................................ [ 78%]
+............F........................................................... [ 97%]
+.........                                                                [100%]
+================================== FAILURES ===================================
+______ test_pipeline_runs_isolated_snapshot_settlement_report_end_to_end ______
+
+tmp_path = WindowsPath('C:/Projects/PythonProjects/sportslottery/artifacts/pytest-improvements-sealed/test_pipeline_runs_isolated_sn0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002F68A1FB790>
+
+    def test_pipeline_runs_isolated_snapshot_settlement_report_end_to_end(tmp_path, monkeypatch):
+        now = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
+        FrozenDateTime.current = now
+        monkeypatch.setattr("core.snapshot_logger.datetime", FrozenDateTime)
+        leg = _leg(now)
+        data_root = tmp_path / "research"
+        result_game = {
+            # Offline API double returns the normalized shape and provenance label
+            # used by the official MLB Stats API adapter; no live result is fetched.
+            "provider": "MLB Stats API (statsapi.mlb.com)", "provider_event_id": "result-1", "sport": "baseball", "league": "MLB",
+            "away_team": "Away Team", "home_team": "Home Team", "start_time_utc": leg.start_time_utc,
+            "status": "FINAL", "away_score": 2, "home_score": 1, "final_score": "2:1",
+        }
+        engine = SettlementEngine(
+            snapshot_logger=PredictionSnapshotLogger(data_root / "historical" / "prediction_snapshots.jsonl"),
+            parlay_logger=ShadowParlayLogger(data_root / "historical" / "parlay_snapshots.jsonl"),
+            odds_watcher=OddsWatcher(data_root / "historical" / "odds_history.jsonl"),
+        )
+        result_date = datetime.fromisoformat(leg.start_time_utc).date().isoformat()
+        engine.fetch_results = lambda sport, league, date_str, source_ids=None: [result_game] if date_str == result_date else []
+        hub = SignalHub(expert_adapter=EmptyFixtureAdapter(), crowd_adapter=EmptyFixtureAdapter(),
+                        model_registry=FixtureModelRegistry())
+        pipeline = ResearchPipeline(
+            data_root=data_root, odds_adapter=FixtureOddsAdapter([leg]), signal_hub=hub,
+            result_engine=engine, clock=lambda: now,
+            model_updater=lambda **kwargs: {"updated_games": 0, "data_as_of": None},
+        )
+        _offline_soccer_update(pipeline)
+    
+        # The scheduled command always passes --resume; with no old run this must
+        # start a fresh window instead of failing installation's first tick.
+        result = pipeline.run(resume=True)
+        assert result["status"] == "COMPLETE", result
+        state_path = data_root / "runs" / result["run_window_id"] / "run.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        assert state["status"] == "COMPLETE"
+        assert state["stages"]["pregame_snapshots"]["result"]["snapshot_count"] == 1
+        assert state["stages"]["odds_observations"]["result"]["observation_count"] == 1
+        assert state["stages"]["multi_sport_settlement"]["result"]["settled_snapshots"] == 0
+        assert state["stages"]["multi_sport_settlement"]["result"]["deferred_snapshots"] == 1
+        sealed = pipeline.snapshot_logger.get_all_snapshots()[0]
+        assert sealed["model_candidate_probability_raw"] == 0.62
+        assert sealed["model_candidate_probability_fused"] is not None
+        assert sealed["probability_status"] == "MARKET_BASELINE_ONLY"
+        assert sealed["model_probability"] is None  # A rejected model cannot become the production point estimate.
+        assert sealed["model_candidate_provenances"][0]["acceptance_status"] == "INSUFFICIENT_SAMPLE"
+    
+        # A later cadence settles the prior prediction only after event start; the
+        # source adapter now has no upcoming selections to add.
+        later = now + timedelta(hours=3)
+        FrozenDateTime.current = later
+        empty_engine = SettlementEngine(
+            snapshot_logger=PredictionSnapshotLogger(data_root / "historical" / "prediction_snapshots.jsonl"),
+            parlay_logger=ShadowParlayLogger(data_root / "historical" / "parlay_snapshots.jsonl"),
+            odds_watcher=OddsWatcher(data_root / "historical" / "odds_history.jsonl"),
+        )
+        empty_engine.fetch_results = lambda sport, league, date_str, source_ids=None: [result_game] if date_str == result_date else []
+        later_pipeline = ResearchPipeline(
+            data_root=data_root, odds_adapter=FixtureOddsAdapter([]), signal_hub=hub,
+            result_engine=empty_engine, clock=lambda: later,
+            model_updater=lambda **kwargs: {"updated_games": 0, "data_as_of": None},
+        )
+        _offline_soccer_update(later_pipeline)
+        later_result = later_pipeline.run(resume=True)
+>       assert later_result["status"] == "COMPLETE", later_result
+E       AssertionError: {'error': "PermissionError: [WinError 5] Access is denied: 'C:\\\\Projects\\\\PythonProjects\\\\sportslottery\\\\artif...0', ...}, 'source_fetch_health': {'attempts': 1, 'started_at': '2026-10-01T15:00:00+00:00', 'status': 'RUNNING'}}, ...}
+E       assert 'FAILED' == 'COMPLETE'
+E         
+E         - COMPLETE
+E         + FAILED
+
+tests\test_research_pipeline.py:190: AssertionError
+------------------------------ Captured log call ------------------------------
+INFO     core.research_pipeline:research_pipeline.py:450 Starting research pipeline window 20261001T1200Z
+INFO     core.research_pipeline:research_pipeline.py:549 Completed research pipeline run 53c3a4ac245b4e63a9756e1752d0bd12 window 20261001T1200Z
+INFO     core.research_pipeline:research_pipeline.py:450 Starting research pipeline window 20261001T1500Z
+ERROR    core.research_pipeline:research_pipeline.py:540 Research pipeline run bca2d0b41a164391aa263f40825b9b8e failed
+Traceback (most recent call last):
+  File "C:\Projects\PythonProjects\sportslottery\core\research_pipeline.py", line 522, in run
+    _write_json_atomic(state_path, state)
+  File "C:\Projects\PythonProjects\sportslottery\core\research_pipeline.py", line 72, in _write_json_atomic
+    os.replace(temp_name, path)
+PermissionError: [WinError 5] Access is denied: 'C:\\Projects\\PythonProjects\\sportslottery\\artifacts\\pytest-improvements-sealed\\test_pipeline_runs_isolated_sn0\\research\\runs\\20261001T1500Z\\.run.json.3_smco61.tmp' -> 'C:\\Projects\\PythonProjects\\sportslottery\\artifacts\\pytest-improvements-sealed\\test_pipeline_runs_isolated_sn0\\research\\runs\\20261001T1500Z\\run.json'
+- generated xml file: C:\Projects\PythonProjects\sportslottery\artifacts\improvements_20261014\pytest-final.xml -
+=========================== short test summary info ===========================
+SKIPPED [1] tests\integration\test_end_to_end_real_day.py: live network test; pass --run-live to opt in
+SKIPPED [2] tests\integration\test_github_model_adapter.py: live network test; pass --run-live to opt in
+SKIPPED [1] tests\integration\test_live_expert_source.py: live network test; pass --run-live to opt in
+SKIPPED [1] tests\integration\test_live_odds_source.py: live network test; pass --run-live to opt in
+SKIPPED [1] tests\integration\test_live_schedule_provider.py: live network test; pass --run-live to opt in
+FAILED tests/test_research_pipeline.py::test_pipeline_runs_isolated_snapshot_settlement_report_end_to_end
+1 failed, 362 passed, 6 skipped in 65.25s (0:01:05)

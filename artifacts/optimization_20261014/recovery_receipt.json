@@ -1,0 +1,26 @@
+{
+  "observed_at_utc": "2026-10-16T06:12:55.346192+00:00",
+  "backup": {
+    "backup": "C:\\Projects\\PythonProjects\\sportslottery\\backups\\opt_20261016\\backups\\20261016T061128Z_dfd1d2f0",
+    "file_count": 2146,
+    "status": "COMPLETE"
+  },
+  "restore": {
+    "destination": "C:\\Projects\\PythonProjects\\sportslottery\\backups\\opt_20261016\\restored_workspace",
+    "file_count": 2146,
+    "status": "COMPLETE"
+  },
+  "sqlite_integrity": {
+    "restored_workspace\\data\\war_chest.sqlite3": [
+      [
+        "ok"
+      ]
+    ],
+    "restored_workspace\\data\\shadow\\shadow_portfolio.sqlite": [
+      [
+        "ok"
+      ]
+    ]
+  },
+  "scope": "real local workspace backup and restore to new directory; original files preserved"
+}

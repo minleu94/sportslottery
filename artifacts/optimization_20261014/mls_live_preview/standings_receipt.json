@@ -1,0 +1,25 @@
+{
+  "team_count": 30,
+  "metadata": {
+    "timestamp": 1792130595.886395,
+    "observed_at": "2026-10-16T06:03:15.886394+00:00",
+    "data_as_of": "2026-10-16T06:03:15.886394+00:00",
+    "season": 2026,
+    "source_url": "https://site.api.espn.com/apis/v2/sports/soccer/usa.1/standings",
+    "source_content_sha256": "bed55ad48df10e76da7f13ecb828df546a6495ac6596cadfd832854726bb1747",
+    "parse_audit": {
+      "accepted_team_count": 30,
+      "invalid_team_or_stat_rows": 0,
+      "missing_required_stat_rows": 0,
+      "conflicting_multi_group_teams": 0
+    },
+    "source_status": "LIVE",
+    "failure_status": null
+  },
+  "parse_audit": {
+    "accepted_team_count": 30,
+    "invalid_team_or_stat_rows": 0,
+    "missing_required_stat_rows": 0,
+    "conflicting_multi_group_teams": 0
+  }
+}

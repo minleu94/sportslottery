@@ -1,0 +1,31 @@
+{
+  "purpose": "Regression excerpt for Playsport soccer event and market-row parsing",
+  "source_url": "https://www.playsport.cc/predict/scale?allianceid=4",
+  "observed_at_utc": "2026-10-14T00:09:28Z",
+  "captured_at_utc": "2026-10-14T00:09:28Z",
+  "capture_method": "Read-only browser DOM outerHTML of selected game-set rows",
+  "page_date_parameter": "20261014",
+  "excerpt_event_ids": ["2026101441000", "2026101441028", "2026101441047"],
+  "read_only_page_observation": {
+    "observed_at_utc": "2026-10-14T00:13:25.488Z",
+    "outer_game_set_rows": 102,
+    "event_header_rows": 34,
+    "distinct_gameids": 34,
+    "events_with_three_rows": 34,
+    "events_with_two_distinct_participants_in_dom_order": 34,
+    "events_with_incomplete_or_ambiguous_participant_pairs": 0
+  },
+  "excerpt_assertions": {
+    "events": 3,
+    "rows_per_event": 3,
+    "markets_per_event": ["away win", "home win", "draw", "over", "under"],
+    "participant_order": "first nested participant aligns with the adjacent 客 market row; second aligns with 主",
+    "winner_class_is_not_side": "The 1028 event has secondteam then winnerteam, while the 1047 draw has secondteam on both participants."
+  },
+  "fixture_sha256": "627102C2D9A73578375D72E634444582C5D99FC46A3CF37D34F5B40C39D950AA",
+  "limitations": [
+    "This is a reduced source DOM excerpt, not a full-page archive.",
+    "It demonstrates selector and row-group structure only; it is not evidence of model accuracy or current odds availability.",
+    "The linked schedule page used the same source structure and was not an independent identity source."
+  ]
+}

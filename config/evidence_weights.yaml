@@ -1,0 +1,102 @@
+# Evidence Weight and Agreement Configuration
+# Governs multi-source signal aggregation, independence group deduplication, and quality scoring.
+
+source_weights:
+  VERIFIED_EXPERT:
+    base_weight: 1.00
+    min_confidence: "MED"
+    min_sample_size: 10
+    description: "公開會員推牌與本場、玩法、盤線一致且在開賽前觀測；歷史績效不是本場勝率。"
+
+  EXTERNAL_OPEN_SOURCE_ENGINE:
+    base_weight: 0.85
+    min_edge_pp: 0.0
+    description: "真正外部開源推論引擎 (如 Penaltyblog Dixon-Coles 直接調用套件)"
+
+  LOCAL_REIMPLEMENTATION:
+    base_weight: 0.70
+    min_edge_pp: 0.0
+    description: "依公開論文/演算法本機重現模型 (如 FiveThirtyEight MLB Elo 算法本機重現)"
+
+  OPEN_SOURCE_ENGINE:
+    base_weight: 0.85
+    min_edge_pp: 0.0
+    description: "開源推論引擎 (別名)"
+
+  PUBLIC_MODEL:
+    base_weight: 0.70
+    min_edge_pp: 0.0
+    description: "公開演算法模型或機構評估基準"
+
+  LOCAL_FALLBACK_MODEL:
+    base_weight: 0.40
+    min_edge_pp: 0.0
+    description: "本機統計降級模型 (如基於 ESPN 賽季總數據之畢氏定理或基礎 Poisson)"
+
+  CROWD_CONSENSUS:
+    base_weight: 0.35
+    min_sample_size: 20
+    min_support_pct: 55.0
+    description: "玩運彩大眾彩迷投票熱度 (若超過 55% 視為支援)"
+
+  BETTING_MARKET:
+    base_weight: 0.00
+    baseline_only: true
+    description: "台灣運彩官方盤口（僅作為基準賠率與隱含機率，永遠不得為自身投票）"
+
+independence_groups:
+  TAIWAN_MARKET:
+    name: "台灣運彩官方賠率基準"
+    is_baseline: true
+    max_votes: 0
+
+  PLAYSPORT_EXPERT:
+    name: "玩運彩實體預測專家群"
+    is_baseline: false
+    max_votes: 1
+
+  PLAYSPORT_CROWD:
+    name: "玩運彩彩迷社群選票"
+    is_baseline: false
+    max_votes: 1
+
+  DIXON_COLES_MATCHES:
+    name: "Penaltyblog Dixon-Coles 歷史對戰推論"
+    is_baseline: false
+    max_votes: 1
+
+  FIVETHIRTYEIGHT_ELO:
+    name: "FiveThirtyEight Elo 歷史實力積分"
+    is_baseline: false
+    max_votes: 1
+
+  LIVE_MLB_ELO:
+    name: "實驗 MLB 官方賽果 Elo"
+    is_baseline: false
+    max_votes: 1
+
+  ESPN_SEASON_STATS:
+    name: "ESPN 賽季總累計統計 (畢氏定理/基礎卜瓦松)"
+    is_baseline: false
+    max_votes: 1
+
+agreement_rules:
+  HIGH:
+    min_independent_groups: 2
+    min_source_families: 2
+    requires_expert_or_engine: true
+    description: "至少 2 個獨立來源群組支援，且包含驗證專家或開源推論引擎"
+
+  MED:
+    min_independent_groups: 2
+    fallback_single_expert: true
+    fallback_single_engine: true
+    description: "2 個獨立來源群組支援，或單一時效合格專家／引擎；strict 搜尋另要求 2 個有效群組。"
+
+  LOW:
+    min_independent_groups: 1
+    description: "僅有 1 個非市場獨立來源群組（如單純大眾選票或單一降級模型）"
+
+  INSUFFICIENT_SIGNAL:
+    min_independent_groups: 0
+    description: "0 個非市場獨立來源支援（僅有盤口賠率自身）"

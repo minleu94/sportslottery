@@ -1,0 +1,1 @@
+"""Bundled Streamlit page resources."""

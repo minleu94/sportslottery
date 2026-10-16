@@ -1,0 +1,32 @@
+[
+  {
+    "alliance_id": "6",
+    "url": "https://www.playsport.cc/predict/scale?allianceid=6",
+    "observed_at": "2026-10-14T01:01:37.631432+00:00",
+    "http_status": 200,
+    "sha256": "0d4aab115f21750ab71215c51cf74deda968c0037c8360717c1bcde2fcaaefb4",
+    "table_found": true,
+    "game_set_row_count": 0,
+    "table_text": "賽事資訊 球隊資訊 國際盤 運彩盤 讓分 大小 讓分 不讓分 大小 此日無比賽"
+  },
+  {
+    "alliance_id": "7",
+    "url": "https://www.playsport.cc/predict/scale?allianceid=7",
+    "observed_at": "2026-10-14T01:01:37.615195+00:00",
+    "http_status": 200,
+    "sha256": "ee9fc5b41913e25d0e9f7e3788dd1856ebc524f40e2cb1fccd4fb652efccd4d2",
+    "table_found": true,
+    "game_set_row_count": 0,
+    "table_text": "賽事資訊 球隊資訊 國際盤 運彩盤 讓分 大小 讓分 不讓分 大小 此日無比賽"
+  },
+  {
+    "alliance_id": "93",
+    "url": "https://www.playsport.cc/predict/scale?allianceid=93",
+    "observed_at": "2026-10-14T01:01:37.611936+00:00",
+    "http_status": 200,
+    "sha256": "d7945242cb70850c066fe86b049772577982201a15737ab0d5d6dc1fede2461f",
+    "table_found": true,
+    "game_set_row_count": 0,
+    "table_text": "賽事資訊 球隊資訊 國際盤 運彩盤 讓分 大小 讓分 不讓分 大小 此日無比賽"
+  }
+]

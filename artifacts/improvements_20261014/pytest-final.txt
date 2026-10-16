@@ -1,0 +1,14 @@
+.....................................................ssssss............. [ 19%]
+........................................................................ [ 38%]
+........................................................................ [ 58%]
+........................................................................ [ 77%]
+........................................................................ [ 97%]
+..........                                                               [100%]
+- generated xml file: C:\Projects\PythonProjects\sportslottery\artifacts\improvements_20261014\pytest-final.xml -
+=========================== short test summary info ===========================
+SKIPPED [1] tests\integration\test_end_to_end_real_day.py: live network test; pass --run-live to opt in
+SKIPPED [2] tests\integration\test_github_model_adapter.py: live network test; pass --run-live to opt in
+SKIPPED [1] tests\integration\test_live_expert_source.py: live network test; pass --run-live to opt in
+SKIPPED [1] tests\integration\test_live_odds_source.py: live network test; pass --run-live to opt in
+SKIPPED [1] tests\integration\test_live_schedule_provider.py: live network test; pass --run-live to opt in
+364 passed, 6 skipped in 62.09s (0:01:02)

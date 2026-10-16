@@ -1,0 +1,2 @@
+from .penaltyblog_soccer_model import PenaltyblogSoccerAdapter
+from .pybaseball_mlb_model import PybaseballMLBAdapter

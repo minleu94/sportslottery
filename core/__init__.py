@@ -1,0 +1,1 @@
+"""Core package for Sport Lottery Crazy Dog Parlay Optimizer."""

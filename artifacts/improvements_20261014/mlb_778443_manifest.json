@@ -1,0 +1,6 @@
+{
+  "url": "https://statsapi.mlb.com/api/v1.1/game/778443/feed/live",
+  "http_status": 200,
+  "observed_at_utc": "2026-10-14T22:36:18.535442+00:00",
+  "sha256": "1decdff0a96cb5322294ae77f3e91d288808118965a65490f14fac3d921e19fb"
+}

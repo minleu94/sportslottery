@@ -1,0 +1,108 @@
+{
+  "downloads": [
+    {
+      "byte_count": 172196,
+      "content_type": "text/csv",
+      "http_status": 200,
+      "league": "eng.1",
+      "requested_at_utc": "2026-10-13T00:44:58.674374+00:00",
+      "retrieved_at_utc": "2026-10-13T00:45:01.153747+00:00",
+      "season": "2324",
+      "sha256": "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3",
+      "source_filename": "E0.csv",
+      "source_url": "https://www.football-data.co.uk/mmz4281/2324/E0.csv",
+      "stored_filename": "eng_1_2324_E0_b2e057b0ed95.csv"
+    },
+    {
+      "byte_count": 197110,
+      "content_type": "text/csv",
+      "http_status": 200,
+      "league": "eng.1",
+      "requested_at_utc": "2026-10-13T00:45:01.153747+00:00",
+      "retrieved_at_utc": "2026-10-13T00:45:01.829789+00:00",
+      "season": "2425",
+      "sha256": "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4",
+      "source_filename": "E0.csv",
+      "source_url": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
+      "stored_filename": "eng_1_2425_E0_d0c8ce4a96d8.csv"
+    },
+    {
+      "byte_count": 203438,
+      "content_type": "text/csv",
+      "http_status": 200,
+      "league": "eng.1",
+      "requested_at_utc": "2026-10-13T00:45:01.838456+00:00",
+      "retrieved_at_utc": "2026-10-13T00:45:02.337542+00:00",
+      "season": "2526",
+      "sha256": "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62",
+      "source_filename": "E0.csv",
+      "source_url": "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
+      "stored_filename": "eng_1_2526_E0_3e3a8352f9ad.csv"
+    },
+    {
+      "byte_count": 168164,
+      "content_type": "text/csv",
+      "http_status": 200,
+      "league": "esp.1",
+      "requested_at_utc": "2026-10-13T00:45:02.337542+00:00",
+      "retrieved_at_utc": "2026-10-13T00:45:02.799174+00:00",
+      "season": "2324",
+      "sha256": "5323f596c7ed318e4bce95557a369d809d98501fa499ea5f41350cd45cf3c7d9",
+      "source_filename": "SP1.csv",
+      "source_url": "https://www.football-data.co.uk/mmz4281/2324/SP1.csv",
+      "stored_filename": "esp_1_2324_SP1_5323f596c7ed.csv"
+    },
+    {
+      "byte_count": 192863,
+      "content_type": "text/csv",
+      "http_status": 200,
+      "league": "esp.1",
+      "requested_at_utc": "2026-10-13T00:45:02.799174+00:00",
+      "retrieved_at_utc": "2026-10-13T00:45:03.283346+00:00",
+      "season": "2425",
+      "sha256": "c086e96d6a53f6e6c0fce4e35db0d1728c773b4362323da0161a34769e315a36",
+      "source_filename": "SP1.csv",
+      "source_url": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv",
+      "stored_filename": "esp_1_2425_SP1_c086e96d6a53.csv"
+    },
+    {
+      "byte_count": 197653,
+      "content_type": "text/csv",
+      "http_status": 200,
+      "league": "esp.1",
+      "requested_at_utc": "2026-10-13T00:45:03.285349+00:00",
+      "retrieved_at_utc": "2026-10-13T00:45:03.763271+00:00",
+      "season": "2526",
+      "sha256": "4ca2e285f3ee0702f6bc55fcaa4f5a15cb3aef6220735a1d15398131e21d63f5",
+      "source_filename": "SP1.csv",
+      "source_url": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv",
+      "stored_filename": "esp_1_2526_SP1_4ca2e285f3ee.csv"
+    },
+    {
+      "byte_count": 7686,
+      "content_type": "text/plain",
+      "http_status": 200,
+      "league": "notes",
+      "requested_at_utc": "2026-10-13T00:45:03.763271+00:00",
+      "retrieved_at_utc": "2026-10-13T00:45:04.156422+00:00",
+      "season": null,
+      "sha256": "6ecd41a98ad2751372817e7e6f1709bfeb433c53dd9aeda330fd926a5471452d",
+      "source_filename": "notes.txt",
+      "source_url": "https://www.football-data.co.uk/notes.txt",
+      "stored_filename": "notes_6ecd41a98ad2.txt"
+    }
+  ],
+  "errors": [],
+  "generated_at_utc": "2026-10-13T00:45:04.159422+00:00",
+  "requested_leagues": [
+    "eng.1",
+    "esp.1"
+  ],
+  "requested_seasons": [
+    "2324",
+    "2425",
+    "2526"
+  ],
+  "schema_version": "football-data-source-manifest-v1",
+  "source": "Football-Data.co.uk official historical downloads"
+}

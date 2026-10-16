@@ -1,0 +1,21 @@
+# Predeclared production qualification policy. Acceptance is derived from the
+# settled snapshot ledger; this file contains thresholds only, never approvals.
+schema: model-acceptance-policy-v1
+protocol_id: taiwan-forward-binary-temperature-v1
+gate:
+  min_calibration_samples: 100
+  min_calibration_events: 50
+  min_evaluation_samples: 100
+  min_evaluation_events: 50
+  min_evaluation_clusters: 30
+  min_roi_decisions: 30
+  minimum_expected_value: 0.05
+  roi_delta_lower_bound_min: 0.0
+  bootstrap_rounds: 1200
+  bootstrap_seed: 193
+  comparison: paired_market_baseline
+  required_metrics:
+    - calibrated_brier_95ci_upper_below_zero
+    - calibrated_logloss_95ci_upper_below_zero
+    - paired_roi_cluster_95ci_lower_above_zero
+  source_scope_required_for_acceptance: taiwan_forward

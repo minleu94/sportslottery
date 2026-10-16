@@ -1,0 +1,21 @@
+{
+  "status": "DRY_RUN",
+  "plan": {
+    "cadence_minutes": 15,
+    "run_window_id": "20261016T0615Z",
+    "window_start_utc": "2026-10-16T06:15:00+00:00",
+    "data_root": "C:\\Projects\\PythonProjects\\sportslottery\\artifacts\\optimization_20261014\\portable_workspace_release\\data\\research_pipeline",
+    "stages": [
+      "model_update",
+      "soccer_model_update",
+      "source_fetch_health",
+      "pregame_snapshots",
+      "odds_observations",
+      "parlay_candidates",
+      "multi_sport_settlement",
+      "weekly_report"
+    ],
+    "network_enabled": false,
+    "mutations_enabled": false
+  }
+}

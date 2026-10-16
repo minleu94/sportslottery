@@ -1,0 +1,47 @@
+# Evidence gaps for ready Playsport competitions without an exact result route.
+# These records describe current verification status; they do not claim that a
+# competition has no results or that no provider exists.
+schema: result-coverage-evidence-v1
+entries:
+  - sport: soccer
+    league: UNKNOWN_土耳其甲級聯賽
+    playsport_label: 土耳其甲級聯賽
+    observed_ready_options: 5
+    observed_ready_events: 1
+    observed_total_options: 15
+    observed_total_events: 3
+    status: unsupported_source_unverified
+    provider: null
+    evidence_gap: >-
+      ESPN's tur.1 reference identifies the Turkish Super Lig, which is a
+      different competition from the Playsport Turkish First League label.
+      A distinct First League result feed, season/team list, and exact club
+      aliases have not been verified. Do not use the Super Lig route as a
+      substitute and do not infer that results are unavailable.
+    checked_references:
+      - https://www.espn.com/soccer/scoreboard/_/league/tur.1
+    next_evidence_needed:
+      - A provider route explicitly identifying the Turkish First League.
+      - A season-appropriate club list with stable IDs.
+      - At least one same-date event matched by exact home/away teams and UTC start.
+
+  - sport: soccer
+    league: UNKNOWN_白俄羅斯超級聯賽
+    playsport_label: 白俄羅斯超級聯賽
+    observed_ready_options: 5
+    observed_ready_events: 1
+    observed_total_options: 10
+    observed_total_events: 2
+    status: unsupported_source_unverified
+    provider: null
+    evidence_gap: >-
+      The ESPN Belarus result located during this pass is a national-team
+      fixture. That does not establish a domestic Premier League scoreboard,
+      club team list, or exact identity coverage. No domestic result route has
+      been verified; do not infer that domestic results are unavailable.
+    checked_references:
+      - https://www.espn.com/soccer/scoreboard
+    next_evidence_needed:
+      - A provider route explicitly identifying the Belarusian Premier League.
+      - A season-appropriate club list with stable IDs.
+      - At least one same-date event matched by exact home/away teams and UTC start.

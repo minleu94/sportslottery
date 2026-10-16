@@ -1,0 +1,100 @@
+{
+  "league": "esp_1",
+  "model_results": {
+    "empirical_training_base": {
+      "calibrated_holdout_metrics": {
+        "log_loss": 1.0500175979073691,
+        "multiclass_brier": 0.632567671269269,
+        "n": 369
+      },
+      "fit": {
+        "evaluation_min_date": "2025-08-15",
+        "evaluation_sample_size": 369,
+        "fit_method": "multiclass_temperature_scaling_nll-v1",
+        "temperature": 1.02,
+        "training_max_date": "2025-05-25",
+        "training_sample_size": 370
+      },
+      "paired_vs_market": {
+        "calibrated_brier_delta": 0.061088797988691934,
+        "calibrated_logloss_delta": 0.08505638409551819
+      },
+      "raw_holdout_metrics": {
+        "log_loss": 1.0496151604860677,
+        "multiclass_brier": 0.632269085911796,
+        "n": 369
+      }
+    },
+    "fusion_beta_0_65": {
+      "calibrated_holdout_metrics": {
+        "log_loss": 0.9696664251751042,
+        "multiclass_brier": 0.5753983775427792,
+        "n": 369
+      },
+      "fit": {
+        "evaluation_min_date": "2025-08-15",
+        "evaluation_sample_size": 369,
+        "fit_method": "multiclass_temperature_scaling_nll-v1",
+        "temperature": 1.52,
+        "training_max_date": "2025-05-25",
+        "training_sample_size": 370
+      },
+      "paired_vs_market": {
+        "calibrated_brier_delta": 0.0039195042622021115,
+        "calibrated_logloss_delta": 0.004705211363253192
+      },
+      "raw_holdout_metrics": {
+        "log_loss": 0.9855084040136185,
+        "multiclass_brier": 0.5851459229610392,
+        "n": 369
+      }
+    },
+    "market_baseline": {
+      "calibration": "not fitted; comparison baseline",
+      "metrics": {
+        "log_loss": 0.964961213811851,
+        "multiclass_brier": 0.5714788732805771,
+        "n": 369
+      }
+    },
+    "raw_dixon_coles": {
+      "calibrated_holdout_metrics": {
+        "log_loss": 0.9840843985520653,
+        "multiclass_brier": 0.5842009717326715,
+        "n": 369
+      },
+      "fit": {
+        "evaluation_min_date": "2025-08-15",
+        "evaluation_sample_size": 369,
+        "fit_method": "multiclass_temperature_scaling_nll-v1",
+        "temperature": 1.03,
+        "training_max_date": "2025-05-25",
+        "training_sample_size": 370
+      },
+      "paired_vs_market": {
+        "calibrated_brier_delta": 0.012722098452094377,
+        "calibrated_logloss_delta": 0.01912318474021435
+      },
+      "raw_holdout_metrics": {
+        "log_loss": 0.9838045440533884,
+        "multiclass_brier": 0.583988160858741,
+        "n": 369
+      }
+    }
+  },
+  "schema": "historical-calibration-audit-v1",
+  "scope": "external_historical_research_not_taiwan_forward_acceptance",
+  "source_experiment_identity": "exp_6f6d6b20029f20907ead68291bd47454d00807e8234c2c8195010c4b2387bcfa",
+  "source_predictions_sha256": "e98cc7292444ba87e4047839b78dadf16d939e72ebed8673ffd8da32de85a66c",
+  "source_summary_sha256": "1a61b3804cb15a60a15858ee7ee9267c61bd15c43fb4de6509cbfa6a62bd1ff8",
+  "split": {
+    "evaluation_min_date": "2025-08-15",
+    "evaluation_rows": 369,
+    "evaluation_split": "holdout",
+    "fit_split": "validation",
+    "holdout_used_for_fitting": false,
+    "training_max_date": "2025-05-25",
+    "training_rows": 370
+  },
+  "warning": "Source experiment identity describes the frozen historical pipeline only; it does not identify current production code."
+}

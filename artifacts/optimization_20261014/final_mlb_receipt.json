@@ -1,0 +1,28 @@
+{
+  "state_sha256": "443c93f135ebc2fd1c8212c2ac82c67f4a5133b2dc526970ab4c1048366e0c09",
+  "processed_game_count": 4938,
+  "unique_processed_game_count": 4938,
+  "coverage": {
+    "source": "MLB Stats API schedule endpoint",
+    "official_schedule_queried_through": "2026-10-15",
+    "pending_game_dates": [],
+    "pending_game_ids": [],
+    "held_final_games": [],
+    "late_final_games": [],
+    "updated_at_utc": "2026-10-16T06:03:39.232914+00:00",
+    "bootstrap_complete": true,
+    "ledger_path": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\model_state\\mlb_official_schedule_ledger.json",
+    "ledger_sha256": "bde4b0998242aeafa4eeed9dbeacf3f3ab7c46d16bf3db8fe9b793469166bf20"
+  },
+  "state_official_schedule_coverage": {
+    "complete_through_yesterday": true,
+    "queried_through": "2026-10-15",
+    "pending_game_dates": [],
+    "observed_at_utc": "2026-10-16T06:03:39.243041+00:00"
+  },
+  "ledger_queried_through": "2026-10-15",
+  "ledger_game_count": 5796,
+  "source_query_range_count": 187,
+  "data_as_of": "2026-10-16T00:00:00+00:00",
+  "warmup_receipt": "mlb_catchup/progress.json; results array is authoritative; batch_5..8 files are preliminary older evidence"
+}

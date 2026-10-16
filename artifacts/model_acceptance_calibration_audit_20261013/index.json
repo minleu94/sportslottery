@@ -1,0 +1,15 @@
+{
+  "schema": "historical-calibration-audit-index-v1",
+  "source_directory": "artifacts\\model_validation_review_20261013_luna",
+  "output_directory": "artifacts\\model_acceptance_calibration_audit_20261013",
+  "leagues": [
+    {
+      "league": "eng_1",
+      "artifact": "eng_1/audit.json"
+    },
+    {
+      "league": "esp_1",
+      "artifact": "esp_1/audit.json"
+    }
+  ]
+}

@@ -1,0 +1,3689 @@
+{
+  "observed_at_utc": "2026-10-15T00:14:42.513376+00:00",
+  "observed_at_user_timezone": "2026-10-14T17:14:42.537862-07:00",
+  "code_hash": "2baf306f5fd57e8a74bb2c5338c07ec5ccc45cfbe050a9d9be949107bd37815d",
+  "experiment_id": "exp_0a78bc46721ed417e98adca02c7c8d4720dc688a737dd09a2ae3882780f3736f",
+  "run_path": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\runs\\20261015T0000Z\\run.json",
+  "run_sha256": "0fea834fb767f26e4ac2ed36ea9d3dfc52caa7092b21027a8d2125d6833ccdb7",
+  "run": {
+    "schema": 1,
+    "run_id": "160f99a55b9e444d906a979af5ce4e97",
+    "run_window_id": "20261015T0000Z",
+    "window_start_utc": "2026-10-15T00:00:00+00:00",
+    "started_at": "2026-10-15T00:06:20.439520+00:00",
+    "status": "COMPLETE",
+    "stages": {
+      "model_update": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-15T00:06:23.769666+00:00",
+        "result": {
+          "updated_games": 0,
+          "skipped_games": 0,
+          "data_as_of": "2025-04-22T23:40:00+00:00",
+          "last_update": "2026-10-14T22:46:37.495312+00:00",
+          "source": "MLB Stats API (statsapi.mlb.com)",
+          "held_final_count": 526,
+          "late_final_requires_rebuild_count": 0,
+          "excluded_non_regular_games": 0,
+          "reschedule_reconciliation": {
+            "status": "UPDATED",
+            "candidate_count": 10,
+            "request_limit": 20,
+            "attempted_count": 10,
+            "reconciled_game_ids": [
+              "778195",
+              "778170",
+              "778134",
+              "778068",
+              "778046",
+              "777933",
+              "777938",
+              "777809",
+              "777825",
+              "777839"
+            ],
+            "deferred_game_ids": [],
+            "errors": []
+          },
+          "status": "NO_NEW_FINALS",
+          "official_ledger_complete_through_yesterday": false,
+          "initialization_mode": "incremental_official_results",
+          "official_schedule_queried_through": "2025-05-31",
+          "pending_game_dates": [
+            "2025-04-23",
+            "2025-04-25",
+            "2025-04-26",
+            "2025-04-29",
+            "2025-05-03",
+            "2025-05-05",
+            "2025-05-13",
+            "2025-05-20",
+            "2025-05-21",
+            "2025-05-22",
+            "2025-05-23",
+            "2025-05-28"
+          ],
+          "incomplete_final_game_ids": [],
+          "start_date": "2025-05-25",
+          "end_date": "2025-05-31"
+        },
+        "completed_at": "2026-10-15T00:06:33.259830+00:00"
+      },
+      "soccer_model_update": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-15T00:06:33.261485+00:00",
+        "result": {
+          "status": "FRESH_CACHE",
+          "last_success_utc": "2026-10-14T22:15:31.589434+00:00",
+          "leagues": {
+            "eng.1": {
+              "status": "UPDATED",
+              "match_count": 1200,
+              "latest_match_date": "2026-10-12",
+              "source_files": [
+                {
+                  "season": "2324",
+                  "url": "https://www.football-data.co.uk/mmz4281/2324/E0.csv",
+                  "fetched_at_utc": "2026-10-14T22:15:33.511250+00:00",
+                  "sha256": "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3",
+                  "byte_count": 172196
+                },
+                {
+                  "season": "2425",
+                  "url": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
+                  "fetched_at_utc": "2026-10-14T22:15:35.355427+00:00",
+                  "sha256": "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4",
+                  "byte_count": 197110
+                },
+                {
+                  "season": "2526",
+                  "url": "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
+                  "fetched_at_utc": "2026-10-14T22:15:37.219567+00:00",
+                  "sha256": "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62",
+                  "byte_count": 203438
+                },
+                {
+                  "season": "2627",
+                  "url": "https://www.football-data.co.uk/mmz4281/2627/E0.csv",
+                  "fetched_at_utc": "2026-10-14T22:15:38.667605+00:00",
+                  "sha256": "6731e95dd7120f5c7dc9f37650cc11ccccda8e7e0a3626830263c2cd77daa787",
+                  "byte_count": 29659
+                }
+              ],
+              "cache_sha256": "49b54f6cf0a1596d9f84b8240a34a90ec340bdb60caaa0ce1bf95fdb7f5e17cb"
+            },
+            "esp.1": {
+              "status": "UPDATED",
+              "match_count": 1218,
+              "latest_match_date": "2026-10-12",
+              "source_files": [
+                {
+                  "season": "2324",
+                  "url": "https://www.football-data.co.uk/mmz4281/2324/SP1.csv",
+                  "fetched_at_utc": "2026-10-14T22:15:40.531563+00:00",
+                  "sha256": "5323f596c7ed318e4bce95557a369d809d98501fa499ea5f41350cd45cf3c7d9",
+                  "byte_count": 168164
+                },
+                {
+                  "season": "2425",
+                  "url": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv",
+                  "fetched_at_utc": "2026-10-14T22:15:42.377507+00:00",
+                  "sha256": "c086e96d6a53f6e6c0fce4e35db0d1728c773b4362323da0161a34769e315a36",
+                  "byte_count": 192863
+                },
+                {
+                  "season": "2526",
+                  "url": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv",
+                  "fetched_at_utc": "2026-10-14T22:15:44.322289+00:00",
+                  "sha256": "4ca2e285f3ee0702f6bc55fcaa4f5a15cb3aef6220735a1d15398131e21d63f5",
+                  "byte_count": 197653
+                },
+                {
+                  "season": "2627",
+                  "url": "https://www.football-data.co.uk/mmz4281/2627/SP1.csv",
+                  "fetched_at_utc": "2026-10-14T22:15:45.766548+00:00",
+                  "sha256": "a2a27803e477b9a671f7fc1fdcd0b9a6a9bb52a3ff50806b4151845716b60abb",
+                  "byte_count": 37529
+                }
+              ],
+              "cache_sha256": "485906c35aaeb041a7fed04c6d56b27f3f4adc8c96fbb15abf4a984e41b5c6b3"
+            }
+          }
+        },
+        "completed_at": "2026-10-15T00:06:33.266259+00:00"
+      },
+      "source_fetch_health": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-15T00:06:33.268291+00:00",
+        "result": {
+          "alliance_count": 8,
+          "fetched_leg_count": 348,
+          "source_status_counts": {
+            "LIVE": 5,
+            "LIVE_NO_EVENTS": 3
+          },
+          "confirmed_no_event_source_count": 3,
+          "source_error_count": 0,
+          "source_errors": [],
+          "health_path": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\runs\\20261015T0000Z\\data\\source_health.json"
+        },
+        "completed_at": "2026-10-15T00:06:35.538273+00:00"
+      },
+      "pregame_snapshots": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-15T00:06:35.538273+00:00",
+        "result": {
+          "selected_leg_count": 25,
+          "snapshot_count": 25,
+          "excluded_reason_counts": {
+            "EVENT_STARTED": 232,
+            "OUTSIDE_LEAD_WINDOW": 91
+          },
+          "model_probability_count": 0,
+          "market_baseline_only_count": 25
+        },
+        "completed_at": "2026-10-15T00:06:42.877731+00:00"
+      },
+      "odds_observations": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-15T00:06:42.881377+00:00",
+        "result": {
+          "observation_count": 25,
+          "history_path": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\historical\\odds_history.jsonl",
+          "run_window_id": "20261015T0000Z"
+        },
+        "completed_at": "2026-10-15T00:06:42.890887+00:00"
+      },
+      "parlay_candidates": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-15T00:06:42.892886+00:00",
+        "result": {
+          "tier_record_count": 4,
+          "search_diagnostics": {
+            "10-25x": {
+              "normalized_option_count": 25,
+              "ready_option_count": 25,
+              "quality_option_count": 25,
+              "quality_event_count": 5,
+              "search_event_count": 5,
+              "search_option_count": 25,
+              "max_options_per_event": 5,
+              "max_matches_pool": 16,
+              "max_matches_pool_applied": false,
+              "search_budget": 250000,
+              "search_budget_unit": "visited_nodes",
+              "visited_nodes": 6862,
+              "odds_pruned_nodes": 1897,
+              "search_complete": true,
+              "budget_exhausted": false,
+              "search_status": "COMPLETE",
+              "min_legs": 2,
+              "max_legs": 6,
+              "effective_max_legs": 5,
+              "scope": "all eligible options across all events; exact odds-pruned search unless budget is exhausted",
+              "checked_combinations": 2974,
+              "odds_matching_combinations": 2109
+            },
+            "25-75x": {
+              "normalized_option_count": 25,
+              "ready_option_count": 25,
+              "quality_option_count": 25,
+              "quality_event_count": 5,
+              "search_event_count": 5,
+              "search_option_count": 25,
+              "max_options_per_event": 5,
+              "max_matches_pool": 16,
+              "max_matches_pool_applied": false,
+              "search_budget": 250000,
+              "search_budget_unit": "visited_nodes",
+              "visited_nodes": 7696,
+              "odds_pruned_nodes": 1277,
+              "search_complete": true,
+              "budget_exhausted": false,
+              "search_status": "COMPLETE",
+              "min_legs": 2,
+              "max_legs": 6,
+              "effective_max_legs": 5,
+              "scope": "all eligible options across all events; exact odds-pruned search unless budget is exhausted",
+              "checked_combinations": 4127,
+              "odds_matching_combinations": 2523
+            },
+            "75-200x": {
+              "normalized_option_count": 25,
+              "ready_option_count": 25,
+              "quality_option_count": 25,
+              "quality_event_count": 5,
+              "search_event_count": 5,
+              "search_option_count": 25,
+              "max_options_per_event": 5,
+              "max_matches_pool": 16,
+              "max_matches_pool_applied": false,
+              "search_budget": 250000,
+              "search_budget_unit": "visited_nodes",
+              "visited_nodes": 4978,
+              "odds_pruned_nodes": 971,
+              "search_complete": true,
+              "budget_exhausted": false,
+              "search_status": "COMPLETE",
+              "min_legs": 2,
+              "max_legs": 6,
+              "effective_max_legs": 5,
+              "scope": "all eligible options across all events; exact odds-pruned search unless budget is exhausted",
+              "checked_combinations": 2478,
+              "odds_matching_combinations": 1421
+            },
+            "200-500x": {
+              "normalized_option_count": 25,
+              "ready_option_count": 25,
+              "quality_option_count": 25,
+              "quality_event_count": 5,
+              "search_event_count": 5,
+              "search_option_count": 25,
+              "max_options_per_event": 5,
+              "max_matches_pool": 16,
+              "max_matches_pool_applied": false,
+              "search_budget": 250000,
+              "search_budget_unit": "visited_nodes",
+              "visited_nodes": 1702,
+              "odds_pruned_nodes": 449,
+              "search_complete": true,
+              "budget_exhausted": false,
+              "search_status": "COMPLETE",
+              "min_legs": 2,
+              "max_legs": 6,
+              "effective_max_legs": 5,
+              "scope": "all eligible options across all events; exact odds-pruned search unless budget is exhausted",
+              "checked_combinations": 708,
+              "odds_matching_combinations": 460
+            }
+          },
+          "candidate_count": 96,
+          "linked_snapshot_count": 25
+        },
+        "completed_at": "2026-10-15T00:06:45.330348+00:00"
+      },
+      "multi_sport_settlement": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-15T00:06:45.333340+00:00",
+        "result": {
+          "settled_snapshots": 0,
+          "unresolved_snapshots": 365,
+          "deferred_snapshots": 75,
+          "deferred_observations": [
+            {
+              "snapshot_id": "snap_844e924824b4",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_664322713605",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_344f0750b093",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_21a486677e06",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_279c077ac6f7",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_dc697726d1ca",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_9c85b414b0a0",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_e191e472cba9",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_cec147480fd7",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_4d0cf155ca38",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_efee74061aff",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_288058cbff03",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_a33deb376688",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_bcfe907c71f6",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_cabab82aba21",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_643cf1923f59",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_ee24d0926d5b",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_ea37be90ba48",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_9f88f8fc6310",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_eedb5a64f595",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_6e86bf375ef0",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_4bcfa7181d8b",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_6b5593e2cd76",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_52283f327ce1",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_3d1ee7335420",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_0dc878555963",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_bc87a6af1c0b",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_0851828fb706",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_bca75d6f4411",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_6dc86d593c6e",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_7c9d7aa90e89",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_56899036f91a",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_b990b03c4157",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_e8969a0c343f",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_40c7483e1186",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_524351faf498",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_09f78c8f35f2",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_2980a5801649",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_af02e3c15341",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_74b07b3d0d7e",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_4881899d2c6d",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_2d28fa93cf42",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_5aecf9f7d146",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_d3cec5ff11f4",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_acd9dc72a280",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_cdf1630032f0",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_9c75e7a048d7",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_7d22c81b455c",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_cc9c57045067",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_d3ef6789dfcc",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_885915646796",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_e6bfdc090c88",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_179b63445c28",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_6a0802532b6d",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_ad9051e80594",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_a00ede354b67",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_11e1a3890b68",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_83a2e59a91d1",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_a903b2b0b8c2",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_5e50f5fc5897",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_6a7407a93fb2",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_3f6aedcf3514",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_fc234ff7da2e",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_42c49feb3d77",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_420eb31ca0ca",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_99b9ef8af45f",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_19ce1ebbbc70",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_70d5d11cbfd4",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_e9a1b4594c5e",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_f99ac4cd7a61",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_576f36974f3b",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_f3408ce78a44",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_21dd5f084613",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_a0fa4f1eb5dd",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            },
+            {
+              "snapshot_id": "snap_b518d47b0c5e",
+              "event_start": "2026-10-15T00:30:00+00:00",
+              "reason": "EVENT_NOT_STARTED"
+            }
+          ],
+          "result_games": 53,
+          "coverage": {
+            "baseball/MLB": {
+              "provider": "MLB_STATS_API",
+              "status": "AVAILABLE",
+              "fetch_status": "RESULTS_AVAILABLE",
+              "games": 5,
+              "snapshots": 24,
+              "matched_snapshots": 24,
+              "unique_matches": 1,
+              "settled_snapshots": 0,
+              "unmatched_snapshots": 24,
+              "errors": [],
+              "settlement_status_counts": {
+                "PENDING": 24
+              },
+              "unmatched_reason_counts": {
+                "RESULT_PENDING": 24
+              }
+            },
+            "basketball/NBA": {
+              "provider": "ESPN_PUBLIC_SCOREBOARD",
+              "status": "AVAILABLE",
+              "fetch_status": "RESULTS_AVAILABLE",
+              "games": 26,
+              "snapshots": 156,
+              "matched_snapshots": 0,
+              "unique_matches": 0,
+              "settled_snapshots": 0,
+              "unmatched_snapshots": 156,
+              "errors": [],
+              "settlement_status_counts": {},
+              "unmatched_reason_counts": {
+                "NO_UNIQUE_RESULT_MATCH": 156
+              }
+            },
+            "soccer/COLOMBIA_PRIMERA_A": {
+              "provider": "ESPN_PUBLIC_SCOREBOARD",
+              "status": "AVAILABLE",
+              "fetch_status": "RESULTS_AVAILABLE",
+              "games": 2,
+              "snapshots": 15,
+              "matched_snapshots": 0,
+              "unique_matches": 0,
+              "settled_snapshots": 0,
+              "unmatched_snapshots": 15,
+              "errors": [],
+              "settlement_status_counts": {},
+              "unmatched_reason_counts": {
+                "NO_UNIQUE_RESULT_MATCH": 15
+              }
+            },
+            "soccer/COSTA_RICA_PRIMERA": {
+              "provider": "ESPN_PUBLIC_SCOREBOARD",
+              "status": "AVAILABLE",
+              "fetch_status": "RESULTS_AVAILABLE",
+              "games": 5,
+              "snapshots": 20,
+              "matched_snapshots": 0,
+              "unique_matches": 0,
+              "settled_snapshots": 0,
+              "unmatched_snapshots": 20,
+              "errors": [],
+              "settlement_status_counts": {},
+              "unmatched_reason_counts": {
+                "NO_UNIQUE_RESULT_MATCH": 20
+              }
+            },
+            "soccer/MLS": {
+              "provider": "ESPN_PUBLIC_SCOREBOARD",
+              "status": "AVAILABLE",
+              "fetch_status": "RESULTS_AVAILABLE",
+              "games": 15,
+              "snapshots": 210,
+              "matched_snapshots": 150,
+              "unique_matches": 6,
+              "settled_snapshots": 0,
+              "unmatched_snapshots": 150,
+              "errors": [],
+              "settlement_status_counts": {
+                "PENDING": 150
+              },
+              "deferred_snapshots": 60,
+              "unmatched_reason_counts": {
+                "RESULT_PENDING": 150
+              }
+            },
+            "soccer/UNKNOWN_南美自由者盃": {
+              "provider": null,
+              "status": "NOT_DUE",
+              "fetch_status": "NOT_ATTEMPTED",
+              "games": 0,
+              "snapshots": 15,
+              "matched_snapshots": 0,
+              "unique_matches": 0,
+              "settled_snapshots": 0,
+              "unmatched_snapshots": 0,
+              "errors": [],
+              "settlement_status_counts": {},
+              "deferred_snapshots": 15,
+              "unmatched_reason_counts": {}
+            }
+          },
+          "unmatched_observations_sampled": 100,
+          "settled_parlay_candidates": 0
+        },
+        "completed_at": "2026-10-15T00:07:37.524582+00:00"
+      },
+      "weekly_report": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-15T00:07:37.550965+00:00",
+        "result": {
+          "report_json": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\reports\\weekly_2026-10-15.json",
+          "report_markdown": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\reports\\weekly_2026-10-15.md",
+          "single_settled_n": 51,
+          "model_cohort_n": 0,
+          "parlay_settled_n": 0,
+          "source_health_observations": 104
+        },
+        "completed_at": "2026-10-15T00:07:44.142413+00:00"
+      }
+    },
+    "experiment_identity": {
+      "schema": "experiment-identity-v2",
+      "strategy_version": "v2.0-research",
+      "prediction_manifest_hash": "6ead37db5cfd8360fc5445fac7de24288c1cc25585b31b47dbd89f1e15503e98",
+      "prediction_manifest": {
+        "config/evidence_weights.yaml": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+        "config/expert_sources.yaml": "376fda9d3c74a7ae804641888a2da3242e6e7b021f98fdc6d5190b15e6911dba",
+        "config/model_acceptance.yaml": "f277d97dad360edf39b034caf3d7e8988bcebd9d07f583ab276eef04eeed0806",
+        "config/models.yaml": "1debef2eb8e9504c0a1af055f901271fe06b1e775e634de9cd8ddd91f6f2d1f3",
+        "config/research_pipeline.yaml": "d967c17b46e118b77d5abcfd7da8fff995300ac6cff9720c845cf3defd89c9c3",
+        "config/source_registry.yaml": "4219c1bcfb406422a0afda0a487f4ad98fbd57f1894ba7132a8d8c5c08255238",
+        "core/__init__.py": "93bf51e382ea2ffd1c7b0b7094e3d7e7b167be5f049ee99313a12e94a786e479",
+        "core/bet_validation.py": "60e8a86486abe3fbc8a5a601b131f5284013e504205c15c9e5ae78215f7c9a09",
+        "core/correlation_guard.py": "4697e348625b96fcd7c9297535bc714c5f5c02ac6d9ea8df7d5ec5a2b86b786b",
+        "core/edge_engine.py": "8113a975e05e627844e49194af02d0a760787101874698d24a76e9df5b766014",
+        "core/experiment_identity.py": "cb5830aa341d3e2f7f4b6f0b6da9a2c0f17a5b387ef6177851272f0da187e1ea",
+        "core/identity/__init__.py": "d36dffcb10cdb3c18d0ba19e3401eb020d86fbd3ac22b855eb58a1f3f1559785",
+        "core/identity/event_matcher.py": "f7e3ace8db249abf3017a2b68c970babc0c5edb37d28bd1402f1cf750ccec1c4",
+        "core/identity/league_mapping.py": "27dbfb1ddd7f5a5ddcfa44d22723bc2c5102185f1de292849f163e59985b38db",
+        "core/identity/team_alias.py": "d9f3ae983d019de257689da32d433ab8b3e632273f51c2c97c4be58c433b7e97",
+        "core/identity/timezone.py": "5526ba90303b066d56809b29a3a15e40b99d6139f2a04e3da9334f55494bddf5",
+        "core/model_acceptance.py": "c16fd5fe45beb293b4a113072f5ac2e95f4890be04580053ec4a0cb6afe5bc66",
+        "core/model_calibration.py": "49d29ace0897e6ce7ca0f7b4cc3f44e5d4d05694994f74696971eb4bb8ddec7b",
+        "core/model_registry.py": "c686e4e8eb3f00b575fd07cb7af0988464d2bef597c3f0db02c31361b4140b16",
+        "core/model_validation.py": "50be6daa0cd045f35e0e0a04ccd27c7b89872cb709f1ec62c8008caca5c5a0d2",
+        "core/odds_watcher.py": "8b583234a478f83cc0aaddd0155c6baf1d60441c80f29d4639ee05d907d93fbd",
+        "core/optimizer.py": "43cf4ce08488e8c1e8c4fd4f29a8088c7a647b61609c249cdd2dc5d86d57b4f9",
+        "core/parlay_engine.py": "e0934037c5163b54f918fd2a79548a875d6906f7dede059f70bc80c71af3e6dd",
+        "core/parlay_validation.py": "cdb52df06f6c9a2cc6c73350a32482da9e6ac283d8cb4394198d00fd34d3b875",
+        "core/probability_evidence.py": "fbdb6696aa427f29a90a45af0bafc371a60ad4536b46ff5aad63b47a33a71070",
+        "core/research_paths.py": "742d501f053599b81bb69410562aa3281ee84b5b797164f5aa2196f805011063",
+        "core/research_pipeline.py": "e571867d8320a65f426ae5290e5aed8e607a3f8d3e46a393a865f15ef725c3fe",
+        "core/scraper.py": "8372b84d34f5af9fa877c82337e78b4341414006405cf34b36d6f10c4c9f5c5a",
+        "core/season_radar.py": "562fd8022d98c292ef220433a594489f3a28e493aaec71895fdeb07f445b4f9d",
+        "core/settlement/__init__.py": "312561d98a78f89dea9ebe56a552a80161bea34fbfd85da90f103dd92d383ee7",
+        "core/settlement/taiwan_rules.py": "289ff6779efeb10afe0d44007ddcc6809315b3cfa377ab16731779a3c33c6b3a",
+        "core/settlement_engine.py": "0910314e220b9f4a598ecb4efa5fde223e75806334c69daac749d282dd26b2d0",
+        "core/shadow_parlay_logger.py": "5a21aa19cc76ce43ce9c546626118aab6f6a488cec8b291949d8795af8ad0c42",
+        "core/shadow_portfolio.py": "5bf79ddc3fe946f2a3727e2d50ecf481de7a30149fe3719b3727a1cf3e4fe868",
+        "core/signal_hub.py": "6ad0038ff7f8214f8f7a84023928d8c131e5d2be40ce2161f701ec252ddeb2af",
+        "core/snapshot_logger.py": "86eb13fe76cc85cda0d9e75610714c239b71fcba5be980a41087ce1fec026100",
+        "core/source_health.py": "938b64cd011e2a558c69c1149529bbbd65b541f7d114b98a63c03d350364466e",
+        "core/strategy_version.py": "5e3ae396890cf7c3e7a7d193f4d62496d1f572f3155d8234e0ba6a9596b02b12",
+        "core/ticket_manager.py": "93127c91f702f23f38d697a1952231c83beddde5feaf7a613aeb2d2c43b3f93a",
+        "core/ticket_recorder.py": "8dda8eb0fe2171600429e29391becb1d46a33ab82ce4c39de4a3fd170809f47c",
+        "core/wallet.py": "26dbccf9faf50dd8480e7058534dc681a36bce44fde3f831149cd22f22094ce4",
+        "core/war_chest.py": "1f58cfa422795a846fc0480c87afacc5717422de2f24f043e0fff30d489249a9",
+        "integrations/__init__.py": "cb609928c807f24e50172d3b796ac8e6506f317ab3a91eb1661af50af061a709",
+        "integrations/common/__init__.py": "807724e0ec94de2a31a3b12c85f4a92b0afb81dd32ec72f40064ddf49dc5cfdd",
+        "integrations/common/models.py": "a13e6f42cc3db5a0c7dfd0502af54e3cdc67274f90a16ac8aaf1fed0c250e801",
+        "integrations/experts/__init__.py": "8553fc362e9cfc7b6d1fb468e77044a89cae2b5eac6b509fb74c2c2f1ebf6c35",
+        "integrations/experts/playsport_crowd.py": "59e85e055bc2cd19badd764252a9af8443a77e5411e262bd52397e8aa5d3503d",
+        "integrations/experts/playsport_expert.py": "cb16834581f598acbde87a0be082d1aa1ac3d76a63877e4edbbe2b850dcfbb29",
+        "integrations/models/__init__.py": "ce6f4f9c8c30e89f6fabe6222df5556caa5309f81d38baa727cd95d4c9ff6467",
+        "integrations/models/espn_poisson_soccer.py": "a11ca3c7a5920cf436cca188afe84277f0a01e7d90574f4ef2897c1f800fdf5d",
+        "integrations/models/espn_pythagorean_mlb.py": "61a4520bed0a80c08efe12d4b2e232785c44a47112df1a7cc50fcfaa0852e955",
+        "integrations/models/external/__init__.py": "d648b0e09f86eeb0df0a2ffbe8fa755186b34fba3c0cc15e6d4ac1c2711951c7",
+        "integrations/models/external/fivethirtyeight_mlb_elo.py": "e31836b194141d70109c957314f610ae66765d55ba9952fec5dea5a1bdce100c",
+        "integrations/models/external/live_mlb_elo.py": "8f8cf2d1a7a0c78fa468d9ff7f7d237a70b4c89bfc3941be8b3afa476bfb4944",
+        "integrations/models/external/penaltyblog_dixon_coles.py": "cbf5bc567553370b9584ce0702527b08187ef49b0c51702d0e71495bdb35a974",
+        "integrations/models/penaltyblog_soccer_model.py": "9ac3d906399b70db850866e505065d4d100212966ef12168faa29913e3d2c567",
+        "integrations/models/pybaseball_mlb_model.py": "b89037b78734e71fb9663179fb1c9ad3a26023f14980c8001f2d4e2e70141aab",
+        "integrations/odds/__init__.py": "d34d625a049735d24ed7486549fbd1e4bc5d1720df6fb938ffe69bcb274447de",
+        "integrations/odds/playsport_taiwan_odds.py": "17d103df74b5e7fddf2781897ceb921d6b23835ccca3a004dba1a5260095f734",
+        "integrations/results/__init__.py": "76fcf3580be46dc1aeaba36c348cd6db127722d997e97c5939df499b9c7401e3",
+        "integrations/results/cpbl.py": "054e3c45c57806f713eb95cccf4557ce0fa350a769edd1a86079886550763841",
+        "integrations/results/espn.py": "89e00deb46902d3f8a8de29acef92e62f439e8811232def262ad509a3b355c96",
+        "integrations/results/models.py": "41bff6c18d7751c6271bad1d306ea53bf67c60cb393d16096dc3b9b21fcf60b2",
+        "integrations/results/official_asian_baseball.py": "e46c560f94d1be0a97989e0e213ddf186a904721a6d06d80bf97cea87cc452fc",
+        "integrations/schedules/__init__.py": "3848f393551427b5b0a20bba60bb0b375c16b7a09f10d27dcd43d169b85b3eff",
+        "integrations/schedules/espn_schedule.py": "7e3a67f0ad76bfd832968c594a02665cd1859789843584c8c6c568aa0527dc0f",
+        "main.py": "1233e617cd6f43e28f0afcceff0381a53c7fbf7e7a46a4e64d4d98202b2a8a1d",
+        "probability/__init__.py": "77e6252b4de20576e36e33cfb52f9db81e29710ff4d793cda215697dd19c5211",
+        "probability/calibration.py": "d2bed09640d3bee6489632fae4b68c84733b22ae6f6c8dea48e52b228bd987f3",
+        "probability/devig.py": "e4f71f6ed987b56acd46123faec067775fe8d1f811dee58c461f62123ca55df8",
+        "pyproject.toml": "57bb05171705e8ee7476e61bd6dd66541f0622cb1add7daf9ceccee21fac9fba",
+        "requirements-lock.txt": "02a878b88847c7e4d6f2a9d6f2d0d1df399e3b9281b4f8483afc3b685cf5e407",
+        "scripts/daily_snapshot.py": "722aaeca07467fd0cffd96a773a247e7f7819fbc94693e4e44a9bac5a25b4e22",
+        "scripts/fetch_validation_data.py": "99c13429a13e6e3fbbdb287a8465bd50a05e40063d062341d8081706a861db31",
+        "scripts/odds_watcher.py": "d00047a33f8115eaf826b3f2fb0c397e656f1c5c8d8bce726a2466625a8a4c08",
+        "scripts/run_expanded_backtest.py": "e1fe0ba5215204a6a742b46ee38f8bcd284ae9be6f0be3a82114bf6c1cf28c65",
+        "scripts/run_today_real_e2e.py": "dac44db6189d184053f69e46d25eaa18a44496bfd1a43b87975ce4f80b1e883d",
+        "scripts/settle_results.py": "91550a2fed814e8a3a73433967b9538a77327ea3bd5f1f9009e9ec639bade137",
+        "scripts/update_mlb_elo.py": "2142dc77b7e3f73c77a4c031bed55c6ffbe57097df04f2697ed588cb6355ffa9",
+        "scripts/validate_models.py": "5e83d51b86ac77d982bfada4d473a469f613595ad07a724378cc4e8d349f0941"
+      },
+      "config_hashes": {
+        "config/evidence_weights.yaml": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+        "config/expert_sources.yaml": "376fda9d3c74a7ae804641888a2da3242e6e7b021f98fdc6d5190b15e6911dba",
+        "config/model_acceptance.yaml": "f277d97dad360edf39b034caf3d7e8988bcebd9d07f583ab276eef04eeed0806",
+        "config/models.yaml": "1debef2eb8e9504c0a1af055f901271fe06b1e775e634de9cd8ddd91f6f2d1f3",
+        "config/research_pipeline.yaml": "d967c17b46e118b77d5abcfd7da8fff995300ac6cff9720c845cf3defd89c9c3",
+        "config/source_registry.yaml": "4219c1bcfb406422a0afda0a487f4ad98fbd57f1894ba7132a8d8c5c08255238"
+      },
+      "current_model_set": {
+        "espn_poisson_soccer": {
+          "version": "1.0.0",
+          "adapter": "integrations.models.espn_poisson_soccer.ESPNPoissonSoccerFallback",
+          "sport": "soccer",
+          "source_category": "LOCAL_FALLBACK_MODEL",
+          "independence_group": "ESPN_SEASON_STATS",
+          "configured_weight": 0.4
+        },
+        "espn_pythagorean_mlb": {
+          "version": "1.0.0",
+          "adapter": "integrations.models.espn_pythagorean_mlb.ESPNPythagoreanMLBModel",
+          "sport": "baseball",
+          "source_category": "LOCAL_FALLBACK_MODEL",
+          "independence_group": "ESPN_SEASON_STATS",
+          "configured_weight": 0.4
+        },
+        "live_mlb_elo": {
+          "version": "2.0.0",
+          "adapter": "integrations.models.external.live_mlb_elo.LiveMLBEloAdapter",
+          "sport": "baseball",
+          "source_category": "OPEN_SOURCE_ENGINE",
+          "independence_group": "LIVE_MLB_ELO",
+          "configured_weight": 0.9
+        },
+        "penaltyblog_dixon_coles": {
+          "version": "1.12.2",
+          "adapter": "integrations.models.external.penaltyblog_dixon_coles.PenaltyblogDixonColesAdapter",
+          "sport": "soccer",
+          "source_category": "EXTERNAL_OPEN_SOURCE_ENGINE",
+          "independence_group": "DIXON_COLES_MATCHES",
+          "configured_weight": 0.85
+        }
+      },
+      "protocol_settings": {
+        "prediction_cutoff_policy": "strict-pre-event-v1",
+        "freshness_policy": "source-observed-time-required-v1",
+        "calibration_protocol": "uncalibrated-estimates-excluded-from-verified-accuracy-v1",
+        "settlement_rules_version": "v1.1-status-aware",
+        "evidence_weights_version": "v2.0-configured",
+        "evidence_weights_hash": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+        "metrics_protocol": "unique-event-selection-v1"
+      },
+      "experiment_id": "exp_0a78bc46721ed417e98adca02c7c8d4720dc688a737dd09a2ae3882780f3736f"
+    },
+    "strategy_metadata": {
+      "strategy_version": "v2.0-research",
+      "code_version": "content_2baf306f5fd57e8a74bb2c5338c07ec5ccc45cfbe050a9d9be949107bd37815d",
+      "git_commit": null,
+      "git_available": false,
+      "git_dirty": null,
+      "working_tree_hash": "2baf306f5fd57e8a74bb2c5338c07ec5ccc45cfbe050a9d9be949107bd37815d",
+      "code_hash": "2baf306f5fd57e8a74bb2c5338c07ec5ccc45cfbe050a9d9be949107bd37815d",
+      "content_hash": "2baf306f5fd57e8a74bb2c5338c07ec5ccc45cfbe050a9d9be949107bd37815d",
+      "hashed_file_count": 103,
+      "hashed_files": [
+        "app.py",
+        "config/evidence_weights.yaml",
+        "config/expert_sources.yaml",
+        "config/model_acceptance.yaml",
+        "config/models.yaml",
+        "config/research_pipeline.yaml",
+        "config/source_registry.yaml",
+        "core/__init__.py",
+        "core/bet_validation.py",
+        "core/clv_reporting.py",
+        "core/correlation_guard.py",
+        "core/edge_engine.py",
+        "core/experiment_identity.py",
+        "core/identity/__init__.py",
+        "core/identity/event_matcher.py",
+        "core/identity/league_mapping.py",
+        "core/identity/team_alias.py",
+        "core/identity/timezone.py",
+        "core/model_acceptance.py",
+        "core/model_calibration.py",
+        "core/model_registry.py",
+        "core/model_validation.py",
+        "core/odds_watcher.py",
+        "core/optimizer.py",
+        "core/parlay_engine.py",
+        "core/parlay_validation.py",
+        "core/performance_metrics.py",
+        "core/probability_evidence.py",
+        "core/recommendation_replay.py",
+        "core/research_dataset_exporter.py",
+        "core/research_health.py",
+        "core/research_operations.py",
+        "core/research_paths.py",
+        "core/research_pipeline.py",
+        "core/research_reporting.py",
+        "core/scraper.py",
+        "core/season_radar.py",
+        "core/settlement/__init__.py",
+        "core/settlement/taiwan_rules.py",
+        "core/settlement_engine.py",
+        "core/shadow_parlay_logger.py",
+        "core/shadow_portfolio.py",
+        "core/signal_hub.py",
+        "core/snapshot_logger.py",
+        "core/source_health.py",
+        "core/strategy_version.py",
+        "core/ticket_manager.py",
+        "core/ticket_recorder.py",
+        "core/wallet.py",
+        "core/war_chest.py",
+        "integrations/__init__.py",
+        "integrations/common/__init__.py",
+        "integrations/common/models.py",
+        "integrations/experts/__init__.py",
+        "integrations/experts/playsport_crowd.py",
+        "integrations/experts/playsport_expert.py",
+        "integrations/models/__init__.py",
+        "integrations/models/espn_poisson_soccer.py",
+        "integrations/models/espn_pythagorean_mlb.py",
+        "integrations/models/external/__init__.py",
+        "integrations/models/external/fivethirtyeight_mlb_elo.py",
+        "integrations/models/external/live_mlb_elo.py",
+        "integrations/models/external/penaltyblog_dixon_coles.py",
+        "integrations/models/penaltyblog_soccer_model.py",
+        "integrations/models/pybaseball_mlb_model.py",
+        "integrations/odds/__init__.py",
+        "integrations/odds/playsport_taiwan_odds.py",
+        "integrations/results/__init__.py",
+        "integrations/results/cpbl.py",
+        "integrations/results/espn.py",
+        "integrations/results/models.py",
+        "integrations/results/official_asian_baseball.py",
+        "integrations/schedules/__init__.py",
+        "integrations/schedules/espn_schedule.py",
+        "main.py",
+        "pages/1_指標與資料來源.py",
+        "pages/2_資料健康與研究工具.py",
+        "probability/__init__.py",
+        "probability/calibration.py",
+        "probability/devig.py",
+        "pyproject.toml",
+        "requirements-lock.txt",
+        "scripts/build_model_acceptance_calibration_audit.py",
+        "scripts/daily_snapshot.py",
+        "scripts/export_research_datasets.py",
+        "scripts/fetch_validation_data.py",
+        "scripts/generate_weekly_report.py",
+        "scripts/manual_live_diagnostic.py",
+        "scripts/odds_watcher.py",
+        "scripts/run_expanded_backtest.py",
+        "scripts/run_today_real_e2e.py",
+        "scripts/settle_results.py",
+        "scripts/update_mlb_elo.py",
+        "scripts/validate_models.py",
+        "scripts/validate_parlay_forward.py",
+        "ui/__init__.py",
+        "ui/metric_guide.py",
+        "ui/model_acceptance_display.py",
+        "ui/navigation.py",
+        "ui/research_overview.py",
+        "ui/research_tools.py",
+        "ui/source_overview.py",
+        "ui/ticket_submission.py"
+      ],
+      "prediction_manifest": {
+        "config/evidence_weights.yaml": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+        "config/expert_sources.yaml": "376fda9d3c74a7ae804641888a2da3242e6e7b021f98fdc6d5190b15e6911dba",
+        "config/model_acceptance.yaml": "f277d97dad360edf39b034caf3d7e8988bcebd9d07f583ab276eef04eeed0806",
+        "config/models.yaml": "1debef2eb8e9504c0a1af055f901271fe06b1e775e634de9cd8ddd91f6f2d1f3",
+        "config/research_pipeline.yaml": "d967c17b46e118b77d5abcfd7da8fff995300ac6cff9720c845cf3defd89c9c3",
+        "config/source_registry.yaml": "4219c1bcfb406422a0afda0a487f4ad98fbd57f1894ba7132a8d8c5c08255238",
+        "core/__init__.py": "93bf51e382ea2ffd1c7b0b7094e3d7e7b167be5f049ee99313a12e94a786e479",
+        "core/bet_validation.py": "60e8a86486abe3fbc8a5a601b131f5284013e504205c15c9e5ae78215f7c9a09",
+        "core/correlation_guard.py": "4697e348625b96fcd7c9297535bc714c5f5c02ac6d9ea8df7d5ec5a2b86b786b",
+        "core/edge_engine.py": "8113a975e05e627844e49194af02d0a760787101874698d24a76e9df5b766014",
+        "core/experiment_identity.py": "cb5830aa341d3e2f7f4b6f0b6da9a2c0f17a5b387ef6177851272f0da187e1ea",
+        "core/identity/__init__.py": "d36dffcb10cdb3c18d0ba19e3401eb020d86fbd3ac22b855eb58a1f3f1559785",
+        "core/identity/event_matcher.py": "f7e3ace8db249abf3017a2b68c970babc0c5edb37d28bd1402f1cf750ccec1c4",
+        "core/identity/league_mapping.py": "27dbfb1ddd7f5a5ddcfa44d22723bc2c5102185f1de292849f163e59985b38db",
+        "core/identity/team_alias.py": "d9f3ae983d019de257689da32d433ab8b3e632273f51c2c97c4be58c433b7e97",
+        "core/identity/timezone.py": "5526ba90303b066d56809b29a3a15e40b99d6139f2a04e3da9334f55494bddf5",
+        "core/model_acceptance.py": "c16fd5fe45beb293b4a113072f5ac2e95f4890be04580053ec4a0cb6afe5bc66",
+        "core/model_calibration.py": "49d29ace0897e6ce7ca0f7b4cc3f44e5d4d05694994f74696971eb4bb8ddec7b",
+        "core/model_registry.py": "c686e4e8eb3f00b575fd07cb7af0988464d2bef597c3f0db02c31361b4140b16",
+        "core/model_validation.py": "50be6daa0cd045f35e0e0a04ccd27c7b89872cb709f1ec62c8008caca5c5a0d2",
+        "core/odds_watcher.py": "8b583234a478f83cc0aaddd0155c6baf1d60441c80f29d4639ee05d907d93fbd",
+        "core/optimizer.py": "43cf4ce08488e8c1e8c4fd4f29a8088c7a647b61609c249cdd2dc5d86d57b4f9",
+        "core/parlay_engine.py": "e0934037c5163b54f918fd2a79548a875d6906f7dede059f70bc80c71af3e6dd",
+        "core/parlay_validation.py": "cdb52df06f6c9a2cc6c73350a32482da9e6ac283d8cb4394198d00fd34d3b875",
+        "core/probability_evidence.py": "fbdb6696aa427f29a90a45af0bafc371a60ad4536b46ff5aad63b47a33a71070",
+        "core/research_paths.py": "742d501f053599b81bb69410562aa3281ee84b5b797164f5aa2196f805011063",
+        "core/research_pipeline.py": "e571867d8320a65f426ae5290e5aed8e607a3f8d3e46a393a865f15ef725c3fe",
+        "core/scraper.py": "8372b84d34f5af9fa877c82337e78b4341414006405cf34b36d6f10c4c9f5c5a",
+        "core/season_radar.py": "562fd8022d98c292ef220433a594489f3a28e493aaec71895fdeb07f445b4f9d",
+        "core/settlement/__init__.py": "312561d98a78f89dea9ebe56a552a80161bea34fbfd85da90f103dd92d383ee7",
+        "core/settlement/taiwan_rules.py": "289ff6779efeb10afe0d44007ddcc6809315b3cfa377ab16731779a3c33c6b3a",
+        "core/settlement_engine.py": "0910314e220b9f4a598ecb4efa5fde223e75806334c69daac749d282dd26b2d0",
+        "core/shadow_parlay_logger.py": "5a21aa19cc76ce43ce9c546626118aab6f6a488cec8b291949d8795af8ad0c42",
+        "core/shadow_portfolio.py": "5bf79ddc3fe946f2a3727e2d50ecf481de7a30149fe3719b3727a1cf3e4fe868",
+        "core/signal_hub.py": "6ad0038ff7f8214f8f7a84023928d8c131e5d2be40ce2161f701ec252ddeb2af",
+        "core/snapshot_logger.py": "86eb13fe76cc85cda0d9e75610714c239b71fcba5be980a41087ce1fec026100",
+        "core/source_health.py": "938b64cd011e2a558c69c1149529bbbd65b541f7d114b98a63c03d350364466e",
+        "core/strategy_version.py": "5e3ae396890cf7c3e7a7d193f4d62496d1f572f3155d8234e0ba6a9596b02b12",
+        "core/ticket_manager.py": "93127c91f702f23f38d697a1952231c83beddde5feaf7a613aeb2d2c43b3f93a",
+        "core/ticket_recorder.py": "8dda8eb0fe2171600429e29391becb1d46a33ab82ce4c39de4a3fd170809f47c",
+        "core/wallet.py": "26dbccf9faf50dd8480e7058534dc681a36bce44fde3f831149cd22f22094ce4",
+        "core/war_chest.py": "1f58cfa422795a846fc0480c87afacc5717422de2f24f043e0fff30d489249a9",
+        "integrations/__init__.py": "cb609928c807f24e50172d3b796ac8e6506f317ab3a91eb1661af50af061a709",
+        "integrations/common/__init__.py": "807724e0ec94de2a31a3b12c85f4a92b0afb81dd32ec72f40064ddf49dc5cfdd",
+        "integrations/common/models.py": "a13e6f42cc3db5a0c7dfd0502af54e3cdc67274f90a16ac8aaf1fed0c250e801",
+        "integrations/experts/__init__.py": "8553fc362e9cfc7b6d1fb468e77044a89cae2b5eac6b509fb74c2c2f1ebf6c35",
+        "integrations/experts/playsport_crowd.py": "59e85e055bc2cd19badd764252a9af8443a77e5411e262bd52397e8aa5d3503d",
+        "integrations/experts/playsport_expert.py": "cb16834581f598acbde87a0be082d1aa1ac3d76a63877e4edbbe2b850dcfbb29",
+        "integrations/models/__init__.py": "ce6f4f9c8c30e89f6fabe6222df5556caa5309f81d38baa727cd95d4c9ff6467",
+        "integrations/models/espn_poisson_soccer.py": "a11ca3c7a5920cf436cca188afe84277f0a01e7d90574f4ef2897c1f800fdf5d",
+        "integrations/models/espn_pythagorean_mlb.py": "61a4520bed0a80c08efe12d4b2e232785c44a47112df1a7cc50fcfaa0852e955",
+        "integrations/models/external/__init__.py": "d648b0e09f86eeb0df0a2ffbe8fa755186b34fba3c0cc15e6d4ac1c2711951c7",
+        "integrations/models/external/fivethirtyeight_mlb_elo.py": "e31836b194141d70109c957314f610ae66765d55ba9952fec5dea5a1bdce100c",
+        "integrations/models/external/live_mlb_elo.py": "8f8cf2d1a7a0c78fa468d9ff7f7d237a70b4c89bfc3941be8b3afa476bfb4944",
+        "integrations/models/external/penaltyblog_dixon_coles.py": "cbf5bc567553370b9584ce0702527b08187ef49b0c51702d0e71495bdb35a974",
+        "integrations/models/penaltyblog_soccer_model.py": "9ac3d906399b70db850866e505065d4d100212966ef12168faa29913e3d2c567",
+        "integrations/models/pybaseball_mlb_model.py": "b89037b78734e71fb9663179fb1c9ad3a26023f14980c8001f2d4e2e70141aab",
+        "integrations/odds/__init__.py": "d34d625a049735d24ed7486549fbd1e4bc5d1720df6fb938ffe69bcb274447de",
+        "integrations/odds/playsport_taiwan_odds.py": "17d103df74b5e7fddf2781897ceb921d6b23835ccca3a004dba1a5260095f734",
+        "integrations/results/__init__.py": "76fcf3580be46dc1aeaba36c348cd6db127722d997e97c5939df499b9c7401e3",
+        "integrations/results/cpbl.py": "054e3c45c57806f713eb95cccf4557ce0fa350a769edd1a86079886550763841",
+        "integrations/results/espn.py": "89e00deb46902d3f8a8de29acef92e62f439e8811232def262ad509a3b355c96",
+        "integrations/results/models.py": "41bff6c18d7751c6271bad1d306ea53bf67c60cb393d16096dc3b9b21fcf60b2",
+        "integrations/results/official_asian_baseball.py": "e46c560f94d1be0a97989e0e213ddf186a904721a6d06d80bf97cea87cc452fc",
+        "integrations/schedules/__init__.py": "3848f393551427b5b0a20bba60bb0b375c16b7a09f10d27dcd43d169b85b3eff",
+        "integrations/schedules/espn_schedule.py": "7e3a67f0ad76bfd832968c594a02665cd1859789843584c8c6c568aa0527dc0f",
+        "main.py": "1233e617cd6f43e28f0afcceff0381a53c7fbf7e7a46a4e64d4d98202b2a8a1d",
+        "probability/__init__.py": "77e6252b4de20576e36e33cfb52f9db81e29710ff4d793cda215697dd19c5211",
+        "probability/calibration.py": "d2bed09640d3bee6489632fae4b68c84733b22ae6f6c8dea48e52b228bd987f3",
+        "probability/devig.py": "e4f71f6ed987b56acd46123faec067775fe8d1f811dee58c461f62123ca55df8",
+        "pyproject.toml": "57bb05171705e8ee7476e61bd6dd66541f0622cb1add7daf9ceccee21fac9fba",
+        "requirements-lock.txt": "02a878b88847c7e4d6f2a9d6f2d0d1df399e3b9281b4f8483afc3b685cf5e407",
+        "scripts/daily_snapshot.py": "722aaeca07467fd0cffd96a773a247e7f7819fbc94693e4e44a9bac5a25b4e22",
+        "scripts/fetch_validation_data.py": "99c13429a13e6e3fbbdb287a8465bd50a05e40063d062341d8081706a861db31",
+        "scripts/odds_watcher.py": "d00047a33f8115eaf826b3f2fb0c397e656f1c5c8d8bce726a2466625a8a4c08",
+        "scripts/run_expanded_backtest.py": "e1fe0ba5215204a6a742b46ee38f8bcd284ae9be6f0be3a82114bf6c1cf28c65",
+        "scripts/run_today_real_e2e.py": "dac44db6189d184053f69e46d25eaa18a44496bfd1a43b87975ce4f80b1e883d",
+        "scripts/settle_results.py": "91550a2fed814e8a3a73433967b9538a77327ea3bd5f1f9009e9ec639bade137",
+        "scripts/update_mlb_elo.py": "2142dc77b7e3f73c77a4c031bed55c6ffbe57097df04f2697ed588cb6355ffa9",
+        "scripts/validate_models.py": "5e83d51b86ac77d982bfada4d473a469f613595ad07a724378cc4e8d349f0941"
+      },
+      "prediction_manifest_hash": "6ead37db5cfd8360fc5445fac7de24288c1cc25585b31b47dbd89f1e15503e98",
+      "config_hashes": {
+        "config/evidence_weights.yaml": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+        "config/expert_sources.yaml": "376fda9d3c74a7ae804641888a2da3242e6e7b021f98fdc6d5190b15e6911dba",
+        "config/model_acceptance.yaml": "f277d97dad360edf39b034caf3d7e8988bcebd9d07f583ab276eef04eeed0806",
+        "config/models.yaml": "1debef2eb8e9504c0a1af055f901271fe06b1e775e634de9cd8ddd91f6f2d1f3",
+        "config/research_pipeline.yaml": "d967c17b46e118b77d5abcfd7da8fff995300ac6cff9720c845cf3defd89c9c3",
+        "config/source_registry.yaml": "4219c1bcfb406422a0afda0a487f4ad98fbd57f1894ba7132a8d8c5c08255238"
+      },
+      "frozen_date": "2026-10-12",
+      "current_model_set": {
+        "espn_poisson_soccer": {
+          "version": "1.0.0",
+          "adapter": "integrations.models.espn_poisson_soccer.ESPNPoissonSoccerFallback",
+          "sport": "soccer",
+          "source_category": "LOCAL_FALLBACK_MODEL",
+          "independence_group": "ESPN_SEASON_STATS",
+          "configured_weight": 0.4
+        },
+        "espn_pythagorean_mlb": {
+          "version": "1.0.0",
+          "adapter": "integrations.models.espn_pythagorean_mlb.ESPNPythagoreanMLBModel",
+          "sport": "baseball",
+          "source_category": "LOCAL_FALLBACK_MODEL",
+          "independence_group": "ESPN_SEASON_STATS",
+          "configured_weight": 0.4
+        },
+        "live_mlb_elo": {
+          "version": "2.0.0",
+          "adapter": "integrations.models.external.live_mlb_elo.LiveMLBEloAdapter",
+          "sport": "baseball",
+          "source_category": "OPEN_SOURCE_ENGINE",
+          "independence_group": "LIVE_MLB_ELO",
+          "configured_weight": 0.9
+        },
+        "penaltyblog_dixon_coles": {
+          "version": "1.12.2",
+          "adapter": "integrations.models.external.penaltyblog_dixon_coles.PenaltyblogDixonColesAdapter",
+          "sport": "soccer",
+          "source_category": "EXTERNAL_OPEN_SOURCE_ENGINE",
+          "independence_group": "DIXON_COLES_MATCHES",
+          "configured_weight": 0.85
+        }
+      },
+      "model_versions": {
+        "espn_poisson_soccer": "1.0.0",
+        "espn_pythagorean_mlb": "1.0.0",
+        "live_mlb_elo": "2.0.0",
+        "penaltyblog_dixon_coles": "1.12.2"
+      },
+      "evidence_weights_version": "v2.0-configured",
+      "evidence_weights_hash": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+      "settlement_rules_version": "v1.1-status-aware",
+      "governance_rules": {
+        "immutable_strategy": true,
+        "no_mid_test_weight_changes": true,
+        "min_sample_size_for_tuning": 100,
+        "insufficient_sample_threshold": 30,
+        "virtual_shadow_stake_ntd": 10.0,
+        "real_wallet_frozen": true,
+        "pre_game_cutoff_strict": true,
+        "parlay_void_odds_one": true,
+        "model_probabilities_calibrated": false,
+        "unknown_prediction_time_is_point_in_time_verified": false
+      },
+      "generated_at": "2026-10-15T00:06:21.291655+00:00"
+    },
+    "completed_at": "2026-10-15T00:07:44.145933+00:00"
+  },
+  "settlement_audit_path": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\runs\\20261015T0000Z\\data\\settlement_audit.json",
+  "settlement_audit": {
+    "settled": 0,
+    "unresolved": 365,
+    "games": 53,
+    "coverage": {
+      "baseball/MLB": {
+        "provider": "MLB_STATS_API",
+        "status": "AVAILABLE",
+        "fetch_status": "RESULTS_AVAILABLE",
+        "games": 5,
+        "snapshots": 24,
+        "matched_snapshots": 24,
+        "unique_matches": 1,
+        "settled_snapshots": 0,
+        "unmatched_snapshots": 24,
+        "errors": [],
+        "settlement_status_counts": {
+          "PENDING": 24
+        },
+        "unmatched_reason_counts": {
+          "RESULT_PENDING": 24
+        }
+      },
+      "basketball/NBA": {
+        "provider": "ESPN_PUBLIC_SCOREBOARD",
+        "status": "AVAILABLE",
+        "fetch_status": "RESULTS_AVAILABLE",
+        "games": 26,
+        "snapshots": 156,
+        "matched_snapshots": 0,
+        "unique_matches": 0,
+        "settled_snapshots": 0,
+        "unmatched_snapshots": 156,
+        "errors": [],
+        "settlement_status_counts": {},
+        "unmatched_reason_counts": {
+          "NO_UNIQUE_RESULT_MATCH": 156
+        }
+      },
+      "soccer/COLOMBIA_PRIMERA_A": {
+        "provider": "ESPN_PUBLIC_SCOREBOARD",
+        "status": "AVAILABLE",
+        "fetch_status": "RESULTS_AVAILABLE",
+        "games": 2,
+        "snapshots": 15,
+        "matched_snapshots": 0,
+        "unique_matches": 0,
+        "settled_snapshots": 0,
+        "unmatched_snapshots": 15,
+        "errors": [],
+        "settlement_status_counts": {},
+        "unmatched_reason_counts": {
+          "NO_UNIQUE_RESULT_MATCH": 15
+        }
+      },
+      "soccer/COSTA_RICA_PRIMERA": {
+        "provider": "ESPN_PUBLIC_SCOREBOARD",
+        "status": "AVAILABLE",
+        "fetch_status": "RESULTS_AVAILABLE",
+        "games": 5,
+        "snapshots": 20,
+        "matched_snapshots": 0,
+        "unique_matches": 0,
+        "settled_snapshots": 0,
+        "unmatched_snapshots": 20,
+        "errors": [],
+        "settlement_status_counts": {},
+        "unmatched_reason_counts": {
+          "NO_UNIQUE_RESULT_MATCH": 20
+        }
+      },
+      "soccer/MLS": {
+        "provider": "ESPN_PUBLIC_SCOREBOARD",
+        "status": "AVAILABLE",
+        "fetch_status": "RESULTS_AVAILABLE",
+        "games": 15,
+        "snapshots": 210,
+        "matched_snapshots": 150,
+        "unique_matches": 6,
+        "settled_snapshots": 0,
+        "unmatched_snapshots": 150,
+        "errors": [],
+        "settlement_status_counts": {
+          "PENDING": 150
+        },
+        "deferred_snapshots": 60,
+        "unmatched_reason_counts": {
+          "RESULT_PENDING": 150
+        }
+      },
+      "soccer/UNKNOWN_南美自由者盃": {
+        "provider": null,
+        "status": "NOT_DUE",
+        "fetch_status": "NOT_ATTEMPTED",
+        "games": 0,
+        "snapshots": 15,
+        "matched_snapshots": 0,
+        "unique_matches": 0,
+        "settled_snapshots": 0,
+        "unmatched_snapshots": 0,
+        "errors": [],
+        "settlement_status_counts": {},
+        "deferred_snapshots": 15,
+        "unmatched_reason_counts": {}
+      }
+    },
+    "unmatched_observations": [
+      {
+        "snapshot_id": "snap_747de0025d85",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_a9b48190d675",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_f944619cbedc",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_a8dbf4e8d4a0",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_acb92c4af600",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_50185af5cb1a",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_f6d7aa65542d",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_379dabc1b9ae",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_be862314de0d",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_7585e0791c00",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_937d48dccee2",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_c75c185a02cd",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_a7b7e5dfca7b",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_9f7537fc931b",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_ad8ed577ccad",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_3d72e0b1c03d",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_012c64912fcf",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_cfad356a2344",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_9014ff6ab92a",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_9edfe5c13ec8",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_d5c4a84705b9",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_8281d8131966",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_ac99dd40de1e",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_4e6c303fbde4",
+        "sport": "baseball",
+        "league": "MLB",
+        "source_game_id": null,
+        "canonical_event_id": "MLB_20261015_MIL_LAD_000000",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "密爾瓦基釀酒人",
+        "home_team": "洛杉磯道奇",
+        "reason": "RESULT_PENDING",
+        "provider": "MLB_STATS_API",
+        "provider_event_id": "849811",
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_f6de070c6eb9",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_9ebe22c7efad",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_e3db59739919",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_71d3db159dfc",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_ed9d3046d18b",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_e59eea9fcda2",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_58fb273f3e15",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_3f1b3f963b1d",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_cc1a37144950",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_41d361feb957",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_1dbb6e459891",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_13fba3c4529a",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_f151e3aba12c",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_6a247f4814eb",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_f716de91af33",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_ce8eaaf836d3",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_d74fa9ae63a2",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_a573ee180d2a",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_e830dd3885b2",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_5fd323cb2d59",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_8567a7c79393",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_81e1d359a1a4",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_b3b526034fe1",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_b25b0c9d9dc9",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_6c98a27299e8",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_6bd2d9356c46",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_c04073f3c337",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_7702b012a7b9",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_bae5c0095991",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_229cd3fe3377",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_99ad6db6218a",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_0d167c62a865",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_2b5bbc043f59",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_bcf5dc96df66",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_1044f8ae0b34",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_2c82f7cdcb0f",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_7eca2cdc96bb",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_cb6c51586fe9",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_cebb6d5e6e81",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_4b666d4fec85",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_fa01614f7b52",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_077133a970f3",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_d32769d03eff",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_d89984e79441",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_ef90bfa23e7d",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_6fba6388e37c",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_35831efff99f",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_69bb7611f7ed",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531002_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "黃蜂",
+        "home_team": "塞爾提",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_39626f67ef14",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531003_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "太陽",
+        "home_team": "馬刺",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_16b88d38b4fb",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531003_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "太陽",
+        "home_team": "馬刺",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_1196772f5b26",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531003_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "太陽",
+        "home_team": "馬刺",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_65dfb75b7b1e",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531003_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "太陽",
+        "home_team": "馬刺",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_6c27518887ed",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531003_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "太陽",
+        "home_team": "馬刺",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_988fd7843c2e",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531003_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "太陽",
+        "home_team": "馬刺",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_37bc81f1cd76",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531004_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "公牛",
+        "home_team": "公鹿",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_54f204a8fc7c",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531004_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "公牛",
+        "home_team": "公鹿",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_585e5fb0e086",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531004_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "公牛",
+        "home_team": "公鹿",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_0f7252211919",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531004_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "公牛",
+        "home_team": "公鹿",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_41a2a3969a15",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531004_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "公牛",
+        "home_team": "公鹿",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_1fa931c047c5",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531004_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "公牛",
+        "home_team": "公鹿",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_7b894c3aa6f4",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531005_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "活塞",
+        "home_team": "灰狼",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_9725b3e956fe",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531005_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "活塞",
+        "home_team": "灰狼",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_4e1cb7f91282",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531005_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "活塞",
+        "home_team": "灰狼",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_326af9300276",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531005_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "活塞",
+        "home_team": "灰狼",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_62cb8b9e259a",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531005_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "活塞",
+        "home_team": "灰狼",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_dc47f1043153",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531005_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "活塞",
+        "home_team": "灰狼",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_96b3b8fe36d7",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531006_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "鵜鶘",
+        "home_team": "獨行俠",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_206950539384",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531006_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "鵜鶘",
+        "home_team": "獨行俠",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_87779c24c49b",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531006_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "鵜鶘",
+        "home_team": "獨行俠",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_5c94667365b6",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531006_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "鵜鶘",
+        "home_team": "獨行俠",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_bcda9f9a9987",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531006_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "鵜鶘",
+        "home_team": "獨行俠",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_3fa104be937f",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531006_2026-10-15T00:00:00+00:00",
+        "event_start": "2026-10-15T00:00:00+00:00",
+        "away_team": "鵜鶘",
+        "home_team": "獨行俠",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_ad7a87c13945",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_6b5465a896a2",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_bfacf654b668",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      },
+      {
+        "snapshot_id": "snap_71c142b9abbc",
+        "sport": "basketball",
+        "league": "NBA",
+        "source_game_id": null,
+        "canonical_event_id": "PLAYSPORT_3_NBA_2026101531001_2026-10-14T23:30:00+00:00",
+        "event_start": "2026-10-14T23:30:00+00:00",
+        "away_team": "籃網",
+        "home_team": "熱火",
+        "reason": "NO_UNIQUE_RESULT_MATCH",
+        "provider": null,
+        "provider_event_id": null,
+        "source_url": null,
+        "fetch_errors": []
+      }
+    ],
+    "deferred_snapshots": 75,
+    "deferred_observations": [
+      {
+        "snapshot_id": "snap_844e924824b4",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_664322713605",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_344f0750b093",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_21a486677e06",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_279c077ac6f7",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_dc697726d1ca",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_9c85b414b0a0",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_e191e472cba9",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_cec147480fd7",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_4d0cf155ca38",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_efee74061aff",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_288058cbff03",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_a33deb376688",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_bcfe907c71f6",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_cabab82aba21",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_643cf1923f59",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_ee24d0926d5b",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_ea37be90ba48",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_9f88f8fc6310",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_eedb5a64f595",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_6e86bf375ef0",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_4bcfa7181d8b",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_6b5593e2cd76",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_52283f327ce1",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_3d1ee7335420",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_0dc878555963",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_bc87a6af1c0b",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_0851828fb706",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_bca75d6f4411",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_6dc86d593c6e",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_7c9d7aa90e89",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_56899036f91a",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_b990b03c4157",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_e8969a0c343f",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_40c7483e1186",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_524351faf498",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_09f78c8f35f2",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_2980a5801649",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_af02e3c15341",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_74b07b3d0d7e",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_4881899d2c6d",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_2d28fa93cf42",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_5aecf9f7d146",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_d3cec5ff11f4",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_acd9dc72a280",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_cdf1630032f0",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_9c75e7a048d7",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_7d22c81b455c",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_cc9c57045067",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_d3ef6789dfcc",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_885915646796",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_e6bfdc090c88",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_179b63445c28",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_6a0802532b6d",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_ad9051e80594",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_a00ede354b67",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_11e1a3890b68",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_83a2e59a91d1",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_a903b2b0b8c2",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_5e50f5fc5897",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_6a7407a93fb2",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_3f6aedcf3514",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_fc234ff7da2e",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_42c49feb3d77",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_420eb31ca0ca",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_99b9ef8af45f",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_19ce1ebbbc70",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_70d5d11cbfd4",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_e9a1b4594c5e",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_f99ac4cd7a61",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_576f36974f3b",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_f3408ce78a44",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_21dd5f084613",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_a0fa4f1eb5dd",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_b518d47b0c5e",
+        "event_start": "2026-10-15T00:30:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      }
+    ],
+    "unmatched_observations_sampled": 100,
+    "unmatched_observations_truncated": true,
+    "unmatched_observation_sample_limit": 100
+  },
+  "weekly_report_path": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\reports\\weekly_2026-10-15.json",
+  "weekly_report": {
+    "generated_at_utc": "2026-10-15T00:07:37.566989+00:00",
+    "period_start_utc": "2026-10-08T00:07:37.566989+00:00",
+    "period_end_utc": "2026-10-15T00:07:37.566989+00:00",
+    "data_root": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline",
+    "experiment_identity": {
+      "schema": "experiment-identity-v2",
+      "strategy_version": "v2.0-research",
+      "prediction_manifest_hash": "6ead37db5cfd8360fc5445fac7de24288c1cc25585b31b47dbd89f1e15503e98",
+      "prediction_manifest": {
+        "config/evidence_weights.yaml": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+        "config/expert_sources.yaml": "376fda9d3c74a7ae804641888a2da3242e6e7b021f98fdc6d5190b15e6911dba",
+        "config/model_acceptance.yaml": "f277d97dad360edf39b034caf3d7e8988bcebd9d07f583ab276eef04eeed0806",
+        "config/models.yaml": "1debef2eb8e9504c0a1af055f901271fe06b1e775e634de9cd8ddd91f6f2d1f3",
+        "config/research_pipeline.yaml": "d967c17b46e118b77d5abcfd7da8fff995300ac6cff9720c845cf3defd89c9c3",
+        "config/source_registry.yaml": "4219c1bcfb406422a0afda0a487f4ad98fbd57f1894ba7132a8d8c5c08255238",
+        "core/__init__.py": "93bf51e382ea2ffd1c7b0b7094e3d7e7b167be5f049ee99313a12e94a786e479",
+        "core/bet_validation.py": "60e8a86486abe3fbc8a5a601b131f5284013e504205c15c9e5ae78215f7c9a09",
+        "core/correlation_guard.py": "4697e348625b96fcd7c9297535bc714c5f5c02ac6d9ea8df7d5ec5a2b86b786b",
+        "core/edge_engine.py": "8113a975e05e627844e49194af02d0a760787101874698d24a76e9df5b766014",
+        "core/experiment_identity.py": "cb5830aa341d3e2f7f4b6f0b6da9a2c0f17a5b387ef6177851272f0da187e1ea",
+        "core/identity/__init__.py": "d36dffcb10cdb3c18d0ba19e3401eb020d86fbd3ac22b855eb58a1f3f1559785",
+        "core/identity/event_matcher.py": "f7e3ace8db249abf3017a2b68c970babc0c5edb37d28bd1402f1cf750ccec1c4",
+        "core/identity/league_mapping.py": "27dbfb1ddd7f5a5ddcfa44d22723bc2c5102185f1de292849f163e59985b38db",
+        "core/identity/team_alias.py": "d9f3ae983d019de257689da32d433ab8b3e632273f51c2c97c4be58c433b7e97",
+        "core/identity/timezone.py": "5526ba90303b066d56809b29a3a15e40b99d6139f2a04e3da9334f55494bddf5",
+        "core/model_acceptance.py": "c16fd5fe45beb293b4a113072f5ac2e95f4890be04580053ec4a0cb6afe5bc66",
+        "core/model_calibration.py": "49d29ace0897e6ce7ca0f7b4cc3f44e5d4d05694994f74696971eb4bb8ddec7b",
+        "core/model_registry.py": "c686e4e8eb3f00b575fd07cb7af0988464d2bef597c3f0db02c31361b4140b16",
+        "core/model_validation.py": "50be6daa0cd045f35e0e0a04ccd27c7b89872cb709f1ec62c8008caca5c5a0d2",
+        "core/odds_watcher.py": "8b583234a478f83cc0aaddd0155c6baf1d60441c80f29d4639ee05d907d93fbd",
+        "core/optimizer.py": "43cf4ce08488e8c1e8c4fd4f29a8088c7a647b61609c249cdd2dc5d86d57b4f9",
+        "core/parlay_engine.py": "e0934037c5163b54f918fd2a79548a875d6906f7dede059f70bc80c71af3e6dd",
+        "core/parlay_validation.py": "cdb52df06f6c9a2cc6c73350a32482da9e6ac283d8cb4394198d00fd34d3b875",
+        "core/probability_evidence.py": "fbdb6696aa427f29a90a45af0bafc371a60ad4536b46ff5aad63b47a33a71070",
+        "core/research_paths.py": "742d501f053599b81bb69410562aa3281ee84b5b797164f5aa2196f805011063",
+        "core/research_pipeline.py": "e571867d8320a65f426ae5290e5aed8e607a3f8d3e46a393a865f15ef725c3fe",
+        "core/scraper.py": "8372b84d34f5af9fa877c82337e78b4341414006405cf34b36d6f10c4c9f5c5a",
+        "core/season_radar.py": "562fd8022d98c292ef220433a594489f3a28e493aaec71895fdeb07f445b4f9d",
+        "core/settlement/__init__.py": "312561d98a78f89dea9ebe56a552a80161bea34fbfd85da90f103dd92d383ee7",
+        "core/settlement/taiwan_rules.py": "289ff6779efeb10afe0d44007ddcc6809315b3cfa377ab16731779a3c33c6b3a",
+        "core/settlement_engine.py": "0910314e220b9f4a598ecb4efa5fde223e75806334c69daac749d282dd26b2d0",
+        "core/shadow_parlay_logger.py": "5a21aa19cc76ce43ce9c546626118aab6f6a488cec8b291949d8795af8ad0c42",
+        "core/shadow_portfolio.py": "5bf79ddc3fe946f2a3727e2d50ecf481de7a30149fe3719b3727a1cf3e4fe868",
+        "core/signal_hub.py": "6ad0038ff7f8214f8f7a84023928d8c131e5d2be40ce2161f701ec252ddeb2af",
+        "core/snapshot_logger.py": "86eb13fe76cc85cda0d9e75610714c239b71fcba5be980a41087ce1fec026100",
+        "core/source_health.py": "938b64cd011e2a558c69c1149529bbbd65b541f7d114b98a63c03d350364466e",
+        "core/strategy_version.py": "5e3ae396890cf7c3e7a7d193f4d62496d1f572f3155d8234e0ba6a9596b02b12",
+        "core/ticket_manager.py": "93127c91f702f23f38d697a1952231c83beddde5feaf7a613aeb2d2c43b3f93a",
+        "core/ticket_recorder.py": "8dda8eb0fe2171600429e29391becb1d46a33ab82ce4c39de4a3fd170809f47c",
+        "core/wallet.py": "26dbccf9faf50dd8480e7058534dc681a36bce44fde3f831149cd22f22094ce4",
+        "core/war_chest.py": "1f58cfa422795a846fc0480c87afacc5717422de2f24f043e0fff30d489249a9",
+        "integrations/__init__.py": "cb609928c807f24e50172d3b796ac8e6506f317ab3a91eb1661af50af061a709",
+        "integrations/common/__init__.py": "807724e0ec94de2a31a3b12c85f4a92b0afb81dd32ec72f40064ddf49dc5cfdd",
+        "integrations/common/models.py": "a13e6f42cc3db5a0c7dfd0502af54e3cdc67274f90a16ac8aaf1fed0c250e801",
+        "integrations/experts/__init__.py": "8553fc362e9cfc7b6d1fb468e77044a89cae2b5eac6b509fb74c2c2f1ebf6c35",
+        "integrations/experts/playsport_crowd.py": "59e85e055bc2cd19badd764252a9af8443a77e5411e262bd52397e8aa5d3503d",
+        "integrations/experts/playsport_expert.py": "cb16834581f598acbde87a0be082d1aa1ac3d76a63877e4edbbe2b850dcfbb29",
+        "integrations/models/__init__.py": "ce6f4f9c8c30e89f6fabe6222df5556caa5309f81d38baa727cd95d4c9ff6467",
+        "integrations/models/espn_poisson_soccer.py": "a11ca3c7a5920cf436cca188afe84277f0a01e7d90574f4ef2897c1f800fdf5d",
+        "integrations/models/espn_pythagorean_mlb.py": "61a4520bed0a80c08efe12d4b2e232785c44a47112df1a7cc50fcfaa0852e955",
+        "integrations/models/external/__init__.py": "d648b0e09f86eeb0df0a2ffbe8fa755186b34fba3c0cc15e6d4ac1c2711951c7",
+        "integrations/models/external/fivethirtyeight_mlb_elo.py": "e31836b194141d70109c957314f610ae66765d55ba9952fec5dea5a1bdce100c",
+        "integrations/models/external/live_mlb_elo.py": "8f8cf2d1a7a0c78fa468d9ff7f7d237a70b4c89bfc3941be8b3afa476bfb4944",
+        "integrations/models/external/penaltyblog_dixon_coles.py": "cbf5bc567553370b9584ce0702527b08187ef49b0c51702d0e71495bdb35a974",
+        "integrations/models/penaltyblog_soccer_model.py": "9ac3d906399b70db850866e505065d4d100212966ef12168faa29913e3d2c567",
+        "integrations/models/pybaseball_mlb_model.py": "b89037b78734e71fb9663179fb1c9ad3a26023f14980c8001f2d4e2e70141aab",
+        "integrations/odds/__init__.py": "d34d625a049735d24ed7486549fbd1e4bc5d1720df6fb938ffe69bcb274447de",
+        "integrations/odds/playsport_taiwan_odds.py": "17d103df74b5e7fddf2781897ceb921d6b23835ccca3a004dba1a5260095f734",
+        "integrations/results/__init__.py": "76fcf3580be46dc1aeaba36c348cd6db127722d997e97c5939df499b9c7401e3",
+        "integrations/results/cpbl.py": "054e3c45c57806f713eb95cccf4557ce0fa350a769edd1a86079886550763841",
+        "integrations/results/espn.py": "89e00deb46902d3f8a8de29acef92e62f439e8811232def262ad509a3b355c96",
+        "integrations/results/models.py": "41bff6c18d7751c6271bad1d306ea53bf67c60cb393d16096dc3b9b21fcf60b2",
+        "integrations/results/official_asian_baseball.py": "e46c560f94d1be0a97989e0e213ddf186a904721a6d06d80bf97cea87cc452fc",
+        "integrations/schedules/__init__.py": "3848f393551427b5b0a20bba60bb0b375c16b7a09f10d27dcd43d169b85b3eff",
+        "integrations/schedules/espn_schedule.py": "7e3a67f0ad76bfd832968c594a02665cd1859789843584c8c6c568aa0527dc0f",
+        "main.py": "1233e617cd6f43e28f0afcceff0381a53c7fbf7e7a46a4e64d4d98202b2a8a1d",
+        "probability/__init__.py": "77e6252b4de20576e36e33cfb52f9db81e29710ff4d793cda215697dd19c5211",
+        "probability/calibration.py": "d2bed09640d3bee6489632fae4b68c84733b22ae6f6c8dea48e52b228bd987f3",
+        "probability/devig.py": "e4f71f6ed987b56acd46123faec067775fe8d1f811dee58c461f62123ca55df8",
+        "pyproject.toml": "57bb05171705e8ee7476e61bd6dd66541f0622cb1add7daf9ceccee21fac9fba",
+        "requirements-lock.txt": "02a878b88847c7e4d6f2a9d6f2d0d1df399e3b9281b4f8483afc3b685cf5e407",
+        "scripts/daily_snapshot.py": "722aaeca07467fd0cffd96a773a247e7f7819fbc94693e4e44a9bac5a25b4e22",
+        "scripts/fetch_validation_data.py": "99c13429a13e6e3fbbdb287a8465bd50a05e40063d062341d8081706a861db31",
+        "scripts/odds_watcher.py": "d00047a33f8115eaf826b3f2fb0c397e656f1c5c8d8bce726a2466625a8a4c08",
+        "scripts/run_expanded_backtest.py": "e1fe0ba5215204a6a742b46ee38f8bcd284ae9be6f0be3a82114bf6c1cf28c65",
+        "scripts/run_today_real_e2e.py": "dac44db6189d184053f69e46d25eaa18a44496bfd1a43b87975ce4f80b1e883d",
+        "scripts/settle_results.py": "91550a2fed814e8a3a73433967b9538a77327ea3bd5f1f9009e9ec639bade137",
+        "scripts/update_mlb_elo.py": "2142dc77b7e3f73c77a4c031bed55c6ffbe57097df04f2697ed588cb6355ffa9",
+        "scripts/validate_models.py": "5e83d51b86ac77d982bfada4d473a469f613595ad07a724378cc4e8d349f0941"
+      },
+      "config_hashes": {
+        "config/evidence_weights.yaml": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+        "config/expert_sources.yaml": "376fda9d3c74a7ae804641888a2da3242e6e7b021f98fdc6d5190b15e6911dba",
+        "config/model_acceptance.yaml": "f277d97dad360edf39b034caf3d7e8988bcebd9d07f583ab276eef04eeed0806",
+        "config/models.yaml": "1debef2eb8e9504c0a1af055f901271fe06b1e775e634de9cd8ddd91f6f2d1f3",
+        "config/research_pipeline.yaml": "d967c17b46e118b77d5abcfd7da8fff995300ac6cff9720c845cf3defd89c9c3",
+        "config/source_registry.yaml": "4219c1bcfb406422a0afda0a487f4ad98fbd57f1894ba7132a8d8c5c08255238"
+      },
+      "current_model_set": {
+        "espn_poisson_soccer": {
+          "version": "1.0.0",
+          "adapter": "integrations.models.espn_poisson_soccer.ESPNPoissonSoccerFallback",
+          "sport": "soccer",
+          "source_category": "LOCAL_FALLBACK_MODEL",
+          "independence_group": "ESPN_SEASON_STATS",
+          "configured_weight": 0.4
+        },
+        "espn_pythagorean_mlb": {
+          "version": "1.0.0",
+          "adapter": "integrations.models.espn_pythagorean_mlb.ESPNPythagoreanMLBModel",
+          "sport": "baseball",
+          "source_category": "LOCAL_FALLBACK_MODEL",
+          "independence_group": "ESPN_SEASON_STATS",
+          "configured_weight": 0.4
+        },
+        "live_mlb_elo": {
+          "version": "2.0.0",
+          "adapter": "integrations.models.external.live_mlb_elo.LiveMLBEloAdapter",
+          "sport": "baseball",
+          "source_category": "OPEN_SOURCE_ENGINE",
+          "independence_group": "LIVE_MLB_ELO",
+          "configured_weight": 0.9
+        },
+        "penaltyblog_dixon_coles": {
+          "version": "1.12.2",
+          "adapter": "integrations.models.external.penaltyblog_dixon_coles.PenaltyblogDixonColesAdapter",
+          "sport": "soccer",
+          "source_category": "EXTERNAL_OPEN_SOURCE_ENGINE",
+          "independence_group": "DIXON_COLES_MATCHES",
+          "configured_weight": 0.85
+        }
+      },
+      "protocol_settings": {
+        "prediction_cutoff_policy": "strict-pre-event-v1",
+        "freshness_policy": "source-observed-time-required-v1",
+        "calibration_protocol": "uncalibrated-estimates-excluded-from-verified-accuracy-v1",
+        "settlement_rules_version": "v1.1-status-aware",
+        "evidence_weights_version": "v2.0-configured",
+        "evidence_weights_hash": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+        "metrics_protocol": "unique-event-selection-v1"
+      },
+      "experiment_id": "exp_0a78bc46721ed417e98adca02c7c8d4720dc688a737dd09a2ae3882780f3736f"
+    },
+    "wallet_data_used": false,
+    "single_leg": {
+      "recorded_snapshots": 491,
+      "settled_count": 51,
+      "valid_current_experiment_unique_observations": {
+        "input_count": 491,
+        "eligible_count": 0,
+        "unique_event_count": 0,
+        "observation_count": 0,
+        "duplicate_retries_removed": 0,
+        "conflicting_observations_excluded": 0,
+        "missing_observation_key_excluded": 0,
+        "legacy_or_invalid_identity_excluded": 0,
+        "different_target_identity_excluded": 212,
+        "report_outcomes_unknown_at_cutoff_excluded": 0
+      },
+      "paired_probability_cohort_n": 0,
+      "model": {
+        "sample_size": 0,
+        "target_experiment_id": "exp_0a78bc46721ed417e98adca02c7c8d4720dc688a737dd09a2ae3882780f3736f",
+        "sample_unit": "unique settled event/market/side/line; selection label fallback when side is absent",
+        "wins": 0,
+        "hit_rate": 0.0,
+        "classification_accuracy": 0.0,
+        "brier_score": null,
+        "log_loss": null,
+        "roi_pct": 0.0,
+        "is_insufficient_sample": true,
+        "observation_count": 0,
+        "unique_event_count": 0,
+        "audit": {
+          "input_count": 0,
+          "eligible_count": 0,
+          "unique_event_count": 0,
+          "observation_count": 0,
+          "duplicate_retries_removed": 0,
+          "conflicting_observations_excluded": 0,
+          "missing_observation_key_excluded": 0,
+          "legacy_or_invalid_identity_excluded": 0,
+          "different_target_identity_excluded": 0
+        }
+      },
+      "market_baseline": {
+        "n": 0,
+        "brier": null,
+        "log_loss": null,
+        "hit_rate": null,
+        "roi_pct": null
+      },
+      "paired_cluster_bootstrap_ci95": {
+        "status": "INSUFFICIENT_CLUSTERS",
+        "cluster_count": 0,
+        "replicates": 0,
+        "intervals": null
+      },
+      "realized_returns_same_selections": {
+        "n": 0,
+        "hit_rate": 0.0,
+        "roi_pct": 0.0,
+        "interpretation": "Model and market score the same selected outcomes at the same Taiwan odds; realized hit rate and ROI are shared returns, not strategy differences."
+      },
+      "research_candidate": {
+        "status": "UNVALIDATED_DIAGNOSTIC_ONLY",
+        "paired_probability_cohort_n": 0,
+        "model_candidate": {
+          "n": 0,
+          "brier": null,
+          "log_loss": null,
+          "hit_rate": null,
+          "roi_pct": null
+        },
+        "market_baseline_same_cohort": {
+          "n": 0,
+          "brier": null,
+          "log_loss": null,
+          "hit_rate": null,
+          "roi_pct": null
+        },
+        "paired_cluster_bootstrap_ci95": {
+          "status": "INSUFFICIENT_CLUSTERS",
+          "cluster_count": 0,
+          "replicates": 0,
+          "intervals": null
+        },
+        "realized_returns_same_selections": {
+          "n": 0,
+          "hit_rate": null,
+          "roi_pct": null,
+          "interpretation": "Candidate and market score the same selected outcomes at the same Taiwan odds; realized hit rate and ROI are shared returns, not strategy differences."
+        }
+      }
+    },
+    "whole_ticket": {
+      "operational_reference_only": true,
+      "settled_ticket_count": 0,
+      "status_counts": {},
+      "wager_units": 0.0,
+      "payout_units": 0,
+      "roi_pct": null,
+      "won_count": 0,
+      "lost_count": 0,
+      "forward_validation": {
+        "experiment_id": "exp_0a78bc46721ed417e98adca02c7c8d4720dc688a737dd09a2ae3882780f3736f",
+        "probability_status": "UNVALIDATED_HEURISTIC_JOINT_ESTIMATE",
+        "sample_unit": "unique binary settled ticket; fixed unit stake; void/push excluded",
+        "evaluation_tier_bounds": "[10,25), [25,75), [75,200), [200,500]; original generation tier retained",
+        "excluded_counts": {
+          "OTHER_EXPERIMENT": 288,
+          "NOT_BINARY_FULL_TICKET_RESULT": 480,
+          "CONFLICTING_TICKETS": 0
+        },
+        "tiers": {
+          "10-25x": {
+            "brier": null,
+            "log_loss": null,
+            "hit_rate": null,
+            "roi_pct": null,
+            "n": 0,
+            "event_slate_cluster_count": 0,
+            "mean_estimated_probability": null,
+            "naive_brier": null,
+            "calibration_bins": [],
+            "cluster_bootstrap_ci95": null,
+            "bootstrap_status": "INSUFFICIENT_CLUSTERS",
+            "bootstrap_replicates": 0,
+            "bootstrap_seed": 20261013,
+            "cluster_unit": "connected shared events and UTC event-date slates",
+            "is_insufficient_sample": true
+          },
+          "25-75x": {
+            "brier": null,
+            "log_loss": null,
+            "hit_rate": null,
+            "roi_pct": null,
+            "n": 0,
+            "event_slate_cluster_count": 0,
+            "mean_estimated_probability": null,
+            "naive_brier": null,
+            "calibration_bins": [],
+            "cluster_bootstrap_ci95": null,
+            "bootstrap_status": "INSUFFICIENT_CLUSTERS",
+            "bootstrap_replicates": 0,
+            "bootstrap_seed": 20261013,
+            "cluster_unit": "connected shared events and UTC event-date slates",
+            "is_insufficient_sample": true
+          },
+          "75-200x": {
+            "brier": null,
+            "log_loss": null,
+            "hit_rate": null,
+            "roi_pct": null,
+            "n": 0,
+            "event_slate_cluster_count": 0,
+            "mean_estimated_probability": null,
+            "naive_brier": null,
+            "calibration_bins": [],
+            "cluster_bootstrap_ci95": null,
+            "bootstrap_status": "INSUFFICIENT_CLUSTERS",
+            "bootstrap_replicates": 0,
+            "bootstrap_seed": 20261013,
+            "cluster_unit": "connected shared events and UTC event-date slates",
+            "is_insufficient_sample": true
+          },
+          "200-500x": {
+            "brier": null,
+            "log_loss": null,
+            "hit_rate": null,
+            "roi_pct": null,
+            "n": 0,
+            "event_slate_cluster_count": 0,
+            "mean_estimated_probability": null,
+            "naive_brier": null,
+            "calibration_bins": [],
+            "cluster_bootstrap_ci95": null,
+            "bootstrap_status": "INSUFFICIENT_CLUSTERS",
+            "bootstrap_replicates": 0,
+            "bootstrap_seed": 20261013,
+            "cluster_unit": "connected shared events and UTC event-date slates",
+            "is_insufficient_sample": true
+          }
+        }
+      }
+    },
+    "source_health_observation_counts": {
+      "LIVE": 65,
+      "PARSE_EMPTY": 3,
+      "LIVE_NO_EVENTS": 36
+    },
+    "model_update": {
+      "updated_games": 0,
+      "skipped_games": 0,
+      "data_as_of": "2025-04-22T23:40:00+00:00",
+      "last_update": "2026-10-14T22:46:37.495312+00:00",
+      "source": "MLB Stats API (statsapi.mlb.com)",
+      "held_final_count": 526,
+      "late_final_requires_rebuild_count": 0,
+      "excluded_non_regular_games": 0,
+      "reschedule_reconciliation": {
+        "status": "UPDATED",
+        "candidate_count": 10,
+        "request_limit": 20,
+        "attempted_count": 10,
+        "reconciled_game_ids": [
+          "778195",
+          "778170",
+          "778134",
+          "778068",
+          "778046",
+          "777933",
+          "777938",
+          "777809",
+          "777825",
+          "777839"
+        ],
+        "deferred_game_ids": [],
+        "errors": []
+      },
+      "status": "NO_NEW_FINALS",
+      "official_ledger_complete_through_yesterday": false,
+      "initialization_mode": "incremental_official_results",
+      "official_schedule_queried_through": "2025-05-31",
+      "pending_game_dates": [
+        "2025-04-23",
+        "2025-04-25",
+        "2025-04-26",
+        "2025-04-29",
+        "2025-05-03",
+        "2025-05-05",
+        "2025-05-13",
+        "2025-05-20",
+        "2025-05-21",
+        "2025-05-22",
+        "2025-05-23",
+        "2025-05-28"
+      ],
+      "incomplete_final_game_ids": [],
+      "start_date": "2025-05-25",
+      "end_date": "2025-05-31"
+    },
+    "soccer_model_update": {
+      "status": "FRESH_CACHE",
+      "last_success_utc": "2026-10-14T22:15:31.589434+00:00",
+      "leagues": {
+        "eng.1": {
+          "status": "UPDATED",
+          "match_count": 1200,
+          "latest_match_date": "2026-10-12",
+          "source_files": [
+            {
+              "season": "2324",
+              "url": "https://www.football-data.co.uk/mmz4281/2324/E0.csv",
+              "fetched_at_utc": "2026-10-14T22:15:33.511250+00:00",
+              "sha256": "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3",
+              "byte_count": 172196
+            },
+            {
+              "season": "2425",
+              "url": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
+              "fetched_at_utc": "2026-10-14T22:15:35.355427+00:00",
+              "sha256": "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4",
+              "byte_count": 197110
+            },
+            {
+              "season": "2526",
+              "url": "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
+              "fetched_at_utc": "2026-10-14T22:15:37.219567+00:00",
+              "sha256": "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62",
+              "byte_count": 203438
+            },
+            {
+              "season": "2627",
+              "url": "https://www.football-data.co.uk/mmz4281/2627/E0.csv",
+              "fetched_at_utc": "2026-10-14T22:15:38.667605+00:00",
+              "sha256": "6731e95dd7120f5c7dc9f37650cc11ccccda8e7e0a3626830263c2cd77daa787",
+              "byte_count": 29659
+            }
+          ],
+          "cache_sha256": "49b54f6cf0a1596d9f84b8240a34a90ec340bdb60caaa0ce1bf95fdb7f5e17cb"
+        },
+        "esp.1": {
+          "status": "UPDATED",
+          "match_count": 1218,
+          "latest_match_date": "2026-10-12",
+          "source_files": [
+            {
+              "season": "2324",
+              "url": "https://www.football-data.co.uk/mmz4281/2324/SP1.csv",
+              "fetched_at_utc": "2026-10-14T22:15:40.531563+00:00",
+              "sha256": "5323f596c7ed318e4bce95557a369d809d98501fa499ea5f41350cd45cf3c7d9",
+              "byte_count": 168164
+            },
+            {
+              "season": "2425",
+              "url": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv",
+              "fetched_at_utc": "2026-10-14T22:15:42.377507+00:00",
+              "sha256": "c086e96d6a53f6e6c0fce4e35db0d1728c773b4362323da0161a34769e315a36",
+              "byte_count": 192863
+            },
+            {
+              "season": "2526",
+              "url": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv",
+              "fetched_at_utc": "2026-10-14T22:15:44.322289+00:00",
+              "sha256": "4ca2e285f3ee0702f6bc55fcaa4f5a15cb3aef6220735a1d15398131e21d63f5",
+              "byte_count": 197653
+            },
+            {
+              "season": "2627",
+              "url": "https://www.football-data.co.uk/mmz4281/2627/SP1.csv",
+              "fetched_at_utc": "2026-10-14T22:15:45.766548+00:00",
+              "sha256": "a2a27803e477b9a671f7fc1fdcd0b9a6a9bb52a3ff50806b4151845716b60abb",
+              "byte_count": 37529
+            }
+          ],
+          "cache_sha256": "485906c35aaeb041a7fed04c6d56b27f3f4adc8c96fbb15abf4a984e41b5c6b3"
+        }
+      }
+    },
+    "interpretation": "Research operations summary; estimates with N=0 are unavailable and this report alone does not establish model reliability."
+  },
+  "review_counts": {
+    "current_snapshots": 279,
+    "current_market_baseline_only": 279,
+    "current_model_candidate_probability_n": 0,
+    "current_settled_model_cohort_n": 0,
+    "clv_rows_within_15_minutes": 100,
+    "clv_unique_event_options": 69,
+    "clv_unique_events": 13
+  },
+  "counts_scope": "Read-only counts observed during this review; live background runner continues."
+}

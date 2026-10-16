@@ -1,0 +1,71 @@
+# Model Registry Configuration
+# Governs all external and fallback prediction engines.
+# Includes rigorous provenance, source_category, independence_group, and license disclosures.
+
+models:
+  penaltyblog_dixon_coles:
+    name: "Penaltyblog Dixon-Coles Goal Model"
+    sport: soccer
+    enabled: true
+    source_category: EXTERNAL_OPEN_SOURCE_ENGINE
+    independence_group: DIXON_COLES_MATCHES
+    repo: martineastwood/penaltyblog
+    repo_url: https://github.com/martineastwood/penaltyblog
+    license: MIT
+    version: 1.12.2
+    weight: 0.85
+    adapter: integrations.models.external.penaltyblog_dixon_coles.PenaltyblogDixonColesAdapter
+    description: "足球雙變量 Dixon & Coles (1997) 歷史對戰推論引擎，計算勝平負與大小分期望值。"
+
+  live_mlb_elo:
+    name: "Live MLB Elo Engine (Self-Maintained)"
+    sport: baseball
+    enabled: true
+    source_category: OPEN_SOURCE_ENGINE
+    independence_group: LIVE_MLB_ELO
+    repo: local/live_mlb_elo
+    license: MIT
+    version: 2.0.0
+    weight: 0.90
+    adapter: integrations.models.external.live_mlb_elo.LiveMLBEloAdapter
+    description: "實驗 MLB Elo；neutral 1500 起始，透過官方 Final 賽果 CLI 更新、gamePk 去重。主場+24為啟發式參數；未使用投手或休息日調整。"
+
+  fivethirtyeight_mlb_elo:
+    name: "FiveThirtyEight MLB Elo Engine (Legacy Historical Benchmark)"
+    sport: baseball
+    enabled: false
+    source_category: LOCAL_REIMPLEMENTATION
+    independence_group: FIVETHIRTYEIGHT_ELO
+    repo: fivethirtyeight/data
+    repo_url: https://github.com/fivethirtyeight/data
+    license: CC-BY-4.0 / MIT
+    version: 1.0.0
+    weight: 0.50
+    adapter: integrations.models.external.fivethirtyeight_mlb_elo.FiveThirtyEightMLBEloAdapter
+    description: "FiveThirtyEight 棒球 Elo 歷史基準模型 (2023 已停更，保留作為回測對照)。"
+
+  espn_pythagorean_mlb:
+    name: "ESPN Pythagorean MLB Model (Local Fallback)"
+    sport: baseball
+    enabled: true
+    source_category: LOCAL_FALLBACK_MODEL
+    independence_group: ESPN_SEASON_STATS
+    repo: local
+    license: Internal / None
+    version: 1.0.0
+    weight: 0.40
+    adapter: integrations.models.espn_pythagorean_mlb.ESPNPythagoreanMLBModel
+    description: "本機畢氏定理勝率降級模型，基於 ESPN 賽季累積得失分計算。"
+
+  espn_poisson_soccer:
+    name: "ESPN Poisson Soccer Model (Local Fallback)"
+    sport: soccer
+    enabled: true
+    source_category: LOCAL_FALLBACK_MODEL
+    independence_group: ESPN_SEASON_STATS
+    repo: local
+    license: Internal / None
+    version: 1.0.0
+    weight: 0.40
+    adapter: integrations.models.espn_poisson_soccer.ESPNPoissonSoccerFallback
+    description: "本機、未校準足球 Poisson 研究候選；僅在精確賽季及賽前新鮮 ESPN 積分榜可用時估算英超、西甲及 MLS (usa.1)，各聯賽資料分開快取；缺少欄位、未登錄 ESPN 球隊 ID 或賽季不符時不估算。"
