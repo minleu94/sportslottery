@@ -1,0 +1,11 @@
+{
+  "source": "MLB Stats API schedule endpoint",
+  "official_schedule_queried_through": "2025-03-07",
+  "pending_game_dates": [],
+  "held_final_games": [],
+  "late_final_games": [],
+  "updated_at_utc": "2026-10-14T01:14:30.875771+00:00",
+  "bootstrap_complete": false,
+  "ledger_path": "C:\\Projects\\PythonProjects\\sportslottery\\artifacts\\research_completion_20261014\\runtime_probe\\model_state\\mlb_official_schedule_ledger.json",
+  "ledger_sha256": "f9ea6c130370725660e1789ed8f36f50ba8c387e6cb2944ffbdcafff11c6f73b"
+}

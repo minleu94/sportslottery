@@ -1,0 +1,74 @@
+{
+  "updated_games": 2588,
+  "skipped_games": 0,
+  "data_as_of": "2026-10-16T00:00:00+00:00",
+  "last_update": "2026-10-16T05:57:05.709107+00:00",
+  "source": "MLB Stats API (statsapi.mlb.com)",
+  "replayed_from_complete_source_ledger": true,
+  "late_final_replayed_count": 1193,
+  "held_final_count": 0,
+  "excluded_non_regular_games": 845,
+  "reschedule_reconciliation": {
+    "status": "UPDATED",
+    "candidate_count": 5,
+    "request_limit": 20,
+    "attempted_count": 5,
+    "reconciled_game_ids": [
+      "778372",
+      "778431",
+      "777459",
+      "777825",
+      "777839"
+    ],
+    "deferred_game_ids": [],
+    "errors": []
+  },
+  "pending_date_diagnostics": [
+    {
+      "date": "2026-09-27",
+      "status": "CLEARED_ALL_GAMEPks_FINAL",
+      "game_count": 18,
+      "game_pks": [
+        "822679",
+        "822761",
+        "823083",
+        "823084",
+        "823164",
+        "823245",
+        "823246",
+        "823408",
+        "823490",
+        "823650",
+        "823731",
+        "823814",
+        "824055",
+        "824217",
+        "824542",
+        "824705",
+        "824948",
+        "824949"
+      ]
+    }
+  ],
+  "status": "UPDATED",
+  "official_ledger_complete_through_yesterday": false,
+  "cancelled_game_ids_excluded_from_elo": [
+    "778826",
+    "778854",
+    "779154",
+    "779097",
+    "778795",
+    "779006",
+    "806207",
+    "831608",
+    "831612",
+    "831455",
+    "823490"
+  ],
+  "initialization_mode": "incremental_official_results",
+  "official_schedule_queried_through": "2025-06-26",
+  "pending_game_dates": [],
+  "incomplete_final_game_ids": [],
+  "start_date": "2025-03-29",
+  "end_date": "2025-06-26"
+}

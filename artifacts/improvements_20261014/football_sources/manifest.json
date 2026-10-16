@@ -1,0 +1,82 @@
+[
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/scoreboard?dates=20261014",
+    "file": "col.1_scoreboard.json",
+    "http_status": 200,
+    "sha256": "a734153e39d807dffeb1afca472170c30eb1d34c6e774d5b9b58624f5a0b2f51",
+    "observed_at_utc": "2026-10-14T22:05:51.376376+00:00",
+    "events": 2
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/teams",
+    "file": "col.1_teams.json",
+    "http_status": 200,
+    "sha256": "2ca9a7f2cff9f1ce2739dc675e20bdd073f0a302f41d57f3e146bb4ca4e72c3a",
+    "observed_at_utc": "2026-10-14T22:05:51.640475+00:00",
+    "events": 0
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/crc.1/scoreboard?dates=20261014",
+    "file": "crc.1_scoreboard.json",
+    "http_status": 200,
+    "sha256": "f1adf0155e9e14ff79e49f85eceac583d871282ea1a6fddda2c21d881d946fcf",
+    "observed_at_utc": "2026-10-14T22:05:52.027083+00:00",
+    "events": 2
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/crc.1/teams",
+    "file": "crc.1_teams.json",
+    "http_status": 200,
+    "sha256": "6f6718feafbaf14074dccc9b13be2aa317ba8b534caec0a91e28920b0168b741",
+    "observed_at_utc": "2026-10-14T22:05:52.374888+00:00",
+    "events": 0
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/scoreboard?dates=20261013",
+    "file": "col.1_scoreboard_20261013.json",
+    "http_status": 200,
+    "sha256": "066816a1eee24ac8751dc09a79410c346b4dc1c49462444e883dc0970c6c6e4b",
+    "observed_at_utc": "2026-10-14T22:08:10.936260+00:00",
+    "events": 2
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/crc.1/scoreboard?dates=20261013",
+    "file": "crc.1_scoreboard_20261013.json",
+    "http_status": 200,
+    "sha256": "f7cdadc83350432a75ca87a1eda3be19e8bf1a83faa84a316af72455de5deddc",
+    "observed_at_utc": "2026-10-14T22:08:11.210803+00:00",
+    "events": 2
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261013",
+    "file": "nba_scoreboard_20261013.json",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-14T22:18:28.071089+00:00",
+    "sha256": "d56946c3de47c040592e1f5dee6fe71c9635a82f7ad155c5a5c77b6a5a6fd56a",
+    "events": 5
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard?dates=20261014",
+    "file": "usa.1_scoreboard.json",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-14T22:20:31.049385+00:00",
+    "sha256": "d679b829a8186f8270f1333e619bb8e639270c22ce4da21731a336fdc4689209",
+    "events": 15
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/teams",
+    "file": "usa.1_teams.json",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-14T22:20:31.337788+00:00",
+    "sha256": "81b1074e351834171d7c3ae67bf0a8c454bfc805d26446d9602d64f779ff9961",
+    "events": 0
+  },
+  {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard?dates=20261011",
+    "file": "usa.1_history_scoreboard.json",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-14T22:22:48.852423+00:00",
+    "sha256": "275cc43520670dc82bb554729b0a03a63eae0f783c3b19edaeda5af239bfa543",
+    "events": 1
+  }
+]

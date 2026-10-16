@@ -1,0 +1,412 @@
+{
+  "observed_at_utc": "2026-10-16T06:15:30.433392+00:00",
+  "source_hash_before": "9d262beee787373fe55866b35c7e52d7a6622e7ae16d29bffa637b732250c97c",
+  "source_hash_after": "9d262beee787373fe55866b35c7e52d7a6622e7ae16d29bffa637b732250c97c",
+  "result": {
+    "status": "COMPLETE",
+    "run_id": "9e558253436141d8ac6cc05dce37980d",
+    "run_window_id": "20261016T0615Z",
+    "stages": {
+      "model_update": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-16T06:15:17.762758+00:00",
+        "result": {
+          "updated_games": 0,
+          "data_as_of": "2026-10-16T00:00:00+00:00",
+          "reason": "Checkpoint already covers through current UTC date.",
+          "reschedule_reconciliation": {
+            "status": "NOT_RUN",
+            "candidate_count": 0,
+            "request_limit": 20,
+            "attempted_count": 0,
+            "reconciled_game_ids": [],
+            "deferred_game_ids": [],
+            "errors": []
+          },
+          "pending_date_diagnostics": [],
+          "status": "NO_NEW_FINALS",
+          "official_ledger_complete_through_yesterday": true,
+          "cancelled_game_ids_excluded_from_elo": [
+            "778826",
+            "778854",
+            "779154",
+            "779097",
+            "778795",
+            "779006",
+            "806207",
+            "831608",
+            "831612",
+            "831455",
+            "823490"
+          ],
+          "initialization_mode": "incremental_official_results",
+          "official_schedule_queried_through": "2026-10-15",
+          "pending_game_dates": [],
+          "incomplete_final_game_ids": [],
+          "start_date": "2026-10-16",
+          "end_date": "2026-10-15"
+        },
+        "completed_at": "2026-10-16T06:15:18.241457+00:00"
+      },
+      "soccer_model_update": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-16T06:15:18.242042+00:00",
+        "result": {
+          "status": "FRESH_CACHE",
+          "last_success_utc": "2026-10-16T05:48:33.189473+00:00",
+          "leagues": {
+            "eng.1": {
+              "status": "UPDATED",
+              "match_count": 1200,
+              "latest_match_date": "2026-10-12",
+              "source_files": [
+                {
+                  "season": "2324",
+                  "url": "https://www.football-data.co.uk/mmz4281/2324/E0.csv",
+                  "fetched_at_utc": "2026-10-16T05:48:35.206173+00:00",
+                  "sha256": "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3",
+                  "byte_count": 172196
+                },
+                {
+                  "season": "2425",
+                  "url": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
+                  "fetched_at_utc": "2026-10-16T05:48:37.107277+00:00",
+                  "sha256": "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4",
+                  "byte_count": 197110
+                },
+                {
+                  "season": "2526",
+                  "url": "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
+                  "fetched_at_utc": "2026-10-16T05:48:39.033876+00:00",
+                  "sha256": "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62",
+                  "byte_count": 203438
+                },
+                {
+                  "season": "2627",
+                  "url": "https://www.football-data.co.uk/mmz4281/2627/E0.csv",
+                  "fetched_at_utc": "2026-10-16T05:48:40.555599+00:00",
+                  "sha256": "6731e95dd7120f5c7dc9f37650cc11ccccda8e7e0a3626830263c2cd77daa787",
+                  "byte_count": 29659
+                }
+              ],
+              "cache_sha256": "48307a7d9f4e085e58e71aa62d9534cdeedc6bbfe57503c677ec87d6e5405a13"
+            },
+            "esp.1": {
+              "status": "UPDATED",
+              "match_count": 1218,
+              "latest_match_date": "2026-10-12",
+              "source_files": [
+                {
+                  "season": "2324",
+                  "url": "https://www.football-data.co.uk/mmz4281/2324/SP1.csv",
+                  "fetched_at_utc": "2026-10-16T05:48:42.434759+00:00",
+                  "sha256": "5323f596c7ed318e4bce95557a369d809d98501fa499ea5f41350cd45cf3c7d9",
+                  "byte_count": 168164
+                },
+                {
+                  "season": "2425",
+                  "url": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv",
+                  "fetched_at_utc": "2026-10-16T05:48:44.365049+00:00",
+                  "sha256": "c086e96d6a53f6e6c0fce4e35db0d1728c773b4362323da0161a34769e315a36",
+                  "byte_count": 192863
+                },
+                {
+                  "season": "2526",
+                  "url": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv",
+                  "fetched_at_utc": "2026-10-16T05:48:46.305681+00:00",
+                  "sha256": "4ca2e285f3ee0702f6bc55fcaa4f5a15cb3aef6220735a1d15398131e21d63f5",
+                  "byte_count": 197653
+                },
+                {
+                  "season": "2627",
+                  "url": "https://www.football-data.co.uk/mmz4281/2627/SP1.csv",
+                  "fetched_at_utc": "2026-10-16T05:48:47.725974+00:00",
+                  "sha256": "a2a27803e477b9a671f7fc1fdcd0b9a6a9bb52a3ff50806b4151845716b60abb",
+                  "byte_count": 37529
+                }
+              ],
+              "cache_sha256": "b22ea7441273babf023dab223003aca17c3506f64aee1478dc8a2834c4e17a8c"
+            }
+          }
+        },
+        "completed_at": "2026-10-16T06:15:18.242042+00:00"
+      },
+      "source_fetch_health": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-16T06:15:18.242042+00:00",
+        "result": {
+          "alliance_count": 8,
+          "fetched_leg_count": 344,
+          "source_status_counts": {
+            "LIVE": 4,
+            "LIVE_NO_EVENTS": 4
+          },
+          "confirmed_no_event_source_count": 4,
+          "source_error_count": 0,
+          "source_errors": [],
+          "health_path": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\runs\\20261016T0615Z\\data\\source_health.json"
+        },
+        "completed_at": "2026-10-16T06:15:20.936349+00:00"
+      },
+      "pregame_snapshots": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-16T06:15:20.936349+00:00",
+        "result": {
+          "selected_leg_count": 0,
+          "snapshot_count": 0,
+          "model_candidate_probability_count": 0,
+          "excluded_reason_counts": {
+            "OUTSIDE_LEAD_WINDOW": 114,
+            "EVENT_STARTED": 230
+          },
+          "model_probability_count": 0,
+          "market_baseline_only_count": 0
+        },
+        "completed_at": "2026-10-16T06:15:20.953386+00:00"
+      },
+      "odds_observations": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-16T06:15:20.953386+00:00",
+        "result": {
+          "observation_count": 0,
+          "history_path": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\historical\\odds_history.jsonl",
+          "run_window_id": "20261016T0615Z"
+        },
+        "completed_at": "2026-10-16T06:15:20.961856+00:00"
+      },
+      "parlay_candidates": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-16T06:15:20.961856+00:00",
+        "result": {
+          "tier_record_count": 4,
+          "search_diagnostics": {
+            "10-25x": {
+              "normalized_option_count": 0,
+              "ready_option_count": 0,
+              "quality_option_count": 0,
+              "quality_event_count": 0,
+              "quality_filtered_out_option_count": 0,
+              "signal_filter": "wild",
+              "search_event_count": 0,
+              "search_option_count": 0,
+              "max_options_per_event": 0,
+              "excluded_option_reasons": {},
+              "duplicate_option_records_collapsed": 0,
+              "max_matches_pool": 16,
+              "max_matches_pool_applied": false,
+              "search_budget": 25000,
+              "search_budget_unit": "frontier_nodes_per_call",
+              "visited_nodes_this_call": 0,
+              "visited_nodes_total": 0,
+              "visited_nodes": 0,
+              "odds_pruned_nodes": 0,
+              "checked_combinations": 0,
+              "odds_matching_combinations": 0,
+              "search_complete": true,
+              "budget_exhausted": false,
+              "deadline_reached": false,
+              "search_status": "COMPLETE",
+              "global_top_guarantee": true,
+              "ranking_objective": "max evidence score, then expected value, average evidence, independent supports, target-odds proximity, total odds; top 12 per tier",
+              "partial_result_interpretation": "Partial frontiers produce useful candidates but do not guarantee the global top candidates.",
+              "min_legs": 2,
+              "max_legs": 6,
+              "effective_max_legs": 0,
+              "event_coverage": {
+                "visited_events": 0,
+                "total_events": 0,
+                "visited_fraction": 0.0,
+                "branch_visits_by_event": {}
+              },
+              "legs_count_progress": {},
+              "pool_config_fingerprint": "5baf90813a0645edfb52fbcb7418de15fd64dc5c05e7e56d894abf8c0d34b1e5",
+              "scope_as_of": "2026-10-16T06:15:20.961856+00:00"
+            },
+            "25-75x": {
+              "normalized_option_count": 0,
+              "ready_option_count": 0,
+              "quality_option_count": 0,
+              "quality_event_count": 0,
+              "quality_filtered_out_option_count": 0,
+              "signal_filter": "wild",
+              "search_event_count": 0,
+              "search_option_count": 0,
+              "max_options_per_event": 0,
+              "excluded_option_reasons": {},
+              "duplicate_option_records_collapsed": 0,
+              "max_matches_pool": 16,
+              "max_matches_pool_applied": false,
+              "search_budget": 25000,
+              "search_budget_unit": "frontier_nodes_per_call",
+              "visited_nodes_this_call": 0,
+              "visited_nodes_total": 0,
+              "visited_nodes": 0,
+              "odds_pruned_nodes": 0,
+              "checked_combinations": 0,
+              "odds_matching_combinations": 0,
+              "search_complete": true,
+              "budget_exhausted": false,
+              "deadline_reached": false,
+              "search_status": "COMPLETE",
+              "global_top_guarantee": true,
+              "ranking_objective": "max evidence score, then expected value, average evidence, independent supports, target-odds proximity, total odds; top 12 per tier",
+              "partial_result_interpretation": "Partial frontiers produce useful candidates but do not guarantee the global top candidates.",
+              "min_legs": 2,
+              "max_legs": 6,
+              "effective_max_legs": 0,
+              "event_coverage": {
+                "visited_events": 0,
+                "total_events": 0,
+                "visited_fraction": 0.0,
+                "branch_visits_by_event": {}
+              },
+              "legs_count_progress": {},
+              "pool_config_fingerprint": "357af7a01492c18e267cd0f518c745621d989246649ccc75d6e3a828a1f4c912",
+              "scope_as_of": "2026-10-16T06:15:20.961856+00:00"
+            },
+            "75-200x": {
+              "normalized_option_count": 0,
+              "ready_option_count": 0,
+              "quality_option_count": 0,
+              "quality_event_count": 0,
+              "quality_filtered_out_option_count": 0,
+              "signal_filter": "wild",
+              "search_event_count": 0,
+              "search_option_count": 0,
+              "max_options_per_event": 0,
+              "excluded_option_reasons": {},
+              "duplicate_option_records_collapsed": 0,
+              "max_matches_pool": 16,
+              "max_matches_pool_applied": false,
+              "search_budget": 25000,
+              "search_budget_unit": "frontier_nodes_per_call",
+              "visited_nodes_this_call": 0,
+              "visited_nodes_total": 0,
+              "visited_nodes": 0,
+              "odds_pruned_nodes": 0,
+              "checked_combinations": 0,
+              "odds_matching_combinations": 0,
+              "search_complete": true,
+              "budget_exhausted": false,
+              "deadline_reached": false,
+              "search_status": "COMPLETE",
+              "global_top_guarantee": true,
+              "ranking_objective": "max evidence score, then expected value, average evidence, independent supports, target-odds proximity, total odds; top 12 per tier",
+              "partial_result_interpretation": "Partial frontiers produce useful candidates but do not guarantee the global top candidates.",
+              "min_legs": 2,
+              "max_legs": 6,
+              "effective_max_legs": 0,
+              "event_coverage": {
+                "visited_events": 0,
+                "total_events": 0,
+                "visited_fraction": 0.0,
+                "branch_visits_by_event": {}
+              },
+              "legs_count_progress": {},
+              "pool_config_fingerprint": "e103b59564c4a4ebcde342bfa13ca848a6963b4a6c522a27a20cc35b81369fa8",
+              "scope_as_of": "2026-10-16T06:15:20.961856+00:00"
+            },
+            "200-500x": {
+              "normalized_option_count": 0,
+              "ready_option_count": 0,
+              "quality_option_count": 0,
+              "quality_event_count": 0,
+              "quality_filtered_out_option_count": 0,
+              "signal_filter": "wild",
+              "search_event_count": 0,
+              "search_option_count": 0,
+              "max_options_per_event": 0,
+              "excluded_option_reasons": {},
+              "duplicate_option_records_collapsed": 0,
+              "max_matches_pool": 16,
+              "max_matches_pool_applied": false,
+              "search_budget": 25000,
+              "search_budget_unit": "frontier_nodes_per_call",
+              "visited_nodes_this_call": 0,
+              "visited_nodes_total": 0,
+              "visited_nodes": 0,
+              "odds_pruned_nodes": 0,
+              "checked_combinations": 0,
+              "odds_matching_combinations": 0,
+              "search_complete": true,
+              "budget_exhausted": false,
+              "deadline_reached": false,
+              "search_status": "COMPLETE",
+              "global_top_guarantee": true,
+              "ranking_objective": "max evidence score, then expected value, average evidence, independent supports, target-odds proximity, total odds; top 12 per tier",
+              "partial_result_interpretation": "Partial frontiers produce useful candidates but do not guarantee the global top candidates.",
+              "min_legs": 2,
+              "max_legs": 6,
+              "effective_max_legs": 0,
+              "event_coverage": {
+                "visited_events": 0,
+                "total_events": 0,
+                "visited_fraction": 0.0,
+                "branch_visits_by_event": {}
+              },
+              "legs_count_progress": {},
+              "pool_config_fingerprint": "ca7f62c72c2abc6809aab7b257e56bdd702a8b50ce21d8b61bf75a13dcda9670",
+              "scope_as_of": "2026-10-16T06:15:20.961856+00:00"
+            }
+          },
+          "candidate_count": 0,
+          "linked_snapshot_count": 0
+        },
+        "completed_at": "2026-10-16T06:15:22.470642+00:00"
+      },
+      "multi_sport_settlement": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-16T06:15:22.470642+00:00",
+        "result": {
+          "settled_snapshots": 0,
+          "unresolved_snapshots": 15,
+          "deferred_snapshots": 0,
+          "deferred_observations": [],
+          "result_games": 2,
+          "coverage": {
+            "soccer/COLOMBIA_PRIMERA_A": {
+              "provider": "ESPN_PUBLIC_SCOREBOARD",
+              "status": "AVAILABLE",
+              "fetch_status": "RESULTS_AVAILABLE",
+              "games": 2,
+              "snapshots": 15,
+              "matched_snapshots": 0,
+              "unique_matches": 0,
+              "settled_snapshots": 0,
+              "unmatched_snapshots": 15,
+              "errors": [],
+              "settlement_status_counts": {},
+              "unmatched_reason_counts": {
+                "NO_UNIQUE_RESULT_MATCH": 15
+              }
+            }
+          },
+          "unmatched_observations_sampled": 15,
+          "settled_parlay_candidates": 0
+        },
+        "completed_at": "2026-10-16T06:15:24.751190+00:00"
+      },
+      "weekly_report": {
+        "status": "SUCCEEDED",
+        "attempts": 1,
+        "started_at": "2026-10-16T06:15:24.753193+00:00",
+        "result": {
+          "report_json": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\reports\\weekly_2026-10-16.json",
+          "report_markdown": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\reports\\weekly_2026-10-16.md",
+          "single_settled_n": 501,
+          "model_cohort_n": 0,
+          "parlay_settled_n": 0,
+          "source_health_observations": 136
+        },
+        "completed_at": "2026-10-16T06:15:30.340466+00:00"
+      }
+    }
+  }
+}

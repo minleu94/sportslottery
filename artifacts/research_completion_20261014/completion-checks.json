@@ -1,0 +1,46 @@
+{
+  "observed_at_utc": "2026-10-14T01:40:31.634315+00:00",
+  "checks": {
+    "full_suite_succeeded": true,
+    "suite_source_unchanged": true,
+    "current_source_matches_suite": true,
+    "task_enabled": true,
+    "task_ready_and_last_run_zero": true,
+    "task_15min": true,
+    "real_final_run_complete": true,
+    "final_runtime_identity_current": true,
+    "final_report_identity_current": true,
+    "central_report_identity_current": true,
+    "central_recovery_complete": true,
+    "unsupported_scope_explicit": true,
+    "ledger_all_payloads_verified": true,
+    "ledger_identity_current": true,
+    "report_wallet_unused": true
+  },
+  "passed": true,
+  "current_experiment_id": "exp_caaef046192bae02b68e56f8fcccfac6a28b8b5e3e201bdbde7c223ca9250e43",
+  "production_model_acceptance": "NOT_YET_VALIDATED; current qualified settled N=0",
+  "suite": "329 passed, 6 live opt-in skipped",
+  "runtime_source_result": {
+    "alliance_count": 8,
+    "fetched_leg_count": 338,
+    "source_status_counts": {
+      "LIVE": 5,
+      "LIVE_NO_EVENTS": 3
+    },
+    "confirmed_no_event_source_count": 3,
+    "source_error_count": 0,
+    "source_errors": [],
+    "health_path": "C:\\Projects\\PythonProjects\\sportslottery\\artifacts\\research_completion_20261014\\runtime_final\\runs\\20261014T0130Z\\data\\source_health.json"
+  },
+  "runtime_snapshot_result": {
+    "selected_leg_count": 17,
+    "snapshot_count": 17,
+    "excluded_reason_counts": {
+      "EVENT_STARTED": 219,
+      "OUTSIDE_LEAD_WINDOW": 102
+    },
+    "model_probability_count": 0,
+    "market_baseline_only_count": 17
+  }
+}

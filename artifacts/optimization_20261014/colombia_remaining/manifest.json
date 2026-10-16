@@ -1,0 +1,5531 @@
+{
+  "purpose": "Read-only public ESPN Colombia Primera A adjacent-date investigation for Millonarios vs Once Caldas scheduled 2026-10-14T01:30:00Z",
+  "observed_at_utc": "2026-10-16T06:05:23.991734+00:00",
+  "requests": [
+    {
+      "date_parameter": "20261012",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/scoreboard?dates=20261012",
+      "http_status": 200,
+      "response_sha256": "ff6f1daf7049a54c4fbe84f02317f8b42c039a69b7f15acfa0955cf6dc2610b4",
+      "file": "col1_scoreboard_20261012.json",
+      "event_count": 0,
+      "events": []
+    },
+    {
+      "date_parameter": "20261013",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/scoreboard?dates=20261013",
+      "http_status": 200,
+      "response_sha256": "cc8180ed65f45e74a7b6baeb815f1311f8fddcebf73936f88c60c0392e6dc76d",
+      "file": "col1_scoreboard_20261013.json",
+      "event_count": 1,
+      "events": [
+        {
+          "id": "401877951",
+          "date": "2026-10-13T23:30Z",
+          "name": "Águilas Doradas at Atlético Bucaramanga",
+          "status": "STATUS_FULL_TIME",
+          "detail": "FT",
+          "teams": [
+            {
+              "name": "Atlético Bucaramanga",
+              "id": "6137",
+              "homeAway": "home",
+              "score": "1"
+            },
+            {
+              "name": "Águilas Doradas",
+              "id": "9762",
+              "homeAway": "away",
+              "score": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date_parameter": "20261014",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/scoreboard?dates=20261014",
+      "http_status": 200,
+      "response_sha256": "60e744315408f211f0c69c458f9e887c05d7c8707e04803b1193a0e5a183539e",
+      "file": "col1_scoreboard_20261014.json",
+      "event_count": 1,
+      "events": [
+        {
+          "id": "401878008",
+          "date": "2026-10-14T21:30Z",
+          "name": "Deportivo Pereira at Atlético Junior",
+          "status": "STATUS_FULL_TIME",
+          "detail": "FT",
+          "teams": [
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "home",
+              "score": "1"
+            },
+            {
+              "name": "Deportivo Pereira",
+              "id": "5486",
+              "homeAway": "away",
+              "score": "1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "date_parameter": "20261015",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/scoreboard?dates=20261015",
+      "http_status": 200,
+      "response_sha256": "ff6f1daf7049a54c4fbe84f02317f8b42c039a69b7f15acfa0955cf6dc2610b4",
+      "file": "col1_scoreboard_20261015.json",
+      "event_count": 0,
+      "events": []
+    },
+    {
+      "date_parameter": "20261016",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/scoreboard?dates=20261016",
+      "http_status": 200,
+      "response_sha256": "ff6f1daf7049a54c4fbe84f02317f8b42c039a69b7f15acfa0955cf6dc2610b4",
+      "file": "col1_scoreboard_20261016.json",
+      "event_count": 0,
+      "events": []
+    }
+  ],
+  "team_lookup": {
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/teams?limit=1000",
+    "observed_at_utc": "2026-10-16T06:05:39.831945+00:00",
+    "http_status": 200,
+    "response_sha256": "2ca9a7f2cff9f1ce2739dc675e20bdd073f0a302f41d57f3e146bb4ca4e72c3a",
+    "file": "col1_teams.json",
+    "team_count": 22,
+    "matching_teams": [
+      {
+        "id": "5484",
+        "displayName": "Millonarios",
+        "name": "Millonarios",
+        "abbreviation": "MIL",
+        "slug": "col.millonarios",
+        "uid": "s:600~t:5484"
+      },
+      {
+        "id": "2919",
+        "displayName": "Once Caldas",
+        "name": "Once Caldas",
+        "abbreviation": "CAL",
+        "slug": "col.once_caldas",
+        "uid": "s:600~t:2919"
+      }
+    ]
+  },
+  "team_schedules": [
+    {
+      "team_id": "5484",
+      "team_name": "millonarios",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/teams/5484/schedule?season=2026",
+      "observed_at_utc": "2026-10-16T06:05:49.281032+00:00",
+      "http_status": 200,
+      "response_sha256": "b5c35b29b0e72be1da3fd2e94436e13b2712d008552fe7f634c4a8ee56090aa4",
+      "file": "millonarios_schedule_2026.json",
+      "top_keys": [
+        "timestamp",
+        "status",
+        "season",
+        "team",
+        "events",
+        "requestedSeason"
+      ],
+      "event_count": 33,
+      "target_related_events": [
+        {
+          "id": "401877887",
+          "date": "2026-10-09T01:10Z",
+          "name": "Millonarios at Fortaleza CEIF",
+          "shortName": "MIL @ FOR",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Fortaleza CEIF",
+              "id": "4928",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877887/competitions/401877887/competitors/4928/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877887/competitions/401877887/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877876",
+          "date": "2026-09-30T01:05Z",
+          "name": "Millonarios at Independiente Medellín",
+          "shortName": "MIL @ DIM",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Independiente Medellín",
+              "id": "2690",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877876/competitions/401877876/competitors/2690/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877876/competitions/401877876/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878053",
+          "date": "2026-09-25T00:30Z",
+          "name": "Millonarios at Atlético Nacional",
+          "shortName": "MIL @ NAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Nacional",
+              "id": "5264",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878053/competitions/401878053/competitors/5264/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878053/competitions/401878053/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877894",
+          "date": "2026-09-19T19:00Z",
+          "name": "Boyacá Chicó FC at Millonarios",
+          "shortName": "CHI @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877894/competitions/401877894/competitors/5484/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Boyacá Chicó FC",
+              "id": "5480",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877894/competitions/401877894/competitors/5480/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878022",
+          "date": "2026-09-14T01:15Z",
+          "name": "Millonarios at Cúcuta Deportivo",
+          "shortName": "MIL @ CUC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Cúcuta Deportivo",
+              "id": "6101",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878022/competitions/401878022/competitors/6101/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878022/competitions/401878022/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878013",
+          "date": "2026-09-11T01:00Z",
+          "name": "Deportivo Cali at Millonarios",
+          "shortName": "DCI @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878013/competitions/401878013/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Cali",
+              "id": "2672",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878013/competitions/401878013/competitors/2672/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877872",
+          "date": "2026-09-06T23:10Z",
+          "name": "Millonarios at Deportivo Pereira",
+          "shortName": "MIL @ PER",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Pereira",
+              "id": "5486",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877872/competitions/401877872/competitors/5486/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877872/competitions/401877872/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877839",
+          "date": "2026-09-03T01:25Z",
+          "name": "Millonarios at Independiente Santa Fe",
+          "shortName": "MIL @ SFE",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Independiente Santa Fe",
+              "id": "5488",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877839/competitions/401877839/competitors/5488/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877839/competitions/401877839/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878042",
+          "date": "2026-08-30T23:15Z",
+          "name": "Internacional de Bogotá at Millonarios",
+          "shortName": "BOG @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878042/competitions/401878042/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Internacional de Bogotá",
+              "id": "7445",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878042/competitions/401878042/competitors/7445/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877881",
+          "date": "2026-08-27T23:10Z",
+          "name": "Millonarios at Llaneros FC",
+          "shortName": "MIL @ LLA",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Llaneros FC",
+              "id": "7915",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877881/competitions/401877881/competitors/7915/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877881/competitions/401877881/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877952",
+          "date": "2026-08-22T20:30Z",
+          "name": "Millonarios at Águilas Doradas",
+          "shortName": "MIL @ AGD",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Águilas Doradas",
+              "id": "9762",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877952/competitions/401877952/competitors/9762/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877952/competitions/401877952/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877858",
+          "date": "2026-08-05T01:20Z",
+          "name": "Deportivo Pasto at Millonarios",
+          "shortName": "PAS @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877858/competitions/401877858/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Pasto",
+              "id": "5485",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877858/competitions/401877858/competitors/5485/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878009",
+          "date": "2026-08-02T01:15Z",
+          "name": "Millonarios at Atlético Junior",
+          "shortName": "MIL @ JUN",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878009/competitions/401878009/competitors/4815/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878009/competitions/401878009/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877997",
+          "date": "2026-07-25T23:10Z",
+          "name": "Atlético Bucaramanga at Millonarios",
+          "shortName": "BUC @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877997/competitions/401877997/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Bucaramanga",
+              "id": "6137",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877997/competitions/401877997/competitors/6137/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850888",
+          "date": "2026-05-03T20:30Z",
+          "name": "Millonarios at Alianza FC",
+          "shortName": "MIL @ AFC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Alianza FC",
+              "id": "9761",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850888/competitions/401850888/competitors/9761/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850888/competitions/401850888/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850859",
+          "date": "2026-04-24T01:00Z",
+          "name": "Deportes Tolima at Millonarios",
+          "shortName": "TOL @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850859/competitions/401850859/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportes Tolima",
+              "id": "5489",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850859/competitions/401850859/competitors/5489/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850874",
+          "date": "2026-04-20T01:30Z",
+          "name": "Millonarios at América de Cali",
+          "shortName": "MIL @ AME",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "América de Cali",
+              "id": "8109",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850874/competitions/401850874/competitors/8109/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850874/competitions/401850874/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850863",
+          "date": "2026-04-12T19:00Z",
+          "name": "Independiente Santa Fe at Millonarios",
+          "shortName": "SFE @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850863/competitions/401850863/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Independiente Santa Fe",
+              "id": "5488",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850863/competitions/401850863/competitors/5488/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850854",
+          "date": "2026-04-02T23:20Z",
+          "name": "Millonarios at Jaguares de Córdoba",
+          "shortName": "MIL @ COR",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Jaguares de Córdoba",
+              "id": "10309",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850854/competitions/401850854/competitors/10309/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850854/competitions/401850854/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850847",
+          "date": "2026-03-31T01:20Z",
+          "name": "Fortaleza CEIF at Millonarios",
+          "shortName": "FOR @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850847/competitions/401850847/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Fortaleza CEIF",
+              "id": "4928",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850847/competitions/401850847/competitors/4928/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850828",
+          "date": "2026-03-21T23:20Z",
+          "name": "Millonarios at Once Caldas",
+          "shortName": "MIL @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850828/competitions/401850828/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850828/competitions/401850828/competitors/5484/scores/38?lang=en&region=us",
+                "value": 4.0,
+                "displayValue": "4",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850820",
+          "date": "2026-03-18T01:30Z",
+          "name": "Atlético Nacional at Millonarios",
+          "shortName": "NAL @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850820/competitions/401850820/competitors/5484/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Nacional",
+              "id": "5264",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850820/competitions/401850820/competitors/5264/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850812",
+          "date": "2026-03-14T23:20Z",
+          "name": "Millonarios at Boyacá Chicó FC",
+          "shortName": "MIL @ CHI",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Boyacá Chicó FC",
+              "id": "5480",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850812/competitions/401850812/competitors/5480/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850812/competitions/401850812/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850806",
+          "date": "2026-03-09T23:20Z",
+          "name": "Cúcuta Deportivo at Millonarios",
+          "shortName": "CUC @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850806/competitions/401850806/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Cúcuta Deportivo",
+              "id": "6101",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850806/competitions/401850806/competitors/6101/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850748",
+          "date": "2026-02-27T00:30Z",
+          "name": "Deportivo Pereira at Millonarios",
+          "shortName": "PER @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850748/competitions/401850748/competitors/5484/scores/38?lang=en&region=us",
+                "value": 5.0,
+                "displayValue": "5",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Pereira",
+              "id": "5486",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850748/competitions/401850748/competitors/5486/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850784",
+          "date": "2026-02-22T01:30Z",
+          "name": "Millonarios at Internacional de Bogotá",
+          "shortName": "MIL @ BOG",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Internacional de Bogotá",
+              "id": "7445",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850784/competitions/401850784/competitors/7445/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850784/competitions/401850784/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850769",
+          "date": "2026-02-14T21:30Z",
+          "name": "Llaneros FC at Millonarios",
+          "shortName": "LLA @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850769/competitions/401850769/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Llaneros FC",
+              "id": "7915",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850769/competitions/401850769/competitors/7915/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850763",
+          "date": "2026-02-11T23:30Z",
+          "name": "Águilas Doradas at Millonarios",
+          "shortName": "AGD @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850763/competitions/401850763/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Águilas Doradas",
+              "id": "9762",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850763/competitions/401850763/competitors/9762/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850757",
+          "date": "2026-02-08T23:20Z",
+          "name": "Millonarios at Deportivo Cali",
+          "shortName": "MIL @ DCI",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Cali",
+              "id": "2672",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850757/competitions/401850757/competitors/2672/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850757/competitions/401850757/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850740",
+          "date": "2026-02-02T20:00Z",
+          "name": "Independiente Medellín at Millonarios",
+          "shortName": "DIM @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850740/competitions/401850740/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Independiente Medellín",
+              "id": "2690",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850740/competitions/401850740/competitors/2690/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850732",
+          "date": "2026-01-29T01:30Z",
+          "name": "Millonarios at Deportivo Pasto",
+          "shortName": "MIL @ PAS",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Pasto",
+              "id": "5485",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850732/competitions/401850732/competitors/5485/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850732/competitions/401850732/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850725",
+          "date": "2026-01-25T23:10Z",
+          "name": "Atlético Junior at Millonarios",
+          "shortName": "JUN @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850725/competitions/401850725/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850725/competitions/401850725/competitors/4815/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401843148",
+          "date": "2026-01-18T01:30Z",
+          "name": "Millonarios at Atlético Bucaramanga",
+          "shortName": "MIL @ BUC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Bucaramanga",
+              "id": "6137",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401843148/competitions/401843148/competitors/6137/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401843148/competitions/401843148/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "all_events": [
+        {
+          "id": "401877887",
+          "date": "2026-10-09T01:10Z",
+          "name": "Millonarios at Fortaleza CEIF",
+          "shortName": "MIL @ FOR",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Fortaleza CEIF",
+              "id": "4928",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877887/competitions/401877887/competitors/4928/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877887/competitions/401877887/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877876",
+          "date": "2026-09-30T01:05Z",
+          "name": "Millonarios at Independiente Medellín",
+          "shortName": "MIL @ DIM",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Independiente Medellín",
+              "id": "2690",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877876/competitions/401877876/competitors/2690/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877876/competitions/401877876/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878053",
+          "date": "2026-09-25T00:30Z",
+          "name": "Millonarios at Atlético Nacional",
+          "shortName": "MIL @ NAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Nacional",
+              "id": "5264",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878053/competitions/401878053/competitors/5264/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878053/competitions/401878053/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877894",
+          "date": "2026-09-19T19:00Z",
+          "name": "Boyacá Chicó FC at Millonarios",
+          "shortName": "CHI @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877894/competitions/401877894/competitors/5484/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Boyacá Chicó FC",
+              "id": "5480",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877894/competitions/401877894/competitors/5480/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878022",
+          "date": "2026-09-14T01:15Z",
+          "name": "Millonarios at Cúcuta Deportivo",
+          "shortName": "MIL @ CUC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Cúcuta Deportivo",
+              "id": "6101",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878022/competitions/401878022/competitors/6101/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878022/competitions/401878022/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878013",
+          "date": "2026-09-11T01:00Z",
+          "name": "Deportivo Cali at Millonarios",
+          "shortName": "DCI @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878013/competitions/401878013/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Cali",
+              "id": "2672",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878013/competitions/401878013/competitors/2672/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877872",
+          "date": "2026-09-06T23:10Z",
+          "name": "Millonarios at Deportivo Pereira",
+          "shortName": "MIL @ PER",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Pereira",
+              "id": "5486",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877872/competitions/401877872/competitors/5486/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877872/competitions/401877872/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877839",
+          "date": "2026-09-03T01:25Z",
+          "name": "Millonarios at Independiente Santa Fe",
+          "shortName": "MIL @ SFE",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Independiente Santa Fe",
+              "id": "5488",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877839/competitions/401877839/competitors/5488/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877839/competitions/401877839/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878042",
+          "date": "2026-08-30T23:15Z",
+          "name": "Internacional de Bogotá at Millonarios",
+          "shortName": "BOG @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878042/competitions/401878042/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Internacional de Bogotá",
+              "id": "7445",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878042/competitions/401878042/competitors/7445/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877881",
+          "date": "2026-08-27T23:10Z",
+          "name": "Millonarios at Llaneros FC",
+          "shortName": "MIL @ LLA",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Llaneros FC",
+              "id": "7915",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877881/competitions/401877881/competitors/7915/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877881/competitions/401877881/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877952",
+          "date": "2026-08-22T20:30Z",
+          "name": "Millonarios at Águilas Doradas",
+          "shortName": "MIL @ AGD",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Águilas Doradas",
+              "id": "9762",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877952/competitions/401877952/competitors/9762/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877952/competitions/401877952/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877858",
+          "date": "2026-08-05T01:20Z",
+          "name": "Deportivo Pasto at Millonarios",
+          "shortName": "PAS @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877858/competitions/401877858/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Pasto",
+              "id": "5485",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877858/competitions/401877858/competitors/5485/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878009",
+          "date": "2026-08-02T01:15Z",
+          "name": "Millonarios at Atlético Junior",
+          "shortName": "MIL @ JUN",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878009/competitions/401878009/competitors/4815/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878009/competitions/401878009/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877997",
+          "date": "2026-07-25T23:10Z",
+          "name": "Atlético Bucaramanga at Millonarios",
+          "shortName": "BUC @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877997/competitions/401877997/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Bucaramanga",
+              "id": "6137",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877997/competitions/401877997/competitors/6137/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850888",
+          "date": "2026-05-03T20:30Z",
+          "name": "Millonarios at Alianza FC",
+          "shortName": "MIL @ AFC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Alianza FC",
+              "id": "9761",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850888/competitions/401850888/competitors/9761/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850888/competitions/401850888/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850859",
+          "date": "2026-04-24T01:00Z",
+          "name": "Deportes Tolima at Millonarios",
+          "shortName": "TOL @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850859/competitions/401850859/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportes Tolima",
+              "id": "5489",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850859/competitions/401850859/competitors/5489/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850874",
+          "date": "2026-04-20T01:30Z",
+          "name": "Millonarios at América de Cali",
+          "shortName": "MIL @ AME",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "América de Cali",
+              "id": "8109",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850874/competitions/401850874/competitors/8109/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850874/competitions/401850874/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850863",
+          "date": "2026-04-12T19:00Z",
+          "name": "Independiente Santa Fe at Millonarios",
+          "shortName": "SFE @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850863/competitions/401850863/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Independiente Santa Fe",
+              "id": "5488",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850863/competitions/401850863/competitors/5488/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850854",
+          "date": "2026-04-02T23:20Z",
+          "name": "Millonarios at Jaguares de Córdoba",
+          "shortName": "MIL @ COR",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Jaguares de Córdoba",
+              "id": "10309",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850854/competitions/401850854/competitors/10309/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850854/competitions/401850854/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850847",
+          "date": "2026-03-31T01:20Z",
+          "name": "Fortaleza CEIF at Millonarios",
+          "shortName": "FOR @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850847/competitions/401850847/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Fortaleza CEIF",
+              "id": "4928",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850847/competitions/401850847/competitors/4928/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850828",
+          "date": "2026-03-21T23:20Z",
+          "name": "Millonarios at Once Caldas",
+          "shortName": "MIL @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850828/competitions/401850828/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850828/competitions/401850828/competitors/5484/scores/38?lang=en&region=us",
+                "value": 4.0,
+                "displayValue": "4",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850820",
+          "date": "2026-03-18T01:30Z",
+          "name": "Atlético Nacional at Millonarios",
+          "shortName": "NAL @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850820/competitions/401850820/competitors/5484/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Nacional",
+              "id": "5264",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850820/competitions/401850820/competitors/5264/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850812",
+          "date": "2026-03-14T23:20Z",
+          "name": "Millonarios at Boyacá Chicó FC",
+          "shortName": "MIL @ CHI",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Boyacá Chicó FC",
+              "id": "5480",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850812/competitions/401850812/competitors/5480/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850812/competitions/401850812/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850806",
+          "date": "2026-03-09T23:20Z",
+          "name": "Cúcuta Deportivo at Millonarios",
+          "shortName": "CUC @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850806/competitions/401850806/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Cúcuta Deportivo",
+              "id": "6101",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850806/competitions/401850806/competitors/6101/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850748",
+          "date": "2026-02-27T00:30Z",
+          "name": "Deportivo Pereira at Millonarios",
+          "shortName": "PER @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850748/competitions/401850748/competitors/5484/scores/38?lang=en&region=us",
+                "value": 5.0,
+                "displayValue": "5",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Pereira",
+              "id": "5486",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850748/competitions/401850748/competitors/5486/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850784",
+          "date": "2026-02-22T01:30Z",
+          "name": "Millonarios at Internacional de Bogotá",
+          "shortName": "MIL @ BOG",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Internacional de Bogotá",
+              "id": "7445",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850784/competitions/401850784/competitors/7445/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850784/competitions/401850784/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850769",
+          "date": "2026-02-14T21:30Z",
+          "name": "Llaneros FC at Millonarios",
+          "shortName": "LLA @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850769/competitions/401850769/competitors/5484/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Llaneros FC",
+              "id": "7915",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850769/competitions/401850769/competitors/7915/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850763",
+          "date": "2026-02-11T23:30Z",
+          "name": "Águilas Doradas at Millonarios",
+          "shortName": "AGD @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850763/competitions/401850763/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Águilas Doradas",
+              "id": "9762",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850763/competitions/401850763/competitors/9762/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850757",
+          "date": "2026-02-08T23:20Z",
+          "name": "Millonarios at Deportivo Cali",
+          "shortName": "MIL @ DCI",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Cali",
+              "id": "2672",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850757/competitions/401850757/competitors/2672/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850757/competitions/401850757/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850740",
+          "date": "2026-02-02T20:00Z",
+          "name": "Independiente Medellín at Millonarios",
+          "shortName": "DIM @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850740/competitions/401850740/competitors/5484/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Independiente Medellín",
+              "id": "2690",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850740/competitions/401850740/competitors/2690/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850732",
+          "date": "2026-01-29T01:30Z",
+          "name": "Millonarios at Deportivo Pasto",
+          "shortName": "MIL @ PAS",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Pasto",
+              "id": "5485",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850732/competitions/401850732/competitors/5485/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850732/competitions/401850732/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850725",
+          "date": "2026-01-25T23:10Z",
+          "name": "Atlético Junior at Millonarios",
+          "shortName": "JUN @ MIL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850725/competitions/401850725/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850725/competitions/401850725/competitors/4815/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401843148",
+          "date": "2026-01-18T01:30Z",
+          "name": "Millonarios at Atlético Bucaramanga",
+          "shortName": "MIL @ BUC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Bucaramanga",
+              "id": "6137",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401843148/competitions/401843148/competitors/6137/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401843148/competitions/401843148/competitors/5484/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "team_id": "2919",
+      "team_name": "once_caldas",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/col.1/teams/2919/schedule?season=2026",
+      "observed_at_utc": "2026-10-16T06:05:49.711361+00:00",
+      "http_status": 200,
+      "response_sha256": "4c828e1fad1759a6a270dacf91f8238de6eaba07d13016e00cbc5c1b7971f823",
+      "file": "once_caldas_schedule_2026.json",
+      "top_keys": [
+        "timestamp",
+        "status",
+        "season",
+        "team",
+        "events",
+        "requestedSeason"
+      ],
+      "event_count": 34,
+      "target_related_events": [
+        {
+          "id": "401877911",
+          "date": "2026-10-10T01:10Z",
+          "name": "Llaneros FC at Once Caldas",
+          "shortName": "LLA @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877911/competitions/401877911/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Llaneros FC",
+              "id": "7915",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877911/competitions/401877911/competitors/7915/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877909",
+          "date": "2026-10-04T21:05Z",
+          "name": "Once Caldas at Internacional de Bogotá",
+          "shortName": "CAL @ BOG",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Internacional de Bogotá",
+              "id": "7445",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877909/competitions/401877909/competitors/7445/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877909/competitions/401877909/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878063",
+          "date": "2026-09-26T01:15Z",
+          "name": "Atlético Bucaramanga at Once Caldas",
+          "shortName": "BUC @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878063/competitions/401878063/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Bucaramanga",
+              "id": "6137",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878063/competitions/401878063/competitors/6137/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878003",
+          "date": "2026-09-20T01:15Z",
+          "name": "Once Caldas at Deportivo Pasto",
+          "shortName": "CAL @ PAS",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Pasto",
+              "id": "5485",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878003/competitions/401878003/competitors/5485/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878003/competitions/401878003/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878023",
+          "date": "2026-09-16T23:15Z",
+          "name": "Deportes Tolima at Once Caldas",
+          "shortName": "TOL @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878023/competitions/401878023/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportes Tolima",
+              "id": "5489",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878023/competitions/401878023/competitors/5489/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878017",
+          "date": "2026-09-13T23:10Z",
+          "name": "Deportivo Cali at Once Caldas",
+          "shortName": "DCI @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878017/competitions/401878017/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Cali",
+              "id": "2672",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878017/competitions/401878017/competitors/2672/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877870",
+          "date": "2026-09-05T21:00Z",
+          "name": "Once Caldas at Boyacá Chicó FC",
+          "shortName": "CAL @ CHI",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Boyacá Chicó FC",
+              "id": "5480",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877870/competitions/401877870/competitors/5480/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877870/competitions/401877870/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878055",
+          "date": "2026-09-02T01:00Z",
+          "name": "Once Caldas at Fortaleza CEIF",
+          "shortName": "CAL @ FOR",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Fortaleza CEIF",
+              "id": "4928",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878055/competitions/401878055/competitors/4928/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878055/competitions/401878055/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877888",
+          "date": "2026-08-24T01:15Z",
+          "name": "Once Caldas at Atlético Junior",
+          "shortName": "CAL @ JUN",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877888/competitions/401877888/competitors/4815/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877888/competitions/401877888/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877868",
+          "date": "2026-08-09T23:10Z",
+          "name": "Once Caldas at Jaguares de Córdoba",
+          "shortName": "CAL @ COR",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Jaguares de Córdoba",
+              "id": "10309",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877868/competitions/401877868/competitors/10309/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877868/competitions/401877868/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877860",
+          "date": "2026-08-06T01:30Z",
+          "name": "América de Cali at Once Caldas",
+          "shortName": "AME @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877860/competitions/401877860/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "América de Cali",
+              "id": "8109",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877860/competitions/401877860/competitors/8109/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877966",
+          "date": "2026-08-03T01:00Z",
+          "name": "Once Caldas at Independiente Santa Fe",
+          "shortName": "CAL @ SFE",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Independiente Santa Fe",
+              "id": "5488",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877966/competitions/401877966/competitors/5488/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877966/competitions/401877966/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878005",
+          "date": "2026-07-27T01:15Z",
+          "name": "Cúcuta Deportivo at Once Caldas",
+          "shortName": "CUC @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878005/competitions/401878005/competitors/2919/scores/38?lang=en&region=us",
+                "value": 5.0,
+                "displayValue": "5",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Cúcuta Deportivo",
+              "id": "6101",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878005/competitions/401878005/competitors/6101/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401871525",
+          "date": "2026-05-14T01:15Z",
+          "name": "Once Caldas at Atlético Junior",
+          "shortName": "CAL @ JUN",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401871525/competitions/401871525/competitors/4815/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                },
+                "aggregateScore": 3.0
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401871525/competitions/401871525/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                },
+                "aggregateScore": 2.0
+              }
+            }
+          ]
+        },
+        {
+          "id": "401871521",
+          "date": "2026-05-10T23:10Z",
+          "name": "Atlético Junior at Once Caldas",
+          "shortName": "JUN @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401871521/competitions/401871521/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401871521/competitions/401871521/competitors/4815/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850892",
+          "date": "2026-05-01T23:00Z",
+          "name": "Atlético Nacional at Once Caldas",
+          "shortName": "NAL @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850892/competitions/401850892/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Nacional",
+              "id": "5264",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850892/competitions/401850892/competitors/5264/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850885",
+          "date": "2026-04-26T21:00Z",
+          "name": "Once Caldas at Águilas Doradas",
+          "shortName": "CAL @ AGD",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Águilas Doradas",
+              "id": "9762",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850885/competitions/401850885/competitors/9762/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850885/competitions/401850885/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850877",
+          "date": "2026-04-20T23:20Z",
+          "name": "Internacional de Bogotá at Once Caldas",
+          "shortName": "BOG @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850877/competitions/401850877/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Internacional de Bogotá",
+              "id": "7445",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850877/competitions/401850877/competitors/7445/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850861",
+          "date": "2026-04-10T20:30Z",
+          "name": "Once Caldas at Deportivo Pereira",
+          "shortName": "CAL @ PER",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Pereira",
+              "id": "5486",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850861/competitions/401850861/competitors/5486/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850861/competitions/401850861/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850855",
+          "date": "2026-04-03T01:30Z",
+          "name": "Independiente Medellín at Once Caldas",
+          "shortName": "DIM @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850855/competitions/401850855/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Independiente Medellín",
+              "id": "2690",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850855/competitions/401850855/competitors/2690/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850846",
+          "date": "2026-03-30T15:00Z",
+          "name": "Once Caldas at Llaneros FC",
+          "shortName": "CAL @ LLA",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Llaneros FC",
+              "id": "7915",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850846/competitions/401850846/competitors/7915/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850846/competitions/401850846/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850828",
+          "date": "2026-03-21T23:20Z",
+          "name": "Millonarios at Once Caldas",
+          "shortName": "MIL @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850828/competitions/401850828/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850828/competitions/401850828/competitors/5484/scores/38?lang=en&region=us",
+                "value": 4.0,
+                "displayValue": "4",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850819",
+          "date": "2026-03-19T00:30Z",
+          "name": "Once Caldas at Atlético Bucaramanga",
+          "shortName": "CAL @ BUC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Bucaramanga",
+              "id": "6137",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850819/competitions/401850819/competitors/6137/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850819/competitions/401850819/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850808",
+          "date": "2026-03-13T23:20Z",
+          "name": "Deportivo Pasto at Once Caldas",
+          "shortName": "PAS @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850808/competitions/401850808/competitors/2919/scores/38?lang=en&region=us",
+                "value": 4.0,
+                "displayValue": "4",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Pasto",
+              "id": "5485",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850808/competitions/401850808/competitors/5485/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850800",
+          "date": "2026-03-07T01:30Z",
+          "name": "Once Caldas at Deportivo Cali",
+          "shortName": "CAL @ DCI",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Cali",
+              "id": "2672",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850800/competitions/401850800/competitors/2672/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850800/competitions/401850800/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850790",
+          "date": "2026-02-28T01:30Z",
+          "name": "Boyacá Chicó FC at Once Caldas",
+          "shortName": "CHI @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850790/competitions/401850790/competitors/2919/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Boyacá Chicó FC",
+              "id": "5480",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850790/competitions/401850790/competitors/5480/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850781",
+          "date": "2026-02-21T19:00Z",
+          "name": "Fortaleza CEIF at Once Caldas",
+          "shortName": "FOR @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850781/competitions/401850781/competitors/2919/scores/38?lang=en&region=us",
+                "value": 4.0,
+                "displayValue": "4",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Fortaleza CEIF",
+              "id": "4928",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850781/competitions/401850781/competitors/4928/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850773",
+          "date": "2026-02-15T21:20Z",
+          "name": "Once Caldas at Deportes Tolima",
+          "shortName": "CAL @ TOL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportes Tolima",
+              "id": "5489",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850773/competitions/401850773/competitors/5489/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850773/competitions/401850773/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850766",
+          "date": "2026-02-12T23:20Z",
+          "name": "Atlético Junior at Once Caldas",
+          "shortName": "JUN @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850766/competitions/401850766/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850766/competitions/401850766/competitors/4815/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850756",
+          "date": "2026-02-08T21:10Z",
+          "name": "Once Caldas at Alianza FC",
+          "shortName": "CAL @ AFC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Alianza FC",
+              "id": "9761",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850756/competitions/401850756/competitors/9761/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850756/competitions/401850756/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850743",
+          "date": "2026-02-01T23:10Z",
+          "name": "Jaguares de Córdoba at Once Caldas",
+          "shortName": "COR @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850743/competitions/401850743/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Jaguares de Córdoba",
+              "id": "10309",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850743/competitions/401850743/competitors/10309/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850736",
+          "date": "2026-01-30T01:20Z",
+          "name": "Once Caldas at América de Cali",
+          "shortName": "CAL @ AME",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "América de Cali",
+              "id": "8109",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850736/competitions/401850736/competitors/8109/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850736/competitions/401850736/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850726",
+          "date": "2026-01-26T01:20Z",
+          "name": "Independiente Santa Fe at Once Caldas",
+          "shortName": "SFE @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850726/competitions/401850726/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Independiente Santa Fe",
+              "id": "5488",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850726/competitions/401850726/competitors/5488/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401843150",
+          "date": "2026-01-19T21:00Z",
+          "name": "Once Caldas at Cúcuta Deportivo",
+          "shortName": "CAL @ CUC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Cúcuta Deportivo",
+              "id": "6101",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401843150/competitions/401843150/competitors/6101/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401843150/competitions/401843150/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "all_events": [
+        {
+          "id": "401877911",
+          "date": "2026-10-10T01:10Z",
+          "name": "Llaneros FC at Once Caldas",
+          "shortName": "LLA @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877911/competitions/401877911/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Llaneros FC",
+              "id": "7915",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877911/competitions/401877911/competitors/7915/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877909",
+          "date": "2026-10-04T21:05Z",
+          "name": "Once Caldas at Internacional de Bogotá",
+          "shortName": "CAL @ BOG",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Internacional de Bogotá",
+              "id": "7445",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877909/competitions/401877909/competitors/7445/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877909/competitions/401877909/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878063",
+          "date": "2026-09-26T01:15Z",
+          "name": "Atlético Bucaramanga at Once Caldas",
+          "shortName": "BUC @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878063/competitions/401878063/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Bucaramanga",
+              "id": "6137",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878063/competitions/401878063/competitors/6137/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878003",
+          "date": "2026-09-20T01:15Z",
+          "name": "Once Caldas at Deportivo Pasto",
+          "shortName": "CAL @ PAS",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Pasto",
+              "id": "5485",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878003/competitions/401878003/competitors/5485/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878003/competitions/401878003/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878023",
+          "date": "2026-09-16T23:15Z",
+          "name": "Deportes Tolima at Once Caldas",
+          "shortName": "TOL @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878023/competitions/401878023/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportes Tolima",
+              "id": "5489",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878023/competitions/401878023/competitors/5489/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878017",
+          "date": "2026-09-13T23:10Z",
+          "name": "Deportivo Cali at Once Caldas",
+          "shortName": "DCI @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878017/competitions/401878017/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Cali",
+              "id": "2672",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878017/competitions/401878017/competitors/2672/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877870",
+          "date": "2026-09-05T21:00Z",
+          "name": "Once Caldas at Boyacá Chicó FC",
+          "shortName": "CAL @ CHI",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Boyacá Chicó FC",
+              "id": "5480",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877870/competitions/401877870/competitors/5480/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877870/competitions/401877870/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878055",
+          "date": "2026-09-02T01:00Z",
+          "name": "Once Caldas at Fortaleza CEIF",
+          "shortName": "CAL @ FOR",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Fortaleza CEIF",
+              "id": "4928",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878055/competitions/401878055/competitors/4928/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878055/competitions/401878055/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877888",
+          "date": "2026-08-24T01:15Z",
+          "name": "Once Caldas at Atlético Junior",
+          "shortName": "CAL @ JUN",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877888/competitions/401877888/competitors/4815/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877888/competitions/401877888/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877868",
+          "date": "2026-08-09T23:10Z",
+          "name": "Once Caldas at Jaguares de Córdoba",
+          "shortName": "CAL @ COR",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Jaguares de Córdoba",
+              "id": "10309",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877868/competitions/401877868/competitors/10309/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877868/competitions/401877868/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877860",
+          "date": "2026-08-06T01:30Z",
+          "name": "América de Cali at Once Caldas",
+          "shortName": "AME @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877860/competitions/401877860/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "América de Cali",
+              "id": "8109",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877860/competitions/401877860/competitors/8109/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401877966",
+          "date": "2026-08-03T01:00Z",
+          "name": "Once Caldas at Independiente Santa Fe",
+          "shortName": "CAL @ SFE",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Independiente Santa Fe",
+              "id": "5488",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877966/competitions/401877966/competitors/5488/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401877966/competitions/401877966/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401878005",
+          "date": "2026-07-27T01:15Z",
+          "name": "Cúcuta Deportivo at Once Caldas",
+          "shortName": "CUC @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878005/competitions/401878005/competitors/2919/scores/38?lang=en&region=us",
+                "value": 5.0,
+                "displayValue": "5",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Cúcuta Deportivo",
+              "id": "6101",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401878005/competitions/401878005/competitors/6101/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401871525",
+          "date": "2026-05-14T01:15Z",
+          "name": "Once Caldas at Atlético Junior",
+          "shortName": "CAL @ JUN",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401871525/competitions/401871525/competitors/4815/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                },
+                "aggregateScore": 3.0
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401871525/competitions/401871525/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                },
+                "aggregateScore": 2.0
+              }
+            }
+          ]
+        },
+        {
+          "id": "401871521",
+          "date": "2026-05-10T23:10Z",
+          "name": "Atlético Junior at Once Caldas",
+          "shortName": "JUN @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401871521/competitions/401871521/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401871521/competitions/401871521/competitors/4815/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850892",
+          "date": "2026-05-01T23:00Z",
+          "name": "Atlético Nacional at Once Caldas",
+          "shortName": "NAL @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850892/competitions/401850892/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Nacional",
+              "id": "5264",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850892/competitions/401850892/competitors/5264/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850885",
+          "date": "2026-04-26T21:00Z",
+          "name": "Once Caldas at Águilas Doradas",
+          "shortName": "CAL @ AGD",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Águilas Doradas",
+              "id": "9762",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850885/competitions/401850885/competitors/9762/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850885/competitions/401850885/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850877",
+          "date": "2026-04-20T23:20Z",
+          "name": "Internacional de Bogotá at Once Caldas",
+          "shortName": "BOG @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850877/competitions/401850877/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Internacional de Bogotá",
+              "id": "7445",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850877/competitions/401850877/competitors/7445/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850861",
+          "date": "2026-04-10T20:30Z",
+          "name": "Once Caldas at Deportivo Pereira",
+          "shortName": "CAL @ PER",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Pereira",
+              "id": "5486",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850861/competitions/401850861/competitors/5486/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850861/competitions/401850861/competitors/2919/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850855",
+          "date": "2026-04-03T01:30Z",
+          "name": "Independiente Medellín at Once Caldas",
+          "shortName": "DIM @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850855/competitions/401850855/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Independiente Medellín",
+              "id": "2690",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850855/competitions/401850855/competitors/2690/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850846",
+          "date": "2026-03-30T15:00Z",
+          "name": "Once Caldas at Llaneros FC",
+          "shortName": "CAL @ LLA",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Llaneros FC",
+              "id": "7915",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850846/competitions/401850846/competitors/7915/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850846/competitions/401850846/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850828",
+          "date": "2026-03-21T23:20Z",
+          "name": "Millonarios at Once Caldas",
+          "shortName": "MIL @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850828/competitions/401850828/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Millonarios",
+              "id": "5484",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850828/competitions/401850828/competitors/5484/scores/38?lang=en&region=us",
+                "value": 4.0,
+                "displayValue": "4",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850819",
+          "date": "2026-03-19T00:30Z",
+          "name": "Once Caldas at Atlético Bucaramanga",
+          "shortName": "CAL @ BUC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Atlético Bucaramanga",
+              "id": "6137",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850819/competitions/401850819/competitors/6137/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850819/competitions/401850819/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850808",
+          "date": "2026-03-13T23:20Z",
+          "name": "Deportivo Pasto at Once Caldas",
+          "shortName": "PAS @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850808/competitions/401850808/competitors/2919/scores/38?lang=en&region=us",
+                "value": 4.0,
+                "displayValue": "4",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Deportivo Pasto",
+              "id": "5485",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850808/competitions/401850808/competitors/5485/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850800",
+          "date": "2026-03-07T01:30Z",
+          "name": "Once Caldas at Deportivo Cali",
+          "shortName": "CAL @ DCI",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportivo Cali",
+              "id": "2672",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850800/competitions/401850800/competitors/2672/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850800/competitions/401850800/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850790",
+          "date": "2026-02-28T01:30Z",
+          "name": "Boyacá Chicó FC at Once Caldas",
+          "shortName": "CHI @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850790/competitions/401850790/competitors/2919/scores/38?lang=en&region=us",
+                "value": 3.0,
+                "displayValue": "3",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Boyacá Chicó FC",
+              "id": "5480",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850790/competitions/401850790/competitors/5480/scores/38?lang=en&region=us",
+                "value": 0.0,
+                "displayValue": "0",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850781",
+          "date": "2026-02-21T19:00Z",
+          "name": "Fortaleza CEIF at Once Caldas",
+          "shortName": "FOR @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850781/competitions/401850781/competitors/2919/scores/38?lang=en&region=us",
+                "value": 4.0,
+                "displayValue": "4",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Fortaleza CEIF",
+              "id": "4928",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850781/competitions/401850781/competitors/4928/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850773",
+          "date": "2026-02-15T21:20Z",
+          "name": "Once Caldas at Deportes Tolima",
+          "shortName": "CAL @ TOL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Deportes Tolima",
+              "id": "5489",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850773/competitions/401850773/competitors/5489/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850773/competitions/401850773/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850766",
+          "date": "2026-02-12T23:20Z",
+          "name": "Atlético Junior at Once Caldas",
+          "shortName": "JUN @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850766/competitions/401850766/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Atlético Junior",
+              "id": "4815",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850766/competitions/401850766/competitors/4815/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850756",
+          "date": "2026-02-08T21:10Z",
+          "name": "Once Caldas at Alianza FC",
+          "shortName": "CAL @ AFC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Alianza FC",
+              "id": "9761",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850756/competitions/401850756/competitors/9761/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850756/competitions/401850756/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850743",
+          "date": "2026-02-01T23:10Z",
+          "name": "Jaguares de Córdoba at Once Caldas",
+          "shortName": "COR @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850743/competitions/401850743/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Jaguares de Córdoba",
+              "id": "10309",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850743/competitions/401850743/competitors/10309/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850736",
+          "date": "2026-01-30T01:20Z",
+          "name": "Once Caldas at América de Cali",
+          "shortName": "CAL @ AME",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "América de Cali",
+              "id": "8109",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850736/competitions/401850736/competitors/8109/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850736/competitions/401850736/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401850726",
+          "date": "2026-01-26T01:20Z",
+          "name": "Independiente Santa Fe at Once Caldas",
+          "shortName": "SFE @ CAL",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850726/competitions/401850726/competitors/2919/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Independiente Santa Fe",
+              "id": "5488",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401850726/competitions/401850726/competitors/5488/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "401843150",
+          "date": "2026-01-19T21:00Z",
+          "name": "Once Caldas at Cúcuta Deportivo",
+          "shortName": "CAL @ CUC",
+          "status": null,
+          "detail": null,
+          "teams": [
+            {
+              "name": "Cúcuta Deportivo",
+              "id": "6101",
+              "homeAway": "home",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401843150/competitions/401843150/competitors/6101/scores/38?lang=en&region=us",
+                "value": 1.0,
+                "displayValue": "1",
+                "winner": false,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            },
+            {
+              "name": "Once Caldas",
+              "id": "2919",
+              "homeAway": "away",
+              "score": {
+                "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/col.1/events/401843150/competitions/401843150/competitors/2919/scores/38?lang=en&region=us",
+                "value": 2.0,
+                "displayValue": "2",
+                "winner": true,
+                "source": {
+                  "id": "38",
+                  "description": "SA.ENVOY"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

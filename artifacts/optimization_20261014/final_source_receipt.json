@@ -1,0 +1,8 @@
+{
+  "observed_at_utc": "2026-10-16T06:16:03.052286+00:00",
+  "source_hash": "9d262beee787373fe55866b35c7e52d7a6622e7ae16d29bffa637b732250c97c",
+  "pipeline_window": "20261016T0615Z",
+  "pipeline_status": "COMPLETE",
+  "same_source_before_and_after": true,
+  "stage_count": 8
+}

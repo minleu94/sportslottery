@@ -1,0 +1,24 @@
+{
+  "observed_at_utc": "2026-10-16T06:16:03.051286+00:00",
+  "browser": "own Streamlit 127.0.0.1:8511; user server untouched",
+  "method": "manual browser inspection, no automated test suite",
+  "observed": {
+    "performance_tables_render_without_none_format_exception": true,
+    "zero_sample_roi_hit_rate_average_odds_and_clv_unavailable": true,
+    "model_calibration_zero_samples_unavailable": true,
+    "health_separates_complete_from_data_quality": true,
+    "latest_eight_stages_succeeded": true,
+    "scheduler_enabled_visible": true,
+    "clv_observation_option_event_counts_visible": true,
+    "exclusion_reason_selector_and_per_option_details_visible": true,
+    "search_scope_complete_status_visible": true
+  },
+  "limitations": [
+    "UI inspection does not establish model calibration",
+    "fair resume implementation was reviewed; no nonempty resumable frontier was exercised in the final automatic lead window"
+  ],
+  "screenshots": [
+    "ui-performance.png",
+    "ui-health.png"
+  ]
+}

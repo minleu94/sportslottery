@@ -1,0 +1,24 @@
+{
+  "observed_at_utc": "2026-10-14T01:39:57.7404178Z",
+  "task_name": "SportsLottery-Research-Pipeline",
+  "state": "Ready",
+  "enabled": true,
+  "last_run_time_utc": "2026-10-14T01:38:57.0000000Z",
+  "last_task_result": 0,
+  "next_run_time_utc": "2026-10-14T01:51:19.0000000Z",
+  "logon_type": "Interactive",
+  "run_level": "Limited",
+  "actions": [
+    {
+      "Execute": "C:\\Program Files\\Python311\\pythonw.exe",
+      "Arguments": "\"C:\\Projects\\PythonProjects\\sportslottery\\main.py\" research-pipeline --config \"C:\\Projects\\PythonProjects\\sportslottery\\config\\research_pipeline.yaml\" --data-root \"C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\" --resume",
+      "WorkingDirectory": "C:\\Projects\\PythonProjects\\sportslottery"
+    }
+  ],
+  "triggers": [
+    {
+      "StartBoundary": "2026-10-13T18:06:19-07:00",
+      "RepetitionInterval": "PT15M"
+    }
+  ]
+}

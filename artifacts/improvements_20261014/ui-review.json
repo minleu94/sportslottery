@@ -1,0 +1,17 @@
+{
+  "observed_at_utc": "2026-10-14T22:50:57.880007+00:00",
+  "method": "Actual IAB DOM and screenshot review on localhost:8511",
+  "sidebar_labels": [
+    "瘋狗流決策台",
+    "指標與資料來源",
+    "資料健康與研究工具"
+  ],
+  "panels_verified": [
+    "health actual COMPLETE and scheduler enabled/result0",
+    "CLV sample0 data insufficient",
+    "single and whole parlay archived replay visible",
+    "comparison common settled0 with insufficient data notice",
+    "main search budget250000 and completed scope25 events42 options664 nodes"
+  ],
+  "wallet_actions_performed": false
+}

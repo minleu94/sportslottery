@@ -1,0 +1,2 @@
+from .playsport_expert import PlaysportExpertAdapter
+from .playsport_crowd import PlaysportCrowdAdapter

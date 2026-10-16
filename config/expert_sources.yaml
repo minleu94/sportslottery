@@ -1,0 +1,20 @@
+platform: playsport
+independence_group: PLAYSPORT_EXPERT
+sources:
+  - source_kind: main_prediction
+    name: 玩運彩主推榜
+    url: https://www.playsport.cc/billboard/mainPrediction?allianceid={alliance_id}
+    supports: [public_rankings, member_page_discovery]
+    counts_as_independent_source: false
+  - source_kind: win_rate
+    name: 玩運彩勝率榜
+    url: https://www.playsport.cc/billboard/winRate?allianceid={alliance_id}
+    supports: [public_rankings, historical_win_rate, handicap_and_total_categories]
+    counts_as_independent_source: false
+  - source_kind: single_killer_rank
+    name: 玩運彩單場殺手榜
+    url: https://www.playsport.cc/killer/singleKillerRank?alliance={alliance_id}
+    status: RANKING_ONLY/PAID_PICK_UNAVAILABLE
+    supports: [public_rankings, public_historical_performance]
+    counts_as_pick_source: false
+    note: Individual purchase cards expose paid purchase actions; do not infer or scrape the paid picks.

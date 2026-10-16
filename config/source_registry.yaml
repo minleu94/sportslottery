@@ -1,0 +1,120 @@
+# Source Registry Configuration
+# Defines all data sources, models, APIs, and their roles in the system hierarchy.
+
+sources:
+  # ==========================================
+  # Layer A: Taiwan Betting Market (Core)
+  # ==========================================
+  - id: playsport_taiwan_odds
+    name: 玩運彩台彩盤口鏡像 (Playsport Taiwan Odds)
+    type: SCRAPER
+    role: BETTING_MARKET
+    can_generate_taiwan_bet_candidate: true
+    sport: ALL
+    url: https://www.playsport.cc/predict/scale
+    github_repo: CharlieAlex/Sports-Betting-Freerider (Reference architecture)
+    license: MIT
+    version: 3.0
+    last_checked: "2026-09-18"
+    data_type: HTML_TABLE_AND_JSON
+    live: true
+    adapter: integrations.odds.playsport_taiwan_odds.PlaysportOddsAdapter
+    priority: 1
+    fallback: CACHED_SNAPSHOT
+    notes: 唯一能產生合法台灣運彩下注選項 (TaiwanLeg) 之核心市場來源。
+
+  - id: playsport_taiwan_experts
+    name: 玩運彩殺手/主推大神榜 (Playsport Billboard Experts)
+    type: SCRAPER
+    role: EXPERT
+    can_generate_taiwan_bet_candidate: false
+    sport: ALL
+    url: https://www.playsport.cc/billboard/mainPrediction
+    github_repo: CharlieAlex/Sports-Betting-Freerider
+    license: MIT
+    version: 3.0
+    last_checked: "2026-09-18"
+    data_type: EMBEDDED_VUE_JSON
+    live: true
+    adapter: integrations.experts.playsport_expert.PlaysportExpertAdapter
+    priority: 2
+    fallback: EMPTY_SIGNAL
+    notes: 真實抓取具備歷史勝率之專家大神（如月勝率94%榜首）推薦，僅作輔助判斷。
+
+  - id: playsport_crowd_consensus
+    name: 玩運彩社群選票比例 (Playsport Community Consensus)
+    type: SCRAPER
+    role: CROWD
+    can_generate_taiwan_bet_candidate: false
+    sport: ALL
+    url: https://www.playsport.cc/predict/scale
+    github_repo: null
+    license: Proprietary
+    version: 1.0
+    last_checked: "2026-09-18"
+    data_type: VOTE_PERCENTAGES
+    live: true
+    adapter: integrations.experts.playsport_crowd.PlaysportCrowdAdapter
+    priority: 3
+    fallback: EMPTY_SIGNAL
+    notes: 社群投票支持比例（嚴格標記為 CROWD，絕不偽裝成 EXPERT）。
+
+  # ==========================================
+  # Layer B: Prediction Models (Assistance)
+  # ==========================================
+  - id: penaltyblog_poisson
+    name: Penaltyblog Soccer Goal Expectancy Model
+    type: PYTHON_PACKAGE
+    role: PREDICTION
+    can_generate_taiwan_bet_candidate: false
+    sport: SOCCER
+    url: https://penaltyblog.readthedocs.io/
+    github_repo: martineastwood/penaltyblog
+    license: MIT
+    version: 1.12.2
+    last_checked: "2026-09-18"
+    data_type: STATISTICAL_MODEL
+    live: true
+    adapter: integrations.models.penaltyblog_soccer_model.PenaltyblogSoccerAdapter
+    priority: 2
+    fallback: MODEL_DEGRADED
+    notes: 足球 Dixon-Coles 與 Poisson 期望進球評估，計算勝平負與大小分理論率。
+
+  - id: pybaseball_mlb_model
+    name: Pybaseball MLB Pythagorean Expectation Model
+    type: PYTHON_PACKAGE
+    role: PREDICTION
+    can_generate_taiwan_bet_candidate: false
+    sport: MLB
+    url: https://github.com/jldbc/pybaseball
+    github_repo: jldbc/pybaseball
+    license: MIT
+    version: 2.2.7
+    last_checked: "2026-09-18"
+    data_type: STATISTICAL_MODEL
+    live: true
+    adapter: integrations.models.pybaseball_mlb_model.PybaseballMLBAdapter
+    priority: 2
+    fallback: MODEL_DEGRADED
+    notes: 棒球畢氏勝率模型與球隊近期攻守得分期望值計算。
+
+  # ==========================================
+  # Layer C: Schedule & Season Awareness
+  # ==========================================
+  - id: espn_public_scoreboard
+    name: ESPN Public Scoreboard API
+    type: REST_API
+    role: SCHEDULE
+    can_generate_taiwan_bet_candidate: false
+    sport: ALL
+    url: http://site.api.espn.com/apis/site/v2/sports
+    github_repo: sportsdataverse/sportsdataverse-py
+    license: Open
+    version: v2
+    last_checked: "2026-09-18"
+    data_type: JSON_REST
+    live: true
+    adapter: integrations.schedules.espn_schedule.ESPNScheduleAdapter
+    priority: 4
+    fallback: CALENDAR_MONTH
+    notes: 國際即時賽程與開賽時間日程認知，不得決定下注項目。

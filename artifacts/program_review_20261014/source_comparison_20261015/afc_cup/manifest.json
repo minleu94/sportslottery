@@ -1,0 +1,32 @@
+[
+  {
+    "file": "scoreboard_20261014.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/afc.cup/scoreboard?dates=20261014",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:39:53.684186+00:00",
+    "sha256": "8762139ba86fddc065381cf802f08916354b0d83f39e379a6251906ca4aebbb8",
+    "byte_count": 75427,
+    "events": 8,
+    "teams": 0
+  },
+  {
+    "file": "scoreboard_20261015.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/afc.cup/scoreboard?dates=20261015",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:39:53.982753+00:00",
+    "sha256": "f08aacfc5d06064214615de21d2d3f4ee87ae0c1620b1849c4cc7594f699ff75",
+    "byte_count": 74017,
+    "events": 6,
+    "teams": 0
+  },
+  {
+    "file": "teams.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/afc.cup/teams?limit=1000",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:39:54.351411+00:00",
+    "sha256": "acf0dee30dbe981652186ee90cbcdc744c18eba51fcd4a3db7587f9ca0d6055b",
+    "byte_count": 33876,
+    "events": null,
+    "teams": 32
+  }
+]

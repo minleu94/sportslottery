@@ -1,0 +1,46 @@
+{
+  "updated_games": 0,
+  "skipped_games": 0,
+  "data_as_of": "2026-09-26T23:15:00+00:00",
+  "last_update": "2026-10-16T05:54:54.220876+00:00",
+  "source": "MLB Stats API (statsapi.mlb.com)",
+  "held_final_count": 49,
+  "late_final_requires_rebuild_count": 0,
+  "excluded_non_regular_games": 0,
+  "reschedule_reconciliation": {
+    "status": "PARTIAL",
+    "candidate_count": 1,
+    "request_limit": 20,
+    "attempted_count": 1,
+    "reconciled_game_ids": [],
+    "deferred_game_ids": [],
+    "errors": [
+      {
+        "game_pk": "823490",
+        "error": "live feed gamePk=823490 missing final home runs"
+      }
+    ]
+  },
+  "pending_date_diagnostics": [
+    {
+      "date": "2026-09-27",
+      "status": "PENDING_UNFINISHED_GAMES",
+      "game_count": 18,
+      "unresolved_game_pks": [
+        "823490"
+      ]
+    }
+  ],
+  "status": "NO_NEW_FINALS",
+  "official_ledger_complete_through_yesterday": false,
+  "initialization_mode": "incremental_official_results",
+  "official_schedule_queried_through": "2026-10-15",
+  "pending_game_dates": [
+    "2026-09-27"
+  ],
+  "incomplete_final_game_ids": [
+    "823490"
+  ],
+  "start_date": "2026-10-16",
+  "end_date": "2026-10-15"
+}

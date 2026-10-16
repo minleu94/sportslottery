@@ -1,0 +1,3225 @@
+{
+  "forward_product_validation": {
+    "eligible_current_experiment_count": 0,
+    "snapshot_count": 981,
+    "source_file": "prediction_snapshots.jsonl",
+    "source_file_sha256": "8eebe00a6504cd3143e09b78a929beab6460e07c7a8542f771eed5fe823ded8c",
+    "status": "NOT_YET_VALIDATED"
+  },
+  "generated_at_utc": "2026-10-13T21:15:48.046107+00:00",
+  "league": "eng.1",
+  "limitations": [
+    "All model probabilities are uncalibrated estimates unless later established by independent forward evidence.",
+    "Football-Data B365H/D/A are pre-closing bookmaker odds; C-suffixed fields are closing odds. Neither source is Taiwan lottery accepted pricing; simulated ROI does not establish Taiwan profitability.",
+    "Only events with all four model/market probability vectors enter the same-cohort multiclass comparison.",
+    "Paired confidence intervals resample calendar-month blocks on the same match cohort; the supported historical source scope currently covers only EPL and La Liga, not the full production sport set.",
+    "Unmapped source team names are preserved as exact normalized source identities and reported; no fuzzy team inference is made."
+  ],
+  "production_sport_validation_scope": {
+    "reason": "Frozen audited Football-Data.co.uk point-in-time match and B365 H/D/A sources currently cover only English Premier League and Spanish La Liga; Taiwan production market snapshots are not interchangeable with these sources.",
+    "unsupported_production_sports": [
+      "MLB",
+      "NPB",
+      "CPBL",
+      "KBO",
+      "NBA/WNBA",
+      "NFL",
+      "other soccer leagues"
+    ],
+    "validated_external_leagues": [
+      "eng.1",
+      "esp.1"
+    ]
+  },
+  "protocol": {
+    "calibration_bins": "home-win probability bins; hit-rate and calibration are descriptive, not calibrated quality claims",
+    "decay_weight_base_date": "prediction_date cutoff via penaltyblog.models.dixon_coles_weights(base_date=cutoff)",
+    "fusion_method": "independent outcome logits shrunk toward normalized B365 H/D/A by beta=0.65, then normalized to sum 1",
+    "holdout_used_for_parameter_selection": false,
+    "locked_holdout_season": "2526",
+    "market_baseline": "Football-Data.co.uk Bet365 B365H/B365D/B365A pre-closing odds per notes.txt; C-suffixed B365CH/B365CD/B365CA are closing odds and were not used; none are Taiwan accepted prices",
+    "metric_sample_unit": "unique league/date/canonical-home/canonical-away match; one multiclass outcome per match",
+    "penaltyblog_version": "1.12.2",
+    "prediction_cutoff": "strict match_date < prediction_date; all same-day results excluded",
+    "production_fusion_beta": 0.65,
+    "roi_strategy": {
+      "market_odds_used_as_price": true,
+      "minimum_model_ev": 0.05,
+      "selection_rule": "one highest expected-value outcome per game",
+      "unit_stake": 1.0
+    },
+    "selected_xi_from_validation_only": 0.0024,
+    "source_file_sha256s": [
+      "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62",
+      "6ecd41a98ad2751372817e7e6f1709bfeb433c53dd9aeda330fd926a5471452d",
+      "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3",
+      "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4"
+    ],
+    "strategy_experiment_identity": "exp_6f6d6b20029f20907ead68291bd47454d00807e8234c2c8195010c4b2387bcfa",
+    "strategy_version": "v2.0-research",
+    "validation_season": "2425",
+    "warmup_season": "2324",
+    "xi_candidates": [
+      0.0012,
+      0.0018,
+      0.0024
+    ]
+  },
+  "schema_version": "historical-model-validation-v1",
+  "scope": "external_historical_research_not_Taiwan_forward_validation",
+  "source_profile": {
+    "complete_market_rows": 1140,
+    "conflicting_duplicate_groups": 0,
+    "date_max": "2026-05-24",
+    "date_min": "2023-08-11",
+    "duplicate_rows_removed": 0,
+    "exclusions": {},
+    "incomplete_market_rows": 0,
+    "input_rows": 1140,
+    "invalid_market_price_cells": 0,
+    "invalid_score_rows": 0,
+    "manifest_filename": "manifest_20261013T004504159422Z_05decf1908.json",
+    "manifest_sha256": "05decf1908e599977eb7a2918b67c4b850ae1c4d5dbc25c1dbc7ca6d5c4e8e7b",
+    "missing_date_rows": 0,
+    "odds_ranges": {
+      "A": {
+        "max": 29.0,
+        "min": 1.13,
+        "valid_cells": 1140
+      },
+      "D": {
+        "max": 12.0,
+        "min": 3.0,
+        "valid_cells": 1140
+      },
+      "H": {
+        "max": 19.0,
+        "min": 1.08,
+        "valid_cells": 1140
+      }
+    },
+    "sources": [
+      {
+        "http_status": 200,
+        "league": "notes",
+        "retrieved_at_utc": "2026-10-13T00:45:04.156422+00:00",
+        "season": null,
+        "sha256": "6ecd41a98ad2751372817e7e6f1709bfeb433c53dd9aeda330fd926a5471452d",
+        "source_url": "https://www.football-data.co.uk/notes.txt",
+        "stored_filename": "notes_6ecd41a98ad2.txt"
+      },
+      {
+        "http_status": 200,
+        "league": "eng.1",
+        "retrieved_at_utc": "2026-10-13T00:45:01.153747+00:00",
+        "season": "2324",
+        "sha256": "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3",
+        "source_url": "https://www.football-data.co.uk/mmz4281/2324/E0.csv",
+        "stored_filename": "eng_1_2324_E0_b2e057b0ed95.csv"
+      },
+      {
+        "http_status": 200,
+        "league": "eng.1",
+        "retrieved_at_utc": "2026-10-13T00:45:01.829789+00:00",
+        "season": "2425",
+        "sha256": "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4",
+        "source_url": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
+        "stored_filename": "eng_1_2425_E0_d0c8ce4a96d8.csv"
+      },
+      {
+        "http_status": 200,
+        "league": "eng.1",
+        "retrieved_at_utc": "2026-10-13T00:45:02.337542+00:00",
+        "season": "2526",
+        "sha256": "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62",
+        "source_url": "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
+        "stored_filename": "eng_1_2526_E0_3e3a8352f9ad.csv"
+      }
+    ],
+    "team_names": {
+      "SOC_ARS": 114,
+      "SOC_AVL": 114,
+      "SOC_BOU": 114,
+      "SOC_BRE": 114,
+      "SOC_CHE": 114,
+      "SOC_CRY": 114,
+      "SOC_EVE": 114,
+      "SOC_FUL": 114,
+      "SOC_LIV": 114,
+      "SOC_MCI": 114,
+      "SOC_MUN": 114,
+      "SOURCE:brighton": 114,
+      "SOURCE:burnley": 76,
+      "SOURCE:ipswich": 38,
+      "SOURCE:leeds": 38,
+      "SOURCE:leicester": 38,
+      "SOURCE:luton": 38,
+      "SOURCE:newcastle": 114,
+      "SOURCE:nott m forest": 114,
+      "SOURCE:sheffield united": 38,
+      "SOURCE:southampton": 38,
+      "SOURCE:sunderland": 38,
+      "SOURCE:tottenham": 114,
+      "SOURCE:west ham": 114,
+      "SOURCE:wolves": 114
+    },
+    "unique_games": 1140,
+    "unknown_team_name_rows": 810,
+    "valid_rows_before_dedup": 1140
+  },
+  "splits": {
+    "locked_holdout": {
+      "candidate_rows": 380,
+      "coverage": {
+        "empirical_training_base": 380,
+        "fusion_beta_0_65": 372,
+        "market_normalized_hda": 380,
+        "raw_dixon_coles": 372
+      },
+      "ev_threshold_roi": {
+        "empirical_training_base": {
+          "candidate_unique_games": 380,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 358,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": 0.05,
+          "net_units": -15.94,
+          "roi_pct": -4.4525,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "highest probability-times-B365-price EV per match; select only when estimated EV meets threshold",
+          "unique_games": 358,
+          "unit_stake": 1.0
+        },
+        "fusion_beta_0_65": {
+          "candidate_unique_games": 380,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 287,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 8,
+          "minimum_model_ev": 0.05,
+          "net_units": -4.72,
+          "roi_pct": -1.6446,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "highest probability-times-B365-price EV per match; select only when estimated EV meets threshold",
+          "unique_games": 287,
+          "unit_stake": 1.0
+        },
+        "market_normalized_hda": {
+          "candidate_unique_games": 380,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 0,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": 0.05,
+          "net_units": 0,
+          "roi_pct": null,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "highest probability-times-B365-price EV per match; select only when estimated EV meets threshold",
+          "unique_games": 0,
+          "unit_stake": 1.0
+        },
+        "raw_dixon_coles": {
+          "candidate_unique_games": 380,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 226,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 8,
+          "minimum_model_ev": 0.05,
+          "net_units": -26.56,
+          "roi_pct": -11.7522,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "highest probability-times-B365-price EV per match; select only when estimated EV meets threshold",
+          "unique_games": 226,
+          "unit_stake": 1.0
+        }
+      },
+      "excluded_incomplete_market": 0,
+      "excluded_missing_or_cold_start": 8,
+      "fit_audit": {
+        "cold_start_rows": 8,
+        "fit_count": 114,
+        "fit_details": [
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-08-15",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-25",
+            "prediction_errors": 0,
+            "train_matches": 760,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 1,
+            "cutoff_exclusive": "2025-08-16",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-08-15",
+            "prediction_errors": 0,
+            "train_matches": 761,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-08-17",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-08-16",
+            "prediction_errors": 0,
+            "train_matches": 766,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 1,
+            "cutoff_exclusive": "2025-08-18",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-08-17",
+            "prediction_errors": 0,
+            "train_matches": 769,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-08-22",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-08-18",
+            "prediction_errors": 0,
+            "train_matches": 770,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 2,
+            "cutoff_exclusive": "2025-08-23",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2025-08-22",
+            "prediction_errors": 0,
+            "train_matches": 771,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-08-24",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-08-23",
+            "prediction_errors": 0,
+            "train_matches": 776,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-08-25",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-08-24",
+            "prediction_errors": 0,
+            "train_matches": 779,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 2,
+            "cutoff_exclusive": "2025-08-30",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2025-08-25",
+            "prediction_errors": 0,
+            "train_matches": 780,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-08-31",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-08-30",
+            "prediction_errors": 0,
+            "train_matches": 786,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 2,
+            "cutoff_exclusive": "2025-09-13",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2025-08-31",
+            "prediction_errors": 0,
+            "train_matches": 790,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-09-14",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-09-13",
+            "prediction_errors": 0,
+            "train_matches": 798,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-09-20",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-09-14",
+            "prediction_errors": 0,
+            "train_matches": 800,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-09-21",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-09-20",
+            "prediction_errors": 0,
+            "train_matches": 807,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-09-27",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2025-09-21",
+            "prediction_errors": 0,
+            "train_matches": 810,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-09-28",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-09-27",
+            "prediction_errors": 0,
+            "train_matches": 817,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-09-29",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-09-28",
+            "prediction_errors": 0,
+            "train_matches": 819,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-10-03",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-09-29",
+            "prediction_errors": 0,
+            "train_matches": 820,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-10-04",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2025-10-03",
+            "prediction_errors": 0,
+            "train_matches": 821,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-10-05",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-10-04",
+            "prediction_errors": 0,
+            "train_matches": 825,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-10-18",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2025-10-05",
+            "prediction_errors": 0,
+            "train_matches": 830,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-10-19",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-10-18",
+            "prediction_errors": 0,
+            "train_matches": 837,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-10-20",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-10-19",
+            "prediction_errors": 0,
+            "train_matches": 839,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-10-24",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-10-20",
+            "prediction_errors": 0,
+            "train_matches": 840,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-10-25",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-10-24",
+            "prediction_errors": 0,
+            "train_matches": 841,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-10-26",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-10-25",
+            "prediction_errors": 0,
+            "train_matches": 845,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-01",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-10-26",
+            "prediction_errors": 0,
+            "train_matches": 850,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-02",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-11-01",
+            "prediction_errors": 0,
+            "train_matches": 857,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-03",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-11-02",
+            "prediction_errors": 0,
+            "train_matches": 859,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-08",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-11-03",
+            "prediction_errors": 0,
+            "train_matches": 860,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-09",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-11-08",
+            "prediction_errors": 0,
+            "train_matches": 865,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-22",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-11-09",
+            "prediction_errors": 0,
+            "train_matches": 870,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-23",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2025-11-22",
+            "prediction_errors": 0,
+            "train_matches": 877,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-24",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-11-23",
+            "prediction_errors": 0,
+            "train_matches": 879,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-29",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2025-11-24",
+            "prediction_errors": 0,
+            "train_matches": 880,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-11-30",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-11-29",
+            "prediction_errors": 0,
+            "train_matches": 885,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-02",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-11-30",
+            "prediction_errors": 0,
+            "train_matches": 890,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-03",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2025-12-02",
+            "prediction_errors": 0,
+            "train_matches": 893,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-04",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-03",
+            "prediction_errors": 0,
+            "train_matches": 899,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-06",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2025-12-04",
+            "prediction_errors": 0,
+            "train_matches": 900,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-07",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-06",
+            "prediction_errors": 0,
+            "train_matches": 907,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-08",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-07",
+            "prediction_errors": 0,
+            "train_matches": 909,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-13",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-08",
+            "prediction_errors": 0,
+            "train_matches": 910,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-14",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-13",
+            "prediction_errors": 0,
+            "train_matches": 914,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-15",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-14",
+            "prediction_errors": 0,
+            "train_matches": 919,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-20",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-15",
+            "prediction_errors": 0,
+            "train_matches": 920,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-21",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-20",
+            "prediction_errors": 0,
+            "train_matches": 928,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-22",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-21",
+            "prediction_errors": 0,
+            "train_matches": 929,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-26",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-22",
+            "prediction_errors": 0,
+            "train_matches": 930,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-27",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-26",
+            "prediction_errors": 0,
+            "train_matches": 931,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-28",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-27",
+            "prediction_errors": 0,
+            "train_matches": 938,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-12-30",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-28",
+            "prediction_errors": 0,
+            "train_matches": 940,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-12-30",
+            "prediction_errors": 0,
+            "train_matches": 946,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-03",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-01",
+            "prediction_errors": 0,
+            "train_matches": 950,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-04",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-03",
+            "prediction_errors": 0,
+            "train_matches": 954,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-06",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-04",
+            "prediction_errors": 0,
+            "train_matches": 960,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-07",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-06",
+            "prediction_errors": 0,
+            "train_matches": 961,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-08",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-07",
+            "prediction_errors": 0,
+            "train_matches": 969,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-17",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-08",
+            "prediction_errors": 0,
+            "train_matches": 970,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-18",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-17",
+            "prediction_errors": 0,
+            "train_matches": 977,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-19",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-18",
+            "prediction_errors": 0,
+            "train_matches": 979,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-24",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-19",
+            "prediction_errors": 0,
+            "train_matches": 980,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-25",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-24",
+            "prediction_errors": 0,
+            "train_matches": 985,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-26",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-25",
+            "prediction_errors": 0,
+            "train_matches": 989,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-01-31",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-26",
+            "prediction_errors": 0,
+            "train_matches": 990,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-01-31",
+            "prediction_errors": 0,
+            "train_matches": 995,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-02",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-01",
+            "prediction_errors": 0,
+            "train_matches": 999,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-06",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-02",
+            "prediction_errors": 0,
+            "train_matches": 1000,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-07",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-06",
+            "prediction_errors": 0,
+            "train_matches": 1001,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-08",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-07",
+            "prediction_errors": 0,
+            "train_matches": 1008,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-10",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-08",
+            "prediction_errors": 0,
+            "train_matches": 1010,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-11",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-10",
+            "prediction_errors": 0,
+            "train_matches": 1014,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-12",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-11",
+            "prediction_errors": 0,
+            "train_matches": 1019,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-18",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-12",
+            "prediction_errors": 0,
+            "train_matches": 1020,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-21",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-18",
+            "prediction_errors": 0,
+            "train_matches": 1021,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-22",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-21",
+            "prediction_errors": 0,
+            "train_matches": 1026,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-23",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-22",
+            "prediction_errors": 0,
+            "train_matches": 1030,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-27",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-23",
+            "prediction_errors": 0,
+            "train_matches": 1031,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-02-28",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-27",
+            "prediction_errors": 0,
+            "train_matches": 1032,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-02-28",
+            "prediction_errors": 0,
+            "train_matches": 1037,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-03",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-01",
+            "prediction_errors": 0,
+            "train_matches": 1041,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-04",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-03",
+            "prediction_errors": 0,
+            "train_matches": 1045,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-05",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-04",
+            "prediction_errors": 0,
+            "train_matches": 1050,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-14",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-05",
+            "prediction_errors": 0,
+            "train_matches": 1051,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-15",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-14",
+            "prediction_errors": 0,
+            "train_matches": 1056,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-16",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-15",
+            "prediction_errors": 0,
+            "train_matches": 1060,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-20",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-16",
+            "prediction_errors": 0,
+            "train_matches": 1061,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-21",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-20",
+            "prediction_errors": 0,
+            "train_matches": 1062,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-03-22",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-21",
+            "prediction_errors": 0,
+            "train_matches": 1066,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-10",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-03-22",
+            "prediction_errors": 0,
+            "train_matches": 1069,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-11",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-10",
+            "prediction_errors": 0,
+            "train_matches": 1070,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-12",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-11",
+            "prediction_errors": 0,
+            "train_matches": 1074,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-13",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-12",
+            "prediction_errors": 0,
+            "train_matches": 1078,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-18",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-13",
+            "prediction_errors": 0,
+            "train_matches": 1079,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-19",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-18",
+            "prediction_errors": 0,
+            "train_matches": 1084,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-20",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-19",
+            "prediction_errors": 0,
+            "train_matches": 1088,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-21",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-20",
+            "prediction_errors": 0,
+            "train_matches": 1089,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-22",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-21",
+            "prediction_errors": 0,
+            "train_matches": 1090,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-24",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-22",
+            "prediction_errors": 0,
+            "train_matches": 1092,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-25",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-24",
+            "prediction_errors": 0,
+            "train_matches": 1093,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-04-27",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-25",
+            "prediction_errors": 0,
+            "train_matches": 1098,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-04-27",
+            "prediction_errors": 0,
+            "train_matches": 1099,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-02",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-01",
+            "prediction_errors": 0,
+            "train_matches": 1100,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-03",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-02",
+            "prediction_errors": 0,
+            "train_matches": 1104,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-04",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-03",
+            "prediction_errors": 0,
+            "train_matches": 1107,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-09",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-04",
+            "prediction_errors": 0,
+            "train_matches": 1109,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-10",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-09",
+            "prediction_errors": 0,
+            "train_matches": 1114,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-11",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-10",
+            "prediction_errors": 0,
+            "train_matches": 1118,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-13",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-11",
+            "prediction_errors": 0,
+            "train_matches": 1119,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-15",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-13",
+            "prediction_errors": 0,
+            "train_matches": 1120,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-17",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-15",
+            "prediction_errors": 0,
+            "train_matches": 1121,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-18",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-17",
+            "prediction_errors": 0,
+            "train_matches": 1127,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-19",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-18",
+            "prediction_errors": 0,
+            "train_matches": 1128,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2026-05-24",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2026-05-19",
+            "prediction_errors": 0,
+            "train_matches": 1130,
+            "xi": 0.0024
+          }
+        ],
+        "fit_errors": 0,
+        "insufficient_training_cutoffs": 0,
+        "prediction_errors": 0
+      },
+      "paired_block_bootstrap": {
+        "block_count": 10,
+        "block_unit": "calendar month",
+        "comparisons": {
+          "empirical_training_base": {
+            "brier": {
+              "ci_95_high": 0.06689800000000001,
+              "ci_95_low": 0.021565999999999974,
+              "model_minus_market": 0.04562999999999995,
+              "valid_replicates": 1000
+            },
+            "hit_rate": {
+              "ci_95_high": -0.014924999999999966,
+              "ci_95_low": -0.12056699999999998,
+              "model_minus_market": -0.06989200000000001,
+              "valid_replicates": 1000
+            },
+            "log_loss": {
+              "ci_95_high": 0.09555499999999995,
+              "ci_95_low": 0.035288999999999904,
+              "model_minus_market": 0.06673399999999985,
+              "valid_replicates": 1000
+            },
+            "paired_top_probability_roi_pct": {
+              "ci_95_high": 13.2073,
+              "ci_95_low": -12.1961,
+              "model_minus_market": 0.08069999999999844,
+              "valid_replicates": 1000
+            }
+          },
+          "fusion_beta_0_65": {
+            "brier": {
+              "ci_95_high": 0.04322899999999996,
+              "ci_95_low": -0.0008250000000000757,
+              "model_minus_market": 0.021540000000000004,
+              "valid_replicates": 1000
+            },
+            "hit_rate": {
+              "ci_95_high": 0.012384000000000006,
+              "ci_95_low": -0.026489999999999958,
+              "model_minus_market": -0.00806399999999996,
+              "valid_replicates": 1000
+            },
+            "log_loss": {
+              "ci_95_high": 0.07087700000000008,
+              "ci_95_low": -0.0020410000000000705,
+              "model_minus_market": 0.035026,
+              "valid_replicates": 1000
+            },
+            "paired_top_probability_roi_pct": {
+              "ci_95_high": 4.3125,
+              "ci_95_low": -6.331000000000001,
+              "model_minus_market": -1.2285000000000004,
+              "valid_replicates": 1000
+            }
+          },
+          "market_normalized_hda": {
+            "brier": {
+              "ci_95_high": 0.0,
+              "ci_95_low": 0.0,
+              "model_minus_market": 0.0,
+              "valid_replicates": 1000
+            },
+            "hit_rate": {
+              "ci_95_high": 0.0,
+              "ci_95_low": 0.0,
+              "model_minus_market": 0.0,
+              "valid_replicates": 1000
+            },
+            "log_loss": {
+              "ci_95_high": 0.0,
+              "ci_95_low": 0.0,
+              "model_minus_market": 0.0,
+              "valid_replicates": 1000
+            },
+            "paired_top_probability_roi_pct": {
+              "ci_95_high": 0.0,
+              "ci_95_low": 0.0,
+              "model_minus_market": 0.0,
+              "valid_replicates": 1000
+            }
+          },
+          "raw_dixon_coles": {
+            "brier": {
+              "ci_95_high": 0.015048000000000061,
+              "ci_95_low": -0.007083999999999979,
+              "model_minus_market": 0.0034359999999999946,
+              "valid_replicates": 1000
+            },
+            "hit_rate": {
+              "ci_95_high": 0.0,
+              "ci_95_low": -0.03723500000000002,
+              "model_minus_market": -0.021504999999999996,
+              "valid_replicates": 1000
+            },
+            "log_loss": {
+              "ci_95_high": 0.02319300000000002,
+              "ci_95_low": -0.008492000000000055,
+              "model_minus_market": 0.007477999999999874,
+              "valid_replicates": 1000
+            },
+            "paired_top_probability_roi_pct": {
+              "ci_95_high": 3.968799999999998,
+              "ci_95_low": -7.0648,
+              "model_minus_market": -2.588700000000001,
+              "valid_replicates": 1000
+            }
+          }
+        },
+        "interpretation": "Paired within the same resampled calendar-month blocks and match cohort; Brier/log-loss lower is better, hit rate/ROI higher is better.",
+        "replicates": 1000,
+        "seed": 20261013,
+        "status": "COMPLETED"
+      },
+      "paired_top_probability_roi": {
+        "empirical_training_base": {
+          "candidate_unique_games": 372,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 372,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": null,
+          "net_units": -41.14,
+          "roi_pct": -11.0591,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "one top-probability outcome per eligible match; fixed unit stake",
+          "unique_games": 372,
+          "unit_stake": 1.0
+        },
+        "fusion_beta_0_65": {
+          "candidate_unique_games": 372,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 372,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": null,
+          "net_units": -46.01,
+          "roi_pct": -12.3683,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "one top-probability outcome per eligible match; fixed unit stake",
+          "unique_games": 372,
+          "unit_stake": 1.0
+        },
+        "market_normalized_hda": {
+          "candidate_unique_games": 372,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 372,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": null,
+          "net_units": -41.44,
+          "roi_pct": -11.1398,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "one top-probability outcome per eligible match; fixed unit stake",
+          "unique_games": 372,
+          "unit_stake": 1.0
+        },
+        "raw_dixon_coles": {
+          "candidate_unique_games": 372,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 372,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": null,
+          "net_units": -51.07,
+          "roi_pct": -13.7285,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "one top-probability outcome per eligible match; fixed unit stake",
+          "unique_games": 372,
+          "unit_stake": 1.0
+        }
+      },
+      "roi_decision_rule": {
+        "minimum_model_ev": 0.05,
+        "one_highest_ev_selection_per_unique_game": true,
+        "unit_stake": 1.0
+      },
+      "same_cohort": {
+        "empirical_training_base": {
+          "classification_accuracy": 0.419355,
+          "hit_rate": 0.419355,
+          "home_win_calibration": [
+            {
+              "lower": 0.0,
+              "mean_predicted_home_win": 0.43685072238465755,
+              "n": 372,
+              "observed_home_win_rate": 0.41935483870967744,
+              "upper": 0.5
+            }
+          ],
+          "home_win_hit_rate": 0.580645,
+          "log_loss": 1.08628,
+          "multiclass_brier_score": 0.657686,
+          "n": 372
+        },
+        "fusion_beta_0_65": {
+          "classification_accuracy": 0.481183,
+          "hit_rate": 0.481183,
+          "home_win_calibration": [
+            {
+              "lower": 0.0,
+              "mean_predicted_home_win": 0.2990110280802873,
+              "n": 204,
+              "observed_home_win_rate": 0.3284313725490196,
+              "upper": 0.5
+            },
+            {
+              "lower": 0.5,
+              "mean_predicted_home_win": 0.5466361261310172,
+              "n": 50,
+              "observed_home_win_rate": 0.34,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_predicted_home_win": 0.6459876074102614,
+              "n": 45,
+              "observed_home_win_rate": 0.5333333333333333,
+              "upper": 0.7
+            },
+            {
+              "lower": 0.7,
+              "mean_predicted_home_win": 0.7465649102795419,
+              "n": 29,
+              "observed_home_win_rate": 0.5862068965517241,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_predicted_home_win": 0.8559406986376636,
+              "n": 44,
+              "observed_home_win_rate": 0.7045454545454546,
+              "upper": 1.0000001
+            }
+          ],
+          "home_win_hit_rate": 0.607527,
+          "log_loss": 1.054572,
+          "multiclass_brier_score": 0.633596,
+          "n": 372
+        },
+        "market_normalized_hda": {
+          "classification_accuracy": 0.489247,
+          "hit_rate": 0.489247,
+          "home_win_calibration": [
+            {
+              "lower": 0.0,
+              "mean_predicted_home_win": 0.33007061877556443,
+              "n": 233,
+              "observed_home_win_rate": 0.33047210300429186,
+              "upper": 0.5
+            },
+            {
+              "lower": 0.5,
+              "mean_predicted_home_win": 0.5454562587926215,
+              "n": 67,
+              "observed_home_win_rate": 0.43283582089552236,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_predicted_home_win": 0.6487794830406018,
+              "n": 52,
+              "observed_home_win_rate": 0.6538461538461539,
+              "upper": 0.7
+            },
+            {
+              "lower": 0.7,
+              "mean_predicted_home_win": 0.7571837519413068,
+              "n": 17,
+              "observed_home_win_rate": 0.7647058823529411,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_predicted_home_win": 0.8417476868398696,
+              "n": 3,
+              "observed_home_win_rate": 1.0,
+              "upper": 1.0000001
+            }
+          ],
+          "home_win_hit_rate": 0.63172,
+          "log_loss": 1.019546,
+          "multiclass_brier_score": 0.612056,
+          "n": 372
+        },
+        "raw_dixon_coles": {
+          "classification_accuracy": 0.467742,
+          "hit_rate": 0.467742,
+          "home_win_calibration": [
+            {
+              "lower": 0.0,
+              "mean_predicted_home_win": 0.3421883586535458,
+              "n": 266,
+              "observed_home_win_rate": 0.3383458646616541,
+              "upper": 0.5
+            },
+            {
+              "lower": 0.5,
+              "mean_predicted_home_win": 0.5522729594206818,
+              "n": 55,
+              "observed_home_win_rate": 0.5454545454545454,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_predicted_home_win": 0.6499781026390181,
+              "n": 40,
+              "observed_home_win_rate": 0.675,
+              "upper": 0.7
+            },
+            {
+              "lower": 0.7,
+              "mean_predicted_home_win": 0.7631264813924172,
+              "n": 8,
+              "observed_home_win_rate": 0.75,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_predicted_home_win": 0.832645763300024,
+              "n": 3,
+              "observed_home_win_rate": 1.0,
+              "upper": 1.0000001
+            }
+          ],
+          "home_win_hit_rate": 0.650538,
+          "log_loss": 1.027024,
+          "multiclass_brier_score": 0.615492,
+          "n": 372
+        }
+      },
+      "same_cohort_n_unique_games": 372,
+      "split": "holdout"
+    },
+    "validation": {
+      "candidate_rows": 380,
+      "coverage": {
+        "empirical_training_base": 380,
+        "fusion_beta_0_65": 368,
+        "market_normalized_hda": 380,
+        "raw_dixon_coles": 368
+      },
+      "ev_threshold_roi": {
+        "empirical_training_base": {
+          "candidate_unique_games": 380,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 356,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": 0.05,
+          "net_units": -60.49,
+          "roi_pct": -16.9916,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "highest probability-times-B365-price EV per match; select only when estimated EV meets threshold",
+          "unique_games": 356,
+          "unit_stake": 1.0
+        },
+        "fusion_beta_0_65": {
+          "candidate_unique_games": 380,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 307,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 12,
+          "minimum_model_ev": 0.05,
+          "net_units": -27.09,
+          "roi_pct": -8.8241,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "highest probability-times-B365-price EV per match; select only when estimated EV meets threshold",
+          "unique_games": 307,
+          "unit_stake": 1.0
+        },
+        "market_normalized_hda": {
+          "candidate_unique_games": 380,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 0,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": 0.05,
+          "net_units": 0,
+          "roi_pct": null,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "highest probability-times-B365-price EV per match; select only when estimated EV meets threshold",
+          "unique_games": 0,
+          "unit_stake": 1.0
+        },
+        "raw_dixon_coles": {
+          "candidate_unique_games": 380,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 241,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 12,
+          "minimum_model_ev": 0.05,
+          "net_units": 46.69,
+          "roi_pct": 19.3734,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "highest probability-times-B365-price EV per match; select only when estimated EV meets threshold",
+          "unique_games": 241,
+          "unit_stake": 1.0
+        }
+      },
+      "excluded_incomplete_market": 0,
+      "excluded_missing_or_cold_start": 12,
+      "fit_audit": {
+        "cold_start_rows": 12,
+        "fit_count": 109,
+        "fit_details": [
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-08-16",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-05-19",
+            "prediction_errors": 0,
+            "train_matches": 380,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 2,
+            "cutoff_exclusive": "2024-08-17",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-08-16",
+            "prediction_errors": 0,
+            "train_matches": 381,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-08-18",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-08-17",
+            "prediction_errors": 0,
+            "train_matches": 387,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 1,
+            "cutoff_exclusive": "2024-08-19",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-08-18",
+            "prediction_errors": 0,
+            "train_matches": 389,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 3,
+            "cutoff_exclusive": "2024-08-24",
+            "fit_status": "OK",
+            "low_history_rows": 3,
+            "max_train_date": "2024-08-19",
+            "prediction_errors": 0,
+            "train_matches": 390,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-08-25",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-08-24",
+            "prediction_errors": 0,
+            "train_matches": 397,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 3,
+            "cutoff_exclusive": "2024-08-31",
+            "fit_status": "OK",
+            "low_history_rows": 3,
+            "max_train_date": "2024-08-25",
+            "prediction_errors": 0,
+            "train_matches": 400,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-09-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-08-31",
+            "prediction_errors": 0,
+            "train_matches": 407,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 3,
+            "cutoff_exclusive": "2024-09-14",
+            "fit_status": "OK",
+            "low_history_rows": 3,
+            "max_train_date": "2024-09-01",
+            "prediction_errors": 0,
+            "train_matches": 410,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-09-15",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-09-14",
+            "prediction_errors": 0,
+            "train_matches": 418,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-09-21",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-09-15",
+            "prediction_errors": 0,
+            "train_matches": 420,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-09-22",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-09-21",
+            "prediction_errors": 0,
+            "train_matches": 428,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-09-28",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-09-22",
+            "prediction_errors": 0,
+            "train_matches": 430,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-09-29",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-09-28",
+            "prediction_errors": 0,
+            "train_matches": 437,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-09-30",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-09-29",
+            "prediction_errors": 0,
+            "train_matches": 439,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-10-05",
+            "fit_status": "OK",
+            "low_history_rows": 3,
+            "max_train_date": "2024-09-30",
+            "prediction_errors": 0,
+            "train_matches": 440,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-10-06",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-10-05",
+            "prediction_errors": 0,
+            "train_matches": 447,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-10-19",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-10-06",
+            "prediction_errors": 0,
+            "train_matches": 450,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-10-20",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-10-19",
+            "prediction_errors": 0,
+            "train_matches": 457,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-10-21",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-10-20",
+            "prediction_errors": 0,
+            "train_matches": 459,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-10-25",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-10-21",
+            "prediction_errors": 0,
+            "train_matches": 460,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-10-26",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-10-25",
+            "prediction_errors": 0,
+            "train_matches": 461,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-10-27",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-10-26",
+            "prediction_errors": 0,
+            "train_matches": 466,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-02",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-10-27",
+            "prediction_errors": 0,
+            "train_matches": 470,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-03",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-11-02",
+            "prediction_errors": 0,
+            "train_matches": 477,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-04",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-11-03",
+            "prediction_errors": 0,
+            "train_matches": 479,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-09",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-11-04",
+            "prediction_errors": 0,
+            "train_matches": 480,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-10",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-11-09",
+            "prediction_errors": 0,
+            "train_matches": 486,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-23",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-11-10",
+            "prediction_errors": 0,
+            "train_matches": 490,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-24",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-11-23",
+            "prediction_errors": 0,
+            "train_matches": 497,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-25",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-11-24",
+            "prediction_errors": 0,
+            "train_matches": 499,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-29",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-11-25",
+            "prediction_errors": 0,
+            "train_matches": 500,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-11-30",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-11-29",
+            "prediction_errors": 0,
+            "train_matches": 501,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-11-30",
+            "prediction_errors": 0,
+            "train_matches": 506,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-03",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-12-01",
+            "prediction_errors": 0,
+            "train_matches": 510,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-04",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-12-03",
+            "prediction_errors": 0,
+            "train_matches": 512,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-05",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-04",
+            "prediction_errors": 0,
+            "train_matches": 518,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-07",
+            "fit_status": "OK",
+            "low_history_rows": 1,
+            "max_train_date": "2024-12-05",
+            "prediction_errors": 0,
+            "train_matches": 520,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-08",
+            "fit_status": "OK",
+            "low_history_rows": 2,
+            "max_train_date": "2024-12-07",
+            "prediction_errors": 0,
+            "train_matches": 524,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-09",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-08",
+            "prediction_errors": 0,
+            "train_matches": 528,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-14",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-09",
+            "prediction_errors": 0,
+            "train_matches": 529,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-15",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-14",
+            "prediction_errors": 0,
+            "train_matches": 534,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-16",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-15",
+            "prediction_errors": 0,
+            "train_matches": 538,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-21",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-16",
+            "prediction_errors": 0,
+            "train_matches": 539,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-22",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-21",
+            "prediction_errors": 0,
+            "train_matches": 544,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-26",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-22",
+            "prediction_errors": 0,
+            "train_matches": 549,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-27",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-26",
+            "prediction_errors": 0,
+            "train_matches": 557,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-29",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-27",
+            "prediction_errors": 0,
+            "train_matches": 559,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2024-12-30",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-29",
+            "prediction_errors": 0,
+            "train_matches": 565,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2024-12-30",
+            "prediction_errors": 0,
+            "train_matches": 568,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-04",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-01",
+            "prediction_errors": 0,
+            "train_matches": 569,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-05",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-04",
+            "prediction_errors": 0,
+            "train_matches": 576,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-06",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-05",
+            "prediction_errors": 0,
+            "train_matches": 578,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-14",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-06",
+            "prediction_errors": 0,
+            "train_matches": 579,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-15",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-14",
+            "prediction_errors": 0,
+            "train_matches": 583,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-16",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-15",
+            "prediction_errors": 0,
+            "train_matches": 587,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-18",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-16",
+            "prediction_errors": 0,
+            "train_matches": 589,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-19",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-18",
+            "prediction_errors": 0,
+            "train_matches": 594,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-20",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-19",
+            "prediction_errors": 0,
+            "train_matches": 598,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-25",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-20",
+            "prediction_errors": 0,
+            "train_matches": 599,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-01-26",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-25",
+            "prediction_errors": 0,
+            "train_matches": 605,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-01-26",
+            "prediction_errors": 0,
+            "train_matches": 609,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-02",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-01",
+            "prediction_errors": 0,
+            "train_matches": 615,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-03",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-02",
+            "prediction_errors": 0,
+            "train_matches": 618,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-12",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-03",
+            "prediction_errors": 0,
+            "train_matches": 619,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-14",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-12",
+            "prediction_errors": 0,
+            "train_matches": 620,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-15",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-14",
+            "prediction_errors": 0,
+            "train_matches": 621,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-16",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-15",
+            "prediction_errors": 0,
+            "train_matches": 628,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-19",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-16",
+            "prediction_errors": 0,
+            "train_matches": 630,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-21",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-19",
+            "prediction_errors": 0,
+            "train_matches": 631,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-22",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-21",
+            "prediction_errors": 0,
+            "train_matches": 632,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-23",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-22",
+            "prediction_errors": 0,
+            "train_matches": 639,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-25",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-23",
+            "prediction_errors": 0,
+            "train_matches": 641,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-26",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-25",
+            "prediction_errors": 0,
+            "train_matches": 645,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-02-27",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-26",
+            "prediction_errors": 0,
+            "train_matches": 650,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-03-08",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-02-27",
+            "prediction_errors": 0,
+            "train_matches": 651,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-03-09",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-03-08",
+            "prediction_errors": 0,
+            "train_matches": 657,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-03-10",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-03-09",
+            "prediction_errors": 0,
+            "train_matches": 660,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-03-15",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-03-10",
+            "prediction_errors": 0,
+            "train_matches": 661,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-03-16",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-03-15",
+            "prediction_errors": 0,
+            "train_matches": 666,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-03-16",
+            "prediction_errors": 0,
+            "train_matches": 669,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-02",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-01",
+            "prediction_errors": 0,
+            "train_matches": 672,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-03",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-02",
+            "prediction_errors": 0,
+            "train_matches": 678,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-05",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-03",
+            "prediction_errors": 0,
+            "train_matches": 679,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-06",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-05",
+            "prediction_errors": 0,
+            "train_matches": 684,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-07",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-06",
+            "prediction_errors": 0,
+            "train_matches": 688,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-12",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-07",
+            "prediction_errors": 0,
+            "train_matches": 689,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-13",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-12",
+            "prediction_errors": 0,
+            "train_matches": 694,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-14",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-13",
+            "prediction_errors": 0,
+            "train_matches": 698,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-16",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-14",
+            "prediction_errors": 0,
+            "train_matches": 699,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-19",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-16",
+            "prediction_errors": 0,
+            "train_matches": 700,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-20",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-19",
+            "prediction_errors": 0,
+            "train_matches": 705,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-21",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-20",
+            "prediction_errors": 0,
+            "train_matches": 709,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-22",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-21",
+            "prediction_errors": 0,
+            "train_matches": 710,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-23",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-22",
+            "prediction_errors": 0,
+            "train_matches": 711,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-26",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-23",
+            "prediction_errors": 0,
+            "train_matches": 712,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-04-27",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-26",
+            "prediction_errors": 0,
+            "train_matches": 717,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-01",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-04-27",
+            "prediction_errors": 0,
+            "train_matches": 719,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-02",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-01",
+            "prediction_errors": 0,
+            "train_matches": 720,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-03",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-02",
+            "prediction_errors": 0,
+            "train_matches": 721,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-04",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-03",
+            "prediction_errors": 0,
+            "train_matches": 725,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-05",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-04",
+            "prediction_errors": 0,
+            "train_matches": 729,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-10",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-05",
+            "prediction_errors": 0,
+            "train_matches": 730,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-11",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-10",
+            "prediction_errors": 0,
+            "train_matches": 735,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-16",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-11",
+            "prediction_errors": 0,
+            "train_matches": 740,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-18",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-16",
+            "prediction_errors": 0,
+            "train_matches": 742,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-19",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-18",
+            "prediction_errors": 0,
+            "train_matches": 747,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-20",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-19",
+            "prediction_errors": 0,
+            "train_matches": 748,
+            "xi": 0.0024
+          },
+          {
+            "cold_start_rows": 0,
+            "cutoff_exclusive": "2025-05-25",
+            "fit_status": "OK",
+            "low_history_rows": 0,
+            "max_train_date": "2025-05-20",
+            "prediction_errors": 0,
+            "train_matches": 750,
+            "xi": 0.0024
+          }
+        ],
+        "fit_errors": 0,
+        "insufficient_training_cutoffs": 0,
+        "prediction_errors": 0
+      },
+      "paired_block_bootstrap": {
+        "block_count": 10,
+        "block_unit": "calendar month",
+        "comparisons": {
+          "empirical_training_base": {
+            "brier": {
+              "ci_95_high": 0.1002829999999999,
+              "ci_95_low": 0.04881500000000005,
+              "model_minus_market": 0.07415899999999997,
+              "valid_replicates": 1000
+            },
+            "hit_rate": {
+              "ci_95_high": -0.076517,
+              "ci_95_low": -0.17866699999999996,
+              "model_minus_market": -0.12771700000000002,
+              "valid_replicates": 1000
+            },
+            "log_loss": {
+              "ci_95_high": 0.14362399999999986,
+              "ci_95_low": 0.06886900000000007,
+              "model_minus_market": 0.10589100000000007,
+              "valid_replicates": 1000
+            },
+            "paired_top_probability_roi_pct": {
+              "ci_95_high": 2.7788000000000004,
+              "ci_95_low": -26.1947,
+              "model_minus_market": -12.135900000000001,
+              "valid_replicates": 1000
+            }
+          },
+          "fusion_beta_0_65": {
+            "brier": {
+              "ci_95_high": 0.04107099999999997,
+              "ci_95_low": 0.00742799999999999,
+              "model_minus_market": 0.025946000000000025,
+              "valid_replicates": 1000
+            },
+            "hit_rate": {
+              "ci_95_high": 0.027523000000000075,
+              "ci_95_low": -0.025839000000000056,
+              "model_minus_market": 0.0,
+              "valid_replicates": 1000
+            },
+            "log_loss": {
+              "ci_95_high": 0.07451500000000011,
+              "ci_95_low": 0.014244999999999952,
+              "model_minus_market": 0.046117000000000075,
+              "valid_replicates": 1000
+            },
+            "paired_top_probability_roi_pct": {
+              "ci_95_high": 8.519,
+              "ci_95_low": -5.397600000000001,
+              "model_minus_market": 1.1629999999999994,
+              "valid_replicates": 1000
+            }
+          },
+          "market_normalized_hda": {
+            "brier": {
+              "ci_95_high": 0.0,
+              "ci_95_low": 0.0,
+              "model_minus_market": 0.0,
+              "valid_replicates": 1000
+            },
+            "hit_rate": {
+              "ci_95_high": 0.0,
+              "ci_95_low": 0.0,
+              "model_minus_market": 0.0,
+              "valid_replicates": 1000
+            },
+            "log_loss": {
+              "ci_95_high": 0.0,
+              "ci_95_low": 0.0,
+              "model_minus_market": 0.0,
+              "valid_replicates": 1000
+            },
+            "paired_top_probability_roi_pct": {
+              "ci_95_high": 0.0,
+              "ci_95_low": 0.0,
+              "model_minus_market": 0.0,
+              "valid_replicates": 1000
+            }
+          },
+          "raw_dixon_coles": {
+            "brier": {
+              "ci_95_high": 0.015145000000000075,
+              "ci_95_low": -0.010897999999999963,
+              "model_minus_market": 0.002267000000000019,
+              "valid_replicates": 1000
+            },
+            "hit_rate": {
+              "ci_95_high": 0.021874999999999978,
+              "ci_95_low": -0.06084700000000004,
+              "model_minus_market": -0.021739000000000064,
+              "valid_replicates": 1000
+            },
+            "log_loss": {
+              "ci_95_high": 0.02037699999999998,
+              "ci_95_low": -0.01800399999999991,
+              "model_minus_market": 0.0010759999999999659,
+              "valid_replicates": 1000
+            },
+            "paired_top_probability_roi_pct": {
+              "ci_95_high": 9.4497,
+              "ci_95_low": -12.8479,
+              "model_minus_market": -2.6957000000000004,
+              "valid_replicates": 1000
+            }
+          }
+        },
+        "interpretation": "Paired within the same resampled calendar-month blocks and match cohort; Brier/log-loss lower is better, hit rate/ROI higher is better.",
+        "replicates": 1000,
+        "seed": 20261013,
+        "status": "COMPLETED"
+      },
+      "paired_top_probability_roi": {
+        "empirical_training_base": {
+          "candidate_unique_games": 368,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 368,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": null,
+          "net_units": -63.95,
+          "roi_pct": -17.3777,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "one top-probability outcome per eligible match; fixed unit stake",
+          "unique_games": 368,
+          "unit_stake": 1.0
+        },
+        "fusion_beta_0_65": {
+          "candidate_unique_games": 368,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 368,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": null,
+          "net_units": -15.01,
+          "roi_pct": -4.0788,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "one top-probability outcome per eligible match; fixed unit stake",
+          "unique_games": 368,
+          "unit_stake": 1.0
+        },
+        "market_normalized_hda": {
+          "candidate_unique_games": 368,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 368,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": null,
+          "net_units": -19.29,
+          "roi_pct": -5.2418,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "one top-probability outcome per eligible match; fixed unit stake",
+          "unique_games": 368,
+          "unit_stake": 1.0
+        },
+        "raw_dixon_coles": {
+          "candidate_unique_games": 368,
+          "cohort": "events with this probability vector, final outcome and all three executable B365 prices",
+          "decisions": 368,
+          "excluded_incomplete_or_invalid_prices": 0,
+          "excluded_missing_probability": 0,
+          "minimum_model_ev": null,
+          "net_units": -29.21,
+          "roi_pct": -7.9375,
+          "scope_note": "External historical bookmaker-price simulation only; not Taiwan lottery ROI.",
+          "selection_rule": "one top-probability outcome per eligible match; fixed unit stake",
+          "unique_games": 368,
+          "unit_stake": 1.0
+        }
+      },
+      "roi_decision_rule": {
+        "minimum_model_ev": 0.05,
+        "one_highest_ev_selection_per_unique_game": true,
+        "unit_stake": 1.0
+      },
+      "same_cohort": {
+        "empirical_training_base": {
+          "classification_accuracy": 0.410326,
+          "hit_rate": 0.410326,
+          "home_win_calibration": [
+            {
+              "lower": 0.0,
+              "mean_predicted_home_win": 0.4430094968402177,
+              "n": 368,
+              "observed_home_win_rate": 0.41032608695652173,
+              "upper": 0.5
+            }
+          ],
+          "home_win_hit_rate": 0.589674,
+          "log_loss": 1.08041,
+          "multiclass_brier_score": 0.655148,
+          "n": 368
+        },
+        "fusion_beta_0_65": {
+          "classification_accuracy": 0.538043,
+          "hit_rate": 0.538043,
+          "home_win_calibration": [
+            {
+              "lower": 0.0,
+              "mean_predicted_home_win": 0.26197125907206953,
+              "n": 198,
+              "observed_home_win_rate": 0.2676767676767677,
+              "upper": 0.5
+            },
+            {
+              "lower": 0.5,
+              "mean_predicted_home_win": 0.5511557423434961,
+              "n": 40,
+              "observed_home_win_rate": 0.4,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_predicted_home_win": 0.6461458181800236,
+              "n": 29,
+              "observed_home_win_rate": 0.5862068965517241,
+              "upper": 0.7
+            },
+            {
+              "lower": 0.7,
+              "mean_predicted_home_win": 0.7417187566387283,
+              "n": 31,
+              "observed_home_win_rate": 0.6129032258064516,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_predicted_home_win": 0.8830644894348705,
+              "n": 70,
+              "observed_home_win_rate": 0.6571428571428571,
+              "upper": 1.0000001
+            }
+          ],
+          "home_win_hit_rate": 0.660326,
+          "log_loss": 1.020636,
+          "multiclass_brier_score": 0.606935,
+          "n": 368
+        },
+        "market_normalized_hda": {
+          "classification_accuracy": 0.538043,
+          "hit_rate": 0.538043,
+          "home_win_calibration": [
+            {
+              "lower": 0.0,
+              "mean_predicted_home_win": 0.32275698658219204,
+              "n": 228,
+              "observed_home_win_rate": 0.29385964912280704,
+              "upper": 0.5
+            },
+            {
+              "lower": 0.5,
+              "mean_predicted_home_win": 0.5562945918707387,
+              "n": 53,
+              "observed_home_win_rate": 0.5283018867924528,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_predicted_home_win": 0.653275386744801,
+              "n": 48,
+              "observed_home_win_rate": 0.6041666666666666,
+              "upper": 0.7
+            },
+            {
+              "lower": 0.7,
+              "mean_predicted_home_win": 0.7351881089834598,
+              "n": 26,
+              "observed_home_win_rate": 0.5384615384615384,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_predicted_home_win": 0.8266967200598079,
+              "n": 13,
+              "observed_home_win_rate": 1.0,
+              "upper": 1.0000001
+            }
+          ],
+          "home_win_hit_rate": 0.665761,
+          "log_loss": 0.974519,
+          "multiclass_brier_score": 0.580989,
+          "n": 368
+        },
+        "raw_dixon_coles": {
+          "classification_accuracy": 0.516304,
+          "hit_rate": 0.516304,
+          "home_win_calibration": [
+            {
+              "lower": 0.0,
+              "mean_predicted_home_win": 0.30800421166299663,
+              "n": 244,
+              "observed_home_win_rate": 0.3073770491803279,
+              "upper": 0.5
+            },
+            {
+              "lower": 0.5,
+              "mean_predicted_home_win": 0.5465122737945609,
+              "n": 42,
+              "observed_home_win_rate": 0.5238095238095238,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_predicted_home_win": 0.6582737073712438,
+              "n": 45,
+              "observed_home_win_rate": 0.6222222222222222,
+              "upper": 0.7
+            },
+            {
+              "lower": 0.7,
+              "mean_predicted_home_win": 0.7389973493129911,
+              "n": 22,
+              "observed_home_win_rate": 0.5909090909090909,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_predicted_home_win": 0.852587613989702,
+              "n": 15,
+              "observed_home_win_rate": 0.8666666666666667,
+              "upper": 1.0000001
+            }
+          ],
+          "home_win_hit_rate": 0.665761,
+          "log_loss": 0.975595,
+          "multiclass_brier_score": 0.583256,
+          "n": 368
+        }
+      },
+      "same_cohort_n_unique_games": 368,
+      "split": "validation"
+    }
+  },
+  "status": "COMPLETED_HISTORICAL_VALIDATION"
+}

@@ -1,0 +1,3 @@
+data_root: F:/Min/Python/Project/SportsLottery_Data
+database_file: F:/Min/Python/Project/SportsLottery_Data/war_chest.sqlite3
+research_pipeline_root: F:/Min/Python/Project/SportsLottery_Data/research_pipeline

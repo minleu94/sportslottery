@@ -1,0 +1,252 @@
+{
+  "note": "Public response bodies saved without request headers or cookies; read-only retrieval. single_killer_rank is ranking only and paid pick content is unavailable. Six additional deduplicated MLB public member pages were fetched once each on 2026-10-12 without login or cookies; response bodies and checksums are preserved.",
+  "responses": [
+    {
+      "file": "main_prediction.html",
+      "url": "https://www.playsport.cc/billboard/mainPrediction?allianceid=1",
+      "response_status": 200,
+      "bytes": 73608,
+      "sha256": "7d85b4ebe53530ba857867e6d9741fa4829a4fd8cfbf6d3ed867537fe2d3086c",
+      "retrieved_at_utc": "2026-10-12T22:11:22.971688+00:00"
+    },
+    {
+      "file": "win_rate.html",
+      "url": "https://www.playsport.cc/billboard/winRate?allianceid=1",
+      "response_status": 200,
+      "bytes": 91786,
+      "sha256": "169d9bc33023ea6d29c658da80b4454bec5e914baa65df91a369eadda6814710",
+      "retrieved_at_utc": "2026-10-12T22:11:24.034012+00:00"
+    },
+    {
+      "file": "single_killer_rank.html",
+      "url": "https://www.playsport.cc/killer/singleKillerRank?alliance=1",
+      "response_status": 200,
+      "bytes": 164964,
+      "sha256": "0f01ad0bbd124c22d95a01c9dd6037d114bc90c81f43be9d6fdbea7a82d91dde",
+      "retrieved_at_utc": "2026-10-12T22:11:25.054248+00:00"
+    },
+    {
+      "file": "member_aoosoo1.html",
+      "url": "https://www.playsport.cc/member/aoosoo1/prediction?allianceid=1",
+      "response_status": 200,
+      "bytes": 45811,
+      "sha256": "d89ab15f5a97e77912c044a3b34deaaae4fff4eace4f9c2c841b54da9a690a68",
+      "retrieved_at_utc": "2026-10-12T22:13:34.618798+00:00",
+      "observed_structure": {
+        "bank_tablecon": true,
+        "sellpredict_item": false,
+        "explicit_iso_date": false
+      }
+    },
+    {
+      "file": "member_GO108792.html",
+      "url": "https://www.playsport.cc/member/GO108792/prediction?allianceid=1",
+      "response_status": 200,
+      "bytes": 63217,
+      "sha256": "696d9af9778b7982a6f2d1c18cbb8d4354d52a895b4bee6f09ff5deff9acba75",
+      "request_started_at_utc": "2026-10-12T22:33:25.144868+00:00",
+      "retrieved_at_utc": "2026-10-12T22:33:25.925304+00:00",
+      "candidate_userid": "GO108792",
+      "candidate_nickname": "Chuchu周",
+      "candidate_board_kinds": [
+        "main_prediction"
+      ],
+      "candidate_board_ranks": {
+        "main_prediction": 2
+      },
+      "observed_structure": {
+        "bank_tablecon": true,
+        "sellpredict_item": true,
+        "parsed_public_pick_count": 2
+      },
+      "parser": "PlaysportExpertAdapter._parse_member_prediction_html (same parser used for source adapter)",
+      "parsed_public_picks": [
+        {
+          "raw_pick": "主 +1.5",
+          "market": "讓分",
+          "side": "主",
+          "line": "+1.5",
+          "pick_date": null,
+          "pick_timestamp": "TIMESTAMP_UNKNOWN",
+          "publication_time_precision": "UNKNOWN",
+          "away_team": "道奇",
+          "home_team": "釀酒人",
+          "event_id": null
+        },
+        {
+          "raw_pick": "主 -1.5 | 6.5分",
+          "market": "讓分",
+          "side": "主",
+          "line": "-1.5",
+          "pick_date": null,
+          "pick_timestamp": "TIMESTAMP_UNKNOWN",
+          "publication_time_precision": "UNKNOWN",
+          "away_team": "守護者",
+          "home_team": "光芒",
+          "event_id": null
+        }
+      ],
+      "event_identity_status": "UNMATCHED_PUBLIC_PAGE_EVIDENCE_ONLY",
+      "evidence_note": "No legal Taiwan event identity plus a pregame publication timestamp was established; these rows are not counted as event support."
+    },
+    {
+      "file": "member_aa5220.html",
+      "url": "https://www.playsport.cc/member/aa5220/prediction?allianceid=1",
+      "response_status": 200,
+      "bytes": 64470,
+      "sha256": "47be49559e3ae95be7d31ea3dd5f7c129b000a6091a79c19b2d5298393549bee",
+      "request_started_at_utc": "2026-10-12T22:33:25.925304+00:00",
+      "retrieved_at_utc": "2026-10-12T22:33:26.741094+00:00",
+      "candidate_userid": "aa5220",
+      "candidate_nickname": "太利害",
+      "candidate_board_kinds": [
+        "main_prediction",
+        "win_rate"
+      ],
+      "candidate_board_ranks": {
+        "main_prediction": 3,
+        "win_rate": 19
+      },
+      "observed_structure": {
+        "bank_tablecon": true,
+        "sellpredict_item": true,
+        "parsed_public_pick_count": 2
+      },
+      "parser": "PlaysportExpertAdapter._parse_member_prediction_html (same parser used for source adapter)",
+      "parsed_public_picks": [
+        {
+          "raw_pick": "大7分贏50%",
+          "market": "大小",
+          "side": "大",
+          "line": "7",
+          "pick_date": null,
+          "pick_timestamp": "TIMESTAMP_UNKNOWN",
+          "publication_time_precision": "UNKNOWN",
+          "away_team": "道奇",
+          "home_team": "釀酒人",
+          "event_id": null
+        },
+        {
+          "raw_pick": "主讓 1分輸50% | 大7分贏50%",
+          "market": "大小",
+          "side": "大",
+          "line": "1",
+          "pick_date": null,
+          "pick_timestamp": "TIMESTAMP_UNKNOWN",
+          "publication_time_precision": "UNKNOWN",
+          "away_team": "守護者",
+          "home_team": "光芒",
+          "event_id": null
+        }
+      ],
+      "event_identity_status": "UNMATCHED_PUBLIC_PAGE_EVIDENCE_ONLY",
+      "evidence_note": "No legal Taiwan event identity plus a pregame publication timestamp was established; these rows are not counted as event support."
+    },
+    {
+      "file": "member_GO039157.html",
+      "url": "https://www.playsport.cc/member/GO039157/prediction?allianceid=1",
+      "response_status": 200,
+      "bytes": 49853,
+      "sha256": "208e3c92da8ec205901633e7aa14ed35d1ff7423004914645bc862efa540385f",
+      "request_started_at_utc": "2026-10-12T22:33:26.742094+00:00",
+      "retrieved_at_utc": "2026-10-12T22:33:27.504779+00:00",
+      "candidate_userid": "GO039157",
+      "candidate_nickname": "Wuhong.",
+      "candidate_board_kinds": [
+        "main_prediction"
+      ],
+      "candidate_board_ranks": {
+        "main_prediction": 4
+      },
+      "observed_structure": {
+        "bank_tablecon": true,
+        "sellpredict_item": false,
+        "parsed_public_pick_count": 0
+      },
+      "parser": "PlaysportExpertAdapter._parse_member_prediction_html (same parser used for source adapter)",
+      "parsed_public_picks": [],
+      "event_identity_status": "UNMATCHED_PUBLIC_PAGE_EVIDENCE_ONLY",
+      "evidence_note": "No legal Taiwan event identity plus a pregame publication timestamp was established; these rows are not counted as event support."
+    },
+    {
+      "file": "member_asd1986.html",
+      "url": "https://www.playsport.cc/member/asd1986/prediction?allianceid=1",
+      "response_status": 200,
+      "bytes": 61015,
+      "sha256": "666ed1c0968a9f31e900aed9cec1733ea6a47d0a73f461ff1745e6962eb6dddb",
+      "request_started_at_utc": "2026-10-12T22:33:27.505779+00:00",
+      "retrieved_at_utc": "2026-10-12T22:33:28.192191+00:00",
+      "candidate_userid": "asd1986",
+      "candidate_nickname": "喇叭薑母絲",
+      "candidate_board_kinds": [
+        "main_prediction",
+        "win_rate"
+      ],
+      "candidate_board_ranks": {
+        "main_prediction": 13,
+        "win_rate": 5
+      },
+      "observed_structure": {
+        "bank_tablecon": true,
+        "sellpredict_item": false,
+        "parsed_public_pick_count": 0
+      },
+      "parser": "PlaysportExpertAdapter._parse_member_prediction_html (same parser used for source adapter)",
+      "parsed_public_picks": [],
+      "event_identity_status": "UNMATCHED_PUBLIC_PAGE_EVIDENCE_ONLY",
+      "evidence_note": "No legal Taiwan event identity plus a pregame publication timestamp was established; these rows are not counted as event support."
+    },
+    {
+      "file": "member_Futurestage870912.html",
+      "url": "https://www.playsport.cc/member/Futurestage870912/prediction?allianceid=1",
+      "response_status": 200,
+      "bytes": 46130,
+      "sha256": "ff120bc1ad24672b52b626b67ea640225b6e1d75f01f7574ce4c54b3582244fc",
+      "request_started_at_utc": "2026-10-12T22:33:28.192191+00:00",
+      "retrieved_at_utc": "2026-10-12T22:33:28.948205+00:00",
+      "candidate_userid": "Futurestage870912",
+      "candidate_nickname": "SHOW30",
+      "candidate_board_kinds": [
+        "main_prediction"
+      ],
+      "candidate_board_ranks": {
+        "main_prediction": 6
+      },
+      "observed_structure": {
+        "bank_tablecon": true,
+        "sellpredict_item": false,
+        "parsed_public_pick_count": 0
+      },
+      "parser": "PlaysportExpertAdapter._parse_member_prediction_html (same parser used for source adapter)",
+      "parsed_public_picks": [],
+      "event_identity_status": "UNMATCHED_PUBLIC_PAGE_EVIDENCE_ONLY",
+      "evidence_note": "No legal Taiwan event identity plus a pregame publication timestamp was established; these rows are not counted as event support."
+    },
+    {
+      "file": "member_FangFang092130.html",
+      "url": "https://www.playsport.cc/member/FangFang092130/prediction?allianceid=1",
+      "response_status": 200,
+      "bytes": 64197,
+      "sha256": "25ee3b01913277cc454e1d8e5fdcdbe52930d7ff514a6fd7f4b5749d917f34ab",
+      "request_started_at_utc": "2026-10-12T22:33:28.948205+00:00",
+      "retrieved_at_utc": "2026-10-12T22:33:29.667845+00:00",
+      "candidate_userid": "FangFang092130",
+      "candidate_nickname": "Reeeen",
+      "candidate_board_kinds": [
+        "main_prediction"
+      ],
+      "candidate_board_ranks": {
+        "main_prediction": 7
+      },
+      "observed_structure": {
+        "bank_tablecon": true,
+        "sellpredict_item": false,
+        "parsed_public_pick_count": 0
+      },
+      "parser": "PlaysportExpertAdapter._parse_member_prediction_html (same parser used for source adapter)",
+      "parsed_public_picks": [],
+      "event_identity_status": "UNMATCHED_PUBLIC_PAGE_EVIDENCE_ONLY",
+      "evidence_note": "No legal Taiwan event identity plus a pregame publication timestamp was established; these rows are not counted as event support."
+    }
+  ]
+}

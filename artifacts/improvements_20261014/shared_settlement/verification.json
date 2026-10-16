@@ -1,0 +1,99 @@
+{
+  "code_hash_before": "e28df24e07df3e872f68e83069a47d2a4677fc0363a69cb2eee223a83ce98543",
+  "code_hash_after": "e28df24e07df3e872f68e83069a47d2a4677fc0363a69cb2eee223a83ce98543",
+  "settlement": {
+    "settled_snapshots": 36,
+    "unresolved_snapshots": 15,
+    "deferred_snapshots": 5,
+    "deferred_observations": [
+      {
+        "snapshot_id": "snap_e5b461a047e3",
+        "event_start": "2026-10-14T23:00:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_60b1575206ca",
+        "event_start": "2026-10-14T23:00:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_be5ddff4208f",
+        "event_start": "2026-10-14T23:00:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_d730b4d7ea4a",
+        "event_start": "2026-10-14T23:00:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      },
+      {
+        "snapshot_id": "snap_763b6aacf327",
+        "event_start": "2026-10-14T23:00:00+00:00",
+        "reason": "EVENT_NOT_STARTED"
+      }
+    ],
+    "result_games": 18,
+    "coverage": {
+      "basketball/NBA": {
+        "provider": "ESPN_PUBLIC_SCOREBOARD",
+        "status": "AVAILABLE",
+        "fetch_status": "RESULTS_AVAILABLE",
+        "games": 14,
+        "snapshots": 36,
+        "matched_snapshots": 36,
+        "unique_matches": 2,
+        "settled_snapshots": 36,
+        "unmatched_snapshots": 0,
+        "errors": [],
+        "settlement_status_counts": {
+          "WON": 18,
+          "LOST": 18
+        },
+        "unmatched_reason_counts": {}
+      },
+      "soccer/COLOMBIA_PRIMERA_A": {
+        "provider": "ESPN_PUBLIC_SCOREBOARD",
+        "status": "AVAILABLE",
+        "fetch_status": "RESULTS_AVAILABLE",
+        "games": 4,
+        "snapshots": 15,
+        "matched_snapshots": 15,
+        "unique_matches": 1,
+        "settled_snapshots": 0,
+        "unmatched_snapshots": 15,
+        "errors": [],
+        "settlement_status_counts": {
+          "PENDING": 15
+        },
+        "unmatched_reason_counts": {
+          "RESULT_PENDING": 15
+        }
+      },
+      "soccer/COSTA_RICA_PRIMERA": {
+        "provider": null,
+        "status": "NOT_DUE",
+        "fetch_status": "NOT_ATTEMPTED",
+        "games": 0,
+        "snapshots": 5,
+        "matched_snapshots": 0,
+        "unique_matches": 0,
+        "settled_snapshots": 0,
+        "unmatched_snapshots": 0,
+        "errors": [],
+        "settlement_status_counts": {},
+        "deferred_snapshots": 5,
+        "unmatched_reason_counts": {}
+      }
+    },
+    "unmatched_observations_sampled": 15,
+    "settled_parlay_candidates": 0
+  },
+  "report": {
+    "report_json": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\reports\\weekly_2026-10-14.json",
+    "report_markdown": "C:\\Projects\\PythonProjects\\sportslottery\\data\\research_pipeline\\reports\\weekly_2026-10-14.md",
+    "single_settled_n": 51,
+    "model_cohort_n": 0,
+    "parlay_settled_n": 0,
+    "source_health_observations": 40
+  }
+}

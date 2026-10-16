@@ -1,0 +1,32 @@
+{
+  "matches": [
+    {
+      "match_id": "9_1",
+      "event_id": "9_1",
+      "canonical_event_id": "PLAYSPORT_9_KBO_2026101591001_2026-10-15T09:30:00+00:00",
+      "league": "KBO",
+      "canonical_league": "KBO",
+      "source_competition": "KBO (韓棒)",
+      "playsport_game_id": "2026101591001",
+      "sport": "baseball",
+      "alliance_id": "9",
+      "game_time": "PM 05:30",
+      "start_time_utc": "2026-10-15T09:30:00+00:00",
+      "away_team": "斗山熊",
+      "home_team": "雙子",
+      "_identity_incomplete": false,
+      "_identity_source": "teaminfo_h3_rows",
+      "_identity_diagnostic": null,
+      "away_pitcher": null,
+      "home_pitcher": null,
+      "options": [],
+      "_cached_at": 1792018166.0072849,
+      "_cached_iso": "2026-10-14T22:49:26.007284+00:00",
+      "_is_stale_cache": false,
+      "_cache_status": "LIVE",
+      "_source_url": "https://www.playsport.cc/predict/scale?allianceid=9"
+    }
+  ],
+  "cached_at": 1792018166.0072849,
+  "cached_iso": "2026-10-14T22:49:26.007284+00:00"
+}

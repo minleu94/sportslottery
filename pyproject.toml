@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools==83.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sportslottery"
+version = "2.0.1"
+description = "Local sports odds research and ticket tracking application"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "beautifulsoup4==4.13.4",
+  "numpy==1.26.4",
+  "penaltyblog==1.12.2",
+  "PyYAML==6.0.3",
+  "requests==2.32.5",
+  "scipy==1.16.3",
+  "streamlit==1.56.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest==8.4.2"]
+
+[project.scripts]
+sportslottery = "sportslottery_bootstrap:main"
+
+[tool.setuptools]
+py-modules = ["app", "main", "launcher", "sportslottery_bootstrap"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "integrations*", "probability*", "ui*", "scripts*", "pages*", "config*"]
+
+[tool.setuptools.package-data]
+config = ["*.yaml", "*.yml"]
+scripts = ["*.ps1", "*.bat"]

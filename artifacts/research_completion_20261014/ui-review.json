@@ -1,0 +1,30 @@
+{
+  "observed_at_utc": "2026-10-14T01:36:59.945558+00:00",
+  "url": "http://127.0.0.1:8511/",
+  "method": "CUA DOM and computed style, live Streamlit server",
+  "sidebar_labels": [
+    "🐕 瘋狗流決策台",
+    "📊 指標與資料來源"
+  ],
+  "collapse_button": {
+    "width": "40px",
+    "height": "40px",
+    "border": "1px solid rgb(154, 164, 194)",
+    "visibility": "visible"
+  },
+  "collapse_expand_clicked": true,
+  "source_options": 338,
+  "complete_identity_options": 338,
+  "ready_options": 119,
+  "quality_events": 6,
+  "range": [
+    40,
+    60
+  ],
+  "candidate_count": 0,
+  "visible_empty_reason": "單關已通過情報門檻，但目前搜尋池沒有組合落在所選倍率範圍",
+  "visible_search_scope_expander": true,
+  "visible_acceptance_expander": true,
+  "exception_visible": false,
+  "note": "Observational evidence; counts change with quote age and event starts. No wallet transaction was executed."
+}

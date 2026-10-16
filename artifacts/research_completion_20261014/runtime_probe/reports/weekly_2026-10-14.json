@@ -1,0 +1,428 @@
+{
+  "generated_at_utc": "2026-10-14T01:14:57.898436+00:00",
+  "period_start_utc": "2026-10-07T01:14:57.898436+00:00",
+  "period_end_utc": "2026-10-14T01:14:57.898436+00:00",
+  "data_root": "C:\\Projects\\PythonProjects\\sportslottery\\artifacts\\research_completion_20261014\\runtime_probe",
+  "experiment_identity": {
+    "schema": "experiment-identity-v2",
+    "strategy_version": "v2.0-research",
+    "prediction_manifest_hash": "4ee0c9d5bf824922d0ccd0559241e5dc25ca529db7e5c49c510c247b96f46bbb",
+    "prediction_manifest": {
+      "config/evidence_weights.yaml": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+      "config/expert_sources.yaml": "376fda9d3c74a7ae804641888a2da3242e6e7b021f98fdc6d5190b15e6911dba",
+      "config/model_acceptance.yaml": "f277d97dad360edf39b034caf3d7e8988bcebd9d07f583ab276eef04eeed0806",
+      "config/models.yaml": "1debef2eb8e9504c0a1af055f901271fe06b1e775e634de9cd8ddd91f6f2d1f3",
+      "config/research_pipeline.yaml": "2994a2de3b7a546907745fc7e7986ee5fc051d25c0c261dca8af0e609965732c",
+      "config/source_registry.yaml": "4219c1bcfb406422a0afda0a487f4ad98fbd57f1894ba7132a8d8c5c08255238",
+      "core/__init__.py": "93bf51e382ea2ffd1c7b0b7094e3d7e7b167be5f049ee99313a12e94a786e479",
+      "core/bet_validation.py": "60e8a86486abe3fbc8a5a601b131f5284013e504205c15c9e5ae78215f7c9a09",
+      "core/correlation_guard.py": "4697e348625b96fcd7c9297535bc714c5f5c02ac6d9ea8df7d5ec5a2b86b786b",
+      "core/edge_engine.py": "8113a975e05e627844e49194af02d0a760787101874698d24a76e9df5b766014",
+      "core/experiment_identity.py": "cb5830aa341d3e2f7f4b6f0b6da9a2c0f17a5b387ef6177851272f0da187e1ea",
+      "core/identity/__init__.py": "d36dffcb10cdb3c18d0ba19e3401eb020d86fbd3ac22b855eb58a1f3f1559785",
+      "core/identity/event_matcher.py": "f7e3ace8db249abf3017a2b68c970babc0c5edb37d28bd1402f1cf750ccec1c4",
+      "core/identity/league_mapping.py": "e352546db1038b5c4f9080e13e52f5d25748ea5a80d8bfdde934e8c2134c9315",
+      "core/identity/team_alias.py": "7046af4100e2041dce3128f3ca61e1e2905dd03b634f9755b7b1a66ecd81567d",
+      "core/identity/timezone.py": "5526ba90303b066d56809b29a3a15e40b99d6139f2a04e3da9334f55494bddf5",
+      "core/model_acceptance.py": "c16fd5fe45beb293b4a113072f5ac2e95f4890be04580053ec4a0cb6afe5bc66",
+      "core/model_calibration.py": "49d29ace0897e6ce7ca0f7b4cc3f44e5d4d05694994f74696971eb4bb8ddec7b",
+      "core/model_registry.py": "c686e4e8eb3f00b575fd07cb7af0988464d2bef597c3f0db02c31361b4140b16",
+      "core/model_validation.py": "50be6daa0cd045f35e0e0a04ccd27c7b89872cb709f1ec62c8008caca5c5a0d2",
+      "core/odds_watcher.py": "98a92739766ce8b53b7bd2fe7e4df4cadc57c5fdcfe364a312acf45686ab087a",
+      "core/optimizer.py": "43cf4ce08488e8c1e8c4fd4f29a8088c7a647b61609c249cdd2dc5d86d57b4f9",
+      "core/parlay_engine.py": "07ca68e3e113d61b4ca45f615e29421f733db6776ef9ba198aa676550288f40f",
+      "core/parlay_validation.py": "cdb52df06f6c9a2cc6c73350a32482da9e6ac283d8cb4394198d00fd34d3b875",
+      "core/probability_evidence.py": "fbdb6696aa427f29a90a45af0bafc371a60ad4536b46ff5aad63b47a33a71070",
+      "core/research_paths.py": "742d501f053599b81bb69410562aa3281ee84b5b797164f5aa2196f805011063",
+      "core/research_pipeline.py": "8f0ec3cf183326e0655f6a0c20c0a98e6183967f17cf550d8d32432d3f8bfe3d",
+      "core/scraper.py": "36e82ba58c6bf88543b608827a84b3d46d8d994b290b8f61c05748ca07e54266",
+      "core/season_radar.py": "fe9f47254c6fea73f54565bf609f864a62ecf480bb72dd955bf1be74c3d81d9b",
+      "core/settlement/__init__.py": "312561d98a78f89dea9ebe56a552a80161bea34fbfd85da90f103dd92d383ee7",
+      "core/settlement/taiwan_rules.py": "8df373fc3e9e62058f18754c64ef3b89206f574f89dbe340b422b368e801e1ae",
+      "core/settlement_engine.py": "d938f42a378101b5c732bcad8a30c8ef2f3bd8814644407cdb0ff03d8bb9c2ea",
+      "core/shadow_parlay_logger.py": "5a21aa19cc76ce43ce9c546626118aab6f6a488cec8b291949d8795af8ad0c42",
+      "core/shadow_portfolio.py": "5bf79ddc3fe946f2a3727e2d50ecf481de7a30149fe3719b3727a1cf3e4fe868",
+      "core/signal_hub.py": "6ad0038ff7f8214f8f7a84023928d8c131e5d2be40ce2161f701ec252ddeb2af",
+      "core/snapshot_logger.py": "86eb13fe76cc85cda0d9e75610714c239b71fcba5be980a41087ce1fec026100",
+      "core/source_health.py": "938b64cd011e2a558c69c1149529bbbd65b541f7d114b98a63c03d350364466e",
+      "core/strategy_version.py": "93f937d532568f4d388ce6e37d1b838bca0750fce8bde566abf9f7f6af3721e2",
+      "core/ticket_manager.py": "93127c91f702f23f38d697a1952231c83beddde5feaf7a613aeb2d2c43b3f93a",
+      "core/ticket_recorder.py": "8dda8eb0fe2171600429e29391becb1d46a33ab82ce4c39de4a3fd170809f47c",
+      "core/wallet.py": "26dbccf9faf50dd8480e7058534dc681a36bce44fde3f831149cd22f22094ce4",
+      "core/war_chest.py": "1f58cfa422795a846fc0480c87afacc5717422de2f24f043e0fff30d489249a9",
+      "integrations/__init__.py": "cb609928c807f24e50172d3b796ac8e6506f317ab3a91eb1661af50af061a709",
+      "integrations/common/__init__.py": "807724e0ec94de2a31a3b12c85f4a92b0afb81dd32ec72f40064ddf49dc5cfdd",
+      "integrations/common/models.py": "a13e6f42cc3db5a0c7dfd0502af54e3cdc67274f90a16ac8aaf1fed0c250e801",
+      "integrations/experts/__init__.py": "8553fc362e9cfc7b6d1fb468e77044a89cae2b5eac6b509fb74c2c2f1ebf6c35",
+      "integrations/experts/playsport_crowd.py": "59e85e055bc2cd19badd764252a9af8443a77e5411e262bd52397e8aa5d3503d",
+      "integrations/experts/playsport_expert.py": "cb16834581f598acbde87a0be082d1aa1ac3d76a63877e4edbbe2b850dcfbb29",
+      "integrations/models/__init__.py": "ce6f4f9c8c30e89f6fabe6222df5556caa5309f81d38baa727cd95d4c9ff6467",
+      "integrations/models/espn_poisson_soccer.py": "35b5cc5d5c5b3cf6f51ff02bd538f32f310bb4beb508d60ea6e3668bdbc4ca3f",
+      "integrations/models/espn_pythagorean_mlb.py": "61a4520bed0a80c08efe12d4b2e232785c44a47112df1a7cc50fcfaa0852e955",
+      "integrations/models/external/__init__.py": "d648b0e09f86eeb0df0a2ffbe8fa755186b34fba3c0cc15e6d4ac1c2711951c7",
+      "integrations/models/external/fivethirtyeight_mlb_elo.py": "e31836b194141d70109c957314f610ae66765d55ba9952fec5dea5a1bdce100c",
+      "integrations/models/external/live_mlb_elo.py": "8f8cf2d1a7a0c78fa468d9ff7f7d237a70b4c89bfc3941be8b3afa476bfb4944",
+      "integrations/models/external/penaltyblog_dixon_coles.py": "8f46bd3a13cc79c8fc6105a287173bde3d75f2a08a2776e336b9adc34a9adcde",
+      "integrations/models/penaltyblog_soccer_model.py": "0c74f5b81a0515aaf6bc2d9d48f14730305644ce5f83abe8cda08ed39887ef7f",
+      "integrations/models/pybaseball_mlb_model.py": "b89037b78734e71fb9663179fb1c9ad3a26023f14980c8001f2d4e2e70141aab",
+      "integrations/odds/__init__.py": "d34d625a049735d24ed7486549fbd1e4bc5d1720df6fb938ffe69bcb274447de",
+      "integrations/odds/playsport_taiwan_odds.py": "17d103df74b5e7fddf2781897ceb921d6b23835ccca3a004dba1a5260095f734",
+      "integrations/results/__init__.py": "76fcf3580be46dc1aeaba36c348cd6db127722d997e97c5939df499b9c7401e3",
+      "integrations/results/cpbl.py": "054e3c45c57806f713eb95cccf4557ce0fa350a769edd1a86079886550763841",
+      "integrations/results/espn.py": "9bb7a53f33076e0f3296ed300b1a6b5b2ecbab9599a10f59834deda236ccf5a9",
+      "integrations/results/models.py": "41bff6c18d7751c6271bad1d306ea53bf67c60cb393d16096dc3b9b21fcf60b2",
+      "integrations/results/official_asian_baseball.py": "e46c560f94d1be0a97989e0e213ddf186a904721a6d06d80bf97cea87cc452fc",
+      "integrations/schedules/__init__.py": "3848f393551427b5b0a20bba60bb0b375c16b7a09f10d27dcd43d169b85b3eff",
+      "integrations/schedules/espn_schedule.py": "5d61bff97e3296c33f919297e5fde41df4db6c8d8f7ff7e1abf51627fbc6d712",
+      "main.py": "1233e617cd6f43e28f0afcceff0381a53c7fbf7e7a46a4e64d4d98202b2a8a1d",
+      "probability/__init__.py": "77e6252b4de20576e36e33cfb52f9db81e29710ff4d793cda215697dd19c5211",
+      "probability/calibration.py": "d2bed09640d3bee6489632fae4b68c84733b22ae6f6c8dea48e52b228bd987f3",
+      "probability/devig.py": "e4f71f6ed987b56acd46123faec067775fe8d1f811dee58c461f62123ca55df8",
+      "pyproject.toml": "57bb05171705e8ee7476e61bd6dd66541f0622cb1add7daf9ceccee21fac9fba",
+      "requirements-lock.txt": "02a878b88847c7e4d6f2a9d6f2d0d1df399e3b9281b4f8483afc3b685cf5e407",
+      "scripts/daily_snapshot.py": "722aaeca07467fd0cffd96a773a247e7f7819fbc94693e4e44a9bac5a25b4e22",
+      "scripts/fetch_validation_data.py": "99c13429a13e6e3fbbdb287a8465bd50a05e40063d062341d8081706a861db31",
+      "scripts/odds_watcher.py": "d00047a33f8115eaf826b3f2fb0c397e656f1c5c8d8bce726a2466625a8a4c08",
+      "scripts/run_expanded_backtest.py": "e1fe0ba5215204a6a742b46ee38f8bcd284ae9be6f0be3a82114bf6c1cf28c65",
+      "scripts/run_today_real_e2e.py": "dac44db6189d184053f69e46d25eaa18a44496bfd1a43b87975ce4f80b1e883d",
+      "scripts/settle_results.py": "01d7b476d582ec149d4246e70153d93190034a3e44ee89e78b80a9c8668179d8",
+      "scripts/update_mlb_elo.py": "cd99844d3fcc25510efaa02904f303532d1597565ceea0786c8371280ce27f8d",
+      "scripts/validate_models.py": "5e83d51b86ac77d982bfada4d473a469f613595ad07a724378cc4e8d349f0941"
+    },
+    "config_hashes": {
+      "config/evidence_weights.yaml": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+      "config/expert_sources.yaml": "376fda9d3c74a7ae804641888a2da3242e6e7b021f98fdc6d5190b15e6911dba",
+      "config/model_acceptance.yaml": "f277d97dad360edf39b034caf3d7e8988bcebd9d07f583ab276eef04eeed0806",
+      "config/models.yaml": "1debef2eb8e9504c0a1af055f901271fe06b1e775e634de9cd8ddd91f6f2d1f3",
+      "config/research_pipeline.yaml": "2994a2de3b7a546907745fc7e7986ee5fc051d25c0c261dca8af0e609965732c",
+      "config/source_registry.yaml": "4219c1bcfb406422a0afda0a487f4ad98fbd57f1894ba7132a8d8c5c08255238"
+    },
+    "current_model_set": {
+      "espn_poisson_soccer": {
+        "version": "1.0.0",
+        "adapter": "integrations.models.espn_poisson_soccer.ESPNPoissonSoccerFallback",
+        "sport": "soccer",
+        "source_category": "LOCAL_FALLBACK_MODEL",
+        "independence_group": "ESPN_SEASON_STATS",
+        "configured_weight": 0.4
+      },
+      "espn_pythagorean_mlb": {
+        "version": "1.0.0",
+        "adapter": "integrations.models.espn_pythagorean_mlb.ESPNPythagoreanMLBModel",
+        "sport": "baseball",
+        "source_category": "LOCAL_FALLBACK_MODEL",
+        "independence_group": "ESPN_SEASON_STATS",
+        "configured_weight": 0.4
+      },
+      "live_mlb_elo": {
+        "version": "2.0.0",
+        "adapter": "integrations.models.external.live_mlb_elo.LiveMLBEloAdapter",
+        "sport": "baseball",
+        "source_category": "OPEN_SOURCE_ENGINE",
+        "independence_group": "LIVE_MLB_ELO",
+        "configured_weight": 0.9
+      },
+      "penaltyblog_dixon_coles": {
+        "version": "1.12.2",
+        "adapter": "integrations.models.external.penaltyblog_dixon_coles.PenaltyblogDixonColesAdapter",
+        "sport": "soccer",
+        "source_category": "EXTERNAL_OPEN_SOURCE_ENGINE",
+        "independence_group": "DIXON_COLES_MATCHES",
+        "configured_weight": 0.85
+      }
+    },
+    "protocol_settings": {
+      "prediction_cutoff_policy": "strict-pre-event-v1",
+      "freshness_policy": "source-observed-time-required-v1",
+      "calibration_protocol": "uncalibrated-estimates-excluded-from-verified-accuracy-v1",
+      "settlement_rules_version": "v1.1-status-aware",
+      "evidence_weights_version": "v2.0-configured",
+      "evidence_weights_hash": "24f1c4e41549de5f6ee48a45098a8133a38cc2deee6d24f0fbb73f0ac5cffbb4",
+      "metrics_protocol": "unique-event-selection-v1"
+    },
+    "experiment_id": "exp_61987557fa1055aa1340e77a81e7d73931c98a96d010ac15e61070dadac08bb7"
+  },
+  "wallet_data_used": false,
+  "single_leg": {
+    "recorded_snapshots": 22,
+    "settled_count": 0,
+    "valid_current_experiment_unique_observations": {
+      "input_count": 22,
+      "eligible_count": 0,
+      "unique_event_count": 0,
+      "observation_count": 0,
+      "duplicate_retries_removed": 0,
+      "conflicting_observations_excluded": 0,
+      "missing_observation_key_excluded": 0,
+      "legacy_or_invalid_identity_excluded": 0,
+      "different_target_identity_excluded": 0,
+      "report_outcomes_unknown_at_cutoff_excluded": 0
+    },
+    "paired_probability_cohort_n": 0,
+    "model": {
+      "sample_size": 0,
+      "target_experiment_id": "exp_61987557fa1055aa1340e77a81e7d73931c98a96d010ac15e61070dadac08bb7",
+      "sample_unit": "unique settled event/market/side/line; selection label fallback when side is absent",
+      "wins": 0,
+      "hit_rate": 0.0,
+      "classification_accuracy": 0.0,
+      "brier_score": null,
+      "log_loss": null,
+      "roi_pct": 0.0,
+      "is_insufficient_sample": true,
+      "observation_count": 0,
+      "unique_event_count": 0,
+      "audit": {
+        "input_count": 0,
+        "eligible_count": 0,
+        "unique_event_count": 0,
+        "observation_count": 0,
+        "duplicate_retries_removed": 0,
+        "conflicting_observations_excluded": 0,
+        "missing_observation_key_excluded": 0,
+        "legacy_or_invalid_identity_excluded": 0,
+        "different_target_identity_excluded": 0
+      }
+    },
+    "market_baseline": {
+      "n": 0,
+      "brier": null,
+      "log_loss": null,
+      "hit_rate": null,
+      "roi_pct": null
+    },
+    "paired_cluster_bootstrap_ci95": {
+      "status": "INSUFFICIENT_CLUSTERS",
+      "cluster_count": 0,
+      "replicates": 0,
+      "intervals": null
+    },
+    "realized_returns_same_selections": {
+      "n": 0,
+      "hit_rate": 0.0,
+      "roi_pct": 0.0,
+      "interpretation": "Model and market score the same selected outcomes at the same Taiwan odds; realized hit rate and ROI are shared returns, not strategy differences."
+    },
+    "research_candidate": {
+      "status": "UNVALIDATED_DIAGNOSTIC_ONLY",
+      "paired_probability_cohort_n": 0,
+      "model_candidate": {
+        "n": 0,
+        "brier": null,
+        "log_loss": null,
+        "hit_rate": null,
+        "roi_pct": null
+      },
+      "market_baseline_same_cohort": {
+        "n": 0,
+        "brier": null,
+        "log_loss": null,
+        "hit_rate": null,
+        "roi_pct": null
+      },
+      "paired_cluster_bootstrap_ci95": {
+        "status": "INSUFFICIENT_CLUSTERS",
+        "cluster_count": 0,
+        "replicates": 0,
+        "intervals": null
+      },
+      "realized_returns_same_selections": {
+        "n": 0,
+        "hit_rate": null,
+        "roi_pct": null,
+        "interpretation": "Candidate and market score the same selected outcomes at the same Taiwan odds; realized hit rate and ROI are shared returns, not strategy differences."
+      }
+    }
+  },
+  "whole_ticket": {
+    "operational_reference_only": true,
+    "settled_ticket_count": 0,
+    "status_counts": {},
+    "wager_units": 0.0,
+    "payout_units": 0,
+    "roi_pct": null,
+    "won_count": 0,
+    "lost_count": 0,
+    "forward_validation": {
+      "experiment_id": "exp_61987557fa1055aa1340e77a81e7d73931c98a96d010ac15e61070dadac08bb7",
+      "probability_status": "UNVALIDATED_HEURISTIC_JOINT_ESTIMATE",
+      "sample_unit": "unique binary settled ticket; fixed unit stake; void/push excluded",
+      "evaluation_tier_bounds": "[10,25), [25,75), [75,200), [200,500]; original generation tier retained",
+      "excluded_counts": {
+        "CONFLICTING_TICKETS": 0
+      },
+      "tiers": {
+        "10-25x": {
+          "brier": null,
+          "log_loss": null,
+          "hit_rate": null,
+          "roi_pct": null,
+          "n": 0,
+          "event_slate_cluster_count": 0,
+          "mean_estimated_probability": null,
+          "naive_brier": null,
+          "calibration_bins": [],
+          "cluster_bootstrap_ci95": null,
+          "bootstrap_status": "INSUFFICIENT_CLUSTERS",
+          "bootstrap_replicates": 0,
+          "bootstrap_seed": 20261013,
+          "cluster_unit": "connected shared events and UTC event-date slates",
+          "is_insufficient_sample": true
+        },
+        "25-75x": {
+          "brier": null,
+          "log_loss": null,
+          "hit_rate": null,
+          "roi_pct": null,
+          "n": 0,
+          "event_slate_cluster_count": 0,
+          "mean_estimated_probability": null,
+          "naive_brier": null,
+          "calibration_bins": [],
+          "cluster_bootstrap_ci95": null,
+          "bootstrap_status": "INSUFFICIENT_CLUSTERS",
+          "bootstrap_replicates": 0,
+          "bootstrap_seed": 20261013,
+          "cluster_unit": "connected shared events and UTC event-date slates",
+          "is_insufficient_sample": true
+        },
+        "75-200x": {
+          "brier": null,
+          "log_loss": null,
+          "hit_rate": null,
+          "roi_pct": null,
+          "n": 0,
+          "event_slate_cluster_count": 0,
+          "mean_estimated_probability": null,
+          "naive_brier": null,
+          "calibration_bins": [],
+          "cluster_bootstrap_ci95": null,
+          "bootstrap_status": "INSUFFICIENT_CLUSTERS",
+          "bootstrap_replicates": 0,
+          "bootstrap_seed": 20261013,
+          "cluster_unit": "connected shared events and UTC event-date slates",
+          "is_insufficient_sample": true
+        },
+        "200-500x": {
+          "brier": null,
+          "log_loss": null,
+          "hit_rate": null,
+          "roi_pct": null,
+          "n": 0,
+          "event_slate_cluster_count": 0,
+          "mean_estimated_probability": null,
+          "naive_brier": null,
+          "calibration_bins": [],
+          "cluster_bootstrap_ci95": null,
+          "bootstrap_status": "INSUFFICIENT_CLUSTERS",
+          "bootstrap_replicates": 0,
+          "bootstrap_seed": 20261013,
+          "cluster_unit": "connected shared events and UTC event-date slates",
+          "is_insufficient_sample": true
+        }
+      }
+    }
+  },
+  "source_health_observation_counts": {
+    "LIVE": 5,
+    "LIVE_NO_EVENTS": 3
+  },
+  "model_update": {
+    "updated_games": 0,
+    "skipped_games": 0,
+    "data_as_of": null,
+    "last_update": null,
+    "source": "Neutral 1500 initialization; official-ledger rebuild in progress",
+    "held_final_count": 0,
+    "late_final_requires_rebuild_count": 0,
+    "excluded_non_regular_games": 100,
+    "status": "WARMUP_IN_PROGRESS",
+    "official_ledger_complete_through_yesterday": false,
+    "initialization_mode": "neutral_1500_official_warmup",
+    "official_schedule_queried_through": "2025-03-07",
+    "pending_game_dates": [],
+    "start_date": "2025-03-01",
+    "end_date": "2025-03-07"
+  },
+  "soccer_model_update": {
+    "status": "UPDATED",
+    "source": "Football-Data.co.uk",
+    "leagues": {
+      "eng.1": {
+        "status": "UPDATED",
+        "match_count": 1200,
+        "latest_match_date": "2026-10-12",
+        "source_files": [
+          {
+            "season": "2324",
+            "url": "https://www.football-data.co.uk/mmz4281/2324/E0.csv",
+            "fetched_at_utc": "2026-10-14T01:14:32.846238+00:00",
+            "sha256": "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3",
+            "byte_count": 172196
+          },
+          {
+            "season": "2425",
+            "url": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
+            "fetched_at_utc": "2026-10-14T01:14:34.707199+00:00",
+            "sha256": "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4",
+            "byte_count": 197110
+          },
+          {
+            "season": "2526",
+            "url": "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
+            "fetched_at_utc": "2026-10-14T01:14:36.609699+00:00",
+            "sha256": "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62",
+            "byte_count": 203438
+          },
+          {
+            "season": "2627",
+            "url": "https://www.football-data.co.uk/mmz4281/2627/E0.csv",
+            "fetched_at_utc": "2026-10-14T01:14:38.106897+00:00",
+            "sha256": "6731e95dd7120f5c7dc9f37650cc11ccccda8e7e0a3626830263c2cd77daa787",
+            "byte_count": 29659
+          }
+        ],
+        "cache_sha256": "f8443d2acfb1b494ee968f481f2c2156a9901154f522b4b7acc1cbb2098796cb"
+      },
+      "esp.1": {
+        "status": "UPDATED",
+        "match_count": 1218,
+        "latest_match_date": "2026-10-12",
+        "source_files": [
+          {
+            "season": "2324",
+            "url": "https://www.football-data.co.uk/mmz4281/2324/SP1.csv",
+            "fetched_at_utc": "2026-10-14T01:14:39.970639+00:00",
+            "sha256": "5323f596c7ed318e4bce95557a369d809d98501fa499ea5f41350cd45cf3c7d9",
+            "byte_count": 168164
+          },
+          {
+            "season": "2425",
+            "url": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv",
+            "fetched_at_utc": "2026-10-14T01:14:41.826914+00:00",
+            "sha256": "c086e96d6a53f6e6c0fce4e35db0d1728c773b4362323da0161a34769e315a36",
+            "byte_count": 192863
+          },
+          {
+            "season": "2526",
+            "url": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv",
+            "fetched_at_utc": "2026-10-14T01:14:43.751878+00:00",
+            "sha256": "4ca2e285f3ee0702f6bc55fcaa4f5a15cb3aef6220735a1d15398131e21d63f5",
+            "byte_count": 197653
+          },
+          {
+            "season": "2627",
+            "url": "https://www.football-data.co.uk/mmz4281/2627/SP1.csv",
+            "fetched_at_utc": "2026-10-14T01:14:45.261265+00:00",
+            "sha256": "a2a27803e477b9a671f7fc1fdcd0b9a6a9bb52a3ff50806b4151845716b60abb",
+            "byte_count": 37529
+          }
+        ],
+        "cache_sha256": "93af03f4ef52b6a5717c91a6bdc7120c8257a2d926e4ca094942f6f223ec2088"
+      }
+    },
+    "errors": {},
+    "refresh_due_at_utc": "2026-10-14T07:14:30.946309+00:00"
+  },
+  "interpretation": "Research operations summary; estimates with N=0 are unavailable and this report alone does not establish model reliability."
+}

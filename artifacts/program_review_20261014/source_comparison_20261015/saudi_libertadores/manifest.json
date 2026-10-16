@@ -1,0 +1,69 @@
+[
+  {
+    "file": "saudi_scoreboard_20261015.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/ksa.1/scoreboard?dates=20261015",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:43:04.190645+00:00",
+    "sha256": "3e60e2a9baac2e70fe9524ab2578bb2fbce8578a07b586c1c472a1b3e02726ac",
+    "byte_count": 38180,
+    "events": 3,
+    "teams": 0,
+    "league_metadata": [
+      {
+        "id": "21231",
+        "name": "Saudi Pro League",
+        "abbreviation": "Saudi Pro League",
+        "slug": "ksa.1"
+      }
+    ]
+  },
+  {
+    "file": "saudi_teams.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/ksa.1/teams?limit=1000",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:43:04.547605+00:00",
+    "sha256": "c2a42bb0e4c72989ca81f5c1105aba2153555f17215edd0007ec9eaf17007c06",
+    "byte_count": 21639,
+    "events": null,
+    "teams": 18,
+    "league_metadata": []
+  },
+  {
+    "file": "libertadores_scoreboard_20261015.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/conmebol.libertadores/scoreboard?dates=20261015",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:43:04.919315+00:00",
+    "sha256": "3968ca0cdb108bbb7d1731cdc78ead5c112c7f6dcbd9a8fb81fd5fdb1edfedca",
+    "byte_count": 12734,
+    "events": 1,
+    "teams": 0,
+    "league_metadata": [
+      {
+        "id": "783",
+        "name": "CONMEBOL Libertadores",
+        "abbreviation": "CONMEBOL Libertadores",
+        "slug": "conmebol.libertadores"
+      }
+    ]
+  },
+  {
+    "file": "libertadores_teams.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/conmebol.libertadores/teams?limit=1000",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:43:05.244492+00:00",
+    "sha256": "798b8c064a009eba2ce7b7b3d18e63cba52a10a3b830e18b186011858748d27e",
+    "byte_count": 55234,
+    "events": null,
+    "teams": 46,
+    "league_metadata": []
+  },
+  {
+    "file": "libertadores_scoreboard_20261014.json",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/conmebol.libertadores/scoreboard?dates=20261014",
+    "http_status": 200,
+    "observed_at_utc": "2026-10-15T00:43:25.496174+00:00",
+    "sha256": "751e7ee816cc06f0e0f8ffa29dd43cd1dd9f31d61358e50676b81fe8a2bdb33e",
+    "byte_count": 14247,
+    "events": 1
+  }
+]

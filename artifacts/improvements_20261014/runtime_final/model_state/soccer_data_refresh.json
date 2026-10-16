@@ -1,0 +1,77 @@
+{
+  "last_success_utc": "2026-10-14T22:25:57.012823+00:00",
+  "leagues": {
+    "eng.1": {
+      "status": "UPDATED",
+      "match_count": 1200,
+      "latest_match_date": "2026-10-12",
+      "source_files": [
+        {
+          "season": "2324",
+          "url": "https://www.football-data.co.uk/mmz4281/2324/E0.csv",
+          "fetched_at_utc": "2026-10-14T22:25:58.915828+00:00",
+          "sha256": "b2e057b0ed959f198b0f63d2391c01239f3608e6de5db68edab3f88e04d07ff3",
+          "byte_count": 172196
+        },
+        {
+          "season": "2425",
+          "url": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
+          "fetched_at_utc": "2026-10-14T22:26:00.824356+00:00",
+          "sha256": "d0c8ce4a96d886cf60cf101f570f4a3893844226f91c7bd769eb568c49edbfa4",
+          "byte_count": 197110
+        },
+        {
+          "season": "2526",
+          "url": "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
+          "fetched_at_utc": "2026-10-14T22:26:02.701471+00:00",
+          "sha256": "3e3a8352f9ada6789c508d6ca184424421fed56a30400904a4a327c583407e62",
+          "byte_count": 203438
+        },
+        {
+          "season": "2627",
+          "url": "https://www.football-data.co.uk/mmz4281/2627/E0.csv",
+          "fetched_at_utc": "2026-10-14T22:26:04.158992+00:00",
+          "sha256": "6731e95dd7120f5c7dc9f37650cc11ccccda8e7e0a3626830263c2cd77daa787",
+          "byte_count": 29659
+        }
+      ],
+      "cache_sha256": "6a6f75ca71239afc39d9b7809d924d95f5741520cf78fb29d90f7a4bd7ef4603"
+    },
+    "esp.1": {
+      "status": "UPDATED",
+      "match_count": 1218,
+      "latest_match_date": "2026-10-12",
+      "source_files": [
+        {
+          "season": "2324",
+          "url": "https://www.football-data.co.uk/mmz4281/2324/SP1.csv",
+          "fetched_at_utc": "2026-10-14T22:26:06.023702+00:00",
+          "sha256": "5323f596c7ed318e4bce95557a369d809d98501fa499ea5f41350cd45cf3c7d9",
+          "byte_count": 168164
+        },
+        {
+          "season": "2425",
+          "url": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv",
+          "fetched_at_utc": "2026-10-14T22:26:07.935760+00:00",
+          "sha256": "c086e96d6a53f6e6c0fce4e35db0d1728c773b4362323da0161a34769e315a36",
+          "byte_count": 192863
+        },
+        {
+          "season": "2526",
+          "url": "https://www.football-data.co.uk/mmz4281/2526/SP1.csv",
+          "fetched_at_utc": "2026-10-14T22:26:09.943080+00:00",
+          "sha256": "4ca2e285f3ee0702f6bc55fcaa4f5a15cb3aef6220735a1d15398131e21d63f5",
+          "byte_count": 197653
+        },
+        {
+          "season": "2627",
+          "url": "https://www.football-data.co.uk/mmz4281/2627/SP1.csv",
+          "fetched_at_utc": "2026-10-14T22:26:11.395666+00:00",
+          "sha256": "a2a27803e477b9a671f7fc1fdcd0b9a6a9bb52a3ff50806b4151845716b60abb",
+          "byte_count": 37529
+        }
+      ],
+      "cache_sha256": "9468a5c16042f69dc5f486dc507684a62c7b72dbe2aa807739552a9dc209922c"
+    }
+  }
+}

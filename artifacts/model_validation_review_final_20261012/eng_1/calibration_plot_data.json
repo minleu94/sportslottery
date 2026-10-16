@@ -1,0 +1,246 @@
+{
+  "locked_holdout": {
+    "empirical_training_base": [
+      {
+        "lower": 0.0,
+        "mean_predicted_home_win": 0.43685072238465755,
+        "n": 372,
+        "observed_home_win_rate": 0.41935483870967744,
+        "upper": 0.5
+      }
+    ],
+    "fusion_beta_0_65": [
+      {
+        "lower": 0.0,
+        "mean_predicted_home_win": 0.2990110280802873,
+        "n": 204,
+        "observed_home_win_rate": 0.3284313725490196,
+        "upper": 0.5
+      },
+      {
+        "lower": 0.5,
+        "mean_predicted_home_win": 0.5466361261310172,
+        "n": 50,
+        "observed_home_win_rate": 0.34,
+        "upper": 0.6
+      },
+      {
+        "lower": 0.6,
+        "mean_predicted_home_win": 0.6459876074102614,
+        "n": 45,
+        "observed_home_win_rate": 0.5333333333333333,
+        "upper": 0.7
+      },
+      {
+        "lower": 0.7,
+        "mean_predicted_home_win": 0.7465649102795419,
+        "n": 29,
+        "observed_home_win_rate": 0.5862068965517241,
+        "upper": 0.8
+      },
+      {
+        "lower": 0.8,
+        "mean_predicted_home_win": 0.8559406986376636,
+        "n": 44,
+        "observed_home_win_rate": 0.7045454545454546,
+        "upper": 1.0000001
+      }
+    ],
+    "market_normalized_hda": [
+      {
+        "lower": 0.0,
+        "mean_predicted_home_win": 0.33007061877556443,
+        "n": 233,
+        "observed_home_win_rate": 0.33047210300429186,
+        "upper": 0.5
+      },
+      {
+        "lower": 0.5,
+        "mean_predicted_home_win": 0.5454562587926215,
+        "n": 67,
+        "observed_home_win_rate": 0.43283582089552236,
+        "upper": 0.6
+      },
+      {
+        "lower": 0.6,
+        "mean_predicted_home_win": 0.6487794830406018,
+        "n": 52,
+        "observed_home_win_rate": 0.6538461538461539,
+        "upper": 0.7
+      },
+      {
+        "lower": 0.7,
+        "mean_predicted_home_win": 0.7571837519413068,
+        "n": 17,
+        "observed_home_win_rate": 0.7647058823529411,
+        "upper": 0.8
+      },
+      {
+        "lower": 0.8,
+        "mean_predicted_home_win": 0.8417476868398696,
+        "n": 3,
+        "observed_home_win_rate": 1.0,
+        "upper": 1.0000001
+      }
+    ],
+    "raw_dixon_coles": [
+      {
+        "lower": 0.0,
+        "mean_predicted_home_win": 0.3421883586535458,
+        "n": 266,
+        "observed_home_win_rate": 0.3383458646616541,
+        "upper": 0.5
+      },
+      {
+        "lower": 0.5,
+        "mean_predicted_home_win": 0.5522729594206818,
+        "n": 55,
+        "observed_home_win_rate": 0.5454545454545454,
+        "upper": 0.6
+      },
+      {
+        "lower": 0.6,
+        "mean_predicted_home_win": 0.6499781026390181,
+        "n": 40,
+        "observed_home_win_rate": 0.675,
+        "upper": 0.7
+      },
+      {
+        "lower": 0.7,
+        "mean_predicted_home_win": 0.7631264813924172,
+        "n": 8,
+        "observed_home_win_rate": 0.75,
+        "upper": 0.8
+      },
+      {
+        "lower": 0.8,
+        "mean_predicted_home_win": 0.832645763300024,
+        "n": 3,
+        "observed_home_win_rate": 1.0,
+        "upper": 1.0000001
+      }
+    ]
+  },
+  "validation": {
+    "empirical_training_base": [
+      {
+        "lower": 0.0,
+        "mean_predicted_home_win": 0.4430094968402177,
+        "n": 368,
+        "observed_home_win_rate": 0.41032608695652173,
+        "upper": 0.5
+      }
+    ],
+    "fusion_beta_0_65": [
+      {
+        "lower": 0.0,
+        "mean_predicted_home_win": 0.26197125907206953,
+        "n": 198,
+        "observed_home_win_rate": 0.2676767676767677,
+        "upper": 0.5
+      },
+      {
+        "lower": 0.5,
+        "mean_predicted_home_win": 0.5511557423434961,
+        "n": 40,
+        "observed_home_win_rate": 0.4,
+        "upper": 0.6
+      },
+      {
+        "lower": 0.6,
+        "mean_predicted_home_win": 0.6461458181800236,
+        "n": 29,
+        "observed_home_win_rate": 0.5862068965517241,
+        "upper": 0.7
+      },
+      {
+        "lower": 0.7,
+        "mean_predicted_home_win": 0.7417187566387283,
+        "n": 31,
+        "observed_home_win_rate": 0.6129032258064516,
+        "upper": 0.8
+      },
+      {
+        "lower": 0.8,
+        "mean_predicted_home_win": 0.8830644894348705,
+        "n": 70,
+        "observed_home_win_rate": 0.6571428571428571,
+        "upper": 1.0000001
+      }
+    ],
+    "market_normalized_hda": [
+      {
+        "lower": 0.0,
+        "mean_predicted_home_win": 0.32275698658219204,
+        "n": 228,
+        "observed_home_win_rate": 0.29385964912280704,
+        "upper": 0.5
+      },
+      {
+        "lower": 0.5,
+        "mean_predicted_home_win": 0.5562945918707387,
+        "n": 53,
+        "observed_home_win_rate": 0.5283018867924528,
+        "upper": 0.6
+      },
+      {
+        "lower": 0.6,
+        "mean_predicted_home_win": 0.653275386744801,
+        "n": 48,
+        "observed_home_win_rate": 0.6041666666666666,
+        "upper": 0.7
+      },
+      {
+        "lower": 0.7,
+        "mean_predicted_home_win": 0.7351881089834598,
+        "n": 26,
+        "observed_home_win_rate": 0.5384615384615384,
+        "upper": 0.8
+      },
+      {
+        "lower": 0.8,
+        "mean_predicted_home_win": 0.8266967200598079,
+        "n": 13,
+        "observed_home_win_rate": 1.0,
+        "upper": 1.0000001
+      }
+    ],
+    "raw_dixon_coles": [
+      {
+        "lower": 0.0,
+        "mean_predicted_home_win": 0.30800421166299663,
+        "n": 244,
+        "observed_home_win_rate": 0.3073770491803279,
+        "upper": 0.5
+      },
+      {
+        "lower": 0.5,
+        "mean_predicted_home_win": 0.5465122737945609,
+        "n": 42,
+        "observed_home_win_rate": 0.5238095238095238,
+        "upper": 0.6
+      },
+      {
+        "lower": 0.6,
+        "mean_predicted_home_win": 0.6582737073712438,
+        "n": 45,
+        "observed_home_win_rate": 0.6222222222222222,
+        "upper": 0.7
+      },
+      {
+        "lower": 0.7,
+        "mean_predicted_home_win": 0.7389973493129911,
+        "n": 22,
+        "observed_home_win_rate": 0.5909090909090909,
+        "upper": 0.8
+      },
+      {
+        "lower": 0.8,
+        "mean_predicted_home_win": 0.852587613989702,
+        "n": 15,
+        "observed_home_win_rate": 0.8666666666666667,
+        "upper": 1.0000001
+      }
+    ]
+  }
+}
