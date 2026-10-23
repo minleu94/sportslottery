@@ -246,7 +246,9 @@ class ESPNPoissonSoccerFallback:
                     provider_id = str(team.get("id") or "").strip()
                     canonical = lookup.get(f"ESPN_TEAM_{provider_id}".casefold()) if provider_id else None
                     named = lookup.get(name.casefold()) if name else None
-                    if (not name or not provider_id or canonical is None
+                    if canonical is None:
+                        canonical = named
+                    if (not name or canonical is None
                             or (league_code == "usa.1" and canonical.league != "MLS")
                             or (named is not None and named.canonical_id != canonical.canonical_id)):
                         invalid_rows += 1
@@ -263,7 +265,7 @@ class ESPNPoissonSoccerFallback:
                         invalid_rows += 1
                         continue
                     row = {"goals_for": gf, "goals_against": ga, "games": gp,
-                           "team_name": name, "provider_team_id": provider_id,
+                           "team_name": name, "provider_team_id": provider_id or canonical.canonical_id,
                            "standings_group": group_name}
                     grouped.setdefault(canonical.canonical_id, []).append(row)
             children = node.get("children", [])

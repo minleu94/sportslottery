@@ -147,7 +147,7 @@ def test_schedule_adapter_uses_official_laliga_endpoint():
     adapter = ESPNScheduleAdapter(session=session)
     events = adapter.fetch_live_events("LALIGA")
     assert ESPN_SPORT_MAP["LALIGA"] == "soccer/esp.1"
-    assert session.urls == ["http://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard"]
+    assert session.urls == ["https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard"]
     assert events[0]["id"] == "401882852"
 
 

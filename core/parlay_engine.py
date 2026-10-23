@@ -16,6 +16,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from core.correlation_guard import CorrelationGuard
+from core.sharp_edge_engine import SharpEdgeEngine
 from core.signal_hub import SignalHub
 from core.bet_validation import assess_leg, event_key
 from integrations.common.models import PredictionSignal, TaiwanLeg
@@ -46,9 +47,11 @@ class ParlayEngine:
     """Searches legal combinations with fair per-event and per-length budgets."""
 
     def __init__(self, signal_hub: Optional[SignalHub] = None,
-                 correlation_guard: Optional[CorrelationGuard] = None):
+                 correlation_guard: Optional[CorrelationGuard] = None,
+                 sharp_edge_engine: Optional[SharpEdgeEngine] = None):
         self.signal_hub = signal_hub or SignalHub()
         self.correlation_guard = correlation_guard or CorrelationGuard()
+        self.sharp_edge_engine = sharp_edge_engine or SharpEdgeEngine()
 
     @staticmethod
     def _team_name(value: Any) -> str:
@@ -202,6 +205,12 @@ class ParlayEngine:
         if signal_filter == "strict":
             active = [leg for leg in ready if leg.evidence_quality in {"HIGH", "MED"}
                       and self._independent_valid_support_count(leg) >= 2]
+        elif signal_filter == "value_only":
+            active = [leg for leg in ready if (getattr(leg, "is_positive_ev", False)
+                      or (leg.signal_evidence or {}).get("is_positive_ev")
+                      or (leg.signal_evidence or {}).get("is_sharp_value_bet")
+                      or (leg.signal_evidence or {}).get("expected_value", 0) > 0
+                      or ((leg.signal_evidence or {}).get("consensus_probability", 0) >= 0.55 and leg.taiwan_odds <= 2.0))]
         elif signal_filter == "normal":
             active = [leg for leg in ready if leg.evidence_quality != "INSUFFICIENT_SIGNAL"]
         else:
@@ -312,6 +321,9 @@ class ParlayEngine:
             supports = sum((leg.signal_evidence or {}).get("non_market_supports", 0) for leg in leg_tuple)
             emojis = "".join((leg.signal_evidence or {}).get("agreement_emoji", "⚪") for leg in leg_tuple)
             corr = self.correlation_guard.evaluate_parlay(list(leg_tuple), total_odds=total_odds)
+            sharp_eval = self.sharp_edge_engine.evaluate_parlay_sharp_ev(
+                list(leg_tuple), total_odds=total_odds, correlation_penalty=corr.correlation_penalty
+            )
             target_mid = target_odds if target_odds is not None else (min_odds + max_odds) / 2.0
             checks = [assess_leg(leg.to_dict(), now=scope_as_of) for leg in leg_tuple]
             reasons = list(dict.fromkeys(reason for check in checks for reason in check["reasons"]))
@@ -330,6 +342,12 @@ class ParlayEngine:
                     "naive_joint_probability": round(corr.naive_joint_probability, 6),
                     "parlay_expected_value": round(corr.parlay_expected_value, 4),
                     "parlay_ev_pct": round(corr.parlay_ev_pct, 1),
+                    "sharp_parlay_ev": sharp_eval.get("sharp_parlay_ev", 0.0),
+                    "sharp_parlay_ev_pct": sharp_eval.get("sharp_parlay_ev_pct", 0.0),
+                    "sharp_joint_probability": sharp_eval.get("sharp_joint_probability", 0.0),
+                    "is_positive_ev": sharp_eval.get("is_positive_ev", False) or corr.parlay_expected_value > 0,
+                    "value_legs_count": sharp_eval.get("value_legs_count", 0),
+                    "sharp_badge": sharp_eval.get("summary_badge", ""),
                     "correlation_penalty": round(corr.correlation_penalty, 4),
                     "correlation_risk_grade": corr.risk_grade, "correlation_risk_factors": corr.risk_factors,
                     "odds_distance": round(abs(total_odds - target_mid), 2), "signal_summary": emojis,
@@ -476,7 +494,7 @@ class ParlayEngine:
                                "leg_ids": [option_ids[event_key(leg)][event_options[event_key(leg)].index(leg)]
                                            for leg in combo["raw_legs"]]} for combo in bucket]
         state["top_candidates"] = top_refs
-        state["status"] = "COMPLETE" if complete else "PARTIAL_NO_GLOBAL_TOP_GUARANTEE"
+        state["status"] = "COMPLETE" if complete else ("BUDGET_EXHAUSTED" if visited_this_call >= budget else "PARTIAL_NO_GLOBAL_TOP_GUARANTEE")
         progress = {str(k): {"complete_candidates_checked": int(state["length_progress"][str(k)]["complete_candidates_checked"]),
                              "theoretical_combinations": total_possible_by_length.get(str(k), 0),
                              "tasks_completed": completed_by_length[str(k)],
@@ -500,7 +518,7 @@ class ParlayEngine:
             "odds_matching_combinations": state["odds_matching_combinations"],
             "search_complete": complete, "budget_exhausted": not complete and visited_this_call >= budget,
             "deadline_reached": not complete and deadline_monotonic is not None and time.monotonic() >= deadline_monotonic,
-            "search_status": state["status"], "global_top_guarantee": complete,
+            "search_status": "BUDGET_EXHAUSTED" if (not complete and visited_this_call >= budget) else state["status"], "global_top_guarantee": complete,
             "ranking_objective": "max evidence score, then expected value, average evidence, independent supports, target-odds proximity, total odds; top 12 per tier",
             "partial_result_interpretation": "Partial frontiers produce useful candidates but do not guarantee the global top candidates.",
             "min_legs": min_legs, "max_legs": max_legs, "effective_max_legs": max_length,

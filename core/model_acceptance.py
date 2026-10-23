@@ -390,17 +390,20 @@ class ModelAcceptanceGate:
         self.policy = load_policy(self.policy_path)
         self._rows_signature: tuple[int, int] | None = None
         self._rows_cache: list[dict[str, Any]] = []
+        self._status_cache: dict[tuple, dict[str, Any]] = {}
 
     def _rows(self) -> list[dict[str, Any]]:
         if not self.snapshot_path.exists():
             self._rows_signature = None
             self._rows_cache = []
+            self._status_cache.clear()
             return []
         stat = self.snapshot_path.stat()
         signature = (stat.st_mtime_ns, stat.st_size)
         if signature != self._rows_signature:
             self._rows_cache = read_snapshot_rows(self.snapshot_path)
             self._rows_signature = signature
+            self._status_cache.clear()
         return self._rows_cache
 
     def status(self, *, model_id: str, model_version: str, league: str, market: str,
@@ -409,6 +412,12 @@ class ModelAcceptanceGate:
         if as_of is not None and _date(as_of) is None:
             return {"accepted": False, "status": "INVALID_AS_OF", "reason": "as_of_must_be_timezone_aware"}
         rows = self._rows()
+        cache_key = (
+            model_id, model_version, league, market, source_scope,
+            artifact_hash, protocol_id, protocol_hash_value, as_of
+        )
+        if cache_key in self._status_cache:
+            return self._status_cache[cache_key].copy()
         evidence = []
         excluded_incomplete_market = 0
         for snapshot in rows:
@@ -470,4 +479,5 @@ class ModelAcceptanceGate:
                                          policy=self.policy.get("gate", self.policy), as_of=as_of)
         result["evidence_snapshot_count"] = len(rows)
         result["incomplete_or_invalid_market_benchmark_excluded"] = excluded_incomplete_market
+        self._status_cache[cache_key] = result.copy()
         return result

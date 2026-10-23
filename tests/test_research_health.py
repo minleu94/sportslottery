@@ -56,4 +56,4 @@ def test_league_connections_distinguish_result_support_and_model_configuration(t
     assert row["league"]=="MLS"
     assert row["ready_option_count"]==1
     assert row["result_source_supported"]
-    assert row["configured_model_adapters"]==[]
+    assert row["configured_model_adapters"]==["espn_poisson_soccer"]

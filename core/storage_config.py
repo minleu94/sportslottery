@@ -22,6 +22,18 @@ DEFAULT_F_PATH = Path(r"F:\Min\Python\Project\SportsLottery_Data")
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
 
 
+def get_fallback_user_data_dir() -> Path:
+    """Return a safe per-user storage root when custom or developer paths do not exist."""
+    import sys
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        return base / "SportsLottery" / "data"
+    elif sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "SportsLottery" / "data"
+    else:
+        return Path.home() / ".sportslottery" / "data"
+
+
 def get_configured_storage_root() -> Path:
     """Read the active storage root from config, or fallback to sensible default."""
     if STORAGE_CONFIG_FILE.exists():
@@ -30,13 +42,23 @@ def get_configured_storage_root() -> Path:
             if isinstance(payload, dict) and payload.get("data_root"):
                 path = Path(payload["data_root"])
                 if path.is_absolute():
-                    return path
-                return (PROJECT_ROOT / path).resolve()
+                    # Check if drive / root actually exists on the host machine
+                    drive_available = True
+                    if os.name == "nt" and path.drive:
+                        drive_available = Path(f"{path.drive}\\").exists()
+                    if drive_available and (path.exists() or Path(path.anchor).exists()):
+                        return path
+                else:
+                    return (PROJECT_ROOT / path).resolve()
         except Exception:
             pass
     if DEFAULT_F_PATH.exists():
         return DEFAULT_F_PATH
-    return DEFAULT_DATA_DIR
+    if DEFAULT_DATA_DIR.exists():
+        return DEFAULT_DATA_DIR
+    user_fallback = get_fallback_user_data_dir()
+    user_fallback.mkdir(parents=True, exist_ok=True)
+    return user_fallback
 
 
 def get_storage_root() -> Path:

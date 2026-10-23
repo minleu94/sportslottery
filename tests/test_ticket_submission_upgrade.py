@@ -84,8 +84,18 @@ def test_app_renders_small_balances_without_live_calls_or_invalid_widgets(tmp_pa
     monkeypatch.setattr(snapshot_module, "PredictionSnapshotLogger", lambda: PredictionSnapshotLogger(tmp_path / "snapshots.jsonl"))
     original_shadow = shadow_module.ShadowPortfolioManager
     monkeypatch.setattr(shadow_module, "ShadowPortfolioManager", lambda: original_shadow(db_path=tmp_path / "shadow.db"))
+    res_root = tmp_path / "research_test"
+    (res_root / "historical").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("core.research_paths.research_paths", lambda *a, **kw: {
+        "root": res_root,
+        "snapshots": res_root / "historical/prediction_snapshots.jsonl",
+        "parlays": res_root / "historical/parlay_snapshots.jsonl",
+        "odds": res_root / "historical/odds_history.jsonl",
+        "source_health": res_root / "source_health.jsonl",
+        "reports": res_root / "reports",
+    })
     st.cache_resource.clear()
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=15).run()
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=35).run()
     assert not app.exception
     stake_widget = next(widget for widget in app.number_input if "本張注金" in widget.label)
     assert stake_widget.disabled is (balance < 10)

@@ -69,3 +69,17 @@ models:
     weight: 0.40
     adapter: integrations.models.espn_poisson_soccer.ESPNPoissonSoccerFallback
     description: "本機、未校準足球 Poisson 研究候選；僅在精確賽季及賽前新鮮 ESPN 積分榜可用時估算英超、西甲及 MLS (usa.1)，各聯賽資料分開快取；缺少欄位、未登錄 ESPN 球隊 ID 或賽季不符時不估算。"
+
+  nba_elo_engine:
+    name: "NBA Elo & Four Factors Quantitative Engine"
+    sport: basketball
+    enabled: true
+    source_category: OPEN_SOURCE_ENGINE
+    independence_group: NBA_ELO_ENGINE
+    repo: local/nba_elo
+    license: MIT
+    version: 1.0.0
+    weight: 0.85
+    adapter: integrations.models.external.nba_elo_engine.NBAEloEngine
+    description: "NBA 籃球動態 Elo 與 Four Factors 量化估計引擎；整合主場優勢 (+100 Elo)、勝分差 (MOV) 倍數調整與讓分/大小分勝率模型。"
+

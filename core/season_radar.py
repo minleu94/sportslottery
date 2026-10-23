@@ -122,8 +122,12 @@ class SeasonRadar:
         taiwan_legs: Optional[List[TaiwanLeg]] = None,
         live_matches: Optional[List[Dict[str, Any]]] = None,
         check_live_espn: bool = False,
+        evaluated_legs: Optional[List[Any]] = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """Determine radar status prioritizing Taiwan Sports Lottery market availability."""
+        evaluated_legs = evaluated_legs or kwargs.get("evaluated_legs")
         current_month = date.today().month
 
         # Group Taiwan legs by sport/league
@@ -147,6 +151,32 @@ class SeasonRadar:
                 if code in self.LEAGUES:
                     taiwan_games_by_aid.setdefault(code, set()).add(mid)
                     games_by_league.setdefault(code, []).append(m)
+
+        # Count opportunity metrics by league
+        opportunities_by_league: Dict[str, Dict[str, int]] = {}
+        all_eval_legs = evaluated_legs or [l for l in (taiwan_legs or []) if getattr(l, "signal_evidence", None)]
+        if all_eval_legs:
+            for leg in all_eval_legs:
+                raw_league = str(getattr(leg, "league", "")).strip()
+                code = raw_league.upper() if raw_league.upper() in self.LEAGUES else normalize_league_and_sport(raw_league)[0]
+                if code not in self.LEAGUES:
+                    continue
+                ev_data = getattr(leg, "signal_evidence", {}) or {}
+                if isinstance(leg, dict):
+                    ev_data = leg.get("signal_evidence", leg)
+
+                stats = opportunities_by_league.setdefault(code, {"positive_ev": 0, "banker": 0, "high_agreement": 0})
+                is_pos_ev = bool(ev_data.get("is_positive_ev") or ev_data.get("is_sharp_value_bet") or (ev_data.get("expected_value", 0) > 0))
+                prob = float(ev_data.get("consensus_probability") or ev_data.get("market_fair_probability") or 0.0)
+                odds = float(getattr(leg, "taiwan_odds", 0.0) or (ev_data.get("taiwan_odds", 0.0) if isinstance(ev_data, dict) else 0.0))
+                agreement = getattr(leg, "signal_agreement", "") or ev_data.get("signal_agreement", "")
+
+                if is_pos_ev:
+                    stats["positive_ev"] += 1
+                if 1.25 <= odds <= 2.05 and prob >= 0.52 and (is_pos_ev or ev_data.get("expected_value", 0) >= -0.02):
+                    stats["banker"] += 1
+                if agreement == "HIGH":
+                    stats["high_agreement"] += 1
 
         summary: List[Dict[str, Any]] = []
 
@@ -193,6 +223,23 @@ class SeasonRadar:
             if taiwan_market_count == 0 and schedule_observation["source_status"] == "FETCH_ERROR":
                 status, status_text, light_emoji = "UNKNOWN", "賽程來源取得失敗，賽事狀態未知", "⚪"
 
+            opps = opportunities_by_league.get(code, {"positive_ev": 0, "banker": 0, "high_agreement": 0})
+            pos_ev_cnt = opps["positive_ev"]
+            banker_cnt = opps["banker"]
+            high_agr_cnt = opps["high_agreement"]
+
+            opp_badge = ""
+            if pos_ev_cnt > 0 and banker_cnt > 0:
+                opp_badge = f"🔥 {pos_ev_cnt} 場 +EV | 🛡️ {banker_cnt} 場穩健"
+            elif pos_ev_cnt > 0:
+                opp_badge = f"🔥 {pos_ev_cnt} 場 +EV 價值機會"
+            elif banker_cnt > 0:
+                opp_badge = f"🛡️ {banker_cnt} 場高勝率穩健候選"
+            elif high_agr_cnt > 0:
+                opp_badge = f"✨ {high_agr_cnt} 場 HIGH 跨源共識"
+            elif taiwan_market_count > 0:
+                opp_badge = "⚡ 盤口已開出"
+
             summary.append({
                 "code": code,
                 "name": info["name"],
@@ -207,6 +254,10 @@ class SeasonRadar:
                 "schedule_source_error":schedule_observation.get("error"),
                 "in_season_calendar": in_season_calendar,
                 "games": games_by_league.get(code, []),
+                "positive_ev_count": pos_ev_cnt,
+                "banker_count": banker_cnt,
+                "high_agreement_count": high_agr_cnt,
+                "opportunity_badge": opp_badge,
             })
 
         return summary
