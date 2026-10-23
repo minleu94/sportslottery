@@ -16,6 +16,7 @@ class _Response:
 
     def __init__(self, payload):
         self.payload = payload
+        self.content = json.dumps(payload).encode("utf-8")
 
     def json(self):
         return self.payload
@@ -35,7 +36,7 @@ class _Session:
 class _FailedSession(_Session):
     def get(self, url, timeout=10):
         self.calls.append(url)
-        return type("FailedResponse", (), {"status_code": 403})()
+        return type("FailedResponse", (), {"status_code": 403, "content": b""})()
 
 
 def _mlb_payload():
@@ -112,7 +113,12 @@ def test_legacy_cache_without_timestamp_is_unknown_and_past_event_is_reference_o
 
 def test_soccer_unknown_cache_cannot_enter_fusion(tmp_path):
     cache_file = tmp_path / "espn_soccer_eng.1.json"
-    cache_file.write_text(json.dumps({"teams": ESPNPoissonSoccerFallback(str(tmp_path))._parse_soccer_standings(_soccer_payload())}), encoding="utf-8")
+    cache_file.write_text(json.dumps({
+        "league_code": "eng.1",
+        "source_content_sha256": "0" * 64,
+        "parse_audit": {},
+        "teams": ESPNPoissonSoccerFallback(str(tmp_path))._parse_soccer_standings(_soccer_payload()),
+    }), encoding="utf-8")
     model = ESPNPoissonSoccerFallback(str(tmp_path))
     model.session = _FailedSession(_soccer_payload())
 

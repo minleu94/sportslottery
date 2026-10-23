@@ -104,3 +104,16 @@ def test_guide_explains_ev_with_interactive_profit_example(tmp_path):
     assert not app.exception
     assert app.metric[1].value == "-20.00%"
     assert any("NT\\$ -4.00" in element.value for element in app.markdown)
+
+
+def test_guide_renders_kelly_simulator(tmp_path):
+    app = AppTest.from_string(
+        "from pathlib import Path\nfrom ui.metric_guide import render_metric_guide\n"
+        f"render_metric_guide(Path({str(tmp_path)!r}))\n",
+        default_timeout=10,
+    ).run()
+    assert not app.exception
+    metric_labels = [m.label for m in app.metric]
+    assert "理論 EV" in metric_labels
+    assert "Full Kelly (全凱利注金)" in metric_labels
+    assert "1/4 Kelly (穩健建議注金)" in metric_labels

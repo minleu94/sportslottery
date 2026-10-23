@@ -26,6 +26,7 @@ from core.model_acceptance import acceptance_matches_signal
 from integrations.common.models import PredictionSignal, TaiwanLeg
 from integrations.experts.playsport_crowd import PlaysportCrowdAdapter
 from integrations.experts.playsport_expert import PlaysportExpertAdapter
+from integrations.odds.sharp_benchmark_odds import SharpBenchmarkOddsAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +47,25 @@ class SignalHub:
         crowd_adapter: Optional[PlaysportCrowdAdapter] = None,
         model_registry: Optional[ModelRegistry] = None,
         edge_engine: Optional[EdgeEngine] = None,
+        sharp_adapter: Optional[SharpBenchmarkOddsAdapter] = None,
         config_path: Optional[Path] = None,
     ):
         self.expert_adapter = expert_adapter or PlaysportExpertAdapter()
         self.crowd_adapter = crowd_adapter or PlaysportCrowdAdapter()
         self.model_registry = model_registry or ModelRegistry()
+        self.sharp_adapter = sharp_adapter or SharpBenchmarkOddsAdapter()
         self.config_path = config_path or CONFIG_PATH
         self.weights_config = self._load_weights_config()
         self.edge_engine = edge_engine or EdgeEngine(source_weights=self.weights_config.get("source_weights", {}))
+        self._leg_eval_cache: Dict[tuple, TaiwanLeg] = {}
+
+    def refresh(self) -> None:
+        """Clear evaluation caches and refresh underlying adapters."""
+        self._leg_eval_cache.clear()
+        if hasattr(self.model_registry, "refresh"):
+            self.model_registry.refresh()
+        if hasattr(self.expert_adapter, "refresh"):
+            self.expert_adapter.refresh()
 
     def _load_weights_config(self) -> Dict[str, Any]:
         if not self.config_path.exists():
@@ -67,6 +79,14 @@ class SignalHub:
 
     def evaluate_taiwan_leg(self, leg: TaiwanLeg) -> TaiwanLeg:
         """Gather all external evidence for a TaiwanLeg and calculate agreement level."""
+        cache_key = (
+            leg.event_id, leg.sport, leg.league, leg.market,
+            leg.selection, getattr(leg, "side", None), getattr(leg, "line", None),
+            float(leg.taiwan_odds or 0.0), getattr(leg, "odds_scraped_at", "")
+        )
+        if hasattr(self, "_leg_eval_cache") and cache_key in self._leg_eval_cache:
+            return self._leg_eval_cache[cache_key]
+
         signals: List[PredictionSignal] = []
 
         # 1. Market Signal (Taiwan Odds implied) - BASELINE ONLY, NEVER VOTES
@@ -104,7 +124,19 @@ class SignalHub:
         # 4. Registered Models (Open-Source Engines & Local Fallbacks)
         model_signals = self.model_registry.evaluate_leg_across_models(leg)
         signals.extend(model_signals)
-        return self.synthesize_signals_for_leg(leg, signals)
+
+        # 5. Sharp Market Benchmark (+EV Quantitative Value Engine)
+        try:
+            sharp_sig = self.sharp_adapter.evaluate_leg(leg)
+            if sharp_sig:
+                signals.append(sharp_sig)
+        except Exception as exc:
+            logger.debug("Sharp benchmark evaluation skipped: %s", exc)
+
+        result = self.synthesize_signals_for_leg(leg, signals)
+        if hasattr(self, "_leg_eval_cache"):
+            self._leg_eval_cache[cache_key] = result
+        return result
 
     def synthesize_signals_for_leg(self, leg: TaiwanLeg, signals: List[PredictionSignal]) -> TaiwanLeg:
         """Synthesize a collection of signals for a TaiwanLeg with source-family independence rules."""
@@ -196,6 +228,13 @@ class SignalHub:
                         and edge >= rule.get("min_edge_pp", 0.0)):
                     supporting_groups.setdefault(grp, []).append(s)
                     supporting_families.setdefault("STATISTICAL_MODEL", []).append(s)
+
+            # Sharp Market Benchmark (+EV Quantitative Value Bet Signal)
+            elif cat in ["SHARP_MARKET_BENCHMARK", "SHARP_BENCHMARK"] or grp == "SHARP_CONSENSUS":
+                is_val = (s.metadata or {}).get("is_value_bet", False)
+                if s.freshness_status in {"LIVE", "FRESH"} and is_val:
+                    supporting_groups.setdefault("SHARP_CONSENSUS", []).append(s)
+                    supporting_families.setdefault("SHARP_BENCHMARK", []).append(s)
 
         # Fundamental data support (e.g. verified pitchers)
         has_pitchers = bool(leg.away_pitcher and leg.home_pitcher)
@@ -311,8 +350,10 @@ class SignalHub:
         # Preserve observed source fields; missing crowd data stays unknown.
         crowd_signal = next((s for s in signals if s.source_type == "CROWD" or s.source_category == "CROWD_CONSENSUS"), None)
         expert_signal = next((s for s in signals if s.source_type == "EXPERT" or s.source_category == "VERIFIED_EXPERT"), None)
+        sharp_signal = next((s for s in signals if s.source_type == "SHARP_BENCHMARK" or s.source_category == "SHARP_MARKET_BENCHMARK"), None)
         crowd_metadata = crowd_signal.metadata if crowd_signal else {}
         expert_metadata = expert_signal.metadata if expert_signal else {}
+        sharp_metadata = sharp_signal.metadata if sharp_signal else {}
         crowd_ratio = crowd_metadata.get("ratio", original_evidence.get("crowd_ratio", original_evidence.get("consensus_ratio")))
         if crowd_ratio is None and crowd_signal and crowd_signal.score is not None:
             crowd_ratio = crowd_signal.score / 100.0
@@ -323,6 +364,12 @@ class SignalHub:
             "market_implied_pct": round(market_implied * 100.0, 1),
             "market_implied_probability": round(market_implied, 3),
             "market_fair_probability": edge_eval.market_fair_probability,
+            "sharp_fair_probability": sharp_metadata.get("sharp_fair_probability"),
+            "sharp_expected_value_pct": sharp_metadata.get("expected_value_pct"),
+            "is_sharp_value_bet": sharp_metadata.get("is_value_bet", False),
+            "sharp_value_grade": sharp_metadata.get("value_grade", "NONE"),
+            "sharp_edge_pp": sharp_metadata.get("edge_pp"),
+            "sharp_book": sharp_metadata.get("sharp_book"),
             "model_probability": edge_eval.consensus_probability if edge_eval.model_probability_raw is not None else None,
             "model_probability_raw": edge_eval.model_probability_raw,
             "model_probability_calibrated": edge_eval.model_probability_calibrated,

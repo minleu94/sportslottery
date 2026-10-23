@@ -51,6 +51,11 @@ class WeeklyWalletManager:
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self.db_path), timeout=30.0, isolation_level=None)
         conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+        except sqlite3.DatabaseError:
+            pass
         return conn
 
     @contextmanager
@@ -93,6 +98,8 @@ class WeeklyWalletManager:
                 if "idempotency_key" not in columns:
                     conn.execute("ALTER TABLE ledger ADD COLUMN idempotency_key TEXT")
                 conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_ledger_idempotency_key ON ledger(idempotency_key) WHERE idempotency_key IS NOT NULL")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_ledger_week_str ON ledger(week_str)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_ledger_timestamp ON ledger(timestamp)")
                 if conn.execute("SELECT 1 FROM wallet_state WHERE id = 1").fetchone() is None:
                     conn.execute("INSERT INTO wallet_state (id,current_week,wallet_balance,weekly_staked,prize_pool,weekly_external_deposited,updated_at) VALUES (1,?,0,0,0,0,?)", (get_current_iso_week(), get_now_iso()))
         finally:

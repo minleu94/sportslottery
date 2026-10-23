@@ -13,6 +13,18 @@ _locks: dict[str, threading.RLock] = {}
 _guard = threading.Lock()
 _local = threading.local()
 
+_jsonl_cache: dict[str, tuple[int, int, list[dict]]] = {}
+_cache_guard = threading.Lock()
+
+
+def clear_jsonl_cache(path: Path | None = None) -> None:
+    """Clear memory cache for a specific file or all files."""
+    with _cache_guard:
+        if path is not None:
+            _jsonl_cache.pop(str(Path(path).resolve()), None)
+        else:
+            _jsonl_cache.clear()
+
 
 @contextmanager
 def file_lock(path: Path):
@@ -54,6 +66,9 @@ def file_lock(path: Path):
 def atomic_write_bytes(path: Path, payload: bytes):
     """Flush a sibling temporary file before replacing; preserve old bytes on failure."""
     path = Path(path)
+    key = str(path.resolve())
+    with _cache_guard:
+        _jsonl_cache.pop(key, None)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix='.atomic-', suffix='.tmp', dir=path.parent)
     try:
@@ -76,9 +91,13 @@ def atomic_write_bytes(path: Path, payload: bytes):
 
 def append_jsonl(path: Path, record: dict):
     """Return only after a locked, fsynced append; propagate persistence failures."""
+    path = Path(path)
+    key = str(path.resolve())
+    with _cache_guard:
+        _jsonl_cache.pop(key, None)
     payload = (json.dumps(record, ensure_ascii=False, allow_nan=False) + '\n').encode('utf-8')
     with file_lock(path):
-        with Path(path).open('a+b') as stream:
+        with path.open('a+b') as stream:
             stream.seek(0, os.SEEK_END)
             previous_size = stream.tell()
             if previous_size:
@@ -94,11 +113,24 @@ def append_jsonl(path: Path, record: dict):
 
 
 def read_jsonl(path: Path) -> list[dict]:
-    with file_lock(path):
-        if not Path(path).exists():
+    resolved = Path(path).resolve()
+    key = str(resolved)
+    with file_lock(resolved):
+        if not resolved.exists():
+            with _cache_guard:
+                _jsonl_cache.pop(key, None)
             return []
+        
+        stat = resolved.stat()
+        mtime_ns = stat.st_mtime_ns
+        size = stat.st_size
+        with _cache_guard:
+            cached = _jsonl_cache.get(key)
+            if cached is not None and cached[0] == mtime_ns and cached[1] == size:
+                return [r.copy() for r in cached[2]]
+
         rows = []
-        for number, line in enumerate(Path(path).read_text(encoding='utf-8').splitlines(), 1):
+        for number, line in enumerate(resolved.read_text(encoding='utf-8').splitlines(), 1):
             if not line.strip():
                 continue
             try:
@@ -106,6 +138,10 @@ def read_jsonl(path: Path) -> list[dict]:
                 if not isinstance(row, dict):
                     raise ValueError('Expected JSON object')
             except ValueError as exc:
-                raise ValueError(f'Invalid ledger record {path}:{number}: {exc}') from exc
+                raise ValueError(f'Invalid ledger record {resolved}:{number}: {exc}') from exc
             rows.append(row)
-        return rows
+
+        with _cache_guard:
+            _jsonl_cache[key] = (mtime_ns, size, rows)
+
+        return [r.copy() for r in rows]

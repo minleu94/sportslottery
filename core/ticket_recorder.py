@@ -29,6 +29,11 @@ class TicketRecorder:
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self.db_path), timeout=30.0, isolation_level=None)
         conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+        except sqlite3.DatabaseError:
+            pass
         return conn
 
     @contextmanager
@@ -65,6 +70,10 @@ class TicketRecorder:
                     if name not in columns:
                         conn.execute(f"ALTER TABLE tickets ADD COLUMN {name} {sql_type}")
                 conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_tickets_idempotency_key ON tickets(idempotency_key) WHERE idempotency_key IS NOT NULL")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets(created_at)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_week_str ON tickets(week_str)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_clv ON tickets(clv) WHERE clv IS NOT NULL")
         finally:
             conn.close()
 

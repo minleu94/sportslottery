@@ -10,4 +10,4 @@ def test_soccer_fallback_accepts_exact_canonical_names_and_rejects_generic_label
     assert resolve("足球") is None
     assert resolve("UNKNOWN_美國足球大聯盟") is None
     assert resolve("UNKNOWN_英超相似聯賽") is None
-    assert resolve("MLS") is None
+    assert resolve("MLS") == "usa.1"

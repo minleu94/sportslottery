@@ -143,14 +143,16 @@ def test_wallet_and_ticket_database_must_match(tmp_path):
 
 
 def test_old_database_migrates_without_losing_ledger_or_tickets(tmp_path):
+    from core.wallet import get_current_iso_week
+    cur_week = get_current_iso_week()
     db = tmp_path / "legacy.sqlite3"
     with sqlite3.connect(db) as conn:
         conn.execute("CREATE TABLE wallet_state (id INTEGER PRIMARY KEY, current_week TEXT NOT NULL, wallet_balance REAL NOT NULL, weekly_staked REAL NOT NULL, prize_pool REAL NOT NULL, weekly_external_deposited REAL NOT NULL, updated_at TEXT NOT NULL)")
-        conn.execute("INSERT INTO wallet_state VALUES (1, '2026-W42', 40, 10, 7, 50, 'legacy')")
+        conn.execute(f"INSERT INTO wallet_state VALUES (1, '{cur_week}', 40, 10, 7, 50, 'legacy')")
         conn.execute("CREATE TABLE ledger (id TEXT PRIMARY KEY,timestamp TEXT NOT NULL,week_str TEXT NOT NULL,event_type TEXT NOT NULL,amount REAL NOT NULL,wallet_balance_after REAL NOT NULL,prize_pool_after REAL NOT NULL,notes TEXT NOT NULL DEFAULT '')")
-        conn.execute("INSERT INTO ledger VALUES ('old-ledger','legacy','2026-W42','EXTERNAL_DEPOSIT',50,40,7,'keep')")
+        conn.execute(f"INSERT INTO ledger VALUES ('old-ledger','legacy','{cur_week}','EXTERNAL_DEPOSIT',50,40,7,'keep')")
         conn.execute("CREATE TABLE tickets (id TEXT PRIMARY KEY,created_at TEXT NOT NULL,week_str TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('OPEN','WON','LOST','VOID')),stake REAL NOT NULL,total_odds REAL NOT NULL,potential_payout REAL NOT NULL,actual_payout REAL NOT NULL DEFAULT 0, sports_summary TEXT NOT NULL DEFAULT '',legs_json TEXT NOT NULL DEFAULT '[]',notes TEXT NOT NULL DEFAULT '')")
-        conn.execute("INSERT INTO tickets (id,created_at,week_str,status,stake,total_odds,potential_payout,actual_payout) VALUES ('old-ticket','legacy','2026-W42','OPEN',10,2,20,0)")
+        conn.execute(f"INSERT INTO tickets (id,created_at,week_str,status,stake,total_odds,potential_payout,actual_payout) VALUES ('old-ticket','legacy','{cur_week}','OPEN',10,2,20,0)")
     wallet = WeeklyWalletManager(db)
     recorder = TicketRecorder(wallet=wallet)
     status = wallet.get_status()

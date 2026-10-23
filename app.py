@@ -155,7 +155,8 @@ def get_system_components(prediction_manifest_hash: str):
 
 
 runtime_prediction_hash = get_strategy_metadata()["prediction_manifest_hash"]
-wallet_mgr, ticket_recorder, odds_adapter, signal_hub, parlay_engine, season_radar, snapshot_logger, shadow_portfolio, metrics_engine = get_system_components(runtime_prediction_hash)
+wallet_mgr, ticket_recorder, odds_adapter, signal_hub, parlay_engine, _cached_radar, snapshot_logger, shadow_portfolio, metrics_engine = get_system_components(runtime_prediction_hash)
+season_radar = SeasonRadar()
 
 
 # Header Brand
@@ -199,6 +200,37 @@ with w_col4:
 
 st.markdown("---")
 
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def get_cached_forward_parlay_metrics(parlays_path_str: str, experiment_id: str, mtime: float):
+    parlay_file = Path(parlays_path_str)
+    if not parlay_file.exists():
+        return evaluate_parlay_forward([], experiment_id)
+    records = read_jsonl(parlay_file)
+    return evaluate_parlay_forward(records, experiment_id)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def get_cached_snapshot_analytics(snapshots_path_str: str, mtime: float):
+    try:
+        logger = PredictionSnapshotLogger(Path(snapshots_path_str))
+    except TypeError:
+        logger = PredictionSnapshotLogger()
+    snaps = logger.get_all_snapshots()
+    eng = PerformanceMetricsEngine()
+    cohort = eng.forward_cohort(snaps)
+    return {
+        "snapshots": snaps,
+        "cohort": cohort,
+        "agree_data": eng.evaluate_agreement_buckets(snaps),
+        "ev_data": eng.evaluate_ev_buckets(snaps),
+        "delta_data": eng.evaluate_model_market_delta_buckets(snaps),
+        "crowd_data": eng.evaluate_crowd_buckets(snaps),
+        "expert_data": eng.evaluate_expert_metrics(snaps),
+    }
+
+
 # Main 4-Tab Layout
 tab_radar, tab_parlay, tab_wallet, tab_research = st.tabs([
     "① 今日可玩 (賽季雷達)",
@@ -225,15 +257,47 @@ with tab_radar:
                 signal_hub.model_registry.refresh()
             st.rerun()
 
+    force_refresh = st.session_state.pop("force_odds_refresh", False)
+    if force_refresh:
+        st.session_state.pop("cached_radar_state", None)
+        st.session_state.pop("cached_enriched_pool", None)
+        st.session_state.pop("parlay_search_progress", None)
+
     # Fetch live Taiwan legs
     with st.spinner("正在探測今日賽程與台灣運彩盤口..."):
         all_taiwan_legs = odds_adapter.get_taiwan_legs(
             list(ALLIANCE_MAP),
-            force_refresh=st.session_state.pop("force_odds_refresh", False),
+            force_refresh=force_refresh,
         )
 
     radar_eligible_legs = [leg for leg in all_taiwan_legs if assess_leg(leg)["is_ready"]]
-    radar_summary = season_radar.get_radar_summary(taiwan_legs=radar_eligible_legs, check_live_espn=True)
+    radar_tuples = tuple((l.canonical_event_id or l.event_id, l.league, l.sport) for l in radar_eligible_legs)
+    now_ts = datetime.now(timezone.utc).timestamp()
+    cached_radar = st.session_state.get("cached_radar_state")
+    cached_enriched = st.session_state.get("cached_enriched_pool", {})
+    evaluated_candidates = cached_enriched.get("legs") if isinstance(cached_enriched, dict) else None
+
+    if not force_refresh and cached_radar and cached_radar.get("tuples") == radar_tuples and now_ts - cached_radar.get("time", 0) < 300:
+        radar_summary = cached_radar["data"]
+    else:
+        try:
+            radar_summary = season_radar.get_radar_summary(
+                taiwan_legs=radar_eligible_legs, check_live_espn=True, evaluated_legs=evaluated_candidates
+            )
+        except TypeError:
+            try:
+                import importlib
+                import core.season_radar
+                importlib.reload(core.season_radar)
+                season_radar = core.season_radar.SeasonRadar()
+                radar_summary = season_radar.get_radar_summary(
+                    taiwan_legs=radar_eligible_legs, check_live_espn=True, evaluated_legs=evaluated_candidates
+                )
+            except Exception:
+                radar_summary = season_radar.get_radar_summary(
+                    taiwan_legs=radar_eligible_legs, check_live_espn=True
+                )
+        st.session_state["cached_radar_state"] = {"tuples": radar_tuples, "time": now_ts, "data": radar_summary}
 
     # Show radar lights
     cols_radar = st.columns(3)
@@ -246,6 +310,8 @@ with tab_radar:
                 else "radar-card-red"
             )
             count_info = f"<b>{r['taiwan_market_count']} 場盤口開盤</b>" if r["taiwan_market_count"] > 0 else "今日無盤口"
+            opp_badge = r.get("opportunity_badge", "")
+            opp_html = f"<div style='margin-top:6px; font-size:0.85rem; font-weight:600; color:#4ade80; background:rgba(74,222,128,0.1); padding:2px 8px; border-radius:4px; display:inline-block;'>{opp_badge}</div>" if opp_badge else ""
             st.markdown(
                 f"""
                 <div class='{css_class}'>
@@ -256,6 +322,7 @@ with tab_radar:
                     <div style='margin-top:6px; font-size:0.9rem; color:#ccc;'>
                         狀態：{r['status_text']} · {count_info}
                     </div>
+                    {opp_html}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -320,16 +387,33 @@ with tab_radar:
                 for l in matching_legs:
                     grouped_events.setdefault(l.event_id, []).append(l)
 
+                eval_lookup = {}
+                if evaluated_candidates:
+                    for el in evaluated_candidates:
+                        eid_key = getattr(el, "canonical_event_id", None) or getattr(el, "event_id", "")
+                        eval_lookup[(eid_key, getattr(el, "market", ""), getattr(el, "selection", ""))] = el
+                        eval_lookup[(getattr(el, "event_id", ""), getattr(el, "market", ""), getattr(el, "selection", ""))] = el
+
                 for eid, ev_legs in grouped_events.items():
                     first_l = ev_legs[0]
                     st.markdown(f"**⏰ {first_l.start_time} | 台灣運彩賽事編號 #{eid}**")
                     st.write(f"**{first_l.away_team} (客)** vs **{first_l.home_team} (主)**")
 
                     opt_strs = []
-                    for leg in ev_legs[:5]:
-                        opt_strs.append(f"`{leg.selection}` (台彩賠率: {leg.taiwan_odds})")
+                    for leg in ev_legs[:6]:
+                        el = eval_lookup.get((leg.canonical_event_id or leg.event_id, leg.market, leg.selection)) or eval_lookup.get((leg.event_id, leg.market, leg.selection))
+                        ev_data = getattr(el, "signal_evidence", {}) or {} if el else {}
+                        leg_ev = ev_data.get("sharp_expected_value_pct", ev_data.get("expected_value_pct"))
+                        prob = float(ev_data.get("consensus_probability", 0.0) or 0.0)
+
+                        if isinstance(leg_ev, (int, float)) and leg_ev > 0:
+                            opt_strs.append(f"<b><code>{leg.selection}</code></b> ({leg.taiwan_odds} <span style='color:#4ade80; font-size:0.85rem;'>🔥 +EV {leg_ev:+.1f}%</span>)")
+                        elif prob >= 0.55 and leg.taiwan_odds <= 2.0:
+                            opt_strs.append(f"<b><code>{leg.selection}</code></b> ({leg.taiwan_odds} <span style='color:#60a5fa; font-size:0.85rem;'>🛡️ {prob*100:.0f}%</span>)")
+                        else:
+                            opt_strs.append(f"<code>{leg.selection}</code> ({leg.taiwan_odds})")
                     if opt_strs:
-                        st.caption("熱門台灣運彩盤口： " + " | ".join(opt_strs))
+                        st.markdown("<div style='font-size:0.9rem; color:#bbb; margin-top:2px;'>盤口情報： " + " · ".join(opt_strs) + "</div>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin: 8px 0; border-color: #2d2f3f;'>", unsafe_allow_html=True)
 
 
@@ -345,53 +429,89 @@ with tab_parlay:
     col_p1, col_p2 = st.columns([2, 3])
     with col_p1:
         st.markdown("#### ① 今天你想玩幾倍？")
-        odds_mode = st.radio("倍率設定方式：", ["🎯 指定目標倍率 (Target ±20%)", "📊 自由賠率區間 (Range)"], horizontal=True)
+        odds_mode = st.radio(
+            "倍率與策略風格：",
+            [
+                "🛡️ 穩健銀行家模式 (Banker: 1.5x ~ 6x 高勝率累積獎金池)",
+                "🎯 指定目標倍率 (Target ±20%)",
+                "📊 自由賠率區間 (Range)",
+            ],
+            horizontal=False,
+        )
         target_val = None
         tolerance_val = 0.20
+        min_search_legs = 2
+        max_search_legs = 6
 
-        if "指定目標倍率" in odds_mode:
-            target_val = st.number_input("🎯 目標總倍率 (x)", min_value=5.0, max_value=500.0, value=50.0, step=5.0)
+        if "穩健銀行家模式" in odds_mode:
+            target_odds_range = (1.5, 6.0)
+            target_val = 2.5
+            tolerance_val = 0.35
+            min_search_legs = 2
+            max_search_legs = 3
+            st.info("💡 **穩健銀行家模式 (Banker Mode)**：鎖定 2~3 關高勝率與正期望值 (+EV) 定海神針關卡，總倍率約 1.5x ~ 6x。兼具極高勝率與低風險，小額派彩全數撥入【保留儲備池】，細水長流穩健壯大每週戰力！")
+            st.caption(f"鎖定搜尋賠率：**{target_odds_range[0]:.1f}x ~ {target_odds_range[1]:.1f}x** (限定 2~3 關高勝率)")
+        elif "指定目標倍率" in odds_mode:
+            target_val = st.number_input("🎯 目標總倍率 (x)", min_value=1.5, max_value=500.0, value=20.0, step=1.0)
             tolerance_pct = st.slider("容許浮動範圍 (±%)", min_value=5, max_value=40, value=20, step=5)
             tolerance_val = tolerance_pct / 100.0
             target_odds_range = (max(1.05, target_val * (1.0 - tolerance_val)), target_val * (1.0 + tolerance_val))
             st.caption(f"鎖定搜尋賠率：**{target_odds_range[0]:.1f}x ~ {target_odds_range[1]:.1f}x**")
+            if target_val <= 6.0:
+                max_search_legs = 3
         else:
             preset = st.radio(
                 "快捷區間：",
-                ["自訂滑桿", "10x ~ 25x", "25x ~ 75x", "75x ~ 200x", "200x ~ 500x"],
+                [
+                    "🛡️ 銀行家模式 (1.8x ~ 4.0x，2~3關高勝率)",
+                    "📈 穩中求勝 (4.0x ~ 10.0x，精選穩健)",
+                    "🔥 瘋狗起步 (10x ~ 25x)",
+                    "🚀 瘋狗狂暴 (25x ~ 75x)",
+                    "🌕 極限登月 (75x ~ 200x)",
+                    "🛸 超級巨星 (200x ~ 500x)",
+                    "自訂滑桿",
+                ],
                 horizontal=False,
             )
-            if preset == "10x ~ 25x":
+            if "1.8x ~ 4.0x" in preset:
+                target_odds_range = (1.8, 4.0)
+                max_search_legs = 3
+            elif "4.0x ~ 10.0x" in preset:
+                target_odds_range = (4.0, 10.0)
+                max_search_legs = 4
+            elif "10x ~ 25x" in preset:
                 target_odds_range = (10.0, 25.0)
-            elif preset == "25x ~ 75x":
+            elif "25x ~ 75x" in preset:
                 target_odds_range = (25.0, 75.0)
-            elif preset == "75x ~ 200x":
+            elif "75x ~ 200x" in preset:
                 target_odds_range = (75.0, 200.0)
-            elif preset == "200x ~ 500x":
+            elif "200x ~ 500x" in preset:
                 target_odds_range = (200.0, 500.0)
             else:
                 target_odds_range = st.slider(
                     "目標總賠率範圍 (賠率)",
-                    min_value=10.0,
+                    min_value=1.5,
                     max_value=500.0,
-                    value=(20.0, 60.0),
-                    step=5.0,
+                    value=(2.0, 15.0),
+                    step=0.5,
                 )
+                if target_odds_range[1] <= 6.0:
+                    max_search_legs = 3
 
     with col_p2:
         st.markdown("#### ② 選擇混串賽事與情報過濾")
         all_sports = list(ALLIANCE_MAP.keys())
 
-        cross_sport = st.checkbox("☑ 全部混串 (跨界混合 MLB + 足球 + NFL + 職棒)", value=True)
+        cross_sport = st.checkbox("☑ 全部混串 (跨界混合 NBA + MLB + 足球 + NFL + 職棒)", value=True)
 
         if cross_sport:
             chosen_alliances = all_sports
-            st.info("已啟用跨界混串！系統將跨棒球、足球、美足同時尋找最佳倍率組合。")
+            st.info("已啟用跨界混串！系統將跨籃球 (NBA)、棒球 (MLB/職棒)、足球、美足同時尋找最佳倍率組合。")
         else:
             chosen_alliances = st.multiselect(
                 "選擇指定賽事：",
                 options=all_sports,
-                default=["1", "4"],
+                default=["1", "3", "4"],
                 format_func=lambda x: ALLIANCE_MAP.get(x, x),
             )
 
@@ -399,12 +519,18 @@ with tab_parlay:
             "🛡️ 外部情報品質門檻：",
             [
                 "normal (標準: 排除無外部情報之關卡)",
+                "value_only (價值優先: 僅限具備 +EV 正期望值或高勝率之關卡)",
                 "strict (嚴格: 僅限 2+ 獨立來源支持)",
                 "wild (狂野: 容許全部盤口)",
             ],
             index=0,
         )
-        signal_filter_code = "strict" if "strict" in filter_choice else "wild" if "wild" in filter_choice else "normal"
+        signal_filter_code = (
+            "value_only" if "value_only" in filter_choice
+            else "strict" if "strict" in filter_choice
+            else "wild" if "wild" in filter_choice
+            else "normal"
+        )
 
         available_stake = max(0.0, min(float(wallet_status["weekly_wallet_balance"]), float(wallet_status["weekly_play_cap"] - wallet_status["weekly_staked"])))
         has_stake_budget = available_stake >= 10.0
@@ -423,17 +549,30 @@ with tab_parlay:
     st.markdown("---")
 
     search_budget = st.number_input("搜尋運算預算（節點數）", min_value=10000, max_value=2000000,
-                                    value=250000, step=10000,
+                                    value=50000, step=10000,
                                     help="所有合格選項都會納入搜尋；預算耗盡時會明確標示尚未搜完，可提高預算重試。")
     # Run Parlay Search
-    with st.spinner("Signal Hub 正在聚合情報並計算 10~500 倍串關組合..."):
-        all_candidate_legs = odds_adapter.get_taiwan_legs(chosen_alliances)
+    with st.spinner("Signal Hub 正在聚合情報並計算串關組合..."):
+        if cross_sport:
+            all_candidate_legs = all_taiwan_legs
+        else:
+            all_candidate_legs = odds_adapter.get_taiwan_legs(chosen_alliances)
         candidate_source_statuses = odds_adapter.get_source_status()
-        enriched_legs = [signal_hub.evaluate_taiwan_leg(leg) for leg in all_candidate_legs]
+
+        # Cache enriched legs to avoid redundant multi-model evaluations on every slider adjustment
+        raw_quotes_hash = hashlib.sha256(json.dumps([[l.canonical_event_id or l.event_id, l.market, l.selection, l.taiwan_odds, l.odds_scraped_at] for l in all_candidate_legs], sort_keys=True).encode()).hexdigest()
+        cached_enriched = st.session_state.get("cached_enriched_pool", {})
+        if cached_enriched.get("hash") == raw_quotes_hash and not force_refresh:
+            enriched_legs = cached_enriched["legs"]
+        else:
+            enriched_legs = [signal_hub.evaluate_taiwan_leg(leg) for leg in all_candidate_legs]
+            st.session_state["cached_enriched_pool"] = {"hash": raw_quotes_hash, "legs": enriched_legs}
+
         current_pool = enriched_legs
         quote_scope = [{k:leg.to_dict().get(k) for k in ("canonical_event_id","event_id","market","side","selection","line","taiwan_odds","odds_scraped_at","start_time_utc")} for leg in current_pool]
         context_hash = hashlib.sha256(json.dumps({"quotes":quote_scope,"range":target_odds_range,
             "target":target_val,"tolerance":tolerance_val,"filter":signal_filter_code,
+            "min_legs":min_search_legs,"max_legs":max_search_legs,
             "identity":get_strategy_metadata().get("code_hash")},sort_keys=True,default=str).encode('utf-8')).hexdigest()
         saved_search = st.session_state.get("parlay_search_progress", {})
         continue_search = st.button("繼續同批資料的搜尋", disabled=not saved_search or saved_search.get("complete",True))
@@ -455,7 +594,7 @@ with tab_parlay:
             parlay_results = parlay_engine.search_parlays(
                 legs=enriched_legs,min_odds=target_odds_range[0],max_odds=target_odds_range[1],
                 target_odds=target_val,tolerance=tolerance_val,signal_filter=signal_filter_code,
-                min_legs=2,max_legs=6,diagnostics=search_diagnostics,search_budget=int(search_budget),
+                min_legs=min_search_legs,max_legs=max_search_legs,diagnostics=search_diagnostics,search_budget=int(search_budget),
                 resume_state=saved_search.get("state") if reusable else None,scope_as_of=search_scope,
             )
             state = parlay_results.search_state
@@ -603,6 +742,14 @@ with tab_parlay:
                 readiness_label = "資料核對通過" if current_readiness["is_ready"] else "資料未齊，無法記錄推薦"
                 readiness_color = "#00c853" if current_readiness["is_ready"] else "#d32f2f"
 
+                sharp_ev_pct = item.get("sharp_parlay_ev_pct")
+                sharp_badge_html = ""
+                if item.get("is_positive_ev") and sharp_ev_pct is not None:
+                    sharp_badge_html = f"&nbsp; <span style='background:#1b5e20; color:#b9f6ca; border:1px solid #00e676; padding:2px 8px; border-radius:8px; font-weight:bold;'>🔥 國際去水正期望值 (+EV {sharp_ev_pct:+.1f}%)</span>"
+                elif sharp_ev_pct is not None:
+                    badge_text = item.get("sharp_summary_badge", "⚪ 市場中性/負EV")
+                    sharp_badge_html = f"&nbsp; <span style='background:#2a2b36; color:#bdbdbd; padding:2px 8px; border-radius:8px; font-weight:bold;'>{badge_text} ({sharp_ev_pct:+.1f}%)</span>"
+
                 st.markdown(
                     f"""
                     <div class='ticket-card'>
@@ -612,10 +759,17 @@ with tab_parlay:
                                 <span style='font-size:1.25rem; font-weight:bold;'>{item['parlay_name']}</span> &nbsp;
                                 <span style='font-size:1.35rem; font-weight:900; color:#00e676;'>{item['total_odds']} 倍</span> &nbsp;
                                 <span style='background:{readiness_color}; color:white; padding:2px 8px; border-radius:8px; font-weight:bold;'>{readiness_label}</span>
+                                {sharp_badge_html}
                             </div>
                             <div style='margin-top:4px;'>
                                 先核對各關有效支持數與打平門檻；模型估計與 EV 收在下方展開區。
                             </div>
+                        </div>
+                        <div style='display:flex; gap:18px; margin-top:10px; padding:6px 12px; background:#1e202e; border-radius:6px; font-size:0.92rem; align-items:center; flex-wrap:wrap;'>
+                            <span>🎯 <b>聯合估計勝率</b>：<span style='color:#4ade80; font-weight:bold;'>{joint_prob_pct:.1f}%</span></span>
+                            <span>⚖️ <b>打平門檻</b>：<span style='color:#cbd5e1; font-weight:bold;'>{100.0/float(item['total_odds']):.1f}%</span></span>
+                            <span>📊 <b>預期淨利 (EV)</b>：<span style='color:{"#4ade80" if ev_val>0 else "#f87171"}; font-weight:bold;'>{ev_val:+.1f}%</span></span>
+                            <span>🛡️ <b>相關性風險</b>：<span style='color:#94a3b8;'>{corr_grade}</span></span>
                         </div>
                     </div>
                     """,
@@ -658,13 +812,25 @@ with tab_parlay:
                     badge = sig_ev.get("agreement_badge") or "⚪ INSUFFICIENT"
                     support_count = sig_ev.get("independent_support_count", sig_ev.get("support_count", 0))
 
+                    sharp_fair_p = sig_ev.get("sharp_fair_probability")
+                    sharp_fair_str = probability_label(sharp_fair_p) if sharp_fair_p is not None else "去水未成"
+                    odds_val = leg.get("odds") or leg.get("taiwan_odds", 0.0)
+                    leg_ev_pct = sig_ev.get("sharp_expected_value_pct")
+                    if leg_ev_pct is None and sig_ev.get("expected_value_pct") is not None:
+                        leg_ev_pct = sig_ev.get("expected_value_pct")
+                    if isinstance(leg_ev_pct, (int, float)):
+                        ev_str = f"{leg_ev_pct:+.1f}% 🟢" if leg_ev_pct >= 0.0 else f"{leg_ev_pct:+.1f}% 🔴"
+                    else:
+                        ev_str = "-"
                     legs_rows.append({
                         "聯賽": leg.get("league", ""),
                         "對戰賽事": f"{leg.get('away_team')} vs {leg.get('home_team')}",
                         "玩法推薦": leg.get("selection", ""),
-                        "資料狀態": "完整" if assess_leg(leg)["is_ready"] else "未齊",
+                        "台彩賠率": f"{odds_val:.2f}" if odds_val else "-",
+                        "打平門檻": probability_label(sig_ev.get("market_implied_probability")),
+                        "去水公允勝率": sharp_fair_str,
+                        "單關 EV": ev_str,
                         "有效支持數": support_count,
-                        "打平所需命中率": probability_label(sig_ev.get("market_implied_probability")),
                         "證據等級": badge,
                     })
 
@@ -672,9 +838,13 @@ with tab_parlay:
 
                 # Expandable Why? Drawer on each parlay ticket
                 with st.expander(f"🔍 查看 No.{idx} 的模型、EV 與原始證據", expanded=False):
+                    sharp_joint_p = item.get("sharp_joint_probability", 0.0) * 100.0
+                    sharp_ev_val = item.get("sharp_parlay_ev_pct", 0.0)
                     st.write(
                         f"{estimate_label}串關機率：{joint_prob_pct:.2f}%｜"
-                        f"{estimate_label}串關 EV：{ev_val:+.1f}%｜相關性：{corr_grade}｜訊號：{item['signal_summary']}"
+                        f"{estimate_label}串關 EV：{ev_val:+.1f}%｜"
+                        f"國際去水勝率：{sharp_joint_p:.2f}%｜"
+                        f"國際真實 EV：{sharp_ev_val:+.1f}%｜相關性：{corr_grade}｜訊號：{item['signal_summary']}"
                     )
                     st.caption("串關機率含規則式相關性折扣，尚未驗證準確度；模型估計與 EV 不是已證實的勝率或獲利能力。")
                     st.table([{
@@ -765,12 +935,23 @@ with tab_parlay:
                 item_key = recommendation_fingerprint(item, 0, item["total_odds"])[:20]
                 with col_bet_l:
                     pot_payout = round(stake_per_bet * item["total_odds"], 2)
+                    p_joint = float(item.get("sharp_joint_probability") or item.get("joint_probability") or 0.0)
+                    o_ticket = float(item.get("total_odds") or 2.0)
+                    b_net = o_ticket - 1.0
+                    f_star = max(0.0, (b_net * p_joint - (1.0 - p_joint)) / b_net) if b_net > 0 else 0.0
+                    q_kelly_stake = max(10.0, min(50.0, round(available_stake * f_star * 0.25 / 10.0) * 10.0))
+                    kelly_note = (
+                        f"📐 <b>凱利建議注金</b>：<span style='color:#4ade80; font-weight:bold;'>NT$ {q_kelly_stake:.0f}</span> (1/4 Kelly 依據勝率優勢分配)"
+                        if f_star > 0
+                        else "📐 <b>凱利建議注金</b>：<span style='color:#f87171;'>NT$ 10</span> (無正EV/極低勝率，維持最低微額娛樂)"
+                    )
                     st.write(
                         f"下注 **NT$ {stake_per_bet:.0f}** ➔ "
                         f"若全過、按目前推薦賠率派彩：<span style='color:#00e676; font-size:1.2rem; font-weight:bold;'>NT$ {pot_payout:,.2f}</span> "
                         f"(若中獎將全額鎖入【保留儲備池】)",
                         unsafe_allow_html=True,
                     )
+                    st.markdown(f"<div style='font-size:0.86rem; color:#bbb; margin-top:3px;'>{kelly_note}</div>", unsafe_allow_html=True)
                 with col_bet_m:
                     placed_odds_input = st.number_input(
                         "實際下注賠率 (Placed Odds)",
@@ -898,7 +1079,7 @@ with tab_wallet:
 
                     c_act1, c_act2, c_act3 = st.columns(3)
                     with c_act1:
-                        if st.button("🎉 恭喜中獎！(派彩全數入保留池)", key=f"win_act_{ot['id']}", type="primary"):
+                        if st.button("🎉 全額中獎！(全數入保留池)", key=f"win_act_{ot['id']}", type="primary"):
                             ticket_recorder.settle_ticket(ot["id"], won=True)
                             st.balloons()
                             st.success(f"🎊 恭喜！派彩 NT$ {ot['potential_payout']:,.2f} 已鎖入保留儲備池！")
@@ -909,9 +1090,24 @@ with tab_wallet:
                             st.info("注單已標記未過關。保持心態，嚴格遵守每週 NT$200！")
                             st.rerun()
                     with c_act3:
-                        if st.button("⚪ 標記退盤 (VOID 退本金)", key=f"void_act_{ot['id']}"):
+                        if st.button("⚪ 全額退盤 (VOID 退本金)", key=f"void_act_{ot['id']}"):
                             ticket_recorder.settle_ticket(ot["id"], won=False, is_void=True)
                             st.info(f"注單已標記無效退費 (VOID)，本金 NT$ {ot['stake']} 已退入保留儲備池！")
+                            st.rerun()
+
+                    with st.expander("🛠️ 自訂實際派彩金額（部分走盤、退盤或賠率異動）", expanded=False):
+                        custom_payout_val = st.number_input(
+                            "實際領回金額 (NT$)",
+                            min_value=0.0,
+                            max_value=1000000.0,
+                            value=float(ot["potential_payout"]),
+                            step=10.0,
+                            key=f"custom_payout_{ot['id']}",
+                        )
+                        if st.button("確認以自訂金額結算中獎", key=f"custom_win_{ot['id']}"):
+                            ticket_recorder.settle_ticket(ot["id"], won=True, custom_payout=custom_payout_val)
+                            st.balloons()
+                            st.success(f"已按自訂金額 NT$ {custom_payout_val:.2f} 結算並撥入保留儲備池！")
                             st.rerun()
 
         if settled_list:
@@ -968,9 +1164,22 @@ with tab_research:
 
     # Fetch data
     render_research_overview()
-    snapshots = snapshot_logger.get_all_snapshots()
+    r_paths = research_paths()
+    snap_p = r_paths["snapshots"]
+    parl_p = r_paths["parlays"]
+    snap_mtime = snap_p.stat().st_mtime if snap_p.exists() else 0.0
+    parl_mtime = parl_p.stat().st_mtime if parl_p.exists() else 0.0
+
+    snap_analysis = get_cached_snapshot_analytics(str(snap_p), snap_mtime)
+    snapshots = snap_analysis["snapshots"]
+    current_cohort = snap_analysis["cohort"]
+    agree_data = snap_analysis["agree_data"]
+    ev_data = snap_analysis["ev_data"]
+    delta_data = snap_analysis["delta_data"]
+    crowd_data = snap_analysis["crowd_data"]
+    expert_data = snap_analysis["expert_data"]
+
     portfolio_summary = shadow_portfolio.get_portfolio_summary(strategy_version=STRATEGY_VERSION, eligible_only=True)
-    current_cohort = metrics_engine.forward_cohort(snapshots)
     settled_snaps = current_cohort["observations"]
     st.caption(f"成績分組：目前預測實驗；有效且去重的二元觀測 {len(settled_snaps)} 筆，"
                f"唯一賽事 {current_cohort['audit']['unique_event_count']} 場。不同設定與未通過封存核對的紀錄不計入此組。")
@@ -995,7 +1204,6 @@ with tab_research:
         )
         st.caption(f"排除其它策略或未合格注單 {portfolio_summary['excluded_tickets']} 張。")
     with m_col3:
-        agree_data = metrics_engine.evaluate_agreement_buckets(snapshots)
         high_data = agree_data.get("HIGH", {})
         high_n = high_data.get("sample_size", 0)
         high_hr = metric_number(high_data.get('hit_rate'), ".1f", scale=100, suffix="%") if high_n else "尚無合格樣本"
@@ -1017,7 +1225,7 @@ with tab_research:
     pct = min(1.0, cur_settled / float(target_milestone))
     st.progress(pct, text=f"🏁 第一里程碑進度 (First Milestone): {cur_settled} / {target_milestone} 筆結算 (滿 200 筆或 30 天出具首份正式前瞻報告)")
     with st.expander("整張串關的前瞻驗證與樣本不確定性", expanded=False):
-        ticket_metrics = evaluate_parlay_forward(read_jsonl(research_paths()["parlays"]), current_cohort["target_experiment_id"])
+        ticket_metrics = get_cached_forward_parlay_metrics(str(parl_p), current_cohort["target_experiment_id"], parl_mtime)
         st.caption("只計目前實驗的賽前封存注單；共用賽事與同賽事日組合會合併成事件群。退盤與打平不計二元機率準確度。")
         st.table([{"倍率區間": tier, "唯一注單數": values["n"], "事件日群數": values["event_slate_cluster_count"],
                    "平均估計機率": probability_label(values["mean_estimated_probability"]),
