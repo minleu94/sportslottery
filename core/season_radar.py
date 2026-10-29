@@ -112,6 +112,14 @@ class SeasonRadar:
             "espn_code": None,
             "default_season": (10, 5),
         },
+        "SOCCER_GLOBAL": {
+            "name": "國際足球 (各國聯賽與盃賽)",
+            "sport": "soccer",
+            "icon": "⚽",
+            "playsport_aid": "4",
+            "espn_code": None,
+            "default_season": (1, 12),
+        },
     }
 
     def __init__(self, espn_adapter: Optional[ESPNScheduleAdapter] = None):
@@ -137,20 +145,27 @@ class SeasonRadar:
         if taiwan_legs:
             for l in taiwan_legs:
                 raw = str(l.league).strip()
-                code = raw.upper() if raw.upper() in self.LEAGUES else normalize_league_and_sport(raw)[0]
+                norm_code, norm_sport = normalize_league_and_sport(raw)
+                code = raw.upper() if raw.upper() in self.LEAGUES else norm_code
                 if code in self.LEAGUES:
                     taiwan_games_by_aid.setdefault(code, set()).add(l.canonical_event_id or l.event_id)
+                elif getattr(l, "sport", "") == "soccer" or norm_sport == "soccer" or "足球" in raw:
+                    taiwan_games_by_aid.setdefault("SOCCER_GLOBAL", set()).add(l.canonical_event_id or l.event_id)
 
         if live_matches:
             for m in live_matches:
                 aid = str(m.get("alliance_id", ""))
                 league_str = str(m.get("canonical_league") or m.get("league") or "")
                 mid = str(m.get("match_id", id(m)))
+                norm_code, norm_sport = normalize_league_and_sport(league_str, aid)
                 code = (league_str.upper() if league_str.upper() in self.LEAGUES
-                        else normalize_league_and_sport(league_str, aid)[0])
+                        else norm_code)
                 if code in self.LEAGUES:
                     taiwan_games_by_aid.setdefault(code, set()).add(mid)
                     games_by_league.setdefault(code, []).append(m)
+                elif aid == "4" or norm_sport == "soccer" or "足球" in league_str or m.get("sport") == "soccer":
+                    taiwan_games_by_aid.setdefault("SOCCER_GLOBAL", set()).add(mid)
+                    games_by_league.setdefault("SOCCER_GLOBAL", []).append(m)
 
         # Count opportunity metrics by league
         opportunities_by_league: Dict[str, Dict[str, int]] = {}
@@ -158,9 +173,13 @@ class SeasonRadar:
         if all_eval_legs:
             for leg in all_eval_legs:
                 raw_league = str(getattr(leg, "league", "")).strip()
-                code = raw_league.upper() if raw_league.upper() in self.LEAGUES else normalize_league_and_sport(raw_league)[0]
+                norm_code, norm_sport = normalize_league_and_sport(raw_league)
+                code = raw_league.upper() if raw_league.upper() in self.LEAGUES else norm_code
                 if code not in self.LEAGUES:
-                    continue
+                    if getattr(leg, "sport", "") == "soccer" or norm_sport == "soccer" or "足球" in raw_league:
+                        code = "SOCCER_GLOBAL"
+                    else:
+                        continue
                 ev_data = getattr(leg, "signal_evidence", {}) or {}
                 if isinstance(leg, dict):
                     ev_data = leg.get("signal_evidence", leg)

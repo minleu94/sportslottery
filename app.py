@@ -37,6 +37,8 @@ from core.signal_hub import SignalHub
 from core.strategy_version import STRATEGY_VERSION, get_strategy_metadata
 from core.ticket_recorder import TicketRecorder
 from core.wallet import WEEKLY_PLAY_CAP, WeeklyWalletManager
+from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
+from ui.profile_view import render_profile_view
 from integrations.common.models import TaiwanLeg
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
 from ui.metric_guide import probability_label, render_leg_source_evidence
@@ -206,8 +208,6 @@ from core.snapshot_logger import PredictionSnapshotLogger
 def get_system_components(prediction_manifest_hash: str):
     # Invalidate cached adapter instances when executable prediction code or
     # configuration changes; presentation-only edits preserve this cache key.
-    wallet_mgr = WeeklyWalletManager()
-    ticket_recorder = TicketRecorder(wallet=wallet_mgr)
     odds_adapter = PlaysportOddsAdapter()
     signal_hub = SignalHub()
     parlay_engine = ParlayEngine(signal_hub=signal_hub)
@@ -215,20 +215,60 @@ def get_system_components(prediction_manifest_hash: str):
     snapshot_logger = PredictionSnapshotLogger()
     shadow_portfolio = ShadowPortfolioManager()
     metrics_engine = PerformanceMetricsEngine()
-    return wallet_mgr, ticket_recorder, odds_adapter, signal_hub, parlay_engine, season_radar, snapshot_logger, shadow_portfolio, metrics_engine
+    return odds_adapter, signal_hub, parlay_engine, season_radar, snapshot_logger, shadow_portfolio, metrics_engine
 
 
 runtime_prediction_hash = get_strategy_metadata()["prediction_manifest_hash"]
-wallet_mgr, ticket_recorder, odds_adapter, signal_hub, parlay_engine, _cached_radar, snapshot_logger, shadow_portfolio, metrics_engine = get_system_components(runtime_prediction_hash)
+odds_adapter, signal_hub, parlay_engine, _cached_radar, snapshot_logger, shadow_portfolio, metrics_engine = get_system_components(runtime_prediction_hash)
 season_radar = SeasonRadar()
 
+# Initialize Player Profile & Wallet
+profile_mgr = ProfileManager()
+if "active_profile_id" not in st.session_state:
+    st.session_state["active_profile_id"] = DEFAULT_PROFILE_ID
+active_profile_id = st.session_state["active_profile_id"]
+active_profile = profile_mgr.get_or_default(active_profile_id)
 
-# Header Brand
-st.markdown("<div class='brand-header'>🐕 台灣運彩「瘋狗流」決策系統</div>", unsafe_allow_html=True)
-st.markdown(
-    "<div class='brand-sub'>賽季雷達 · 10~500倍 情報串關 · 每週 NT$ 200 娛樂風控</div>",
-    unsafe_allow_html=True,
-)
+try:
+    wallet_mgr = WeeklyWalletManager(profile_id=active_profile["id"])
+except TypeError:
+    wallet_mgr = WeeklyWalletManager()
+if hasattr(wallet_mgr, "profile_id"):
+    wallet_mgr.profile_id = active_profile["id"]
+
+try:
+    ticket_recorder = TicketRecorder(wallet=wallet_mgr, profile_id=active_profile["id"])
+except TypeError:
+    try:
+        ticket_recorder = TicketRecorder(wallet=wallet_mgr)
+    except TypeError:
+        ticket_recorder = TicketRecorder()
+if hasattr(ticket_recorder, "profile_id"):
+    ticket_recorder.profile_id = active_profile["id"]
+
+
+# Header Brand & Player Switcher
+col_brand, col_prof_quick = st.columns([3, 2])
+with col_brand:
+    st.markdown("<div class='brand-header'>🐕 台灣運彩「瘋狗流」決策系統</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='brand-sub'>賽季雷達 · 10~500倍 情報串關 · 玩家【{active_profile['name']}】專屬池</div>",
+        unsafe_allow_html=True,
+    )
+with col_prof_quick:
+    all_profs = profile_mgr.list_profiles()
+    prof_names = {p["id"]: f"👤 {p['name']} (每週 NT$ {float(p.get('weekly_play_cap', 200)):.0f})" for p in all_profs}
+    cur_idx = list(prof_names.keys()).index(active_profile["id"]) if active_profile["id"] in prof_names else 0
+    sel_pid = st.selectbox(
+        "切換目前玩家 Profile：",
+        options=list(prof_names.keys()),
+        index=cur_idx,
+        format_func=lambda x: prof_names.get(x, x),
+        key="header_profile_quick_switcher",
+    )
+    if sel_pid != active_profile["id"]:
+        st.session_state["active_profile_id"] = sel_pid
+        st.rerun()
 
 st.caption("資料來源：玩運彩公開盤口、專家推薦與投票；模型與 EV 由專案計算。各筆時效請查看推薦證據，MLB Elo 目前為實驗估計。")
 
@@ -247,9 +287,9 @@ wallet_status = wallet_mgr.get_status()
 w_col1, w_col2, w_col3, w_col4 = st.columns(4)
 with w_col1:
     st.metric(
-        label="💰 ① 本週可玩餘額",
+        label=f"💰 ①【{active_profile['name']}】本週可玩",
         value=f"NT$ {wallet_status['weekly_wallet_balance']:.2f}",
-        delta=f"本週預算上限 NT$ {wallet_status['weekly_play_cap']:.0f}",
+        delta=f"每週預算限額 NT$ {active_profile['weekly_play_cap']:.0f}",
     )
 with w_col2:
     st.metric(
@@ -268,7 +308,7 @@ with w_col4:
     st.metric(
         label="💵 ④ 本週外部補金",
         value=ext_limit_str,
-        delta="不足 200 才補" if wallet_status["can_deposit"] else "儲備池已充盈",
+        delta=f"缺額上限 NT$ {active_profile['weekly_play_cap']:.0f}" if wallet_status["can_deposit"] else "儲備池已充盈",
     )
 
 st.markdown("---")
@@ -304,11 +344,12 @@ def get_cached_snapshot_analytics(snapshots_path_str: str, mtime: float):
     }
 
 
-# Main 4-Tab Layout
-tab_radar, tab_parlay, tab_wallet, tab_research = st.tabs([
-    "① 今日可玩 (賽季雷達)",
-    "② 瘋狗看盤 (10~500倍 組單)",
-    "③ 資金紀錄 (NT$200 錢包與戰績)",
+# Main 5-Tab Layout
+tab_radar, tab_parlay, tab_wallet, tab_profile, tab_research = st.tabs([
+    "📡 今日開盤 (賽事雷達)",
+    "🔥 瘋狗看盤 (10~500倍 組單)",
+    "💰 資金紀錄 (個人帳本)",
+    "👤 個人 Profile (設定與 PIN 碼)",
     "📊 影子評估與前瞻驗證 (Research / Performance)",
 ])
 
@@ -402,12 +443,35 @@ with tab_radar:
             )
 
     st.markdown("---")
-    st.markdown("#### 📋 點選聯賽查看今日台灣運彩對戰詳情")
+    total_open_matches = sum(r["taiwan_market_count"] for r in radar_summary)
+    total_open_options = len(radar_eligible_legs)
+
+    col_r_title, col_r_badge = st.columns([2, 1])
+    with col_r_title:
+        st.markdown("#### 📋 今日台灣運彩開盤對戰詳情")
+    with col_r_badge:
+        st.markdown(
+            f"<div style='text-align:right; font-size:0.95rem; font-weight:bold; color:#4ade80; background:rgba(74,222,128,0.1); padding:6px 12px; border-radius:6px; border:1px solid rgba(74,222,128,0.3);'>"
+            f"🟢 今日共 {total_open_matches} 場賽事、{total_open_options} 個盤口開放中</div>",
+            unsafe_allow_html=True,
+        )
 
     active_leagues_with_games = [r for r in radar_summary if r["taiwan_market_count"] > 0]
 
+    col_filter_search, col_filter_exp = st.columns([3, 1])
+    with col_filter_search:
+        match_search_kw = st.text_input(
+            "🔍 即時搜尋球隊、聯賽或賽事編號：",
+            placeholder="輸入關鍵字 (如：勇士、塞爾提克、利雅德、NBA、足球...)",
+            key="radar_match_search_kw",
+        )
+    with col_filter_exp:
+        st.write("")
+        st.write("")
+        expand_all_matches = st.checkbox("📂 展開所有開盤對戰", value=True, key="radar_expand_all_matches")
+
     source_statuses = odds_adapter.get_source_status()
-    with st.expander("資料來源與賽事身份狀態", expanded=not active_leagues_with_games):
+    with st.expander("資料來源與賽事身份狀態 (除錯觀測)", expanded=not active_leagues_with_games):
         for aid, status in source_statuses.items():
             name = ALLIANCE_MAP.get(str(aid), str(aid))
             age = status.get("cache_age_minutes")
@@ -447,19 +511,48 @@ with tab_radar:
             st.caption(status.get("source_url") or "來源網址未提供")
 
     if not active_leagues_with_games:
-        st.info("目前沒有可展示的已解析盤口賽事。請先查看上方各來源狀態，區分無盤、身份不完整、快取或抓取失敗。")
+        st.info("💡 目前各聯賽尚未進入今日開盤時段，或今日所有已開賽事均已截止。台灣運彩通常於每日清晨 06:00 ~ 09:00 陸續更新本日各項賽事盤口；可點擊上方「🔄 刷新盤口與模型資料」隨時獲取最新開盤狀況。")
     else:
         for r in active_leagues_with_games:
-            with st.expander(f"{r['icon']} {r['name']} — 今日共 {r['taiwan_market_count']} 場開盤 (點擊展開盤口)", expanded=(r["code"] == "MLB")):
+            if r["code"] == "SOCCER_GLOBAL":
                 matching_legs = [
                     l for l in all_taiwan_legs
-                    if (r["code"] in l.league.upper()) or (r["name"] in l.league) or (r["code"] == "MLB" and l.sport == "baseball" and "MLB" in l.league)
+                    if l.sport == "soccer" and not any(k in l.league.upper() for k in ("PREMIER", "LALIGA", "CHAMPIONS"))
                 ]
-                # Group by event_id
-                grouped_events: Dict[str, List[TaiwanLeg]] = {}
-                for l in matching_legs:
-                    grouped_events.setdefault(l.event_id, []).append(l)
+            elif r["code"] == "MLB":
+                matching_legs = [
+                    l for l in all_taiwan_legs
+                    if (r["code"] in l.league.upper()) or (r["name"] in l.league) or (l.sport == "baseball" and "MLB" in l.league)
+                ]
+            else:
+                matching_legs = [
+                    l for l in all_taiwan_legs
+                    if (r["code"] in l.league.upper()) or (r["name"] in l.league)
+                ]
 
+            # Group by event_id
+            grouped_events: Dict[str, List[TaiwanLeg]] = {}
+            for l in matching_legs:
+                grouped_events.setdefault(l.event_id, []).append(l)
+
+            # Filter if search keyword provided
+            if match_search_kw:
+                kw = match_search_kw.strip().lower()
+                filtered_events = {}
+                for eid, ev_legs in grouped_events.items():
+                    fl = ev_legs[0]
+                    if (kw in (fl.away_team or "").lower() or kw in (fl.home_team or "").lower() or
+                        kw in (fl.league or "").lower() or kw in str(eid)):
+                        filtered_events[eid] = ev_legs
+                grouped_events = filtered_events
+
+            if not grouped_events:
+                continue
+
+            exp_title = f"{r['icon']} {r['name']} — 今日共 {len(grouped_events)} 場開盤"
+            is_expanded = expand_all_matches or (len(active_leagues_with_games) <= 3 and not match_search_kw)
+
+            with st.expander(exp_title, expanded=is_expanded):
                 eval_lookup = {}
                 if evaluated_candidates:
                     for el in evaluated_candidates:
@@ -469,11 +562,11 @@ with tab_radar:
 
                 for eid, ev_legs in grouped_events.items():
                     first_l = ev_legs[0]
-                    st.markdown(f"**⏰ {first_l.start_time} | 台灣運彩賽事編號 #{eid}**")
+                    st.markdown(f"**⏰ {first_l.start_time} | 聯賽：{first_l.league} | 台灣運彩編號 #{eid}**")
                     st.write(f"**{first_l.away_team} (客)** vs **{first_l.home_team} (主)**")
 
                     opt_strs = []
-                    for leg in ev_legs[:6]:
+                    for leg in ev_legs[:8]:
                         el = eval_lookup.get((leg.canonical_event_id or leg.event_id, leg.market, leg.selection)) or eval_lookup.get((leg.event_id, leg.market, leg.selection))
                         ev_data = getattr(el, "signal_evidence", {}) or {} if el else {}
                         leg_ev = ev_data.get("sharp_expected_value_pct", ev_data.get("expected_value_pct"))
@@ -487,13 +580,13 @@ with tab_radar:
                             lm_suffix = f" <span style='color:#fbbf24; font-size:0.80rem;'>⚠️升水({lm.get('delta_odds'):+.2f})</span>"
 
                         if isinstance(leg_ev, (int, float)) and leg_ev > 0:
-                            opt_strs.append(f"<b><code>{leg.selection}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#4ade80; font-size:0.85rem;'>🔥 +EV {leg_ev:+.1f}%</span>)")
+                            opt_strs.append(f"<b><code>{leg.market} {leg.selection}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#4ade80; font-size:0.85rem;'>🔥 +EV {leg_ev:+.1f}%</span>)")
                         elif prob >= 0.55 and leg.taiwan_odds <= 2.0:
-                            opt_strs.append(f"<b><code>{leg.selection}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#60a5fa; font-size:0.85rem;'>🛡️ {prob*100:.0f}%</span>)")
+                            opt_strs.append(f"<b><code>{leg.market} {leg.selection}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#60a5fa; font-size:0.85rem;'>🛡️ {prob*100:.0f}%</span>)")
                         else:
-                            opt_strs.append(f"<code>{leg.selection}</code> ({leg.taiwan_odds}{lm_suffix})")
+                            opt_strs.append(f"<code>{leg.market} {leg.selection}</code> ({leg.taiwan_odds}{lm_suffix})")
                     if opt_strs:
-                        st.markdown("<div style='font-size:0.9rem; color:#bbb; margin-top:2px;'>盤口情報： " + " · ".join(opt_strs) + "</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='font-size:0.9rem; color:#bbb; margin-top:2px;'>盤口選項： " + " · ".join(opt_strs) + "</div>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin: 8px 0; border-color: #2d2f3f;'>", unsafe_allow_html=True)
 
 
@@ -1301,10 +1394,10 @@ with tab_parlay:
 # -------------------------------------------------------------
 with tab_wallet:
     st.markdown("### 💰 資金紀錄與會計帳本 (Capital & Reserve Governance)")
-    st.caption("嚴格貫徹每週 NT$200 娛樂預算：中獎派彩全額撥入【保留儲備池】，下週不足 200 才從外部補。")
+    st.caption(f"嚴格貫徹【{active_profile['name']}】每週 NT$ {active_profile['weekly_play_cap']:.0f} 娛樂預算：中獎派彩全額撥入個人【保留儲備池】，下週不足才從外部補。")
 
     # Lifetime Accounting Summary Table
-    st.markdown("#### 📊 全期會計流水 (Lifetime Ledger Breakdown)")
+    st.markdown(f"#### 📊 玩家【{active_profile['name']}】全期會計流水 (Lifetime Ledger Breakdown)")
     l_col1, l_col2, l_col3, l_col4 = st.columns(4)
     with l_col1:
         st.metric("累計外部入金", f"NT$ {wallet_status.get('lifetime_external_deposited', 0.0):,.2f}")
@@ -1321,7 +1414,7 @@ with tab_wallet:
     # Financial Control Center
     col_fc1, col_fc2 = st.columns(2)
     with col_fc1:
-        st.markdown("#### 💵 外部補金 (補足每週 NT$200 缺口)")
+        st.markdown(f"#### 💵 外部補金 (補足每週 NT$ {active_profile['weekly_play_cap']:.0f} 缺口)")
         if wallet_status["can_deposit"]:
             st.info(f"本週尚可自備現金補入：**NT$ {wallet_status['external_deposit_remaining']:.2f}**")
             dep_val = st.number_input(
@@ -1334,12 +1427,12 @@ with tab_wallet:
             if st.button("確認補金入錢包", type="primary"):
                 try:
                     wallet_mgr.deposit_external(dep_val)
-                    st.success(f"已補入 NT$ {dep_val}，可玩餘額更新為 NT$ {wallet_status['weekly_wallet_balance'] + dep_val:.2f}！")
+                    st.success(f"已為【{active_profile['name']}】補入 NT$ {dep_val}，可玩餘額更新為 NT$ {wallet_status['weekly_wallet_balance'] + dep_val:.2f}！")
                     st.rerun()
                 except Exception as exc:
                     st.error(str(exc))
         else:
-            st.success("✅ 本週戰力已達 NT$ 200 上限（由本週錢包或保留儲備池全額資助），無須自掏腰包！")
+            st.success(f"✅ 本週戰力已達 NT$ {active_profile['weekly_play_cap']:.0f} 上限（由本週錢包或保留儲備池全額資助），無須自掏腰包！")
 
     with col_fc2:
         st.markdown("#### 🏦 保留儲備池提領至銀行")
@@ -1629,7 +1722,14 @@ with tab_wallet:
             st.table(hist_display)
 
 # -------------------------------------------------------------
-# TAB 4: 影子評估與前瞻驗證 (Research / Performance)
+# TAB 4: 個人 Profile (設定與 PIN 碼)
+# -------------------------------------------------------------
+with tab_profile:
+    render_profile_view(profile_mgr, active_profile["id"], wallet_mgr=wallet_mgr)
+
+
+# -------------------------------------------------------------
+# TAB 5: 影子評估與前瞻驗證 (Research / Performance)
 # -------------------------------------------------------------
 with tab_research:
     st.markdown("### 📊 影子評估與前瞻驗證中心 (Shadow Forward Evaluation)")

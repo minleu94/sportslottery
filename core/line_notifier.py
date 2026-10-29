@@ -645,10 +645,49 @@ class LineNotifier:
         # 1. Greetings & Menu Triggers
         menu_triggers = [
             "功能表", "選單", "menu", "help", "說明", "指令", "你好", "您好", "哈囉",
-            "hello", "hi", "嗨", "開始", "start", "安安", "?", "？", "怎麼用"
+            "hello", "hi", "嗨", "開始", "start", "安安", "?", "？", "怎麼用", "功能指南"
         ]
         if any(cmd == t for t in menu_triggers):
             return self.get_menu_text()
+
+        # 1.1 Banker Mode / High Win Rate (保底/穩健)
+        if any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker"]):
+            return self._search_parlay_for_bot(2.5, parlay_engine, available_legs)
+
+        # 1.2 Profile & Personal Settings
+        if any(k in cmd for k in ["個人設定", "profile", "設定", "個人池", "玩家"]):
+            try:
+                from core.profile_manager import ProfileManager
+                pm = ProfileManager()
+                profs = pm.list_profiles()
+                cur = profs[0] if profs else {"name": "主帳號", "weekly_play_cap": 200.0}
+                return (
+                    "👤 【玩家 Profile 與獨立資金池】\n"
+                    "===========================\n"
+                    f"• 當前玩家：{cur['name']}\n"
+                    f"• 每週娛樂限額：NT$ {cur['weekly_play_cap']:.0f}\n"
+                    "• 安全防護：4 位數 PIN 碼保護中\n\n"
+                    "🔒 本系統支援多玩家獨立池子：\n"
+                    "每位玩家各自記錄每週預算、中獎保留池與下注戰績，帳目互不干擾！\n\n"
+                    "📲 欲切換玩家、修改暱稱或變更每週額度，請開啟「瘋狗決策台」網頁【個人 Profile】分頁設定。"
+                )
+            except Exception as exc:
+                return f"Profile 讀取異常：{exc}"
+
+        # 1.3 Multiplier Selection Menu (智慧串關選倍率)
+        if any(cmd == k or k in cmd for k in ["智慧串關", "選倍率", "串關"]):
+            return (
+                "🎯 【瘋狗流 · 智慧串關倍率選單】\n"
+                "===========================\n"
+                "請直接輸入您想挑戰的目標倍率：\n\n"
+                "🛡️ 【穩健保底組】(高勝率累積戰力)\n"
+                "• 輸入「2倍」或「3倍」➔ 銀行家 Banker 定海神針單\n\n"
+                "🔥 【瘋狗起步組】(以小博大熱門)\n"
+                "• 輸入「10倍」、「20倍」或「30倍」\n\n"
+                "🚀 【極限狂暴組】(十元登月發家)\n"
+                "• 輸入「50倍」、「100倍」或「200倍」\n\n"
+                "💡 提示：也可以指定球種，例如輸入「足球 20倍」或「NBA 10倍」！"
+            )
 
         # 2. Match Target Multiplier: e.g. "20", "20倍", "20x", "50倍", "100"
         mult_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:倍|x|X)?", cmd)
@@ -858,9 +897,13 @@ class LineNotifier:
         """Format active league radar status."""
         try:
             from core.season_radar import SeasonRadar
+            from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
+            from core.scraper import ALLIANCE_MAP
             radar = SeasonRadar()
-            summary = radar.scan()
-            active = [r for r in summary if r.get("status") == "GREEN"]
+            adapter = PlaysportOddsAdapter()
+            legs = adapter.get_taiwan_legs(list(ALLIANCE_MAP))
+            summary = radar.get_radar_summary(taiwan_legs=legs)
+            active = [r for r in summary if r.get("status") == "GREEN" or r.get("taiwan_market_count", 0) > 0]
             if active:
                 lines = [
                     "☀️ 【今日運彩賽季開盤雷達】",
@@ -869,7 +912,7 @@ class LineNotifier:
                 for r in active:
                     lines.append(f"🟢 {r.get('icon', '⚽')} {r.get('name')}：{r.get('taiwan_market_count', 0)} 場開盤")
                 lines.append("===========================")
-                lines.append("您可以直接傳送「20倍」或點選下方按鈕開始組單！")
+                lines.append("您可以直接點選【智慧串關】或傳送「20倍」開始組單！")
                 return "\n".join(lines)
             return "☀️ 今日各聯賽盤口目前多處於交界或休兵時段，稍後開盤將自動更新！"
         except Exception as exc:

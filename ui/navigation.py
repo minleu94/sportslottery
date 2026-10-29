@@ -1,4 +1,4 @@
-"""Shared two-entry sidebar navigation for the Streamlit multipage app."""
+"""Shared sidebar navigation for the Streamlit multipage app with Profile quick status."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,7 +12,7 @@ GUIDE_PAGE = PROJECT_ROOT / "pages" / "1_指標與資料來源.py"
 
 
 def render_sidebar_navigation() -> None:
-    """Render the two existing pages with full labels and high-contrast controls."""
+    """Render the sidebar navigation with high-contrast controls and Profile status."""
     st.markdown(
         """
         <style>
@@ -56,13 +56,53 @@ def render_sidebar_navigation() -> None:
             background: #46506e !important;
             border-color: #ffffff !important;
         }
+        .profile-side-card {
+            background: #1e293b;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            margin-bottom: 12px;
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
     with st.sidebar:
+        try:
+            from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
+            from core.wallet import WeeklyWalletManager
+            pm = ProfileManager()
+            active_id = st.session_state.get("active_profile_id", DEFAULT_PROFILE_ID)
+            active_profile = pm.get_or_default(active_id)
+            try:
+                wm = WeeklyWalletManager(profile_id=active_profile["id"])
+            except TypeError:
+                wm = WeeklyWalletManager()
+            if hasattr(wm, "profile_id"):
+                wm.profile_id = active_profile["id"]
+            ws = wm.get_status()
+            
+            st.markdown(
+                f"""
+                <div class="profile-side-card">
+                    <div style="font-size:0.8rem; color:#94a3b8; display:flex; justify-content:space-between;">
+                        <span>👤 當前玩家 Profile</span>
+                        <span style="color:#a855f7; font-weight:600;">PIN 保護</span>
+                    </div>
+                    <div style="font-size:1.15rem; font-weight:bold; color:#f8fafc; margin-top:2px;">{active_profile['name']}</div>
+                    <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.82rem;">
+                        <span style="color:#38bdf8;">💵 可用: NT$ {ws['weekly_wallet_balance']:,.0f}</span>
+                        <span style="color:#4ade80;">🏆 儲備: NT$ {ws['prize_pool']:,.1f}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        except Exception:
+            pass
+
+        st.markdown("**🧭 系統頁面**")
         st.page_link(str(HOME_PAGE), label="瘋狗流決策台", icon="🐕", use_container_width=True)
         st.page_link(str(GUIDE_PAGE), label="指標與資料來源", icon="📊", use_container_width=True)
-
         st.page_link(str(PROJECT_ROOT / "pages/2_資料健康與研究工具.py"), label="資料健康與研究工具", icon="🔎", use_container_width=True)
         st.page_link(str(PROJECT_ROOT / "pages/3_系統設定與資料存放.py"), label="系統設定與資料存放", icon="⚙️", use_container_width=True)

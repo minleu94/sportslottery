@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ticket recording and settlement backed by the atomic wallet ledger."""
+"""Ticket recording and settlement backed by the atomic wallet ledger and player profiles."""
 
 from __future__ import annotations
 
@@ -11,16 +11,17 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
-from .wallet import DEFAULT_DB_PATH, WeeklyWalletManager, _money, get_current_iso_week, get_now_iso
+from .wallet import DEFAULT_DB_PATH, DEFAULT_PROFILE_ID, WeeklyWalletManager, _money, get_current_iso_week, get_now_iso
 
 
 class TicketRecorder:
-    def __init__(self, wallet: Optional[WeeklyWalletManager] = None, db_path: Optional[Path] = None):
+    def __init__(self, wallet: Optional[WeeklyWalletManager] = None, db_path: Optional[Path] = None, profile_id: Optional[str] = None):
         if wallet is not None and db_path is not None:
             requested = Path(db_path).expanduser().resolve()
             if requested != wallet.db_path:
                 raise ValueError("錢包與注單必須使用同一個 SQLite 資料庫，才能保證原子交易。")
-        self.wallet = wallet or WeeklyWalletManager(db_path=db_path)
+        self.profile_id = str(profile_id or (wallet.profile_id if wallet else DEFAULT_PROFILE_ID)).strip()
+        self.wallet = wallet or WeeklyWalletManager(db_path=db_path, profile_id=self.profile_id)
         self.db_path = Path(db_path or self.wallet.db_path or DEFAULT_DB_PATH).expanduser().resolve()
         if self.db_path != self.wallet.db_path:
             raise ValueError("錢包與注單必須使用同一個 SQLite 資料庫，才能保證原子交易。")
@@ -61,12 +62,14 @@ class TicketRecorder:
                     placed_odds REAL, closing_odds REAL, clv REAL, potential_payout REAL NOT NULL,
                     actual_payout REAL NOT NULL DEFAULT 0.0, settled_at TEXT,
                     sports_summary TEXT NOT NULL DEFAULT '', legs_json TEXT NOT NULL DEFAULT '[]',
-                    notes TEXT NOT NULL DEFAULT '', entry_mode TEXT NOT NULL DEFAULT 'manual', idempotency_key TEXT)""")
+                    notes TEXT NOT NULL DEFAULT '', entry_mode TEXT NOT NULL DEFAULT 'manual', idempotency_key TEXT,
+                    profile_id TEXT NOT NULL DEFAULT 'default')""")
                 columns = {r["name"] for r in conn.execute("PRAGMA table_info(tickets)")}
                 for name, sql_type in (("recommendation_odds", "REAL"), ("placed_odds", "REAL"),
                                        ("closing_odds", "REAL"), ("clv", "REAL"),
                                        ("entry_mode", "TEXT NOT NULL DEFAULT 'manual'"),
-                                       ("idempotency_key", "TEXT"), ("settled_at", "TEXT")):
+                                       ("idempotency_key", "TEXT"), ("settled_at", "TEXT"),
+                                       ("profile_id", "TEXT NOT NULL DEFAULT 'default'")):
                     if name not in columns:
                         conn.execute(f"ALTER TABLE tickets ADD COLUMN {name} {sql_type}")
                 conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_tickets_idempotency_key ON tickets(idempotency_key) WHERE idempotency_key IS NOT NULL")
@@ -74,6 +77,7 @@ class TicketRecorder:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets(created_at)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_week_str ON tickets(week_str)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_clv ON tickets(clv) WHERE clv IS NOT NULL")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_profile ON tickets(profile_id, created_at)")
         finally:
             conn.close()
 
@@ -179,16 +183,17 @@ class TicketRecorder:
             week_str = get_current_iso_week()
             conn.execute("""INSERT INTO tickets (id,created_at,week_str,status,stake,total_odds,
                 recommendation_odds,placed_odds,potential_payout,actual_payout,sports_summary,legs_json,
-                notes,entry_mode,idempotency_key)
-                VALUES (?,?,?,'OPEN',?,?,?,?,?,0.0,?,?,?,?,?)""",
+                notes,entry_mode,idempotency_key,profile_id)
+                VALUES (?,?,?,'OPEN',?,?,?,?,?,0.0,?,?,?,?,?,?)""",
                 (ticket_id, now_iso, week_str, stake, effective_odds, rec_odds, plc_odds,
-                 potential_payout, sports_summary, legs_json, notes, entry_mode, idempotency_key))
+                 potential_payout, sports_summary, legs_json, notes, entry_mode, idempotency_key, self.profile_id))
 
         return {"ticket_id": ticket_id, "created_at": now_iso, "week_str": week_str,
                 "status": "OPEN", "stake": stake, "total_odds": effective_odds,
                 "recommendation_odds": rec_odds, "placed_odds": plc_odds,
                 "potential_payout": potential_payout, "sports_summary": sports_summary,
-                "legs": legs, "entry_mode": entry_mode, "idempotency_key": idempotency_key}
+                "legs": legs, "entry_mode": entry_mode, "idempotency_key": idempotency_key,
+                "profile_id": self.profile_id}
 
     def update_closing_odds(self, ticket_id: str, closing_odds: float) -> Optional[Dict[str, Any]]:
         try:
@@ -238,16 +243,28 @@ class TicketRecorder:
             if cursor.rowcount != 1:
                 raise ValueError("注單狀態已變更，無法重複結算。")
             if payout > 0:
-                self.wallet.credit_winnings(payout, ticket_id=ticket_id,
+                ticket_profile_id = str(ticket.get("profile_id") or self.profile_id).strip()
+                if ticket_profile_id == self.wallet.profile_id:
+                    target_wallet = self.wallet
+                else:
+                    target_wallet = WeeklyWalletManager(db_path=self.db_path, profile_id=ticket_profile_id)
+                target_wallet.credit_winnings(payout, ticket_id=ticket_id,
                     notes=f"注單 #{ticket_id[:8]} ({status}) 派彩/退款 NT$ {payout:.2f} 入保留儲備池", conn=conn)
         return {"ticket_id": ticket_id, "won": won, "payout": payout, "status": status,
-                "net_profit": round(payout - float(ticket["stake"]), 2)}
+                "net_profit": round(payout - float(ticket["stake"]), 2), "profile_id": ticket.get("profile_id", self.profile_id)}
 
-    def list_tickets(self, status_filter: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
-        query, params = "SELECT * FROM tickets", []
+    def list_tickets(self, status_filter: Optional[str] = None, limit: int = 50, profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        target_pid = self.profile_id if profile_id is None else profile_id
+        where_clauses, params = [], []
+        if target_pid != "all":
+            where_clauses.append("profile_id = ?")
+            params.append(target_pid)
         if status_filter:
-            query += " WHERE status=?"
+            where_clauses.append("status = ?")
             params.append(status_filter.upper())
+        query = "SELECT * FROM tickets"
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
         conn = self._get_connection()
@@ -262,10 +279,14 @@ class TicketRecorder:
         finally:
             conn.close()
 
-    def get_clv_analytics(self) -> Dict[str, Any]:
+    def get_clv_analytics(self, profile_id: Optional[str] = None) -> Dict[str, Any]:
+        target_pid = self.profile_id if profile_id is None else profile_id
         conn = self._get_connection()
         try:
-            rows = conn.execute("SELECT clv FROM tickets WHERE clv IS NOT NULL").fetchall()
+            if target_pid == "all":
+                rows = conn.execute("SELECT clv FROM tickets WHERE clv IS NOT NULL").fetchall()
+            else:
+                rows = conn.execute("SELECT clv FROM tickets WHERE clv IS NOT NULL AND profile_id = ?", (target_pid,)).fetchall()
         finally:
             conn.close()
         if not rows:
