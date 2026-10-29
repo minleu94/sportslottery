@@ -39,6 +39,7 @@ from core.ticket_recorder import TicketRecorder
 from core.wallet import WEEKLY_PLAY_CAP, WeeklyWalletManager
 from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
 from ui.profile_view import render_profile_view
+from ui.login_view import render_login_gate, render_user_auth_header
 from integrations.common.models import TaiwanLeg
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
 from ui.metric_guide import probability_label, render_leg_source_evidence
@@ -86,6 +87,29 @@ st.markdown(
         ensureTag('meta', {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'});
         ensureTag('meta', {name: 'apple-mobile-web-app-title', content: '瘋狗流運彩'});
         ensureTag('meta', {name: 'theme-color', content: '#ff4b4b'});
+
+        // Mobile Numeric Keypad Enforcer for PIN inputs
+        function patchNumericKeypads() {
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(function(el) {
+                const label = (el.getAttribute('aria-label') || '').toLowerCase();
+                const ph = (el.getAttribute('placeholder') || '').toLowerCase();
+                const id = (el.id || '').toLowerCase();
+                const isPin = id.includes('pin') || ph.includes('pin') || label.includes('pin') || label.includes('碼');
+                if (isPin) {
+                    if (el.getAttribute('inputmode') !== 'numeric') {
+                        el.setAttribute('inputmode', 'numeric');
+                        el.setAttribute('pattern', '[0-9]*');
+                        el.setAttribute('autocomplete', 'one-time-code');
+                    }
+                }
+            });
+        }
+        patchNumericKeypads();
+        if (!window.__pinNumericKeypadObserver) {
+            window.__pinNumericKeypadObserver = new MutationObserver(patchNumericKeypads);
+            window.__pinNumericKeypadObserver.observe(document.body, { childList: true, subtree: true });
+        }
     })();
     </script>
     <style>
@@ -167,21 +191,146 @@ st.markdown(
     .mobile-leg-card:hover {
         border-color: #3b4261;
     }
+    /* Mobile-first Wallet Summary Grid */
+    .mobile-wallet-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-top: 6px;
+        margin-bottom: 12px;
+    }
+    @media (min-width: 768px) {
+        .mobile-wallet-grid {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+    }
+    .mobile-wallet-card {
+        background: #141724;
+        border: 1px solid #282d42;
+        border-radius: 10px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .mobile-wallet-card.card-blue { border-left: 4px solid #38bdf8; }
+    .mobile-wallet-card.card-amber { border-left: 4px solid #fbbf24; }
+    .mobile-wallet-card.card-green { border-left: 4px solid #4ade80; }
+    .mobile-wallet-card.card-purple { border-left: 4px solid #c084fc; }
+
+    .mobile-wallet-card .m-label {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .mobile-wallet-card .m-value {
+        font-size: 1.18rem;
+        font-weight: 800;
+        color: #f8fafc;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+    }
+    .mobile-wallet-card .m-sub {
+        font-size: 0.72rem;
+        color: #64748b;
+        margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Modern Mobile Native Segmented Pill Navigation */
+    div[data-testid="stSegmentedControl"] {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+        margin: 6px 0 16px 0 !important;
+    }
+    div[data-testid="stSegmentedControl"] > div {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+        background: #141724 !important;
+        padding: 4px !important;
+        border-radius: 12px !important;
+        border: 1px solid #282d42 !important;
+        width: 100% !important;
+        justify-content: space-around !important;
+    }
+    div[data-testid="stSegmentedControl"] button {
+        flex: 1 1 auto !important;
+        min-width: 68px !important;
+        padding: 8px 12px !important;
+        font-size: 0.90rem !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+    }
+    @media (max-width: 600px) {
+        div[data-testid="stSegmentedControl"] button {
+            padding: 6px 4px !important;
+            font-size: 0.80rem !important;
+            min-width: 58px !important;
+        }
+    }
+
+    /* Mobile Ticket Cards */
+    .settled-ticket-card {
+        background: #141724;
+        border: 1px solid #282d42;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+    .settled-ticket-card.won {
+        border-left: 4px solid #10b981;
+        background: linear-gradient(90deg, rgba(16, 185, 129, 0.08) 0%, #141724 100%);
+    }
+    .settled-ticket-card.lost {
+        border-left: 4px solid #64748b;
+    }
+    .settled-ticket-card.void {
+        border-left: 4px solid #38bdf8;
+    }
+
+    /* Header & Navbar Clearance (Fix mobile header cut-off) */
+    header[data-testid="stHeader"], [data-testid="stHeader"] {
+        background: rgba(14, 17, 23, 0.94) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+        z-index: 99990 !important;
+    }
+    .block-container {
+        padding-top: calc(3.6rem + env(safe-area-inset-top, 0px)) !important;
+        padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px)) !important;
+    }
     @media (max-width: 768px) {
         .block-container {
-            padding-top: 0.8rem !important;
-            padding-bottom: 2rem !important;
-            padding-left: 0.6rem !important;
-            padding-right: 0.6rem !important;
+            padding-top: calc(4.8rem + env(safe-area-inset-top, 0px)) !important;
+            padding-bottom: calc(3.0rem + env(safe-area-inset-bottom, 0px)) !important;
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
         }
         .brand-header {
-            font-size: 1.6rem !important;
+            font-size: 1.55rem !important;
+            margin-top: 0.4rem !important;
+            line-height: 1.25 !important;
         }
         .brand-sub {
-            font-size: 0.88rem !important;
+            font-size: 0.85rem !important;
+            margin-bottom: 0.6rem !important;
         }
         .stTabs [data-baseweb="tab-list"] {
             gap: 2px !important;
+            flex-wrap: wrap !important;
         }
         .stTabs [data-baseweb="tab"] {
             padding: 6px 8px !important;
@@ -204,6 +353,13 @@ st.markdown(
 
 from core.snapshot_logger import PredictionSnapshotLogger
 
+# Initialize Player Profile & Authenticated Session Gate first (fast fail if unauthenticated)
+profile_mgr = ProfileManager()
+active_profile = render_login_gate(profile_mgr)
+if not active_profile:
+    st.stop()
+active_profile_id = active_profile["id"]
+
 @st.cache_resource
 def get_system_components(prediction_manifest_hash: str):
     # Invalidate cached adapter instances when executable prediction code or
@@ -221,13 +377,6 @@ def get_system_components(prediction_manifest_hash: str):
 runtime_prediction_hash = get_strategy_metadata()["prediction_manifest_hash"]
 odds_adapter, signal_hub, parlay_engine, _cached_radar, snapshot_logger, shadow_portfolio, metrics_engine = get_system_components(runtime_prediction_hash)
 season_radar = SeasonRadar()
-
-# Initialize Player Profile & Wallet
-profile_mgr = ProfileManager()
-if "active_profile_id" not in st.session_state:
-    st.session_state["active_profile_id"] = DEFAULT_PROFILE_ID
-active_profile_id = st.session_state["active_profile_id"]
-active_profile = profile_mgr.get_or_default(active_profile_id)
 
 try:
     wallet_mgr = WeeklyWalletManager(profile_id=active_profile["id"])
@@ -247,72 +396,63 @@ if hasattr(ticket_recorder, "profile_id"):
     ticket_recorder.profile_id = active_profile["id"]
 
 
-# Header Brand & Player Switcher
+# Header Brand & User Status Bar
 col_brand, col_prof_quick = st.columns([3, 2])
 with col_brand:
     st.markdown("<div class='brand-header'>🐕 台灣運彩「瘋狗流」決策系統</div>", unsafe_allow_html=True)
     st.markdown(
-        f"<div class='brand-sub'>賽季雷達 · 10~500倍 情報串關 · 玩家【{active_profile['name']}】專屬池</div>",
+        f"<div class='brand-sub'>賽季雷達 · 10~500倍 情報串關 · 玩家【{active_profile['name']}】專屬空間</div>",
         unsafe_allow_html=True,
     )
 with col_prof_quick:
-    all_profs = profile_mgr.list_profiles()
-    prof_names = {p["id"]: f"👤 {p['name']} (每週 NT$ {float(p.get('weekly_play_cap', 200)):.0f})" for p in all_profs}
-    cur_idx = list(prof_names.keys()).index(active_profile["id"]) if active_profile["id"] in prof_names else 0
-    sel_pid = st.selectbox(
-        "切換目前玩家 Profile：",
-        options=list(prof_names.keys()),
-        index=cur_idx,
-        format_func=lambda x: prof_names.get(x, x),
-        key="header_profile_quick_switcher",
-    )
-    if sel_pid != active_profile["id"]:
-        st.session_state["active_profile_id"] = sel_pid
-        st.rerun()
+    render_user_auth_header(profile_mgr, active_profile)
 
 st.caption("資料來源：玩運彩公開盤口、專家推薦與投票；模型與 EV 由專案計算。各筆時效請查看推薦證據，MLB Elo 目前為實驗估計。")
 
-with st.expander("📱 iPhone / 行動端 PWA 獨立 App 安裝說明 (一鍵全螢幕開打)", expanded=False):
-    st.markdown(
-        """
-        - **Safari 一鍵安裝**：在 iPhone Safari 開啟本系統 ➔ 點擊底部「分享」圖示 ➔ 滑動點選「加入主畫面」(Add to Home Screen) ➔ 點選「新增」。
-        - **全螢幕免網址列**：回到 iPhone 桌面點開「瘋狗流」圖示，即可像原生 iOS App 一樣享受無網址列、觸控卡片串關決策！
-        - **一鍵啟動腳本**：電腦端可直接雙擊專案目錄下的 `start_mobile.bat`，自動偵測家用 Wi-Fi 與 Tailscale 遠端 IP，並顯示 iPhone 相機可直接掃描的 QR Code。
-        """
-    )
-
-# Top Wallet Banner (Always visible & prominent)
+# Top Wallet Banner (Responsive 2x2 grid on mobile, 4-col on desktop)
 wallet_status = wallet_mgr.get_status()
+pnl_val = wallet_status.get('lifetime_net_profit', 0.0)
+pnl_sign = "+" if pnl_val > 0 else ""
+ext_limit_str = f"NT$ {wallet_status['weekly_external_deposited']:.0f} / {wallet_status['weekly_external_deposited'] + wallet_status['external_deposit_remaining']:.0f}"
+dep_status_str = f"缺額上限 NT$ {active_profile['weekly_play_cap']:.0f}" if wallet_status["can_deposit"] else "儲備池充盈免補"
 
-w_col1, w_col2, w_col3, w_col4 = st.columns(4)
-with w_col1:
-    st.metric(
-        label=f"💰 ①【{active_profile['name']}】本週可玩",
-        value=f"NT$ {wallet_status['weekly_wallet_balance']:.2f}",
-        delta=f"每週預算限額 NT$ {active_profile['weekly_play_cap']:.0f}",
-    )
-with w_col2:
-    st.metric(
-        label="🎯 ② 本週已下注",
-        value=f"NT$ {wallet_status['weekly_staked']:.2f}",
-        delta=f"累計下注 NT$ {wallet_status.get('lifetime_staked', 0.0):,.0f}",
-    )
-with w_col3:
-    st.metric(
-        label="🔒 ③ 保留儲備池 (Reserve Bankroll)",
-        value=f"NT$ {wallet_status['prize_pool']:.2f}",
-        delta=f"累計淨利 NT$ {wallet_status.get('lifetime_net_profit', 0.0):+,.0f}",
-    )
-with w_col4:
-    ext_limit_str = f"NT$ {wallet_status['weekly_external_deposited']:.0f} / {wallet_status['weekly_external_deposited'] + wallet_status['external_deposit_remaining']:.0f}"
-    st.metric(
-        label="💵 ④ 本週外部補金",
-        value=ext_limit_str,
-        delta=f"缺額上限 NT$ {active_profile['weekly_play_cap']:.0f}" if wallet_status["can_deposit"] else "儲備池已充盈",
-    )
+st.markdown(
+    f"""
+    <div class='mobile-wallet-grid'>
+        <div class='mobile-wallet-card card-blue'>
+            <div class='m-label'>💰 ①【{active_profile['name']}】本週可用</div>
+            <div class='m-value'>NT$ {wallet_status['weekly_wallet_balance']:,.0f}</div>
+            <div class='m-sub'>每週上限 NT$ {active_profile['weekly_play_cap']:.0f}</div>
+        </div>
+        <div class='mobile-wallet-card card-amber'>
+            <div class='m-label'>🎯 ② 本週已下注</div>
+            <div class='m-value'>NT$ {wallet_status['weekly_staked']:,.0f}</div>
+            <div class='m-sub'>累計 NT$ {wallet_status.get('lifetime_staked', 0.0):,.0f}</div>
+        </div>
+        <div class='mobile-wallet-card card-green'>
+            <div class='m-label'>🔒 ③ 保留儲備池 (獎金)</div>
+            <div class='m-value'>NT$ {wallet_status['prize_pool']:,.1f}</div>
+            <div class='m-sub'>淨利 NT$ {pnl_sign}{pnl_val:,.0f}</div>
+        </div>
+        <div class='mobile-wallet-card card-purple'>
+            <div class='m-label'>💵 ④ 本週外部補金</div>
+            <div class='m-value'>{ext_limit_str}</div>
+            <div class='m-sub'>{dep_status_str}</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown("---")
 
+
+@st.cache_data(ttl=180, show_spinner=False)
+def get_cached_taiwan_legs(_odds_adapter, force_refresh: bool = False):
+    return _odds_adapter.get_taiwan_legs(
+        list(ALLIANCE_MAP),
+        force_refresh=force_refresh,
+    )
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -344,20 +484,38 @@ def get_cached_snapshot_analytics(snapshots_path_str: str, mtime: float):
     }
 
 
-# Main 5-Tab Layout
-tab_radar, tab_parlay, tab_wallet, tab_profile, tab_research = st.tabs([
-    "📡 今日開盤 (賽事雷達)",
-    "🔥 瘋狗看盤 (10~500倍 組單)",
-    "💰 資金紀錄 (個人帳本)",
-    "👤 個人 Profile (設定與 PIN 碼)",
-    "📊 影子評估與前瞻驗證 (Research / Performance)",
-])
+force_refresh = st.session_state.pop("force_odds_refresh", False)
+if force_refresh:
+    st.session_state.pop("cached_radar_state", None)
+    st.session_state.pop("cached_enriched_pool", None)
+    st.session_state.pop("parlay_search_progress", None)
+
+
+NAV_RADAR = "📡 今日開盤"
+NAV_PARLAY = "🔥 瘋狗看盤"
+NAV_WALLET = "💰 資金帳本"
+NAV_PROFILE = "👤 個人設定"
+NAV_RESEARCH = "📊 影子前瞻"
+NAV_OPTIONS = [NAV_RADAR, NAV_PARLAY, NAV_WALLET, NAV_PROFILE, NAV_RESEARCH]
+
+if "main_segmented_nav" not in st.session_state or st.session_state["main_segmented_nav"] not in NAV_OPTIONS:
+    st.session_state["main_segmented_nav"] = NAV_RADAR
+
+active_tab = st.segmented_control(
+    "主導航選單",
+    options=NAV_OPTIONS,
+    default=st.session_state["main_segmented_nav"],
+    selection_mode="single",
+    required=True,
+    label_visibility="collapsed",
+    key="main_segmented_nav",
+)
 
 
 # -------------------------------------------------------------
 # TAB 1: 賽季雷達 (今天有什麼可以玩？)
 # -------------------------------------------------------------
-with tab_radar:
+if active_tab == NAV_RADAR:
     col_r_header, col_r_btn = st.columns([3, 1])
     with col_r_header:
         st.markdown("### 📡 今日賽事雷達")
@@ -371,16 +529,10 @@ with tab_radar:
                 signal_hub.model_registry.refresh()
             st.rerun()
 
-    force_refresh = st.session_state.pop("force_odds_refresh", False)
-    if force_refresh:
-        st.session_state.pop("cached_radar_state", None)
-        st.session_state.pop("cached_enriched_pool", None)
-        st.session_state.pop("parlay_search_progress", None)
-
-    # Fetch live Taiwan legs
+    # Fetch live Taiwan legs (cached)
     with st.spinner("正在探測今日賽程與台灣運彩盤口..."):
-        all_taiwan_legs = odds_adapter.get_taiwan_legs(
-            list(ALLIANCE_MAP),
+        all_taiwan_legs = get_cached_taiwan_legs(
+            odds_adapter,
             force_refresh=force_refresh,
         )
 
@@ -593,7 +745,7 @@ with tab_radar:
 # -------------------------------------------------------------
 # TAB 2: 瘋狗看盤 (10~500倍 串關組單 & Signal Hub)
 # -------------------------------------------------------------
-with tab_parlay:
+elif active_tab == NAV_PARLAY:
     st.markdown("### 🔥 瘋狗看盤決策台")
     st.caption("設定目標總賠率，系統透過 Signal Hub (台灣盤口 + 大神榜 + 彩迷選票 + 開源模型) 自動搜尋最佳串關組合。")
     st.info("賠率決定派彩；1 ÷ 賠率是打平門檻。模型估計命中率、社群支持率與大神歷史勝率各有不同意思；HIGH 情報不對應固定勝率，正 EV 也取決於估計是否準確。")
@@ -733,9 +885,9 @@ with tab_parlay:
     # Run Parlay Search
     with st.spinner("Signal Hub 正在聚合情報並計算串關組合..."):
         if cross_sport:
-            all_candidate_legs = all_taiwan_legs
+            all_candidate_legs = get_cached_taiwan_legs(odds_adapter, force_refresh=force_refresh)
         else:
-            all_candidate_legs = odds_adapter.get_taiwan_legs(chosen_alliances)
+            all_candidate_legs = odds_adapter.get_taiwan_legs(chosen_alliances, force_refresh=force_refresh)
         candidate_source_statuses = odds_adapter.get_source_status()
 
         # Cache enriched legs to avoid redundant multi-model evaluations on every slider adjustment
@@ -1392,22 +1544,42 @@ with tab_parlay:
 # -------------------------------------------------------------
 # TAB 3: 資金紀錄 (每週 NT$200 錢包與戰績)
 # -------------------------------------------------------------
-with tab_wallet:
+elif active_tab == NAV_WALLET:
     st.markdown("### 💰 資金紀錄與會計帳本 (Capital & Reserve Governance)")
     st.caption(f"嚴格貫徹【{active_profile['name']}】每週 NT$ {active_profile['weekly_play_cap']:.0f} 娛樂預算：中獎派彩全額撥入個人【保留儲備池】，下週不足才從外部補。")
 
-    # Lifetime Accounting Summary Table
+    # Lifetime Accounting Summary Table (Responsive 2x2 grid on mobile, 4-col on desktop)
     st.markdown(f"#### 📊 玩家【{active_profile['name']}】全期會計流水 (Lifetime Ledger Breakdown)")
-    l_col1, l_col2, l_col3, l_col4 = st.columns(4)
-    with l_col1:
-        st.metric("累計外部入金", f"NT$ {wallet_status.get('lifetime_external_deposited', 0.0):,.2f}")
-    with l_col2:
-        st.metric("累計下注金額", f"NT$ {wallet_status.get('lifetime_staked', 0.0):,.2f}")
-    with l_col3:
-        st.metric("累計總派彩 (Gross)", f"NT$ {wallet_status.get('lifetime_gross_payout', 0.0):,.2f}")
-    with l_col4:
-        pnl_val = wallet_status.get('lifetime_net_profit', 0.0)
-        st.metric("累計淨利 (Net P&L)", f"NT$ {pnl_val:+,.2f}", delta=f"{'+' if pnl_val>0 else ''}{pnl_val:,.2f}")
+    pnl_val = wallet_status.get('lifetime_net_profit', 0.0)
+    pnl_color = "#4ade80" if pnl_val > 0 else "#94a3b8" if pnl_val == 0 else "#f87171"
+    pnl_sign = "+" if pnl_val > 0 else ""
+    st.markdown(
+        f"""
+        <div class='mobile-wallet-grid'>
+            <div class='mobile-wallet-card card-blue'>
+                <div class='m-label'>累計外部入金</div>
+                <div class='m-value'>NT$ {wallet_status.get('lifetime_external_deposited', 0.0):,.0f}</div>
+                <div class='m-sub'>實際投入本金</div>
+            </div>
+            <div class='mobile-wallet-card card-amber'>
+                <div class='m-label'>累計下注金額</div>
+                <div class='m-value'>NT$ {wallet_status.get('lifetime_staked', 0.0):,.0f}</div>
+                <div class='m-sub'>滾動總投注</div>
+            </div>
+            <div class='mobile-wallet-card card-green'>
+                <div class='m-label'>累計總派彩 (Gross)</div>
+                <div class='m-value'>NT$ {wallet_status.get('lifetime_gross_payout', 0.0):,.0f}</div>
+                <div class='m-sub'>中獎回款總額</div>
+            </div>
+            <div class='mobile-wallet-card card-purple'>
+                <div class='m-label'>累計淨利 (Net P&L)</div>
+                <div class='m-value' style='color:{pnl_color};'>NT$ {pnl_sign}{pnl_val:,.0f}</div>
+                <div class='m-sub'>戰績淨損益</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
 
@@ -1700,38 +1872,88 @@ with tab_wallet:
 
         if settled_list:
             st.markdown(f"#### 📜 歷史已結算注單 ({len(settled_list)} 張)")
-            hist_display = []
-            for stt in settled_list:
-                status_str = stt["status"]
-                pnl = stt["actual_payout"] - stt["stake"]
-                clv_val = stt.get("clv")
-                clv_str = f"{clv_val*100:+.1f}%" if clv_val is not None else "N/A"
-                hist_display.append({
-                    "日期": (stt.get("settled_at") or stt["created_at"])[:10],
-                    "來源": "推薦核對通過" if stt.get("entry_mode") == "recommendation" else "人工歷史補記",
-                    "賽事組合": stt.get("sports_summary", "混串"),
-                    "實注賠率": f"{stt.get('placed_odds') or stt['total_odds']}x",
-                    "收盤賠率": f"{stt.get('closing_odds')}x" if stt.get('closing_odds') else "未記錄",
-                    "CLV": clv_str,
-                    "下注": f"NT$ {stt['stake']:.0f}",
-                    "狀態": "✅ 中獎" if status_str == "WON" else "⚪ 退盤" if status_str == "VOID" else "❌ 未中",
-                    "總派彩": f"NT$ {stt['actual_payout']:,.2f}",
-                    "淨損益": f"{'+' if pnl>0 else ''}NT$ {pnl:,.2f}",
-                    "結算備註": stt.get("notes") or "-",
-                })
-            st.table(hist_display)
+            c_v1, c_v2 = st.columns([3, 1])
+            with c_v1:
+                st.caption("每張注單詳細損益均撥入專屬【保留儲備池】。提供手機卡片式與完整數據表檢視。")
+            with c_v2:
+                settled_view_mode = st.radio(
+                    "檢視樣式：",
+                    ["📱 卡片模式", "🖥️ 表格模式"],
+                    horizontal=True,
+                    label_visibility="collapsed",
+                    key="settled_view_mode_toggle",
+                )
+
+            if settled_view_mode == "📱 卡片模式":
+                for stt in settled_list:
+                    status_str = stt["status"]
+                    pnl = stt["actual_payout"] - stt["stake"]
+                    clv_val = stt.get("clv")
+                    clv_str = f"{clv_val*100:+.1f}%" if clv_val is not None else "無"
+                    dt_str = (stt.get("settled_at") or stt["created_at"])[:10]
+                    
+                    card_status_cls = "won" if status_str == "WON" else "void" if status_str == "VOID" else "lost"
+                    status_badge = "✅ 中獎" if status_str == "WON" else "⚪ 退盤" if status_str == "VOID" else "❌ 未過關"
+                    pnl_color = "#4ade80" if pnl > 0 else "#94a3b8" if pnl == 0 else "#f87171"
+                    pnl_prefix = "+" if pnl > 0 else ""
+                    
+                    st.markdown(
+                        f"""
+                        <div class='settled-ticket-card {card_status_cls}'>
+                            <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>
+                                <span style='font-size:0.82rem; color:#94a3b8;'>📅 {dt_str} · #{stt['id'][:8]}</span>
+                                <span style='font-size:0.86rem; font-weight:bold;'>{status_badge}</span>
+                            </div>
+                            <div style='font-size:0.95rem; font-weight:bold; color:#f8fafc; margin-bottom:6px;'>
+                                🎯 {stt.get('sports_summary', '混串組合')}
+                            </div>
+                            <div style='display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; background:#0f121d; padding:8px 10px; border-radius:6px; font-size:0.82rem;'>
+                                <div>實注倍率：<b style='color:#fbbf24;'>{stt.get('placed_odds') or stt['total_odds']}x</b></div>
+                                <div>投注本金：<b>NT$ {stt['stake']:.0f}</b></div>
+                                <div>派彩金額：<b style='color:#38bdf8;'>NT$ {stt['actual_payout']:,.2f}</b></div>
+                                <div>淨利損益：<b style='color:{pnl_color};'>{pnl_prefix}NT$ {pnl:,.2f}</b></div>
+                            </div>
+                            <div style='display:flex; justify-content:space-between; margin-top:6px; font-size:0.75rem; color:#64748b;'>
+                                <span>CLV: {clv_str}</span>
+                                <span>備註: {stt.get('notes') or '-'}</span>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+            else:
+                hist_display = []
+                for stt in settled_list:
+                    status_str = stt["status"]
+                    pnl = stt["actual_payout"] - stt["stake"]
+                    clv_val = stt.get("clv")
+                    clv_str = f"{clv_val*100:+.1f}%" if clv_val is not None else "N/A"
+                    hist_display.append({
+                        "日期": (stt.get("settled_at") or stt["created_at"])[:10],
+                        "來源": "推薦核對通過" if stt.get("entry_mode") == "recommendation" else "人工歷史補記",
+                        "賽事組合": stt.get("sports_summary", "混串"),
+                        "實注賠率": f"{stt.get('placed_odds') or stt['total_odds']}x",
+                        "收盤賠率": f"{stt.get('closing_odds')}x" if stt.get('closing_odds') else "未記錄",
+                        "CLV": clv_str,
+                        "下注": f"NT$ {stt['stake']:.0f}",
+                        "狀態": "✅ 中獎" if status_str == "WON" else "⚪ 退盤" if status_str == "VOID" else "❌ 未中",
+                        "總派彩": f"NT$ {stt['actual_payout']:,.2f}",
+                        "淨損益": f"{'+' if pnl>0 else ''}NT$ {pnl:,.2f}",
+                        "結算備註": stt.get("notes") or "-",
+                    })
+                st.dataframe(hist_display, use_container_width=True)
 
 # -------------------------------------------------------------
 # TAB 4: 個人 Profile (設定與 PIN 碼)
 # -------------------------------------------------------------
-with tab_profile:
+elif active_tab == NAV_PROFILE:
     render_profile_view(profile_mgr, active_profile["id"], wallet_mgr=wallet_mgr)
 
 
 # -------------------------------------------------------------
 # TAB 5: 影子評估與前瞻驗證 (Research / Performance)
 # -------------------------------------------------------------
-with tab_research:
+elif active_tab == NAV_RESEARCH:
     st.markdown("### 📊 影子評估與前瞻驗證中心 (Shadow Forward Evaluation)")
     meta = get_strategy_metadata()
 
@@ -2028,5 +2250,18 @@ with tab_research:
         </div>
         """,
         unsafe_allow_html=True,
+    )
+
+# =============================================================
+# FOOTER: 行動端安裝指引 (置底不干擾主畫面)
+# =============================================================
+st.markdown("---")
+with st.expander("📱 iPhone / 行動端 PWA 獨立 App 安裝說明 (一鍵全螢幕開打)", expanded=False):
+    st.markdown(
+        """
+        - **Safari 一鍵安裝**：在 iPhone Safari 開啟本系統 ➔ 點擊底部「分享」圖示 ➔ 滑動點選「加入主畫面」(Add to Home Screen) ➔ 點選「新增」。
+        - **全螢幕免網址列**：回到 iPhone 桌面點開「瘋狗流」圖示，即可像原生 iOS App 一樣享受無網址列、觸控卡片串關決策！
+        - **一鍵啟動腳本**：電腦端可直接雙擊專案目錄下的 `start_mobile.bat`，自動偵測家用 Wi-Fi 與 Tailscale 遠端 IP，並顯示 iPhone 相機可直接掃描的 QR Code。
+        """
     )
 

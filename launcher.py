@@ -89,6 +89,31 @@ def find_python_executable() -> str:
     return "python"
 
 
+def is_server_alive(url: str) -> bool:
+    """Check if the Streamlit server is already running and healthy."""
+    try:
+        req = urllib.request.Request(f"{url}/_stcore/health", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=1.0) as resp:
+            return resp.status == 200
+    except Exception:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=1.0) as resp:
+                return resp.status == 200
+        except Exception:
+            return False
+
+
+def find_available_port(start_port: int = 8501) -> int:
+    """Find an unoccupied TCP port starting from start_port."""
+    import socket
+    for p in range(start_port, start_port + 20):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(('127.0.0.1', p)) != 0:
+                return p
+    return start_port
+
+
 def wait_and_open_browser(url: str, timeout: float = 30.0):
     import webbrowser
     start_time = time.time()
@@ -111,6 +136,7 @@ def wait_and_open_browser(url: str, timeout: float = 30.0):
 
 
 def main():
+    import webbrowser
     # Ensure UTF-8 output
     if sys.platform == "win32":
         try:
@@ -124,10 +150,38 @@ def main():
     project_dir = find_project_dir()
     app_path = project_dir / "app.py"
     python_bin = find_python_executable()
-    url = "http://localhost:8501"
+
+    default_url = "http://localhost:8501"
 
     # Pre-configure credentials before starting anything
     ensure_streamlit_credentials(project_dir)
+
+    # 1. Check if an instance is already running on port 8501
+    if is_server_alive(default_url):
+        print(rf"""
+======================================================================
+  🐕 台灣運彩「瘋狗流」10~500倍高期望值串關系統
+======================================================================
+- 專案目錄 : {project_dir}
+- 狀態     : 運彩決策台已在背景運行中！
+- 決策台   : {default_url}
+======================================================================
+正在為您重新開啟瀏覽器...
+""")
+        webbrowser.open(default_url)
+        print("【系統提醒】")
+        print("1. 系統已自動於瀏覽器開啟。")
+        print("2. 若要結束服務，請關閉此視窗或按下 Ctrl+C。")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n系統已停止。祝您投注愉快！")
+        return
+
+    # 2. Select available port (default 8501, or fallback 8502, 8503...)
+    port = find_available_port(8501)
+    url = f"http://localhost:{port}"
 
     banner = rf"""
 ======================================================================
@@ -154,12 +208,13 @@ def main():
         "streamlit",
         "run",
         str(app_path),
-        "--server.port=8501",
+        f"--server.port={port}",
         "--server.headless=true",
         "--browser.gatherUsageStats=false",
     ]
 
     proc = None
+    abnormal_exit = False
     try:
         proc = subprocess.Popen(
             cmd,
@@ -190,7 +245,11 @@ def main():
         print("3. 若要關閉系統，直接關閉此黑色視窗或按下 Ctrl+C 即可。\n")
 
         # Keep alive until user closes window
-        proc.wait()
+        ret_code = proc.wait()
+        if ret_code != 0:
+            abnormal_exit = True
+            print(f"\n❌ 運彩系統異常結束 (退出代碼: {ret_code})")
+            input("\n按 Enter 鍵關閉視窗...")
 
     except KeyboardInterrupt:
         print("\n正在停止系統服務...")
@@ -200,7 +259,8 @@ def main():
                 proc.terminate()
             except Exception:
                 pass
-        print("系統已安全停止。祝您投注愉快、理性運彩！")
+        if not abnormal_exit:
+            print("系統已安全停止。祝您投注愉快、理性運彩！")
 
 
 if __name__ == "__main__":

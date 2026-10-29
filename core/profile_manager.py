@@ -82,10 +82,20 @@ class ProfileManager:
                 name TEXT NOT NULL,
                 weekly_play_cap REAL NOT NULL DEFAULT 200.0,
                 pin_code TEXT NOT NULL DEFAULT '0000',
+                line_user_id TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )""")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_name ON profiles(name)")
+
+            # Migration: Ensure line_user_id column exists in existing DB
+            cols = [r["name"] for r in conn.execute("PRAGMA table_info(profiles)").fetchall()]
+            if "line_user_id" not in cols:
+                try:
+                    conn.execute("ALTER TABLE profiles ADD COLUMN line_user_id TEXT")
+                    conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_line_user ON profiles(line_user_id)")
+                except Exception:
+                    pass
 
             # Ensure default profile exists
             row = conn.execute("SELECT 1 FROM profiles WHERE id = ?", (DEFAULT_PROFILE_ID,)).fetchone()
@@ -107,6 +117,63 @@ class ProfileManager:
         with self._transaction() as conn:
             row = conn.execute("SELECT * FROM profiles WHERE id = ?", (pid,)).fetchone()
             return dict(row) if row else None
+
+    def get_profile_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        name_str = str(name or "").strip()
+        if not name_str:
+            return None
+        with self._transaction() as conn:
+            row = conn.execute("SELECT * FROM profiles WHERE lower(name) = lower(?)", (name_str,)).fetchone()
+            return dict(row) if row else None
+
+    def get_profile_by_line_user_id(self, line_user_id: str) -> Optional[Dict[str, Any]]:
+        uid = str(line_user_id or "").strip()
+        if not uid:
+            return None
+        with self._transaction() as conn:
+            row = conn.execute("SELECT * FROM profiles WHERE line_user_id = ?", (uid,)).fetchone()
+            return dict(row) if row else None
+
+    def bind_line_user(self, profile_id: str, line_user_id: str, current_pin: str) -> Dict[str, Any]:
+        pid = str(profile_id or "").strip()
+        uid = str(line_user_id or "").strip()
+        if not uid:
+            raise ValueError("LINE 使用者 ID 不可為空。")
+        if not self.verify_pin(pid, current_pin):
+            raise ValueError("【PIN 碼驗證失敗】目前輸入的 PIN 碼不正確，無法綁定此 LINE 帳號。")
+        now = get_now_iso()
+        with self._transaction() as conn:
+            # Unbind other profile that had this line_user_id
+            conn.execute("UPDATE profiles SET line_user_id = NULL, updated_at = ? WHERE line_user_id = ?", (now, uid))
+            # Bind this profile
+            conn.execute("UPDATE profiles SET line_user_id = ?, updated_at = ? WHERE id = ?", (uid, now, pid))
+        return self.get_profile(pid)
+
+    def unbind_line_user(self, profile_id: str, current_pin: str) -> bool:
+        pid = str(profile_id or "").strip()
+        if not self.verify_pin(pid, current_pin):
+            raise ValueError("【PIN 碼驗證失敗】目前輸入的 PIN 碼不正確，無法解除綁定。")
+        now = get_now_iso()
+        with self._transaction() as conn:
+            conn.execute("UPDATE profiles SET line_user_id = NULL, updated_at = ? WHERE id = ?", (now, pid))
+        return True
+
+    def change_pin(self, profile_id: str, current_pin: str, new_pin: str) -> Dict[str, Any]:
+        """Convenience method to change PIN code for a profile."""
+        return self.update_profile(profile_id, current_pin=current_pin, new_pin_code=new_pin)
+
+    def verify_login(self, identifier: str, pin_code: str) -> tuple[bool, Optional[Dict[str, Any]], str]:
+        """Verify login credentials by either profile_id or player name."""
+        ident = str(identifier or "").strip()
+        if not ident:
+            return False, None, "請選擇或輸入玩家名稱。"
+        profile = self.get_profile(ident) or self.get_profile_by_name(ident)
+        if not profile:
+            return False, None, f"找不到玩家「{ident}」。"
+        valid_pin = str(profile.get("pin_code", DEFAULT_PIN_CODE)).strip()
+        if str(pin_code).strip() != valid_pin:
+            return False, None, "PIN 碼不正確，請重新輸入（預設為 0000）。"
+        return True, profile, "驗證成功。"
 
     def get_or_default(self, profile_id: Optional[str] = None) -> Dict[str, Any]:
         if profile_id:

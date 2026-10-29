@@ -19,11 +19,22 @@ from core.storage_config import (
     update_storage_location,
 )
 from ui.navigation import render_sidebar_navigation
+from core.profile_manager import ProfileManager
 
 st.set_page_config(page_title="系統設定與資料存放｜瘋狗流", page_icon="⚙️", layout="wide")
 render_sidebar_navigation()
 
-st.title("⚙️ 系統設定與資料存放管理")
+# Admin Archie Permission Gate
+pm = ProfileManager()
+auth_id = st.session_state.get("authenticated_profile_id")
+active_profile = pm.get_profile(auth_id) if auth_id else None
+
+if not active_profile or active_profile.get("name") != "Archie":
+    st.error("⛔ 存取受限：【系統設定與資料存放】為系統核心最高權限，僅限管理員 Archie 存取！")
+    st.info("若您是管理員 Archie，請先返回首頁以 Archie 帳號及 PIN 碼登入。")
+    st.stop()
+
+st.title("⚙️ 系統設定與資料存放管理 (管理員: Archie)")
 st.caption("管理本機運彩資料庫存放路徑、C 槽防磨損保護、Windows 定期研究排程與執行狀態。")
 
 tab_storage, tab_schedule, tab_faq = st.tabs([

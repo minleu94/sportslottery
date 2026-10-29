@@ -101,8 +101,47 @@ def run_fastapi_server(port: int = 8000):
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 
+def launch_cloudflared_tunnel(
+    cloudflared_exe: str,
+    port: int,
+    timeout: float = 15.0,
+) -> tuple[Optional[subprocess.Popen], Optional[str]]:
+    """Start cloudflared tunnel for the specified local port and return (process, public_https_url)."""
+    cmd = [cloudflared_exe, "tunnel", "--url", f"http://127.0.0.1:{port}"]
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        encoding="utf-8",
+        errors="replace",
+    )
+    pattern = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
+    tunnel_url = None
+
+    def _reader():
+        nonlocal tunnel_url
+        for line in iter(proc.stdout.readline, ""):
+            match = pattern.search(line)
+            if match and not tunnel_url:
+                tunnel_url = match.group(0)
+
+    t = threading.Thread(target=_reader, daemon=True)
+    t.start()
+
+    start_t = time.time()
+    while time.time() - start_t < timeout:
+        if tunnel_url:
+            break
+        time.sleep(0.3)
+
+    return proc, tunnel_url
+
+
 def main():
     port = 8000
+    st_port = 8501
     cloudflared_exe = find_cloudflared()
     token = load_token()
 
@@ -125,28 +164,10 @@ def main():
             print("\n  🛑 LINE Bot 服務已停止。")
         return
 
-    # 2. Launch cloudflared tunnel
+    # 2. Launch cloudflared tunnels for webhook (8000) and Streamlit (8501)
     print("  ⏳ 正在建立 Cloudflare 臨時公開安全通道 (免費免登入)...")
-    cmd = [cloudflared_exe, "tunnel", "--url", f"http://127.0.0.1:{port}"]
-
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        encoding="utf-8",
-        errors="replace",
-    )
-
-    tunnel_url = None
-    pattern = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
-
-    for line in iter(proc.stdout.readline, ""):
-        match = pattern.search(line)
-        if match:
-            tunnel_url = match.group(0)
-            break
+    webhook_proc, tunnel_url = launch_cloudflared_tunnel(cloudflared_exe, port=port)
+    st_proc, streamlit_url = launch_cloudflared_tunnel(cloudflared_exe, port=st_port)
 
     if tunnel_url:
         webhook_url = f"{tunnel_url}/callback"
@@ -159,7 +180,9 @@ def main():
                 "started_at": time.time(),
                 "tunnel_url": tunnel_url,
                 "webhook_url": webhook_url,
+                "streamlit_url": streamlit_url,
                 "port": port,
+                "streamlit_port": st_port,
             }, f, indent=2)
 
         # 3. Automatically update LINE webhook endpoint via API!
@@ -168,7 +191,10 @@ def main():
         print("======================================================================")
         print("  🎉 LINE Bot 對外通道已成功連線！")
         print("======================================================================")
-        print(f"  🌐 您的公開 Webhook URL：{webhook_url}")
+        print(f"  🌐 LINE Webhook 公開網址：{webhook_url}")
+        if streamlit_url:
+            print(f"  📱 決策台網頁 (公網 HTTPS 網址)：{streamlit_url}")
+            print("     (任何朋友、出門在外 4G/5G 手機瀏覽器皆可直接開啟)")
 
         if reg_res.get("success"):
             print("  ⚡ 【自動同步成功】已透過 LINE API 自動將此 Webhook 註冊至您的 LINE Channel！")
@@ -190,17 +216,21 @@ def main():
         print("     • 「功能表」➔ 展開完整功能清單與下方快捷選單")
         print("     • 「查戰績」➔ 查詢每週 NT$200 預算與儲備池")
         print("     • 「今日開盤」➔ 查詢今日賽事雷達開盤概況")
-        print("     • 「對沖」➔ 查詢手頭注單是否已聽牌")
+        print("     • 「個人設定」➔ 查詢目前玩家、取得手機公網網址、管理帳號")
         print("======================================================================")
         print("  (背景服務正常運行中，按 Ctrl+C 可結束)")
     else:
         print("  ❌ 未能自動取得 Cloudflare Tunnel 網址，請檢查網路連線。")
 
     try:
-        proc.wait()
+        if webhook_proc:
+            webhook_proc.wait()
     except KeyboardInterrupt:
         print("\n  🛑 正在關閉 LINE Bot 服務...")
-        proc.terminate()
+        if webhook_proc:
+            webhook_proc.terminate()
+        if st_proc:
+            st_proc.terminate()
         if STATUS_FILE.exists():
             STATUS_FILE.unlink(missing_ok=True)
         print("  ✅ 服務已結束。")

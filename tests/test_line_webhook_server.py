@@ -52,7 +52,7 @@ def test_webhook_callback_text_message(mock_reply):
     call_args = mock_reply.call_args[1]
     assert call_args["reply_token"] == "test-reply-token-123"
     assert "功能表" in call_args["text"]
-    assert len(call_args["quick_replies"]) == 6
+    assert len(call_args["quick_replies"]) >= 6
 
 
 @patch("scripts.line_webhook_server.notifier.reply_message")

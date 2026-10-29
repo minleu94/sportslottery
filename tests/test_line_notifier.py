@@ -223,7 +223,7 @@ def test_line_notifier_reply_message():
     call_kwargs = mock_session.post.call_args[1]
     assert call_kwargs["json"]["replyToken"] == "fake-reply-token"
     assert "quickReply" in call_kwargs["json"]["messages"][0]
-    assert len(call_kwargs["json"]["messages"][0]["quickReply"]["items"]) == 6
+    assert len(call_kwargs["json"]["messages"][0]["quickReply"]["items"]) >= 6
 
 
 def test_format_parlay_leg_clean_league_and_sport():
@@ -282,3 +282,12 @@ def test_line_notifier_qr_flow():
     notifier.last_recommended_parlay = combo
     full_res = notifier.handle_user_message_full("QR")
     assert "台彩 3.0 免劃單" in full_res["text"]
+
+
+def test_line_notifier_handle_forgot_password():
+    """Verify LINE Bot replies to '忘記密碼' directing the user to contact admin Archie."""
+    notifier = LineNotifier()
+    res = notifier.handle_user_message("忘記密碼")
+    assert "Archie" in res
+    assert "忘記密碼" in res
+

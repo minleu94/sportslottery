@@ -239,6 +239,7 @@ class LineNotifier:
             {"label": "🎯 找20倍串關", "text": "20倍"},
             {"label": "🔥 找50倍高賠", "text": "50倍"},
             {"label": "💰 查戰績錢包", "text": "查戰績"},
+            {"label": "👤 玩家登入/設定", "text": "個人設定"},
             {"label": "☀️ 今日開盤", "text": "今日開盤"},
             {"label": "🛡️ 聽牌對沖", "text": "對沖"},
         ]
@@ -635,12 +636,25 @@ class LineNotifier:
         parlay_engine: Optional[Any] = None,
         available_legs: Optional[List[Any]] = None,
         wallet_mgr: Optional[Any] = None,
+        line_user_id: Optional[str] = None,
     ) -> str:
         """Process inbound text commands from LINE (e.g. '20倍', '功能表', '查戰績', '今日開盤', '對沖')."""
         import re
         cmd = user_text.strip().lower()
         if not cmd:
             return self.get_menu_text()
+
+        # If user is bound to a specific Profile, wire up their personal wallet
+        if line_user_id and wallet_mgr is None:
+            try:
+                from core.profile_manager import ProfileManager
+                from core.wallet import WeeklyWalletManager
+                pm = ProfileManager()
+                bound = pm.get_profile_by_line_user_id(line_user_id)
+                if bound:
+                    wallet_mgr = WeeklyWalletManager(profile_id=bound["id"])
+            except Exception:
+                pass
 
         # 1. Greetings & Menu Triggers
         menu_triggers = [
@@ -654,25 +668,10 @@ class LineNotifier:
         if any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker"]):
             return self._search_parlay_for_bot(2.5, parlay_engine, available_legs)
 
-        # 1.2 Profile & Personal Settings
-        if any(k in cmd for k in ["個人設定", "profile", "設定", "個人池", "玩家"]):
-            try:
-                from core.profile_manager import ProfileManager
-                pm = ProfileManager()
-                profs = pm.list_profiles()
-                cur = profs[0] if profs else {"name": "主帳號", "weekly_play_cap": 200.0}
-                return (
-                    "👤 【玩家 Profile 與獨立資金池】\n"
-                    "===========================\n"
-                    f"• 當前玩家：{cur['name']}\n"
-                    f"• 每週娛樂限額：NT$ {cur['weekly_play_cap']:.0f}\n"
-                    "• 安全防護：4 位數 PIN 碼保護中\n\n"
-                    "🔒 本系統支援多玩家獨立池子：\n"
-                    "每位玩家各自記錄每週預算、中獎保留池與下注戰績，帳目互不干擾！\n\n"
-                    "📲 欲切換玩家、修改暱稱或變更每週額度，請開啟「瘋狗決策台」網頁【個人 Profile】分頁設定。"
-                )
-            except Exception as exc:
-                return f"Profile 讀取異常：{exc}"
+        # 1.2 Profile & Personal Settings (Interactive in-LINE + Public HTTPS Web Link)
+        profile_reply = self._handle_profile_commands(user_text, line_user_id=line_user_id)
+        if profile_reply:
+            return profile_reply
 
         # 1.3 Multiplier Selection Menu (智慧串關選倍率)
         if any(cmd == k or k in cmd for k in ["智慧串關", "選倍率", "串關"]):
@@ -741,13 +740,20 @@ class LineNotifier:
         parlay_engine: Optional[Any] = None,
         available_legs: Optional[List[Any]] = None,
         wallet_mgr: Optional[Any] = None,
+        line_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Process inbound text command and return dict with 'text' and optional 'image_url'."""
         cmd = user_text.strip().lower()
         if any(cmd == q or q in cmd for q in ["qr", "產qr", "條碼", "投注單", "qrcode", "出票", "劃單"]):
             return self._handle_qr_request(parlay_engine, available_legs)
 
-        text_reply = self.handle_user_message(user_text, parlay_engine, available_legs, wallet_mgr)
+        text_reply = self.handle_user_message(
+            user_text,
+            parlay_engine=parlay_engine,
+            available_legs=available_legs,
+            wallet_mgr=wallet_mgr,
+            line_user_id=line_user_id,
+        )
         return {"text": text_reply, "image_url": None}
 
     def _handle_qr_request(
@@ -869,6 +875,201 @@ class LineNotifier:
         except Exception as exc:
             logger.error("Error in _search_parlay_for_bot: %s", exc)
             return f"搜尋組合時發生錯誤，請稍候重試：{exc}"
+
+    def _handle_profile_commands(self, user_text: str, line_user_id: Optional[str] = None) -> Optional[str]:
+        """Handle profile status, public web link, and in-LINE profile commands."""
+        clean_cmd = user_text.strip()
+        cmd_lower = clean_cmd.lower()
+
+        # Check in-LINE command: e.g. "綁定 小明 1234", "登入 小明 1234"
+        m_bind = re.match(r"^(?:綁定|bind|登入|login)\s+([^\s]+)(?:\s+(\d{4}))?$", clean_cmd, re.IGNORECASE)
+        # Check in-LINE command: "解綁", "解除綁定"
+        m_unbind = re.match(r"^(?:解綁|解除綁定|unbind)(?:\s+(\d{4}))?$", clean_cmd, re.IGNORECASE)
+        # Check in-LINE command: "改密碼 0000 1234", "修改密碼 0000 1234", "改pin 0000 1234"
+        m_change_pin = re.match(r"^(?:改密碼|修改密碼|變更密碼|改pin|修改pin)\s+(\d{4})\s+(\d{4})$", clean_cmd, re.IGNORECASE)
+        # Check in-LINE command: e.g. "切換 小明 1234", "切換 小明"
+        m_switch = re.match(r"^(?:切換|switch)\s+([^\s]+)(?:\s+(\d{4}))?$", clean_cmd, re.IGNORECASE)
+        # Check in-LINE command: "新增 小王 300 1234" or "新增玩家 小王 300 1234"
+        m_add = re.match(r"^(?:新增玩家|建立玩家|新增|建立|create)\s+([^\s]+)(?:\s+(\d+(?:\.\d+)?))?(?:\s+(\d{4}))?$", clean_cmd, re.IGNORECASE)
+        # Check in-LINE command: "預算 500" or "修改預算 500"
+        m_cap = re.match(r"^(?:修改預算|預算|限額)\s+(\d+(?:\.\d+)?)$", clean_cmd, re.IGNORECASE)
+
+        is_profile_query = any(k in cmd_lower for k in [
+            "個人設定", "profile", "玩家", "個人池", "網頁", "決策台",
+            "註冊", "帳號", "網址", "連結", "手機版", "設定", "修改",
+            "忘記密碼", "忘記pin", "忘記"
+        ])
+
+        if not (m_bind or m_unbind or m_change_pin or m_switch or m_add or m_cap or is_profile_query):
+            return None
+
+        try:
+            import urllib.parse
+            from core.profile_manager import ProfileManager
+            pm = ProfileManager()
+            profs = pm.list_profiles()
+
+            # If user asks about forgotten password
+            if any(k in cmd_lower for k in ["忘記密碼", "忘記pin", "忘記碼", "忘記"]):
+                return (
+                    "💬 【忘記密碼 / PIN 碼】\n"
+                    "===========================\n"
+                    "忘記密碼請聯絡管理員 Archie！\n\n"
+                    "💡 系統預設初始 PIN 碼為 0000。\n"
+                    "若您先前已綁定 LINE 帳號，亦可直接傳送指令：\n"
+                    "「改密碼 <舊PIN> <新4位數PIN>」"
+                )
+
+            # If this LINE user has bound a profile, prioritize that profile
+            bound_profile = pm.get_profile_by_line_user_id(line_user_id) if line_user_id else None
+            cur = bound_profile or (profs[0] if profs else {"name": "主帳號", "weekly_play_cap": 200.0, "pin_code": "0000", "id": "default"})
+
+            # Command 1: Bind LINE user to Profile
+            if m_bind:
+                target_name = m_bind.group(1).strip()
+                target_pin = m_bind.group(2) or "0000"
+                matched = next((p for p in profs if p["name"].lower() == target_name.lower()), None)
+                if not matched:
+                    names = "、".join([p["name"] for p in profs])
+                    return f"❌ 找不到玩家「{target_name}」。目前已建立的玩家有：{names}\n\n💡 若要建立新玩家，請輸入：新增 {target_name} 200 0000"
+                if not line_user_id:
+                    return f"❌ 無法取得您的 LINE 身分識別，無法執行綁定。"
+                try:
+                    pm.bind_line_user(matched["id"], line_user_id=line_user_id, current_pin=target_pin)
+                    return (
+                        f"🎉 【LINE 帳號綁定成功】！\n"
+                        f"===========================\n"
+                        f"• 綁定玩家：【{matched['name']}】\n"
+                        f"• 每週娛樂限額：NT$ {matched['weekly_play_cap']:.0f}\n\n"
+                        f"日後您在此 LINE 對話中查詢「查戰績」、「餘額」或開啟網頁，系統皆會自動對應【{matched['name']}】的專屬資金池！"
+                    )
+                except Exception as exc:
+                    return f"❌ 綁定失敗：{exc}"
+
+            # Command 2: Unbind LINE user
+            if m_unbind:
+                if not bound_profile:
+                    return "ℹ️ 您目前尚未綁定任何玩家 Profile。"
+                target_pin = m_unbind.group(1) or bound_profile.get("pin_code", "0000")
+                try:
+                    pm.unbind_line_user(bound_profile["id"], current_pin=target_pin)
+                    return f"✅ 已成功解除此 LINE 帳號與玩家【{bound_profile['name']}】的綁定。"
+                except Exception as exc:
+                    return f"❌ 解綁失敗：{exc}"
+
+            # Command 3: Change PIN code directly via LINE
+            if m_change_pin:
+                old_pin = m_change_pin.group(1)
+                new_pin = m_change_pin.group(2)
+                try:
+                    updated = pm.update_profile(cur["id"], current_pin=old_pin, new_pin_code=new_pin)
+                    return (
+                        f"✅ 【PIN 碼修改成功】！\n"
+                        f"玩家【{updated['name']}】的 4 位數 PIN 碼已成功更新為：{updated['pin_code']}。\n"
+                        f"請妥善保管您的新密碼，登入網頁版時請輸入新 PIN 碼！"
+                    )
+                except Exception as exc:
+                    return f"❌ 修改密碼失敗：{exc}"
+
+            if m_switch:
+                target_name = m_switch.group(1).strip()
+                target_pin = m_switch.group(2) or "0000"
+                matched = next((p for p in profs if p["name"].lower() == target_name.lower()), None)
+                if not matched:
+                    names = "、".join([p["name"] for p in profs])
+                    return f"❌ 找不到玩家「{target_name}」。目前已建立的玩家有：{names}\n\n💡 若要新增玩家，請輸入：新增 {target_name} 200 0000"
+                if matched.get("pin_code") and matched["pin_code"] != "0000":
+                    if target_pin != matched["pin_code"]:
+                        return f"🔒 玩家「{target_name}」受 PIN 碼保護。請輸入：切換 {target_name} <4位PIN碼>"
+                return (
+                    f"✅ 【切換成功】當前操作玩家：【{matched['name']}】！\n"
+                    f"• 每週娛樂限額：NT$ {matched['weekly_play_cap']:.0f}\n"
+                    f"• 資金池與戰績現已對應至該玩家專屬紀錄。"
+                )
+
+            if m_add:
+                new_name = m_add.group(1).strip()
+                new_cap = float(m_add.group(2)) if m_add.group(2) else 200.0
+                new_pin = m_add.group(3) or "0000"
+                try:
+                    created = pm.create_profile(name=new_name, weekly_play_cap=new_cap, pin_code=new_pin)
+                    # If this LINE user isn't bound, optionally auto-bind them
+                    if line_user_id and not bound_profile:
+                        pm.bind_line_user(created["id"], line_user_id=line_user_id, current_pin=new_pin)
+                        bind_note = "\n🔗 已自動將此 LINE 帳號與新玩家完成綁定！"
+                    else:
+                        bind_note = ""
+                    return (
+                        f"🎉 成功建立新玩家 Profile！\n"
+                        f"• 玩家名稱：【{created['name']}】\n"
+                        f"• 每週娛樂限額：NT$ {created['weekly_play_cap']:.0f}\n"
+                        f"• 安全 PIN 碼：{created['pin_code']}{bind_note}\n\n"
+                        f"已為其配置獨立娛樂錢包與投注紀錄。"
+                    )
+                except Exception as exc:
+                    return f"❌ 建立玩家失敗：{exc}"
+
+            if m_cap:
+                new_cap = float(m_cap.group(1))
+                try:
+                    updated = pm.update_profile(cur["id"], current_pin=cur.get("pin_code", "0000"), new_weekly_play_cap=new_cap)
+                    return (
+                        f"✅ 【{updated['name']}】每週娛樂預算已更新為：NT$ {updated['weekly_play_cap']:.0f}！\n"
+                        f"（每週一自動重置額度）"
+                    )
+                except Exception as exc:
+                    return f"❌ 更新預算失敗：{exc}"
+
+            # Read live runtime status for Streamlit Public URL
+            runtime_file = Path(__file__).resolve().parent.parent / "data" / "line_bot_runtime.json"
+            streamlit_url = None
+            if runtime_file.exists():
+                try:
+                    import json
+                    with open(runtime_file, "r", encoding="utf-8") as f:
+                        rdata = json.load(f)
+                        streamlit_url = rdata.get("streamlit_url")
+                except Exception:
+                    pass
+
+            profs_str = "、".join([p["name"] for p in profs])
+            user_param = f"?user={urllib.parse.quote(cur['name'])}" if cur.get("name") else ""
+            web_section = ""
+            if streamlit_url:
+                web_section = (
+                    f"\n🌐 【手機公網決策台】（出門在外 4G/5G 都能開）：\n"
+                    f"👉 {streamlit_url}{user_param}\n"
+                    f"💡 進入網頁後，選擇您的名字並輸入 4 位數 PIN 碼（預設 0000）即可登入；新朋友亦可點選「快速註冊」1秒免信箱直接開通！\n"
+                )
+            else:
+                web_section = (
+                    f"\n🌐 【手機區網連線】（同 Wi-Fi）：\n"
+                    f"👉 http://10.0.0.104:8501{user_param}\n"
+                    f"💡 進入網頁後，選擇您的名字並輸入 4 位數 PIN 碼（預設 0000）即可登入；新朋友亦可點選「快速註冊」1秒免信箱直接開通！\n"
+                )
+
+            bind_status_str = f"（已綁定此 LINE）" if bound_profile else "（未綁定，可傳送「綁定 <名字> <PIN碼>」連動）"
+
+            return (
+                "👤 【玩家 Profile 與獨立資金池】\n"
+                "===========================\n"
+                f"• 當前操作玩家：【{cur['name']}】{bind_status_str}\n"
+                f"• 每週娛樂限額：NT$ {cur['weekly_play_cap']:.0f}\n"
+                f"• 現有玩家名單：{profs_str}\n"
+                f"• 安全防護：4 位數 PIN 碼保護中\n"
+                f"{web_section}\n"
+                "🔒 本系統支援多玩家獨立池子：\n"
+                "每位玩家各自記錄每週預算、中獎保留池與下注戰績，帳目互不干擾！\n\n"
+                "💬 【LINE 快捷指令說明】：\n"
+                "•「綁定 <名字> <PIN>」➔ 將此 LINE 帳號綁定至玩家\n"
+                "•「改密碼 <舊PIN> <新PIN>」➔ 直接在 LINE 修改密碼\n"
+                "•「新增 <名字> <金額> <PIN>」➔ 建立新帳號\n"
+                "•「預算 <金額>」➔ 調整目前玩家每週額度\n"
+                "•「查戰績」➔ 查看目前玩家本週結算與中獎池"
+            )
+        except Exception as exc:
+            logger.error("Error in profile handling: %s", exc)
+            return f"Profile 讀取異常：{exc}"
 
     def _get_wallet_status_text(self, wallet_mgr: Optional[Any] = None) -> str:
         """Format wallet and financial discipline report."""

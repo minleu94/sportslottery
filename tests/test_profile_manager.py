@@ -106,3 +106,62 @@ def test_multi_user_wallet_and_prize_pool_isolation(tmp_path):
     assert len(rec_default.list_tickets()) == 0
     assert len(rec_ming.list_tickets()) == 1
     assert len(rec_default.list_tickets(profile_id="all")) == 1
+
+
+def test_get_profile_by_name_and_verify_login(tmp_path):
+    db = tmp_path / "test_profiles.sqlite3"
+    pm = ProfileManager(db_path=db)
+    pm.create_profile(name="志玲", weekly_play_cap=250.0, pin_code="5200")
+
+    # Name lookup
+    p = pm.get_profile_by_name("志玲")
+    assert p is not None
+    assert p["name"] == "志玲"
+    assert p["weekly_play_cap"] == 250.0
+
+    assert pm.get_profile_by_name("不存在") is None
+
+    # Verify login by name
+    ok, p_log, msg = pm.verify_login("志玲", "5200")
+    assert ok is True
+    assert p_log["name"] == "志玲"
+
+    # Verify login with wrong PIN
+    ok_fail, _, msg_fail = pm.verify_login("志玲", "9999")
+    assert ok_fail is False
+    assert "PIN 碼不正確" in msg_fail
+
+    # Verify login with non-existent user
+    ok_missing, _, msg_missing = pm.verify_login("老王", "1234")
+    assert ok_missing is False
+    assert "找不到玩家" in msg_missing
+
+    # Verify login by ID
+    ok_id, p_id, _ = pm.verify_login(p["id"], "5200")
+    assert ok_id is True
+    assert p_id["name"] == "志玲"
+
+
+def test_line_user_binding_and_change_pin(tmp_path):
+    db = tmp_path / "test_profiles.sqlite3"
+    pm = ProfileManager(db_path=db)
+    p = pm.create_profile(name="冠宇", weekly_play_cap=200.0, pin_code="8888")
+
+    # Bind LINE user ID
+    bound = pm.bind_line_user(p["id"], line_user_id="U1234567890abcdef", current_pin="8888")
+    assert bound["line_user_id"] == "U1234567890abcdef"
+
+    # Query by LINE user ID
+    queried = pm.get_profile_by_line_user_id("U1234567890abcdef")
+    assert queried is not None
+    assert queried["id"] == p["id"]
+    assert queried["name"] == "冠宇"
+
+    # Change PIN
+    updated = pm.change_pin(p["id"], current_pin="8888", new_pin="9999")
+    assert updated["pin_code"] == "9999"
+    assert pm.verify_pin(p["id"], "9999") is True
+
+    # Unbind
+    pm.unbind_line_user(p["id"], current_pin="9999")
+    assert pm.get_profile_by_line_user_id("U1234567890abcdef") is None

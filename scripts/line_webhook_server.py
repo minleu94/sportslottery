@@ -105,8 +105,8 @@ async def callback(
                 user_text = str(msg.get("text", "")).strip()
                 logger.info("Inbound user message from %s: %s", (user_id or "unknown")[:6], user_text)
 
-                # Process command via LineNotifier (supports rich text + QR images)
-                full_res = notifier.handle_user_message_full(user_text)
+                # Process command via LineNotifier with LINE user ID for profile binding & isolation
+                full_res = notifier.handle_user_message_full(user_text, line_user_id=user_id)
                 reply_text = full_res.get("text", "")
                 image_url = full_res.get("image_url")
 
