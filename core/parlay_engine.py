@@ -148,6 +148,8 @@ class ParlayEngine:
         max_matches_pool: int = 16,
         matches: Optional[List[Dict[str, Any]]] = None,
         signal_filter: str = "normal",
+        exclude_traps: bool = False,
+        prefer_steam: bool = False,
         diagnostics: Optional[Dict[str, Any]] = None,
         search_budget: int = 250_000,
         resume_state: Optional[Dict[str, Any]] = None,
@@ -256,7 +258,8 @@ class ParlayEngine:
 
         config_scope = {"min_odds": min_odds, "max_odds": max_odds, "target_odds": target_odds,
                         "tolerance": tolerance, "min_legs": min_legs, "max_legs": max_legs,
-                        "signal_filter": signal_filter, "scope_as_of": scope_as_of,
+                        "signal_filter": signal_filter, "exclude_traps": exclude_traps,
+                        "prefer_steam": prefer_steam, "scope_as_of": scope_as_of,
                         "search_version": SEARCH_VERSION,
                         "normalized_input_pool": sorted((leg.to_dict() for leg in normalized_legs),
                                                          key=_stable_id),
@@ -298,8 +301,14 @@ class ParlayEngine:
         aggressive: List[Dict[str, Any]] = []
         moonshot: List[Dict[str, Any]] = []
         buckets = {"high_consensus": high_consensus, "aggressive": aggressive, "moonshot": moonshot}
-        rank_key = lambda x: (x["min_evidence_score"], x["parlay_expected_value"], x["avg_evidence_score"],
-                              x["total_independent_sources"], -x["odds_distance"], x["total_odds"])
+        rank_key = lambda x: (
+            x["min_evidence_score"],
+            x["parlay_expected_value"] + (0.15 * x.get("steam_count", 0)) - (0.25 * x.get("trap_count", 0)),
+            x["avg_evidence_score"],
+            x["total_independent_sources"],
+            -x["odds_distance"],
+            x["total_odds"],
+        )
         def keep_top(items, combo):
             if any(row["candidate_id"] == combo["candidate_id"] for row in items):
                 return
@@ -316,6 +325,12 @@ class ParlayEngine:
                 return {}
             if count:
                 state["odds_matching_combinations"] += 1
+
+            steam_count = sum(1 for leg in leg_tuple if (leg.signal_evidence or {}).get("line_movement", {}).get("is_steam"))
+            trap_count = sum(1 for leg in leg_tuple if (leg.signal_evidence or {}).get("line_movement", {}).get("is_trap_warning"))
+            if exclude_traps and trap_count > 0:
+                return {}
+
             scores = [quality_score.get(leg.evidence_quality, 0) for leg in leg_tuple]
             min_score, avg_score = min(scores), sum(scores) / num_legs
             supports = sum((leg.signal_evidence or {}).get("non_market_supports", 0) for leg in leg_tuple)
@@ -351,6 +366,8 @@ class ParlayEngine:
                     "correlation_penalty": round(corr.correlation_penalty, 4),
                     "correlation_risk_grade": corr.risk_grade, "correlation_risk_factors": corr.risk_factors,
                     "odds_distance": round(abs(total_odds - target_mid), 2), "signal_summary": emojis,
+                    "steam_count": steam_count, "trap_count": trap_count,
+                    "has_steam": steam_count > 0, "has_trap": trap_count > 0,
                     "bet_status": "READY" if ready_combo else (reasons[0] if reasons else "NOT_READY"),
                     "is_ready": ready_combo, "readiness_reasons": reasons, "has_stale_odds": has_stale,
                     "legs": [leg.to_dict() for leg in leg_tuple], "raw_legs": list(leg_tuple)}

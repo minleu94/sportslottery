@@ -58,7 +58,7 @@ class ESPNPythagoreanMLBModel:
     def _get_mlb_stats(self) -> Dict[str, Dict[str, float]]:
         now = time.time()
         observed_epoch = self._parse_epoch(self._cache_meta.get("timestamp"))
-        if self._stats_cache is not None and observed_epoch is not None and 0 <= now - observed_epoch < CACHE_TTL:
+        if self._stats_cache is not None and observed_epoch is not None and -5.0 <= now - observed_epoch < CACHE_TTL:
             return self._stats_cache
 
         stale_stats = self._stats_cache
@@ -77,7 +77,7 @@ class ESPNPythagoreanMLBModel:
                     cached_meta = {"timestamp": cached_epoch, "observed_at": cached_observed,
                                    "season": data.get("season"), "source_status": "CACHED",
                                    "data_as_of": cached_observed}
-                    if cached_epoch is not None and 0 <= now - cached_epoch < CACHE_TTL:
+                    if cached_epoch is not None and -5.0 <= now - cached_epoch < CACHE_TTL:
                         self._stats_cache, self._cache_meta = cached_stats, cached_meta
                         return self._stats_cache
                     stale_stats, stale_meta = cached_stats, cached_meta
@@ -227,7 +227,7 @@ class ESPNPythagoreanMLBModel:
         status = self._cache_meta.get("source_status", "UNKNOWN")
         age_seconds = time.time() - self._parse_epoch(self._cache_meta.get("timestamp")) if self._parse_epoch(self._cache_meta.get("timestamp")) is not None else None
         pre_event_observation = bool(event_dt and observed_dt and observed_dt < event_dt)
-        fusion_ready = bool(status in {"LIVE", "CACHED"} and age_seconds is not None and 0 <= age_seconds < CACHE_TTL
+        fusion_ready = bool(status in {"LIVE", "CACHED"} and age_seconds is not None and -5.0 <= age_seconds < CACHE_TTL
                             and pre_event_observation and season_matches)
 
         # Genuine calculations from real data

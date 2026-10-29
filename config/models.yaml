@@ -83,3 +83,29 @@ models:
     adapter: integrations.models.external.nba_elo_engine.NBAEloEngine
     description: "NBA 籃球動態 Elo 與 Four Factors 量化估計引擎；整合主場優勢 (+100 Elo)、勝分差 (MOV) 倍數調整與讓分/大小分勝率模型。"
 
+  nfl_elo_model:
+    name: "NFL Elo Quantitative Valuation Engine"
+    sport: football
+    enabled: true
+    source_category: OPEN_SOURCE_ENGINE
+    independence_group: NFL_ELO_ENGINE
+    repo: local/nfl_elo
+    license: MIT
+    version: 1.0.0
+    weight: 0.85
+    adapter: integrations.models.external.nfl_elo_model.NFLEloModel
+    description: "NFL 美式足球動態 Elo 量化估值引擎；整合主場優勢 (+55 Elo)、勝分差 (MOV) 正態分佈映射與讓分/大小分勝率模型。"
+
+  asian_baseball_model:
+    name: "Asian Baseball Quantitative Valuation Engine (CPBL/NPB/KBO)"
+    sport: baseball
+    enabled: true
+    source_category: OPEN_SOURCE_ENGINE
+    independence_group: ASIAN_BASEBALL_MODEL
+    repo: local/asian_baseball
+    license: MIT
+    version: 1.0.0
+    weight: 0.85
+    adapter: integrations.models.external.asian_baseball_model.AsianBaseballModel
+    description: "亞洲職棒 (中職 CPBL、日棒 NPB、韓棒 KBO) 動態勝率與得失分量化估計模型；整合聯盟基準比分、主場優勢與讓分/大小盤口估值。"
+

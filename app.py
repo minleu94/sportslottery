@@ -47,7 +47,11 @@ from core.parlay_validation import shared_event_exposure
 from ui.model_acceptance_display import acceptance_rows, acceptance_label
 from ui.research_overview import render_research_overview, read_jsonl
 from core.research_paths import research_paths
+from core.line_movement import LineMovementTracker
 from core.parlay_validation import evaluate_parlay_forward
+from core.round_robin import RoundRobinEngine
+from core.line_notifier import LineNotifier
+from core.hedging import calculate_hedge
 
 
 st.set_page_config(
@@ -58,9 +62,30 @@ st.set_page_config(
 )
 render_sidebar_navigation()
 
-# Custom Styling
+# Custom Styling & iPhone / PWA Metadata
 st.markdown(
     """
+    <script>
+    (function() {
+        function ensureTag(tag, attrs) {
+            var selector = tag;
+            if (attrs.rel) selector += '[rel="' + attrs.rel + '"]';
+            if (attrs.name) selector += '[name="' + attrs.name + '"]';
+            if (!document.querySelector(selector)) {
+                var el = document.createElement(tag);
+                for (var k in attrs) el.setAttribute(k, attrs[k]);
+                document.head.appendChild(el);
+            }
+        }
+        ensureTag('link', {rel: 'manifest', href: '/app/static/manifest.json'});
+        ensureTag('link', {rel: 'apple-touch-icon', href: '/app/static/apple-touch-icon.png'});
+        ensureTag('link', {rel: 'apple-touch-icon', sizes: '180x180', href: '/app/static/apple-touch-icon.png'});
+        ensureTag('meta', {name: 'apple-mobile-web-app-capable', content: 'yes'});
+        ensureTag('meta', {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'});
+        ensureTag('meta', {name: 'apple-mobile-web-app-title', content: '瘋狗流運彩'});
+        ensureTag('meta', {name: 'theme-color', content: '#ff4b4b'});
+    })();
+    </script>
     <style>
     .brand-header {
         font-size: 2.2rem;
@@ -130,6 +155,45 @@ st.markdown(
         margin-top: 8px;
         margin-bottom: 12px;
     }
+    .mobile-leg-card {
+        background: #141724;
+        border: 1px solid #282c3f;
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
+    }
+    .mobile-leg-card:hover {
+        border-color: #3b4261;
+    }
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 0.8rem !important;
+            padding-bottom: 2rem !important;
+            padding-left: 0.6rem !important;
+            padding-right: 0.6rem !important;
+        }
+        .brand-header {
+            font-size: 1.6rem !important;
+        }
+        .brand-sub {
+            font-size: 0.88rem !important;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 2px !important;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 6px 8px !important;
+            font-size: 0.84rem !important;
+        }
+        .ticket-card {
+            padding: 12px !important;
+            margin-bottom: 12px !important;
+        }
+        .stButton button {
+            min-height: 44px !important;
+            font-size: 1rem !important;
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -167,6 +231,15 @@ st.markdown(
 )
 
 st.caption("資料來源：玩運彩公開盤口、專家推薦與投票；模型與 EV 由專案計算。各筆時效請查看推薦證據，MLB Elo 目前為實驗估計。")
+
+with st.expander("📱 iPhone / 行動端 PWA 獨立 App 安裝說明 (一鍵全螢幕開打)", expanded=False):
+    st.markdown(
+        """
+        - **Safari 一鍵安裝**：在 iPhone Safari 開啟本系統 ➔ 點擊底部「分享」圖示 ➔ 滑動點選「加入主畫面」(Add to Home Screen) ➔ 點選「新增」。
+        - **全螢幕免網址列**：回到 iPhone 桌面點開「瘋狗流」圖示，即可像原生 iOS App 一樣享受無網址列、觸控卡片串關決策！
+        - **一鍵啟動腳本**：電腦端可直接雙擊專案目錄下的 `start_mobile.bat`，自動偵測家用 Wi-Fi 與 Tailscale 遠端 IP，並顯示 iPhone 相機可直接掃描的 QR Code。
+        """
+    )
 
 # Top Wallet Banner (Always visible & prominent)
 wallet_status = wallet_mgr.get_status()
@@ -406,12 +479,19 @@ with tab_radar:
                         leg_ev = ev_data.get("sharp_expected_value_pct", ev_data.get("expected_value_pct"))
                         prob = float(ev_data.get("consensus_probability", 0.0) or 0.0)
 
+                        lm = ev_data.get("line_movement") or {}
+                        lm_suffix = ""
+                        if lm.get("is_steam"):
+                            lm_suffix = f" <span style='color:#34d399; font-size:0.80rem;'>📉跳水({lm.get('delta_odds'):+.2f})</span>"
+                        elif lm.get("is_trap_warning"):
+                            lm_suffix = f" <span style='color:#fbbf24; font-size:0.80rem;'>⚠️升水({lm.get('delta_odds'):+.2f})</span>"
+
                         if isinstance(leg_ev, (int, float)) and leg_ev > 0:
-                            opt_strs.append(f"<b><code>{leg.selection}</code></b> ({leg.taiwan_odds} <span style='color:#4ade80; font-size:0.85rem;'>🔥 +EV {leg_ev:+.1f}%</span>)")
+                            opt_strs.append(f"<b><code>{leg.selection}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#4ade80; font-size:0.85rem;'>🔥 +EV {leg_ev:+.1f}%</span>)")
                         elif prob >= 0.55 and leg.taiwan_odds <= 2.0:
-                            opt_strs.append(f"<b><code>{leg.selection}</code></b> ({leg.taiwan_odds} <span style='color:#60a5fa; font-size:0.85rem;'>🛡️ {prob*100:.0f}%</span>)")
+                            opt_strs.append(f"<b><code>{leg.selection}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#60a5fa; font-size:0.85rem;'>🛡️ {prob*100:.0f}%</span>)")
                         else:
-                            opt_strs.append(f"<code>{leg.selection}</code> ({leg.taiwan_odds})")
+                            opt_strs.append(f"<code>{leg.selection}</code> ({leg.taiwan_odds}{lm_suffix})")
                     if opt_strs:
                         st.markdown("<div style='font-size:0.9rem; color:#bbb; margin-top:2px;'>盤口情報： " + " · ".join(opt_strs) + "</div>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin: 8px 0; border-color: #2d2f3f;'>", unsafe_allow_html=True)
@@ -532,6 +612,12 @@ with tab_parlay:
             else "normal"
         )
 
+        c_lm_f1, c_lm_f2 = st.columns(2)
+        with c_lm_f1:
+            filter_exclude_traps = st.checkbox("🛡️ 自動過濾莊家誘盤 (排除逆向升水)", value=False)
+        with c_lm_f2:
+            filter_prefer_steam = st.checkbox("📉 優先推薦大戶跳水 (資金加權)", value=True)
+
         available_stake = max(0.0, min(float(wallet_status["weekly_wallet_balance"]), float(wallet_status["weekly_play_cap"] - wallet_status["weekly_staked"])))
         has_stake_budget = available_stake >= 10.0
         stake_per_bet = st.number_input(
@@ -572,6 +658,7 @@ with tab_parlay:
         quote_scope = [{k:leg.to_dict().get(k) for k in ("canonical_event_id","event_id","market","side","selection","line","taiwan_odds","odds_scraped_at","start_time_utc")} for leg in current_pool]
         context_hash = hashlib.sha256(json.dumps({"quotes":quote_scope,"range":target_odds_range,
             "target":target_val,"tolerance":tolerance_val,"filter":signal_filter_code,
+            "exclude_traps": filter_exclude_traps, "prefer_steam": filter_prefer_steam,
             "min_legs":min_search_legs,"max_legs":max_search_legs,
             "identity":get_strategy_metadata().get("code_hash")},sort_keys=True,default=str).encode('utf-8')).hexdigest()
         saved_search = st.session_state.get("parlay_search_progress", {})
@@ -594,6 +681,7 @@ with tab_parlay:
             parlay_results = parlay_engine.search_parlays(
                 legs=enriched_legs,min_odds=target_odds_range[0],max_odds=target_odds_range[1],
                 target_odds=target_val,tolerance=tolerance_val,signal_filter=signal_filter_code,
+                exclude_traps=filter_exclude_traps, prefer_steam=filter_prefer_steam,
                 min_legs=min_search_legs,max_legs=max_search_legs,diagnostics=search_diagnostics,search_budget=int(search_budget),
                 resume_state=saved_search.get("state") if reusable else None,scope_as_of=search_scope,
             )
@@ -731,6 +819,11 @@ with tab_parlay:
         exposures = shared_event_exposure(active_list)
         if any(row["shared_event_count"] for row in exposures):
             st.info("本類候選組合有共用賽事：買多張仍會集中承擔同場結果，請查看各張的共用風險。")
+
+        col_pref_l, col_pref_r = st.columns([3, 2])
+        with col_pref_r:
+            mobile_card_view = st.toggle("📱 手機觸控精簡卡片 (免橫向捲動)", value=True, help="垂直展示關卡卡片，專為手機螢幕直覺閱讀設計；關閉後切換為完整寬表格")
+
         for idx, item in enumerate(active_list, start=1):
             with st.container():
                 current_readiness = readiness(item)
@@ -822,11 +915,16 @@ with tab_parlay:
                         ev_str = f"{leg_ev_pct:+.1f}% 🟢" if leg_ev_pct >= 0.0 else f"{leg_ev_pct:+.1f}% 🔴"
                     else:
                         ev_str = "-"
+
+                    lm = sig_ev.get("line_movement") or {}
+                    lm_text = lm.get("text_label") or "➖ 盤口平穩"
+
                     legs_rows.append({
                         "聯賽": leg.get("league", ""),
                         "對戰賽事": f"{leg.get('away_team')} vs {leg.get('home_team')}",
                         "玩法推薦": leg.get("selection", ""),
                         "台彩賠率": f"{odds_val:.2f}" if odds_val else "-",
+                        "走勢監控": lm_text,
                         "打平門檻": probability_label(sig_ev.get("market_implied_probability")),
                         "去水公允勝率": sharp_fair_str,
                         "單關 EV": ev_str,
@@ -834,7 +932,62 @@ with tab_parlay:
                         "證據等級": badge,
                     })
 
-                st.table(legs_rows)
+                if mobile_card_view:
+                    for leg_idx, leg in enumerate(item["legs"], start=1):
+                        sig_ev = leg.get("signal_evidence", {})
+                        badge = sig_ev.get("agreement_badge") or "⚪ INSUFFICIENT"
+                        support_count = sig_ev.get("independent_support_count", sig_ev.get("support_count", 0))
+                        sharp_fair_p = sig_ev.get("sharp_fair_probability")
+                        sharp_fair_str = probability_label(sharp_fair_p) if sharp_fair_p is not None else "去水未成"
+                        be_p_str = probability_label(sig_ev.get("market_implied_probability"))
+                        odds_val = float(leg.get("odds") or leg.get("taiwan_odds", 0.0))
+                        leg_ev_pct = sig_ev.get("sharp_expected_value_pct")
+                        if leg_ev_pct is None and sig_ev.get("expected_value_pct") is not None:
+                            leg_ev_pct = sig_ev.get("expected_value_pct")
+
+                        if isinstance(leg_ev_pct, (int, float)):
+                            if leg_ev_pct > 0:
+                                ev_pill = f"<span style='background:#1b5e20; color:#b9f6ca; border:1px solid #00e676; padding:2px 7px; border-radius:6px; font-weight:bold;'>🔥 +EV {leg_ev_pct:+.1f}%</span>"
+                            else:
+                                ev_pill = f"<span style='background:#2d1b1b; color:#fca5a5; padding:2px 7px; border-radius:6px;'>EV {leg_ev_pct:+.1f}%</span>"
+                        else:
+                            ev_pill = "<span style='background:#1e202e; color:#94a3b8; padding:2px 7px; border-radius:6px;'>EV -</span>"
+
+                        lm = sig_ev.get("line_movement") or {}
+                        lm_badge_html = lm.get("badge_html", "")
+
+                        leg_lg = leg.get("league", "")
+                        leg_st = leg.get("start_time", "")
+                        leg_away = leg.get("away_team", "")
+                        leg_home = leg.get("home_team", "")
+                        leg_sel = leg.get("selection", "")
+
+                        st.markdown(
+                            f"""
+                            <div class='mobile-leg-card'>
+                                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                                    <span style='font-size:0.86rem; color:#94a3b8; font-weight:bold;'>【{leg_lg}】{leg_st}</span>
+                                    <span style='font-size:0.80rem; background:#1e293b; color:#cbd5e1; padding:2px 6px; border-radius:4px;'>關卡 {leg_idx}</span>
+                                </div>
+                                <div style='font-size:0.98rem; font-weight:bold; color:#f8fafc; margin-top:3px;'>
+                                    {leg_away} <span style='color:#64748b;'>vs</span> {leg_home}
+                                </div>
+                                <div style='display:flex; justify-content:space-between; align-items:center; margin-top:6px; background:#161926; padding:7px 10px; border-radius:6px; border-left:3px solid #ff9100;'>
+                                    <span style='font-size:1.02rem; font-weight:bold; color:#ffb74d;'>🎯 {leg_sel}</span>
+                                    <span style='font-size:1.18rem; font-weight:900; color:#00e676;'>{odds_val:.2f} 倍</span>
+                                </div>
+                                <div style='display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; font-size:0.82rem; align-items:center;'>
+                                    {ev_pill}
+                                    {lm_badge_html}
+                                    <span style='background:#1e2235; color:#93c5fd; padding:2px 6px; border-radius:4px;'>⚖️ 去水勝率 {sharp_fair_str} (打平 {be_p_str})</span>
+                                    <span style='background:#1e2235; color:#cbd5e1; padding:2px 6px; border-radius:4px;'>🛡️ 支持群: {support_count} ({badge})</span>
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.table(legs_rows)
 
                 # Expandable Why? Drawer on each parlay ticket
                 with st.expander(f"🔍 查看 No.{idx} 的模型、EV 與原始證據", expanded=False):
@@ -927,23 +1080,157 @@ with tab_parlay:
                             if leg.get("away_pitcher") or leg.get("home_pitcher"):
                                 st.write(f"- ⚾ 先發投手對決：`{leg.get('away_pitcher') or '未公布'}` (客) vs `{leg.get('home_pitcher') or '未公布'}` (主)")
                             st.write(f"- 串關相關風險：**{corr_grade}** (規則折扣：`{item.get('correlation_penalty', 0.0)*100:.1f}%`)")
+
+                            st.markdown("**⑤ 賠率走勢與跳水/誘盤動態 (Line Movement & Trap Alerts)**")
+                            lm = sig_ev.get("line_movement") or {}
+                            if lm:
+                                st.markdown(f"- 盤口狀態：{lm.get('badge_html', '➖ 盤口平穩')}", unsafe_allow_html=True)
+                                st.write(f"- 分析結論：{lm.get('summary', '暫無顯著資金波動')}")
+                                st.write(f"- 盤口軌跡：開盤 `{lm.get('open_odds', odds_val):.2f}` ➔ 當前 `{lm.get('current_odds', odds_val):.2f}` (幅度: `{lm.get('delta_odds', 0.0):+.2f}`, 變動率: `{lm.get('pct_change', 0.0):+.1f}%`)")
+                                if lm.get("implied_prob_delta_pp"):
+                                    st.caption(f"隱含勝率位移：{lm.get('implied_prob_delta_pp'):+.1f} 百分點")
+                                if lm.get("history_points"):
+                                    pts = " ➔ ".join(f"{p[1]:.2f}" for p in lm["history_points"][-5:])
+                                    st.caption(f"觀測點歷史走勢：{pts}")
                         render_leg_source_evidence(leg)
 
                         st.markdown("<hr style='margin: 6px 0; border-color: #26273b;'>", unsafe_allow_html=True)
 
-                col_bet_l, col_bet_m, col_bet_r = st.columns([2, 1, 1])
                 item_key = recommendation_fingerprint(item, 0, item["total_odds"])[:20]
+
+                # -------------------------------------------------------------
+                # Direction 4: 容錯串關策略 —— 過關組合 (Round Robin / 輪串)
+                # -------------------------------------------------------------
+                num_legs = len(item["legs"])
+                if num_legs >= 3:
+                    with st.expander(f"🛡️ 過關組合（輪串）防倒保本計算器 (Round Robin 容錯避險)", expanded=False):
+                        st.caption("痛點解方：全串（例如 4 串 1）只要倒 1 關就全損；「過關組合」將多個子串關拆單組合，支援「倒 1 關保本獲利」甚至「倒 2 關避險」！")
+                        combos_dict = RoundRobinEngine.get_supported_combinations(num_legs)
+                        combo_keys = list(combos_dict.keys())
+
+                        default_key = f"{num_legs}_{num_legs+1}" if f"{num_legs}_{num_legs+1}" in combos_dict else combo_keys[0]
+                        default_idx = combo_keys.index(default_key) if default_key in combo_keys else 0
+
+                        col_rr1, col_rr2 = st.columns([3, 2])
+                        with col_rr1:
+                            chosen_rr_key = st.selectbox(
+                                "選擇台灣運彩官方過關組合：",
+                                combo_keys,
+                                index=default_idx,
+                                format_func=lambda k: combos_dict[k]["label"],
+                                key=f"rr_select_{item_key}",
+                            )
+                        with col_rr2:
+                            rr_unit_stake = st.number_input(
+                                "每注下注金額 (NT$)：",
+                                min_value=10.0,
+                                max_value=500.0,
+                                value=10.0,
+                                step=10.0,
+                                key=f"rr_stake_{item_key}",
+                            )
+
+                        try:
+                            rr_sim = RoundRobinEngine.simulate_resilience(
+                                item["legs"], chosen_rr_key, unit_stake=rr_unit_stake
+                            )
+                            st.markdown(
+                                f"""
+                                <div style='background:#1a1c29; border:1px solid #33384c; border-radius:8px; padding:12px; margin:8px 0;'>
+                                    <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;'>
+                                        <span style='font-size:1.05rem; font-weight:bold; color:#f8fafc;'>{rr_sim['grade_badge']}</span>
+                                        <span style='font-size:0.95rem; color:#cbd5e1;'>總注數：<b>{rr_sim['total_combinations']} 注</b> · 總成本：<b style='color:#fbbf24;'>NT$ {rr_sim['total_stake']:.0f}</b></span>
+                                    </div>
+                                    <div style='margin-top:6px; font-size:0.88rem; color:#94a3b8;'>
+                                        {rr_sim['grade_desc']}
+                                    </div>
+                                    <div style='display:flex; gap:12px; margin-top:10px; flex-wrap:wrap;'>
+                                        <div style='background:#0f172a; padding:8px 12px; border-radius:6px; flex:1; min-width:130px;'>
+                                            <div style='font-size:0.78rem; color:#94a3b8;'>🏆 全過派彩 (All Win)</div>
+                                            <div style='font-size:1.1rem; font-weight:bold; color:#4ade80;'>NT$ {rr_sim['all_win']['payout']:,.2f}</div>
+                                            <div style='font-size:0.75rem; color:#86efac;'>淨賺 +NT$ {rr_sim['all_win']['profit']:,.2f} (ROI +{rr_sim['all_win']['roi_pct']}%)</div>
+                                        </div>
+                                        <div style='background:#0f172a; padding:8px 12px; border-radius:6px; flex:1; min-width:130px;'>
+                                            <div style='font-size:0.78rem; color:#94a3b8;'>🛡️ 倒 1 關保底派彩</div>
+                                            <div style='font-size:1.1rem; font-weight:bold; color:{"#4ade80" if rr_sim["one_miss"]["is_guaranteed_breakeven"] else "#facc15"};'>NT$ {rr_sim['one_miss']['min_payout']:,.2f} ~ {rr_sim['one_miss']['max_payout']:,.2f}</div>
+                                            <div style='font-size:0.75rem; color:#cbd5e1;'>倒最硬關卡淨利: {rr_sim['one_miss']['min_profit']:+,.2f}</div>
+                                        </div>
+                                        <div style='background:#0f172a; padding:8px 12px; border-radius:6px; flex:1; min-width:130px;'>
+                                            <div style='font-size:0.78rem; color:#94a3b8;'>🦺 倒 2 關生存派彩</div>
+                                            <div style='font-size:1.1rem; font-weight:bold; color:#94a3b8;'>NT$ {rr_sim['two_miss']['min_payout']:,.2f} ~ {rr_sim['two_miss']['avg_payout']:,.2f}</div>
+                                            <div style='font-size:0.75rem; color:#64748b;'>{'有涵蓋 2 關防線' if rr_sim['two_miss']['has_coverage'] else '無 2 關組合'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+
+                            with st.expander("🔍 查看「倒 1 關」各賽事失手時之存活派彩細節", expanded=False):
+                                miss_rows = []
+                                for sc in rr_sim["one_miss"]["scenarios"]:
+                                    m_prof = sc["profit"]
+                                    p_color = "🟢" if m_prof >= 0 else "🔴"
+                                    miss_rows.append({
+                                        "失手關卡": sc["missed_leg"],
+                                        "存活注數": f"{sc['surviving_count']} 注",
+                                        "可拿回派彩": f"NT$ {sc['payout']:,.2f}",
+                                        "結算損益": f"NT$ {m_prof:+,.2f} {p_color}",
+                                        "是否保本": "✅ 保本獲利" if m_prof >= 0 else "⚠️ 部分虧損",
+                                    })
+                                st.table(miss_rows)
+
+                            rr_fingerprint = f"rr_{chosen_rr_key}_{item_key}"
+                            rr_submissions = st.session_state.setdefault("rr_ticket_submissions", {})
+                            rr_sub = rr_submissions.setdefault(rr_fingerprint, {"key": str(uuid.uuid4())})
+                            if st.button(
+                                f"📝 記錄此過關組合注單 (扣款 NT$ {rr_sim['total_stake']:.0f})",
+                                key=f"btn_rr_bet_{item_key}",
+                                use_container_width=True,
+                                disabled=not current_readiness["is_ready"] or available_stake < rr_sim["total_stake"] or bool(rr_sub.get("ticket_id")),
+                            ):
+                                try:
+                                    rr_item = dict(item)
+                                    rr_item["parlay_name"] = f"過關組合 {rr_sim['combo_label']}"
+                                    rr_item["total_odds"] = round(rr_sim["all_win"]["payout"] / rr_sim["total_stake"], 2) if rr_sim["total_stake"] > 0 else item["total_odds"]
+                                    rr_payload_json = json.dumps({
+                                        "type": "ROUND_ROBIN",
+                                        "round_robin_spec": chosen_rr_key,
+                                        "unit_stake": float(rr_unit_stake),
+                                        "total_combinations": int(rr_sim["total_combinations"]),
+                                        "combo_label": rr_sim["combo_label"],
+                                    }, ensure_ascii=False)
+                                    res, snapshot_warnings = record_recommendation(
+                                        ticket_recorder, snapshot_logger, rr_item, rr_sim["total_stake"],
+                                        rr_item["total_odds"], rr_sub["key"],
+                                        notes=rr_payload_json,
+                                    )
+                                    rr_sub.update(ticket_id=res["ticket_id"], warnings=snapshot_warnings)
+                                    st.rerun()
+                                except Exception as exc:
+                                    st.error(str(exc))
+                            if rr_sub.get("ticket_id"):
+                                st.success(f"過關組合注單 #{rr_sub['ticket_id'][:8]} 已記錄，扣除 NT$ {rr_sim['total_stake']:.2f}！")
+                        except Exception as exc:
+                            st.warning(f"過關組合試算暫不可用：{exc}")
+
+                col_bet_l, col_bet_m, col_bet_r = st.columns([2, 1, 1])
                 with col_bet_l:
                     pot_payout = round(stake_per_bet * item["total_odds"], 2)
                     p_joint = float(item.get("sharp_joint_probability") or item.get("joint_probability") or 0.0)
                     o_ticket = float(item.get("total_odds") or 2.0)
-                    b_net = o_ticket - 1.0
-                    f_star = max(0.0, (b_net * p_joint - (1.0 - p_joint)) / b_net) if b_net > 0 else 0.0
-                    q_kelly_stake = max(10.0, min(50.0, round(available_stake * f_star * 0.25 / 10.0) * 10.0))
+                    from core.kelly import calculate_kelly_stake
+                    kelly_res = calculate_kelly_stake(
+                        win_probability=p_joint,
+                        decimal_odds=o_ticket,
+                        bankroll=available_stake,
+                        min_stake=10.0,
+                        max_stake=50.0,
+                    )
                     kelly_note = (
-                        f"📐 <b>凱利建議注金</b>：<span style='color:#4ade80; font-weight:bold;'>NT$ {q_kelly_stake:.0f}</span> (1/4 Kelly 依據勝率優勢分配)"
-                        if f_star > 0
-                        else "📐 <b>凱利建議注金</b>：<span style='color:#f87171;'>NT$ 10</span> (無正EV/極低勝率，維持最低微額娛樂)"
+                        f"📐 <b>凱利注碼建議</b>：<span style='color:#4ade80; font-weight:bold;'>1/4 凱利 NT$ {kelly_res['quarter_kelly_stake']:.0f}</span> / <span style='color:#60a5fa;'>1/8 凱利 NT$ {kelly_res['eighth_kelly_stake']:.0f}</span> &nbsp;<span style='color:#94a3b8;'>({kelly_res['advice']})</span>"
+                        if kelly_res["has_edge"]
+                        else "📐 <b>凱利注碼建議</b>：<span style='color:#f87171;'>NT$ 10</span> (無正EV/未獲優勢，維持最低注娛樂防守)"
                     )
                     st.write(
                         f"下注 **NT$ {stake_per_bet:.0f}** ➔ "
@@ -952,6 +1239,19 @@ with tab_parlay:
                         unsafe_allow_html=True,
                     )
                     st.markdown(f"<div style='font-size:0.86rem; color:#bbb; margin-top:3px;'>{kelly_note}</div>", unsafe_allow_html=True)
+
+                    with st.expander("📲 實體彩券行免劃單出票 QR Code (Taiwan Lottery Bet Slip)", expanded=False):
+                        from core.lottery_qr import build_lottery_slip_payload, generate_qr_code_data_url
+                        slip_payload = build_lottery_slip_payload(item["legs"], total_stake=stake_per_bet, parlay_name=item.get("parlay_name", ""))
+                        qr_data_url = generate_qr_code_data_url(slip_payload["compact_code"])
+                        col_qr1, col_qr2 = st.columns([1, 2])
+                        with col_qr1:
+                            st.markdown(f"<div style='text-align:center;'><img src='{qr_data_url}' style='width:150px; height:150px; border-radius:8px; border:2px solid #ff4b4b; background:#fff; padding:4px;'><br><span style='font-size:0.8rem; color:#aaa;'>門市店員掃碼出單</span></div>", unsafe_allow_html=True)
+                        with col_qr2:
+                            st.markdown("**📋 彩券行店員出票對照清單：**")
+                            for l in slip_payload["legs"]:
+                                st.markdown(f"• 賽事編號 **#{l['event_id']}** [{l['league']}] ➔ `{l['market']}` | 選擇：`<b>{l['selection']}</b>` (賠率 {l['odds']:.2f})", unsafe_allow_html=True)
+                            st.caption(f"組合型式：{slip_payload['parlay_name']} | 建議注金：NT$ {stake_per_bet:.0f}")
                 with col_bet_m:
                     placed_odds_input = st.number_input(
                         "實際下注賠率 (Placed Odds)",
@@ -1056,6 +1356,75 @@ with tab_wallet:
             st.caption("保留儲備池目前為 NT$ 0。中獎後的獎金會全額鎖定在這裡！")
 
     st.markdown("---")
+
+    # LINE Bot Notification Settings Expander
+    line_notifier = LineNotifier()
+    with st.expander("🔔 LINE Bot 即時推播通報設定 (跳水 / 中獎 / 聽牌對衝 / 晨間開盤)", expanded=not line_notifier.is_configured()):
+        col_ln1, col_ln2 = st.columns([3, 2])
+        with col_ln1:
+            st.markdown("#### 📱 LINE Messaging API 連線設定")
+            st.caption("透過 LINE 官方 Messaging API 免費將跳水警報、自動對獎派彩與聽牌對衝提醒直推您的手機！")
+            
+            line_enabled = st.checkbox("啟用 LINE 即時推播", value=bool(line_notifier.config.get("enabled", False)))
+            line_token = st.text_input(
+                "Channel Access Token (長期權杖)",
+                value=str(line_notifier.config.get("channel_access_token") or ""),
+                type="password",
+                help="前往 LINE Developers Console > Messaging API > 最下方 Issue 取得",
+            )
+            line_user = st.text_input(
+                "Your User ID (接收對象 ID)",
+                value=str(line_notifier.config.get("user_id") or ""),
+                help="前往 LINE Developers Console > Basic settings > Your user ID (格式如 U123456...)",
+            )
+            
+            ev_cfg = line_notifier.config.get("notify_events", {})
+            st.markdown("##### 🛎️ 推播事件開關：")
+            c_ev1, c_ev2 = st.columns(2)
+            with c_ev1:
+                ev_steam = st.checkbox("📉 賠率跳水警報 (大戶熱錢)", value=bool(ev_cfg.get("steam_drop", True)))
+                ev_hedging = st.checkbox("🔔 串關聽牌對衝提示", value=bool(ev_cfg.get("hedging_alert", True)))
+            with c_ev2:
+                ev_settle = st.checkbox("🎉 自動對獎中獎入庫", value=bool(ev_cfg.get("ticket_settlement", True)))
+                ev_radar = st.checkbox("☀️ 每日開盤賽季雷達簡報", value=bool(ev_cfg.get("morning_radar", True)))
+                
+            c_btns1, c_btns2 = st.columns(2)
+            with c_btns1:
+                if st.button("💾 儲存 LINE 設定", use_container_width=True):
+                    line_notifier.save_config({
+                        "enabled": line_enabled,
+                        "channel_access_token": line_token.strip(),
+                        "user_id": line_user.strip(),
+                        "notify_events": {
+                            "steam_drop": ev_steam,
+                            "ticket_settlement": ev_settle,
+                            "hedging_alert": ev_hedging,
+                            "morning_radar": ev_radar,
+                        },
+                    })
+                    st.success("LINE Bot 設定已成功儲存！")
+                    st.rerun()
+            with c_btns2:
+                if st.button("🧪 發送測試訊息至手機", use_container_width=True, disabled=not line_token or not line_user):
+                    test_notifier = LineNotifier()
+                    test_notifier.config["channel_access_token"] = line_token.strip()
+                    test_notifier.config["user_id"] = line_user.strip()
+                    test_res = test_notifier.test_connection()
+                    if test_res.get("success"):
+                        st.balloons()
+                        st.success("✅ 測試訊息已成功送達您的 LINE！請查看手機！")
+                    else:
+                        st.error(f"❌ 發送失敗：[{test_res.get('status_code')}] {test_res.get('message')}")
+        with col_ln2:
+            st.markdown("#### 📖 2 分鐘快速上手指南")
+            st.markdown("""
+            1. 前往 **[LINE Developers Console](https://developers.line.biz/)** 並以 LINE 帳號登入。
+            2. 建立 Provider (例如 `SportsLottery`) ➔ 建立 **Create a Messaging API channel**。
+            3. 在 **Messaging API** 分頁最下方 ➔ 點擊 **Issue** 產生 **Channel access token (long-lived)**。
+            4. 在 **Basic settings** 分頁最下方 ➔ 複製 **Your user ID** (格式 `U...`)。
+            5. 用手機掃描該 Bot 的 QR Code 加入好友，將兩組金鑰填入左方並點擊「儲存」與「測試」即可！
+            """)
+
     st.markdown("### 🎫 注單歷史清單")
     st.caption("以下是本機記錄。歷史人工補記與通過推薦核對的注單分開標示；手動結算需按實際票券結果填寫。")
 
@@ -1067,15 +1436,123 @@ with tab_wallet:
         settled_list = [t for t in tickets if t["status"] != "OPEN"]
 
         if open_list:
-            st.markdown(f"#### ⏳ 進行中注單 ({len(open_list)} 張)")
+            from core.ticket_settlement import TicketSettlementEngine
+            ts_engine = TicketSettlementEngine(ticket_recorder=ticket_recorder)
+
+            col_open_l, col_open_r = st.columns([3, 2])
+            with col_open_l:
+                st.markdown(f"#### ⏳ 進行中注單 ({len(open_list)} 張)")
+            with col_open_r:
+                if st.button("🤖 一鍵自動抓取賽果對獎與結算", type="primary", use_container_width=True,
+                             help="連線官方賽果資料源 (ESPN / MLB / CPBL 等)，自動抓取終場比分並依照台灣運彩規則自動派彩入保留儲備池！"):
+                    with st.spinner("🤖 正在連線官方比分來源並比對進行中注單..."):
+                        report = ts_engine.auto_settle_open_tickets(dry_run=False)
+                        if report["settled_won"] > 0:
+                            st.balloons()
+                            st.success(
+                                f"🎉 自動結算完成！共有 **{report['settled_won']}** 張中獎，"
+                                f"總派彩 **NT$ {report['total_payout_credited']:,.2f}** 已全額撥入【保留儲備池】！"
+                            )
+                        if report["settled_lost"] > 0:
+                            st.info(f"ℹ️ 自動結算：共有 **{report['settled_lost']}** 張注單未過關。")
+                        if report["settled_void"] > 0:
+                            st.warning(f"⚪ 自動結算：共有 **{report['settled_void']}** 張因賽事延期/取消無效退盤 (VOID 退回本金)。")
+                        if report["still_open"] > 0 and report["settled_won"] == 0 and report["settled_lost"] == 0 and report["settled_void"] == 0:
+                            st.info(f"⏳ 檢查完畢：目前 **{report['still_open']}** 張注單仍在進行中或尚未開賽，已更新即時賽果狀態！")
+                        st.rerun()
+
             for ot in open_list:
                 with st.expander(f"【未結算】{ot['sports_summary']} | 總賠率 {ot['total_odds']}x | 下注 NT$ {ot['stake']} ➔ 預期派彩 NT$ {ot['potential_payout']:,.2f}", expanded=True):
                     plc = ot.get("placed_odds") or ot.get("total_odds")
                     rec = ot.get("recommendation_odds") or plc
                     mode_label = "推薦核對通過" if ot.get("entry_mode") == "recommendation" else "人工歷史補記"
                     st.caption(f"來源: {mode_label} | 記錄時間: {ot['created_at'][:19]} | 注單號: #{ot['id'][:8]} | 推薦賠率: {rec}x | 實注賠率: {plc}x")
-                    for leg in ot["legs"]:
-                        st.write(f"• [{leg.get('league')}] {leg.get('away_team')} vs {leg.get('home_team')} ➔ **{leg.get('selection')}** (賠率: {leg.get('odds')})")
+
+                    # Live settlement check on legs
+                    t_eval = ts_engine.evaluate_ticket(ot)
+                    st.markdown(f"<div style='font-size:0.92rem; font-weight:bold; color:#ffb74d; margin-bottom:6px;'>📊 賽果對獎狀態：{t_eval['summary']}</div>", unsafe_allow_html=True)
+                    for leg, le in zip(ot["legs"], t_eval["legs_eval"]):
+                        st_icon = "✅" if le["status"] == "WON" else "❌" if le["status"] == "LOST" else "⚪" if le["status"] in ("VOID", "PUSH") else "🔴" if le["status"] == "IN_PROGRESS" else "⏳"
+                        score_badge = f"<span style='background:#1e202e; color:#4ade80; padding:1px 6px; border-radius:4px; font-weight:bold;'>比分 {le['score']}</span>" if le.get("score") else ""
+                        st.markdown(
+                            f"• {st_icon} **[{leg.get('league')}]** {leg.get('away_team')} vs {leg.get('home_team')} ➔ `<b>{leg.get('selection')}</b>` (賠率: {leg.get('odds')}) {score_badge} &nbsp; <span style='font-size:0.85rem; color:#aaa;'>— {le['reason']}</span>",
+                            unsafe_allow_html=True,
+                        )
+
+                    if t_eval.get("is_round_robin"):
+                        rr_dets = t_eval.get("round_robin_details", {})
+                        with st.expander(f"🎰 過關組合各注開獎拆單明細 (命中 {rr_dets.get('winning_sub_count', 0)}/{rr_dets.get('total_sub_count', 0)} 注)", expanded=False):
+                            for sub in rr_dets.get("sub_results", []):
+                                s_icon = "✅" if sub["status"] == "WON" else "❌" if sub["status"] == "LOST" else "⚪" if sub["status"] == "VOID" else "⏳"
+                                p_text = f" ➔ 派彩 NT$ {sub['payout']:,.2f}" if sub["payout"] > 0 else ""
+                                st.markdown(f"• {s_icon} **{sub['summary']}**{p_text}")
+
+                    is_hedging_ready = bool(t_eval["pending_count"] == 1 and t_eval["won_count"] >= 1 and t_eval["lost_count"] == 0)
+                    if is_hedging_ready:
+                        st.warning("🔔 **【聽牌狀態達成！】** 本注單大部分關卡已順利過關，僅剩最後 1 關！強烈建議參考下方「聽牌反買對衝計算機」，輕鬆鎖定保本或絕對利潤！")
+
+                    with st.expander(f"🛡️ 聽牌反買對衝保本計算機 (Hedge Calculator){' 🔥 (聽牌推薦)' if is_hedging_ready else ''}", expanded=is_hedging_ready):
+                        pending_legs = [l for l, le in zip(ot["legs"], t_eval["legs_eval"]) if le["status"] in ("PENDING", "IN_PROGRESS", "NOT_STARTED")]
+                        target_leg = pending_legs[0] if pending_legs else ot["legs"][-1]
+                        col_h1, col_h2 = st.columns(2)
+                        with col_h1:
+                            st.markdown(f"**待決戰關卡**：[{target_leg.get('league')}] {target_leg.get('away_team')} vs {target_leg.get('home_team')}")
+                            st.caption(f"手持關卡：**{target_leg.get('selection')}** (賠率: {target_leg.get('odds')})")
+                            hedge_sel_input = st.text_input(
+                                "反向盤口標的",
+                                value=f"反向對家投注",
+                                key=f"h_sel_{ot['id']}",
+                            )
+                            hedge_odds_input = st.number_input(
+                                "反向盤口即時賠率",
+                                min_value=1.05,
+                                max_value=20.0,
+                                value=1.75,
+                                step=0.05,
+                                key=f"h_odds_{ot['id']}",
+                            )
+                        with col_h2:
+                            try:
+                                hedge_res = calculate_hedge(
+                                    ticket_stake=float(ot["stake"]),
+                                    potential_payout=float(ot["potential_payout"]),
+                                    opposing_odds=float(hedge_odds_input),
+                                    opposing_selection=hedge_sel_input,
+                                )
+                                bk = hedge_res["breakeven"]
+                                gq = hedge_res["guaranteed"]
+                                st.markdown(
+                                    f"""
+                                    <div style='background:rgba(74,222,128,0.08); border:1px solid #2e7d32; border-radius:8px; padding:8px 12px; margin-bottom:8px;'>
+                                        <b>🛡️ ① 保本對衝策略 (0 風險打平)</b><br>
+                                        • 反買下注：<b>NT$ {bk['stake']:,.0f}</b><br>
+                                        • 倒此關仍保本：<b>{bk['profit_if_hedge_wins']:+.2f} 元 (0 虧損)</b><br>
+                                        • 全過仍淨賺：<b>+{bk['profit_if_parlay_wins']:,.2f} 元</b>
+                                    </div>
+                                    <div style='background:rgba(245,124,0,0.08); border:1px solid #f57c00; border-radius:8px; padding:8px 12px;'>
+                                        <b>💰 ② 100% 絕對鎖利策略 (對等穩賺)</b><br>
+                                        • 反買下注：<b>NT$ {gq['stake']:,.0f}</b><br>
+                                        • 無論最後一場輸贏，<b>100% 絕對保底淨賺約 NT$ {gq['guaranteed_profit']:,.2f}</b>！
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+                                if line_notifier.is_configured():
+                                    if st.button("📲 推送聽牌對衝建議至我的 LINE", key=f"h_line_{ot['id']}"):
+                                        h_alert = {
+                                            "opposing_selection": hedge_sel_input,
+                                            "hedge_odds": float(hedge_odds_input),
+                                            "breakeven_stake": bk["stake"],
+                                            "guaranteed_stake": gq["stake"],
+                                            "guaranteed_profit": gq["guaranteed_profit"],
+                                        }
+                                        res_push = line_notifier.notify_hedging_alert(ot, target_leg, h_alert)
+                                        if res_push.get("success"):
+                                            st.success("✅ 聽牌對衝策略已成功推播至您的 LINE！")
+                                        else:
+                                            st.error(f"推播失敗：{res_push.get('message')}")
+                            except Exception as h_exc:
+                                st.warning(f"對衝試算提示：{h_exc}")
 
                     c_act1, c_act2, c_act3 = st.columns(3)
                     with c_act1:
@@ -1129,6 +1606,7 @@ with tab_wallet:
                     "狀態": "✅ 中獎" if status_str == "WON" else "⚪ 退盤" if status_str == "VOID" else "❌ 未中",
                     "總派彩": f"NT$ {stt['actual_payout']:,.2f}",
                     "淨損益": f"{'+' if pnl>0 else ''}NT$ {pnl:,.2f}",
+                    "結算備註": stt.get("notes") or "-",
                 })
             st.table(hist_display)
 

@@ -51,6 +51,17 @@ def main():
             from scripts.settle_results import run_settlement
             run_settlement(options.date)
             return
+        elif cmd_arg in ["settle-tickets", "auto-settle"]:
+            from core.ticket_settlement import TicketSettlementEngine
+            engine = TicketSettlementEngine()
+            print("🤖 正在自動對獎並結算進行中注單...")
+            report = engine.auto_settle_open_tickets(dry_run=False)
+            print(f"檢查未結算注單: {report['total_open_checked']} 張")
+            print(f"  • 中獎派彩: {report['settled_won']} 張 (NT$ {report['total_payout_credited']:,.2f} 已撥入保留儲備池)")
+            print(f"  • 未中獎:   {report['settled_lost']} 張")
+            print(f"  • 無效退盤: {report['settled_void']} 張")
+            print(f"  • 尚在進行: {report['still_open']} 張")
+            return
         elif cmd_arg in ["weekly-report", "report"]:
             options = command_options(cmd_arg, "--week")
             from scripts.generate_weekly_report import generate_weekly_report
@@ -86,7 +97,7 @@ def main():
                 raise SystemExit(1)
             return
         elif cmd_arg in ["--help", "-h", "help"]:
-            print("Usage: python main.py [snapshot | settle | weekly-report | watch-odds | export-research | update-mlb-elo | research-pipeline | backup | restore]")
+            print("Usage: python main.py [snapshot | settle | settle-tickets | weekly-report | watch-odds | export-research | update-mlb-elo | research-pipeline | backup | restore]")
             print("MLB update: python main.py update-mlb-elo --start-date YYYY-MM-DD --end-date YYYY-MM-DD")
             print("Research pipeline: python main.py research-pipeline --dry-run [--data-root PATH]")
             return
@@ -105,6 +116,7 @@ def main():
         "streamlit",
         "run",
         str(APP_PATH),
+        "--server.address=0.0.0.0",
         "--server.port=8501",
         "--server.headless=false",
         "--browser.gatherUsageStats=false",
@@ -123,4 +135,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

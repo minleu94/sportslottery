@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from core.edge_engine import EdgeEngine
+from core.line_movement import LineMovementTracker
 from core.model_registry import ModelRegistry
 from core.model_acceptance import acceptance_matches_signal
 from integrations.common.models import PredictionSignal, TaiwanLeg
@@ -48,12 +49,14 @@ class SignalHub:
         model_registry: Optional[ModelRegistry] = None,
         edge_engine: Optional[EdgeEngine] = None,
         sharp_adapter: Optional[SharpBenchmarkOddsAdapter] = None,
+        line_movement_tracker: Optional[LineMovementTracker] = None,
         config_path: Optional[Path] = None,
     ):
         self.expert_adapter = expert_adapter or PlaysportExpertAdapter()
         self.crowd_adapter = crowd_adapter or PlaysportCrowdAdapter()
         self.model_registry = model_registry or ModelRegistry()
         self.sharp_adapter = sharp_adapter or SharpBenchmarkOddsAdapter()
+        self.line_movement_tracker = line_movement_tracker or LineMovementTracker()
         self.config_path = config_path or CONFIG_PATH
         self.weights_config = self._load_weights_config()
         self.edge_engine = edge_engine or EdgeEngine(source_weights=self.weights_config.get("source_weights", {}))
@@ -66,6 +69,8 @@ class SignalHub:
             self.model_registry.refresh()
         if hasattr(self.expert_adapter, "refresh"):
             self.expert_adapter.refresh()
+        if hasattr(self.line_movement_tracker, "refresh"):
+            self.line_movement_tracker.refresh()
 
     def _load_weights_config(self) -> Dict[str, Any]:
         if not self.config_path.exists():
@@ -358,9 +363,18 @@ class SignalHub:
         if crowd_ratio is None and crowd_signal and crowd_signal.score is not None:
             crowd_ratio = crowd_signal.score / 100.0
 
+        # Line Movement & Steam/Trap Tracking
+        line_movement = None
+        if hasattr(self, "line_movement_tracker") and self.line_movement_tracker:
+            try:
+                line_movement = self.line_movement_tracker.analyze_leg_movement(leg, current_odds=odds)
+            except Exception as exc:
+                logger.debug("Line movement analysis skipped: %s", exc)
+
         evidence_summary: Dict[str, Any] = {
             **original_evidence,
             "taiwan_odds": odds,
+            "line_movement": line_movement,
             "market_implied_pct": round(market_implied * 100.0, 1),
             "market_implied_probability": round(market_implied, 3),
             "market_fair_probability": edge_eval.market_fair_probability,

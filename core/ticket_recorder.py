@@ -209,7 +209,7 @@ class TicketRecorder:
             return ticket
 
     def settle_ticket(self, ticket_id: str, won: bool, custom_payout: Optional[float] = None,
-                      is_void: bool = False) -> Dict[str, Any]:
+                      is_void: bool = False, notes: Optional[str] = None) -> Dict[str, Any]:
         with self._transaction() as conn:
             row = conn.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)).fetchone()
             if row is None:
@@ -232,8 +232,9 @@ class TicketRecorder:
                 raise ValueError("VOID 只能按原注金退款；非原額派彩請使用 WON 並提供實際派彩金額。")
             payout = round(payout + 1e-10, 2)
             now_iso = get_now_iso()
-            cursor = conn.execute("""UPDATE tickets SET status=?,actual_payout=?,settled_at=?
-                WHERE id=? AND status='OPEN'""", (status, payout, now_iso, ticket_id))
+            new_notes = notes if notes is not None else ticket.get("notes", "")
+            cursor = conn.execute("""UPDATE tickets SET status=?,actual_payout=?,settled_at=?,notes=?
+                WHERE id=? AND status='OPEN'""", (status, payout, now_iso, new_notes, ticket_id))
             if cursor.rowcount != 1:
                 raise ValueError("注單狀態已變更，無法重複結算。")
             if payout > 0:

@@ -64,8 +64,14 @@ class ShadowPortfolioManager:
 
     @contextmanager
     def _get_connection(self):
-        conn = sqlite3.connect(str(self.db_path))
+        conn = sqlite3.connect(str(self.db_path), timeout=30.0)
         conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+        except sqlite3.DatabaseError:
+            pass
         try:
             with conn:
                 yield conn

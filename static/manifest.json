@@ -1,0 +1,29 @@
+{
+  "name": "台灣運彩 瘋狗流高倍串關決策台",
+  "short_name": "瘋狗流運彩",
+  "description": "台灣運彩高倍串關推薦與每週 NT$200 資金池管理系統",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e1117",
+  "theme_color": "#ff4b4b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/app/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app/static/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
