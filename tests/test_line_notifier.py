@@ -224,3 +224,37 @@ def test_line_notifier_reply_message():
     assert call_kwargs["json"]["replyToken"] == "fake-reply-token"
     assert "quickReply" in call_kwargs["json"]["messages"][0]
     assert len(call_kwargs["json"]["messages"][0]["quickReply"]["items"]) == 6
+
+
+def test_format_parlay_leg_clean_league_and_sport():
+    notifier = LineNotifier()
+
+    # 1. Columbia Primera A test
+    leg_columbia = {
+        "sport": "soccer",
+        "league": "columbia_primera_a",
+        "away_team": "麥德林獨立",
+        "home_team": "卡利體育會",
+        "market": "不讓分",
+        "selection": "客勝",
+        "taiwan_odds": 2.2,
+    }
+    rendered1 = notifier.format_parlay_leg(leg_columbia, idx=1)
+    assert "⚽ [哥倫比亞甲級足球聯賽]" in rendered1
+    assert "麥德林獨立 vs 卡利體育會" in rendered1
+    assert "不讓分 ➔ 【客勝】(2.20x)" in rendered1
+
+    # 2. Unknown soccer test
+    leg_unknown = {
+        "sport": "soccer",
+        "league": "unknown",
+        "away_team": "波哥大公平",
+        "home_team": "百萬富翁",
+        "market": "大小",
+        "line": "2.5",
+        "selection": "小",
+        "taiwan_odds": 1.68,
+    }
+    rendered2 = notifier.format_parlay_leg(leg_unknown, idx=2)
+    assert "⚽ [國際足球錦標賽]" in rendered2
+    assert "大小分 [2.5] ➔ 【小】(1.68x)" in rendered2

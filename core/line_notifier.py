@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import requests
@@ -372,6 +373,129 @@ class LineNotifier:
         return self.send_push_message(text)
 
     @staticmethod
+    def format_parlay_leg(leg: Dict[str, Any], idx: int) -> str:
+        """Format a betting selection with sport icon, clean Chinese league, matchup, kickoff time, and market."""
+        sport = str(leg.get("sport") or "").lower().strip()
+        raw_league = str(leg.get("league") or "").strip()
+        market = str(leg.get("market") or "").strip()
+        selection = str(leg.get("selection") or "").strip()
+        # Clean redundant trailing odds inside selection text (e.g. "大 2.5分 (1.68)" -> "大 2.5分")
+        clean_selection = re.sub(r"\s*\(\d+(?:\.\d+)?\)\s*$", "", selection).strip() or selection
+        odds = float(leg.get("taiwan_odds") or 1.0)
+        line = leg.get("line")
+        away = str(leg.get("away_team") or "客隊").strip()
+        home = str(leg.get("home_team") or "主隊").strip()
+        start_time = leg.get("start_time_utc") or leg.get("start_time")
+
+        # 1. Sport Icon & League Normalization
+        SPORT_ICONS = {
+            "baseball": "⚾",
+            "basketball": "🏀",
+            "soccer": "⚽",
+            "football": "🏈",
+            "hockey": "🏒",
+            "tennis": "🎾",
+        }
+
+        LEAGUE_CHINESE_MAP = {
+            "mlb": ("⚾", "MLB (美國職棒)"),
+            "nba": ("🏀", "NBA (美國職籃)"),
+            "wnba": ("🏀", "WNBA (女子職籃)"),
+            "cpbl": ("⚾", "CPBL (中華職棒)"),
+            "npb": ("⚾", "NPB (日本職棒)"),
+            "kbo": ("⚾", "KBO (韓國職棒)"),
+            "nfl": ("🏈", "NFL (美式足球)"),
+            "nhl": ("🏒", "NHL (北美冰球)"),
+            "premier": ("⚽", "英超 (英格蘭超級聯賽)"),
+            "premier_league": ("⚽", "英超 (英格蘭超級聯賽)"),
+            "epl": ("⚽", "英超 (英格蘭超級聯賽)"),
+            "laliga": ("⚽", "西甲 (西班牙甲級聯賽)"),
+            "serie_a": ("⚽", "義甲 (義大利甲級聯賽)"),
+            "bundesliga": ("⚽", "德甲 (德國甲級聯賽)"),
+            "ligue_1": ("⚽", "法甲 (法國甲級聯賽)"),
+            "mls": ("⚽", "MLS (美國足球大聯盟)"),
+            "columbia_primera_a": ("⚽", "哥倫比亞甲級足球聯賽"),
+            "colombia_primera_a": ("⚽", "哥倫比亞甲級足球聯賽"),
+            "costa_rica_primera": ("⚽", "哥斯大黎加甲級足球聯賽"),
+            "afc_champions_league": ("⚽", "亞冠足球聯賽"),
+            "champions_league": ("⚽", "歐冠足球聯賽"),
+            "europa_league": ("⚽", "歐霸足球盃"),
+            "j_league": ("⚽", "J聯盟 (日本職業足球)"),
+            "k_league": ("⚽", "K聯盟 (韓國職業足球)"),
+            "cpbl_(中職)": ("⚾", "CPBL (中華職棒)"),
+            "npb_(日棒)": ("⚾", "NPB (日本職棒)"),
+            "kbo_(韓棒)": ("⚾", "KBO (韓國職棒)"),
+            "足球": ("⚽", "焦點足球賽事"),
+        }
+
+        norm_league = raw_league.lower().replace(" ", "_").replace("-", "_")
+        # Strip generic "unknown_" prefix if present
+        clean_raw = re.sub(r"^unknown_", "", raw_league, flags=re.IGNORECASE).strip()
+        clean_norm = re.sub(r"^unknown_", "", norm_league, flags=re.IGNORECASE).strip()
+
+        if norm_league in LEAGUE_CHINESE_MAP:
+            icon, league_name = LEAGUE_CHINESE_MAP[norm_league]
+        elif clean_norm in LEAGUE_CHINESE_MAP:
+            icon, league_name = LEAGUE_CHINESE_MAP[clean_norm]
+        elif clean_raw and clean_raw.lower() not in ("unknown", "soccer", "baseball", "basketball", "football", ""):
+            icon = SPORT_ICONS.get(sport, "🎯")
+            league_name = clean_raw
+        else:
+            # Fallback for generic/unknown
+            icon = SPORT_ICONS.get(sport, "🎯")
+            if sport == "soccer":
+                league_name = "國際足球錦標賽"
+            elif sport == "baseball":
+                league_name = "職業棒球賽事"
+            elif sport == "basketball":
+                league_name = "職業籃球賽事"
+            elif sport == "football":
+                league_name = "美式足球賽事"
+            elif sport == "hockey":
+                league_name = "職業冰球賽事"
+            else:
+                league_name = "精選賽事"
+
+        # 2. Matchup Formatting
+        matchup = f"{away} vs {home}"
+
+        # 3. Kickoff Time Formatting (convert UTC to Taipei Time)
+        time_str = ""
+        if start_time:
+            try:
+                from datetime import datetime
+                from zoneinfo import ZoneInfo
+                clean_ts = str(start_time).replace("Z", "+00:00")
+                dt = datetime.fromisoformat(clean_ts)
+                taipei_tz = ZoneInfo("Asia/Taipei")
+                dt_loc = dt.astimezone(taipei_tz) if dt.tzinfo else dt
+                time_str = f" ⏰ {dt_loc.strftime('%m/%d %H:%M')}"
+            except Exception:
+                if len(str(start_time)) <= 16:
+                    time_str = f" ⏰ {start_time}"
+
+        # 4. Market & Selection Formatting
+        if market == "讓分":
+            line_part = f" [{line}]" if line else ""
+            market_str = f"讓分盤{line_part} ➔ 【{clean_selection}】({odds:.2f}x)"
+        elif market == "大小":
+            line_part = f" [{line}]" if line else ""
+            market_str = f"大小分{line_part} ➔ 【{clean_selection}】({odds:.2f}x)"
+        elif market == "不讓分":
+            market_str = f"不讓分 ➔ 【{clean_selection}】({odds:.2f}x)"
+        elif market:
+            line_part = f" [{line}]" if line else ""
+            market_str = f"{market}{line_part} ➔ 【{clean_selection}】({odds:.2f}x)"
+        else:
+            market_str = f"【{clean_selection}】({odds:.2f}x)"
+
+        return (
+            f"{idx}. {icon} [{league_name}]\n"
+            f"   {matchup}{time_str}\n"
+            f"   🎯 {market_str}"
+        )
+
+    @staticmethod
     def get_menu_text() -> str:
         """Full interactive menu formatted for mobile LINE chat."""
         return (
@@ -422,7 +546,16 @@ class LineNotifier:
         if mult_match and ("倍" in cmd or "x" in cmd or cmd.isdigit() or "串" in cmd):
             target_mult = float(mult_match.group(1))
             if 1.5 <= target_mult <= 1000:
-                return self._search_parlay_for_bot(target_mult, parlay_engine, available_legs)
+                sport_filter = None
+                if any(w in cmd for w in ["足球", "soccer"]):
+                    sport_filter = "soccer"
+                elif any(w in cmd for w in ["棒球", "baseball"]):
+                    sport_filter = "baseball"
+                elif any(w in cmd for w in ["籃球", "basketball"]):
+                    sport_filter = "basketball"
+                elif any(w in cmd for w in ["美足", "football", "nfl"]):
+                    sport_filter = "football"
+                return self._search_parlay_for_bot(target_mult, parlay_engine, available_legs, sport_filter=sport_filter)
 
         # 3. Wallet & Staking Performance: e.g. "戰績", "錢包", "餘額", "本週"
         if any(k in cmd for k in ["戰績", "錢包", "餘額", "本金", "獲利", "本週"]):
@@ -454,6 +587,7 @@ class LineNotifier:
         target_mult: float,
         parlay_engine: Optional[Any] = None,
         available_legs: Optional[List[Any]] = None,
+        sport_filter: Optional[str] = None,
     ) -> str:
         """Execute parlay combo search and format betting recommendation with Kelly sizing."""
         try:
@@ -477,8 +611,21 @@ class LineNotifier:
                     "系統已記錄您的需求，早盤開出新盤口時將優先為您運算推薦！"
                 )
 
+            search_pool = available_legs
+            sport_note = ""
+            if sport_filter:
+                filtered = [
+                    l for l in available_legs
+                    if (getattr(l, "sport", None) or (isinstance(l, dict) and l.get("sport"))) == sport_filter
+                ]
+                if len(filtered) >= 2:
+                    search_pool = filtered
+                else:
+                    sport_names = {"soccer": "足球", "baseball": "棒球", "basketball": "籃球", "football": "美足"}
+                    sport_note = f"⚠️ 今日開盤之【{sport_names.get(sport_filter, sport_filter)}】合格賽事不足以單獨組成串關，以下為您提供跨球種高勝率推薦：\n\n"
+
             res = parlay_engine.search_parlays(
-                legs=available_legs,
+                legs=search_pool,
                 target_odds=target_mult,
                 tolerance=0.25,
                 min_legs=2,
@@ -505,16 +652,17 @@ class LineNotifier:
                 )
                 recommended_stake = kelly_res.get("quarter_kelly_stake", 10.0)
 
-                lines = [
+                lines = []
+                if sport_note:
+                    lines.append(sport_note.strip())
+                lines.extend([
                     f"🎯 【{best.get('parlay_name', '精選串關')} · 總賠率 {total_odds}x】",
-                    f"⚖️ 估算勝率：{joint_prob:.1f}% | EV：{ev_pct:+.1f}%",
+                    f"⚖️ 估算勝率：{joint_prob:.1f}% | 期望值 EV：{ev_pct:+.1f}%",
                     f"💵 建議注碼：NT$ {recommended_stake:.0f} (1/4 凱利風控)",
                     "---------------------------",
-                ]
+                ])
                 for idx, l in enumerate(legs, start=1):
-                    lines.append(
-                        f"{idx}. [{l.get('league')}] {l.get('away_team')} vs {l.get('home_team')} ➔ 【{l.get('selection')}】({l.get('taiwan_odds')}x)"
-                    )
+                    lines.append(self.format_parlay_leg(l, idx))
                 lines.append("---------------------------")
                 lines.append("祝您場場過關，財庫滿載！🐕")
                 return "\n".join(lines)
