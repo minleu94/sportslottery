@@ -443,10 +443,16 @@ class LineNotifier:
             "📋 賽事選號明細 (店員代劃單對照)：",
         ]
         for idx, l in enumerate(slip["legs"], start=1):
+            clean_league = re.sub(r"^unknown_", "", str(l.get("league") or ""), flags=re.IGNORECASE).strip()
+            if "colombia" in clean_league.lower() or "columbia" in clean_league.lower():
+                clean_league = "哥倫比亞甲級足球聯賽"
+            elif clean_league.lower() == "unknown":
+                clean_league = "精選賽事"
+            clean_sel = re.sub(r"\s*\(\d+(?:\.\d+)?\)\s*$", "", str(l.get("selection") or "")).strip() or l.get("selection")
             cheat_lines.append(
-                f"{idx}. 賽事 #{l['event_id']} [{l['league']}]\n"
+                f"{idx}. 賽事編號 #{l['event_id']} [{clean_league}]\n"
                 f"   {l['match']}\n"
-                f"   ➔ 玩法：{l['market']} | 選號：【{l['selection']}】({l['odds']:.2f}x)"
+                f"   ➔ 玩法：{l['market']} | 選號：【{clean_sel}】({l['odds']:.2f}x)"
             )
         cheat_lines.append("===========================")
         cheat_lines.append("📲 使用方式：")

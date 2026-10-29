@@ -275,7 +275,7 @@ def test_line_notifier_qr_flow():
     qr_res = notifier._generate_qr_for_combo(combo, stake=200.0)
     assert "台彩 3.0 免劃單" in qr_res["text"]
     assert "3 串 1" in qr_res["text"]
-    assert "賽事 #101 [NBA]" in qr_res["text"]
+    assert "賽事編號 #101 [NBA]" in qr_res["text"]
     assert "TSL3|200|3P1|" in qr_res["compact_code"]
 
     # 2. Test QR command handling
