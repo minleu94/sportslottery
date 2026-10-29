@@ -82,3 +82,20 @@ def generate_qr_code_data_url(content: str, box_size: int = 8, border: int = 2) 
     img.save(buffer, format="PNG")
     b64_str = base64.b64encode(buffer.getvalue()).decode("ascii")
     return f"data:image/png;base64,{b64_str}"
+
+
+def generate_qr_code_file(content: str, file_path: Path, box_size: int = 8, border: int = 2) -> Path:
+    """Generate a QR code image and persist as a PNG file on disk."""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=box_size,
+        border=border,
+    )
+    qr.add_data(content)
+    qr.make(fit=True)
+
+    img = qr.make_image(fill_color="black", back_color="white")
+    img.save(str(file_path), format="PNG")
+    return file_path

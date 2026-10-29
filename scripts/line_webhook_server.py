@@ -17,6 +17,7 @@ from typing import Any, Dict
 
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi.staticfiles import StaticFiles
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
@@ -37,6 +38,10 @@ logger = logging.getLogger("line_webhook")
 
 app = FastAPI(title="Sportslottery LINE Bot Webhook")
 notifier = LineNotifier()
+
+# Mount static folder for serving QR code PNGs
+(ROOT_DIR / "static" / "qr").mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
 
 
 def verify_signature(body_bytes: bytes, signature: str, secret: str) -> bool:
@@ -100,15 +105,18 @@ async def callback(
                 user_text = str(msg.get("text", "")).strip()
                 logger.info("Inbound user message from %s: %s", (user_id or "unknown")[:6], user_text)
 
-                # Process command via LineNotifier
-                reply_text = notifier.handle_user_message(user_text)
+                # Process command via LineNotifier (supports rich text + QR images)
+                full_res = notifier.handle_user_message_full(user_text)
+                reply_text = full_res.get("text", "")
+                image_url = full_res.get("image_url")
 
-                # Send reply with quick reply shortcut pills
+                # Send reply with quick reply shortcut pills and optional image
                 if reply_token:
                     notifier.reply_message(
                         reply_token=reply_token,
                         text=reply_text,
                         quick_replies=notifier.default_quick_replies(),
+                        image_url=image_url,
                     )
 
         elif ev_type == "follow":

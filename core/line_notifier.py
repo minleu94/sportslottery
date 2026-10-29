@@ -38,6 +38,7 @@ class LineNotifier:
         self.config_path = config_path or CONFIG_PATH
         self.session = session or requests.Session()
         self.config = self.load_config()
+        self.last_recommended_parlay: Optional[Dict[str, Any]] = None
 
     def load_config(self) -> Dict[str, Any]:
         """Load LINE Bot settings from YAML config or environment variables."""
@@ -93,8 +94,9 @@ class LineNotifier:
         self,
         text: str,
         user_id: Optional[str] = None,
+        image_url: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Send a plain text push message to the configured LINE User ID or Group ID."""
+        """Send a push message (text and optional image) to the configured LINE User ID or Group ID."""
         token = str(self.config.get("channel_access_token") or "").strip()
         target = str(user_id or self.config.get("user_id") or "").strip()
 
@@ -110,14 +112,22 @@ class LineNotifier:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
+
+        messages_list = []
+        if image_url:
+            messages_list.append({
+                "type": "image",
+                "originalContentUrl": image_url,
+                "previewImageUrl": image_url,
+            })
+        messages_list.append({
+            "type": "text",
+            "text": text,
+        })
+
         payload = {
             "to": target,
-            "messages": [
-                {
-                    "type": "text",
-                    "text": text,
-                }
-            ],
+            "messages": messages_list,
         }
 
         try:
@@ -148,8 +158,9 @@ class LineNotifier:
         reply_token: str,
         text: str,
         quick_replies: Optional[List[Dict[str, str]]] = None,
+        image_url: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Send a reply to an incoming webhook message using replyToken (free quota)."""
+        """Send a reply to an incoming webhook message using replyToken (free quota), supporting images."""
         token = str(self.config.get("channel_access_token") or "").strip()
         if not token or not reply_token:
             return {
@@ -163,6 +174,15 @@ class LineNotifier:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
+
+        messages_list = []
+        if image_url:
+            messages_list.append({
+                "type": "image",
+                "originalContentUrl": image_url,
+                "previewImageUrl": image_url,
+            })
+
         msg_obj: Dict[str, Any] = {
             "type": "text",
             "text": text,
@@ -181,10 +201,11 @@ class LineNotifier:
                     for item in quick_replies[:13]
                 ]
             }
+        messages_list.append(msg_obj)
 
         payload = {
             "replyToken": reply_token,
-            "messages": [msg_obj],
+            "messages": messages_list,
         }
 
         try:
@@ -214,12 +235,12 @@ class LineNotifier:
     def default_quick_replies() -> List[Dict[str, str]]:
         """Standard quick reply shortcuts displayed above keyboard in LINE chat."""
         return [
+            {"label": "📱 產生投注 QR 碼", "text": "QR"},
             {"label": "🎯 找20倍串關", "text": "20倍"},
             {"label": "🔥 找50倍高賠", "text": "50倍"},
             {"label": "💰 查戰績錢包", "text": "查戰績"},
             {"label": "☀️ 今日開盤", "text": "今日開盤"},
             {"label": "🛡️ 聽牌對沖", "text": "對沖"},
-            {"label": "📋 完整功能表", "text": "功能表"},
         ]
 
     def test_connection(self, user_id: Optional[str] = None) -> Dict[str, Any]:
@@ -372,6 +393,85 @@ class LineNotifier:
         )
         return self.send_push_message(text)
 
+    def _generate_qr_for_combo(
+        self,
+        combo: Dict[str, Any],
+        stake: float = 100.0,
+    ) -> Dict[str, Any]:
+        """Generate a Taiwan Sports Lottery 3.0 QR Code image and kiosk cheat sheet."""
+        from core.lottery_qr import build_lottery_slip_payload, generate_qr_code_file
+        import hashlib
+
+        legs = combo.get("legs", [])
+        parlay_name = combo.get("parlay_name", f"{len(legs)} 串 1")
+        total_odds = float(combo.get("total_odds", 1.0))
+        potential_payout = round(stake * total_odds, 0)
+
+        slip = build_lottery_slip_payload(
+            legs=legs,
+            total_stake=stake,
+            parlay_name=parlay_name,
+        )
+        compact_code = slip["compact_code"]
+
+        # Cache file under static/qr/
+        code_hash = hashlib.sha256(compact_code.encode("utf-8")).hexdigest()[:12]
+        qr_filename = f"tsl_{code_hash}.png"
+        qr_file_path = ROOT_DIR / "static" / "qr" / qr_filename
+
+        generate_qr_code_file(compact_code, qr_file_path)
+
+        # Detect active public tunnel for image hosting
+        tunnel_url = ""
+        status_file = ROOT_DIR / "data" / "line_bot_runtime.json"
+        if status_file.exists():
+            try:
+                with open(status_file, "r", encoding="utf-8") as f:
+                    rt = json.load(f)
+                tunnel_url = str(rt.get("tunnel_url") or "").rstrip("/")
+            except Exception:
+                pass
+
+        image_url = f"{tunnel_url}/static/qr/{qr_filename}" if tunnel_url else None
+
+        cheat_lines = [
+            "🏪 【台彩 3.0 免劃單 · 臨櫃出票條碼】",
+            "===========================",
+            f"🎫 組合：{parlay_name} (總賠率 {total_odds:.2f}x)",
+            f"💵 建議注碼：NT$ {stake:.0f} (預期派彩 NT$ {potential_payout:,.0f})",
+            "---------------------------",
+            "📋 賽事選號明細 (店員代劃單對照)：",
+        ]
+        for idx, l in enumerate(slip["legs"], start=1):
+            cheat_lines.append(
+                f"{idx}. 賽事 #{l['event_id']} [{l['league']}]\n"
+                f"   {l['match']}\n"
+                f"   ➔ 玩法：{l['market']} | 選號：【{l['selection']}】({l['odds']:.2f}x)"
+            )
+        cheat_lines.append("===========================")
+        cheat_lines.append("📲 使用方式：")
+        cheat_lines.append("至彩券行櫃檯將手機對準機台鏡頭掃描上方 QR Code，即可 1 秒免劃單出票！🎯")
+
+        return {
+            "text": "\n".join(cheat_lines),
+            "image_url": image_url,
+            "compact_code": compact_code,
+        }
+
+    def notify_ticket_qr(
+        self,
+        combo: Dict[str, Any],
+        stake: float = 100.0,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Push a Taiwan Sports Lottery QR Code and slip description to LINE."""
+        qr_data = self._generate_qr_for_combo(combo, stake)
+        return self.send_push_message(
+            text=qr_data["text"],
+            user_id=user_id,
+            image_url=qr_data.get("image_url"),
+        )
+
     @staticmethod
     def format_parlay_leg(leg: Dict[str, Any], idx: int) -> str:
         """Format a betting selection with sport icon, clean Chinese league, matchup, kickoff time, and market."""
@@ -514,6 +614,9 @@ class LineNotifier:
             "🛡️ 【聽牌對沖與鎖利】\n"
             "• 輸入「對沖」或「聽牌」\n"
             "  ➔ 檢查手頭未結算注單，若只剩最後一關，即時計算 100% 鎖利或 0 虧損保本對沖計畫！\n\n"
+            "📱 【彩券行 QR Code 投注單】\n"
+            "• 輸入「QR」或點選下方快捷按鈕\n"
+            "  ➔ 即時生成台彩 3.0 機台掃描條碼，實體彩券行 1 秒免劃單快速出票！\n\n"
             "📋 【重新呼叫選單】\n"
             "• 輸入「功能表」、「選單」或「說明」\n"
             "===========================\n"
@@ -569,18 +672,63 @@ class LineNotifier:
         if any(k in cmd for k in ["對沖", "對衝", "聽牌", "鎖利", "保本"]):
             return self._get_hedging_status_text()
 
-        # 6. Fallback to Menu with Prompt
+        # 6. QR Code Slip Generation: e.g. "qr", "產qr", "條碼", "投注單", "qrcode"
+        if any(cmd == q or q in cmd for q in ["qr", "產qr", "條碼", "投注單", "qrcode", "出票", "劃單"]):
+            return self._handle_qr_request(parlay_engine, available_legs)["text"]
+
+        # 7. Fallback to Menu with Prompt
         return (
             "🐕 【瘋狗流 LINE 助手指令說明】\n"
             "---------------------------\n"
             f"收到指令：「{user_text}」\n"
             "未能辨識此關鍵字。您可以點擊下方快捷按鈕，或參考以下指令：\n\n"
             "• 發送「20倍」➔ 智慧搜尋 20 倍串關\n"
+            "• 發送「QR」➔ 取得彩券行掃描出單條碼\n"
             "• 發送「查戰績」➔ 查看每週額度與獲利\n"
             "• 發送「今日開盤」➔ 查看開盤聯賽與場次\n"
             "• 發送「對沖」➔ 聽牌對沖保本計算\n"
             "• 發送「功能表」➔ 查看完整功能說明"
         )
+
+    def handle_user_message_full(
+        self,
+        user_text: str,
+        parlay_engine: Optional[Any] = None,
+        available_legs: Optional[List[Any]] = None,
+        wallet_mgr: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Process inbound text command and return dict with 'text' and optional 'image_url'."""
+        cmd = user_text.strip().lower()
+        if any(cmd == q or q in cmd for q in ["qr", "產qr", "條碼", "投注單", "qrcode", "出票", "劃單"]):
+            return self._handle_qr_request(parlay_engine, available_legs)
+
+        text_reply = self.handle_user_message(user_text, parlay_engine, available_legs, wallet_mgr)
+        return {"text": text_reply, "image_url": None}
+
+    def _handle_qr_request(
+        self,
+        parlay_engine: Optional[Any] = None,
+        available_legs: Optional[List[Any]] = None,
+    ) -> Dict[str, Any]:
+        """Generate QR code for the last recommended parlay or find the best combo."""
+        combo = self.last_recommended_parlay
+        if not combo:
+            # Trigger search to populate last_recommended_parlay if not yet present
+            self._search_parlay_for_bot(20.0, parlay_engine, available_legs)
+            combo = self.last_recommended_parlay
+
+        if combo and combo.get("legs"):
+            return self._generate_qr_for_combo(combo, stake=100.0)
+
+        return {
+            "text": (
+                "📱 【彩券行 QR Code 投注單】\n"
+                "---------------------------\n"
+                "⚠️ 目前尚未選定或搜尋串關組合。\n"
+                "請先發送目標倍率（例如「20倍」或點選下方快捷按鈕），推薦組合後即可一秒產出實體條碼！"
+            ),
+            "image_url": None,
+        }
 
     def _search_parlay_for_bot(
         self,
@@ -638,6 +786,7 @@ class LineNotifier:
 
             if top_combos:
                 best = top_combos[0]
+                self.last_recommended_parlay = best
                 total_odds = float(best.get("total_odds", target_mult))
                 joint_prob = float(best.get("joint_probability", 0.0)) * 100
                 ev_pct = float(best.get("parlay_ev_pct", 0.0))
@@ -664,6 +813,7 @@ class LineNotifier:
                 for idx, l in enumerate(legs, start=1):
                     lines.append(self.format_parlay_leg(l, idx))
                 lines.append("---------------------------")
+                lines.append("📲 點擊下方【📱 產生投注 QR 碼】或傳送「QR」，即可獲得實體彩券行掃描條碼！")
                 lines.append("祝您場場過關，財庫滿載！🐕")
                 return "\n".join(lines)
             else:

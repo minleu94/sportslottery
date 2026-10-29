@@ -258,3 +258,27 @@ def test_format_parlay_leg_clean_league_and_sport():
     rendered2 = notifier.format_parlay_leg(leg_unknown, idx=2)
     assert "⚽ [國際足球錦標賽]" in rendered2
     assert "大小分 [2.5] ➔ 【小】(1.68x)" in rendered2
+
+
+def test_line_notifier_qr_flow():
+    notifier = LineNotifier()
+    combo = {
+        "parlay_name": "3 串 1",
+        "total_odds": 5.8,
+        "legs": [
+            {"event_id": "101", "league": "NBA", "away_team": "勇士", "home_team": "湖人", "market": "不讓分", "selection": "湖人勝", "taiwan_odds": 1.75},
+            {"event_id": "102", "league": "MLB", "away_team": "洋基", "home_team": "紅襪", "market": "大小", "line": "8.5", "selection": "大", "taiwan_odds": 1.85},
+            {"event_id": "203", "league": "英超", "away_team": "曼聯", "home_team": "熱刺", "market": "不讓分", "selection": "主勝", "taiwan_odds": 1.80},
+        ],
+    }
+    # 1. Test QR generation
+    qr_res = notifier._generate_qr_for_combo(combo, stake=200.0)
+    assert "台彩 3.0 免劃單" in qr_res["text"]
+    assert "3 串 1" in qr_res["text"]
+    assert "賽事 #101 [NBA]" in qr_res["text"]
+    assert "TSL3|200|3P1|" in qr_res["compact_code"]
+
+    # 2. Test QR command handling
+    notifier.last_recommended_parlay = combo
+    full_res = notifier.handle_user_message_full("QR")
+    assert "台彩 3.0 免劃單" in full_res["text"]

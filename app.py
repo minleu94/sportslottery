@@ -1252,6 +1252,13 @@ with tab_parlay:
                             for l in slip_payload["legs"]:
                                 st.markdown(f"• 賽事編號 **#{l['event_id']}** [{l['league']}] ➔ `{l['market']}` | 選擇：`<b>{l['selection']}</b>` (賠率 {l['odds']:.2f})", unsafe_allow_html=True)
                             st.caption(f"組合型式：{slip_payload['parlay_name']} | 建議注金：NT$ {stake_per_bet:.0f}")
+                            if line_notifier.is_configured():
+                                if st.button("📲 一鍵推播 QR 投注單至手機 LINE", key=f"push_line_qr_{item_key}"):
+                                    push_res = line_notifier.notify_ticket_qr(item, stake=stake_per_bet)
+                                    if push_res.get("success"):
+                                        st.success("✅ 投注單 QR Code 與明細已成功送達您的手機 LINE！請在手機查收！")
+                                    else:
+                                        st.error(f"❌ 推播失敗：{push_res.get('message')}")
                 with col_bet_m:
                     placed_odds_input = st.number_input(
                         "實際下注賠率 (Placed Odds)",
