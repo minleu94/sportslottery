@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 ROOT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT_DIR / "config" / "line_notifier.yaml"
 LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
+LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply"
 
 
 class LineNotifier:
@@ -140,6 +141,85 @@ class LineNotifier:
                 "error": "NETWORK_EXCEPTION",
                 "message": str(exc),
             }
+
+    def reply_message(
+        self,
+        reply_token: str,
+        text: str,
+        quick_replies: Optional[List[Dict[str, str]]] = None,
+    ) -> Dict[str, Any]:
+        """Send a reply to an incoming webhook message using replyToken (free quota)."""
+        token = str(self.config.get("channel_access_token") or "").strip()
+        if not token or not reply_token:
+            return {
+                "success": False,
+                "status_code": 0,
+                "error": "LINE_NOT_CONFIGURED",
+                "message": "尚未設定 Channel Access Token 或無效的 reply_token",
+            }
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+        msg_obj: Dict[str, Any] = {
+            "type": "text",
+            "text": text,
+        }
+        if quick_replies:
+            msg_obj["quickReply"] = {
+                "items": [
+                    {
+                        "type": "action",
+                        "action": {
+                            "type": "message",
+                            "label": item.get("label", item.get("text", ""))[:20],
+                            "text": item.get("text", "")[:300],
+                        },
+                    }
+                    for item in quick_replies[:13]
+                ]
+            }
+
+        payload = {
+            "replyToken": reply_token,
+            "messages": [msg_obj],
+        }
+
+        try:
+            resp = self.session.post(LINE_REPLY_URL, headers=headers, json=payload, timeout=8.0)
+            if resp.status_code == 200:
+                logger.info("LINE reply delivered successfully via replyToken.")
+                return {"success": True, "status_code": 200}
+            else:
+                err_text = resp.text
+                logger.warning("LINE reply failed [%d]: %s", resp.status_code, err_text)
+                return {
+                    "success": False,
+                    "status_code": resp.status_code,
+                    "error": "HTTP_ERROR",
+                    "message": err_text,
+                }
+        except Exception as exc:
+            logger.error("Network error while replying to LINE API: %s", exc)
+            return {
+                "success": False,
+                "status_code": 0,
+                "error": "NETWORK_EXCEPTION",
+                "message": str(exc),
+            }
+
+    @staticmethod
+    def default_quick_replies() -> List[Dict[str, str]]:
+        """Standard quick reply shortcuts displayed above keyboard in LINE chat."""
+        return [
+            {"label": "🎯 找20倍串關", "text": "20倍"},
+            {"label": "🔥 找50倍高賠", "text": "50倍"},
+            {"label": "💰 查戰績錢包", "text": "查戰績"},
+            {"label": "☀️ 今日開盤", "text": "今日開盤"},
+            {"label": "🛡️ 聽牌對沖", "text": "對沖"},
+            {"label": "📋 完整功能表", "text": "功能表"},
+        ]
 
     def test_connection(self, user_id: Optional[str] = None) -> Dict[str, Any]:
         """Send an instant test ping to verify LINE bot integration."""
@@ -291,6 +371,31 @@ class LineNotifier:
         )
         return self.send_push_message(text)
 
+    @staticmethod
+    def get_menu_text() -> str:
+        """Full interactive menu formatted for mobile LINE chat."""
+        return (
+            "🐕 【瘋狗流 LINE 助手指令說明 · 功能表】\n"
+            "===========================\n"
+            "您可以直接傳送以下指令（或點選下方快捷按鈕）：\n\n"
+            "🎯 【智慧串關推薦】\n"
+            "• 輸入「20倍」、「30倍」、「50倍」或任何數字\n"
+            "  ➔ AI 即時從今日各聯賽盤口中，演算最高勝率、正期望值 (+EV) 的串關組合！\n\n"
+            "💰 【資產與戰績管理】\n"
+            "• 輸入「查戰績」、「錢包」或「餘額」\n"
+            "  ➔ 即時查詢本週可玩額度 (NT$200/週)、已下注金額與保留儲備池！\n\n"
+            "☀️ 【即時開盤雷達】\n"
+            "• 輸入「今日開盤」或「雷達」\n"
+            "  ➔ 查詢今日有開盤之聯賽與可玩場次簡報！\n\n"
+            "🛡️ 【聽牌對沖與鎖利】\n"
+            "• 輸入「對沖」或「聽牌」\n"
+            "  ➔ 檢查手頭未結算注單，若只剩最後一關，即時計算 100% 鎖利或 0 虧損保本對沖計畫！\n\n"
+            "📋 【重新呼叫選單】\n"
+            "• 輸入「功能表」、「選單」或「說明」\n"
+            "===========================\n"
+            "💡 提示：點擊下方快捷按鈕即可一鍵送出！"
+        )
+
     def handle_user_message(
         self,
         user_text: str,
@@ -298,66 +403,224 @@ class LineNotifier:
         available_legs: Optional[List[Any]] = None,
         wallet_mgr: Optional[Any] = None,
     ) -> str:
-        """Process inbound text commands from LINE (e.g. '20倍', '查戰績', '今日開盤')."""
+        """Process inbound text commands from LINE (e.g. '20倍', '功能表', '查戰績', '今日開盤', '對沖')."""
         import re
         cmd = user_text.strip().lower()
+        if not cmd:
+            return self.get_menu_text()
 
-        # Match multiplier commands: e.g. "20", "20倍", "20x", "50倍"
+        # 1. Greetings & Menu Triggers
+        menu_triggers = [
+            "功能表", "選單", "menu", "help", "說明", "指令", "你好", "您好", "哈囉",
+            "hello", "hi", "嗨", "開始", "start", "安安", "?", "？", "怎麼用"
+        ]
+        if any(cmd == t for t in menu_triggers):
+            return self.get_menu_text()
+
+        # 2. Match Target Multiplier: e.g. "20", "20倍", "20x", "50倍", "100"
         mult_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:倍|x|X)?", cmd)
-        if mult_match and ("倍" in cmd or "x" in cmd or cmd.isdigit()):
+        if mult_match and ("倍" in cmd or "x" in cmd or cmd.isdigit() or "串" in cmd):
             target_mult = float(mult_match.group(1))
-            if 1.5 <= target_mult <= 500:
-                if parlay_engine and available_legs:
-                    res = parlay_engine.search_parlays(
-                        legs=available_legs,
-                        target_odds=target_mult,
-                        tolerance=0.25,
-                        min_legs=2,
-                        max_legs=6,
-                        search_budget=30000,
-                    )
-                    top_combos = []
-                    for tier, combos in res.items():
-                        top_combos.extend(combos)
-                    if top_combos:
-                        best = top_combos[0]
-                        lines = [
-                            f"🎯 【{best.get('parlay_name')} · 總賠率 {best.get('total_odds')}x】",
-                            f"⚖️ 估計勝率: {best.get('joint_probability', 0)*100:.1f}% | EV: {best.get('parlay_ev_pct', 0):+.1f}%",
-                            "---------------------------",
-                        ]
-                        for idx, l in enumerate(best.get("legs", []), start=1):
-                            lines.append(f"{idx}. [{l.get('league')}] {l.get('away_team')} vs {l.get('home_team')} ➔ 【{l.get('selection')}】({l.get('taiwan_odds')}x)")
-                        lines.append("---------------------------")
-                        lines.append("祝您場場過關！🐕")
-                        return "\n".join(lines)
-                    return f"已為您搜尋約 {target_mult} 倍組合，但目前各盤口尚無完全吻合之高信賴推薦，建議調整倍率或稍後重試！"
-                return f"收到！目標倍率 {target_mult} 倍。目前後端決策引擎正在加載即時盤口，請稍候刷新！"
+            if 1.5 <= target_mult <= 1000:
+                return self._search_parlay_for_bot(target_mult, parlay_engine, available_legs)
 
-        if "戰績" in cmd or "錢包" in cmd or "餘額" in cmd:
-            if wallet_mgr:
-                status = wallet_mgr.get_status()
-                return (
-                    "💰 【瘋狗流資金與戰績總覽】\n"
-                    "---------------------------\n"
-                    f"• 本週可玩餘額：NT$ {status['weekly_wallet_balance']:.2f}\n"
-                    f"• 本週已下注：NT$ {status['weekly_staked']:.2f}\n"
-                    f"• 🔒 保留儲備池：NT$ {status['prize_pool']:.2f}\n"
-                    f"• 累計歷史淨利：NT$ {status.get('lifetime_net_profit', 0.0):+,.2f}\n"
-                    "---------------------------\n"
-                    "落實每週 NT$200 風控，守住每一分獲利！"
-                )
-            return "錢包模組讀取中..."
+        # 3. Wallet & Staking Performance: e.g. "戰績", "錢包", "餘額", "本週"
+        if any(k in cmd for k in ["戰績", "錢包", "餘額", "本金", "獲利", "本週"]):
+            return self._get_wallet_status_text(wallet_mgr)
 
-        if "雷達" in cmd or "開盤" in cmd or "今天" in cmd:
-            return "☀️ 欲查看今日開盤，請在決策台點選「① 今日可玩 (賽季雷達)」或發送目標倍率（如「20倍」）獲取推薦！"
+        # 4. Season Radar / Daily Matchups: e.g. "雷達", "開盤", "今天", "賽程"
+        if any(k in cmd for k in ["雷達", "開盤", "今天", "賽程", "賽事"]):
+            return self._get_radar_status_text()
 
+        # 5. Hedging / Breakeven Queries: e.g. "對沖", "對衝", "聽牌", "鎖利", "保本"
+        if any(k in cmd for k in ["對沖", "對衝", "聽牌", "鎖利", "保本"]):
+            return self._get_hedging_status_text()
+
+        # 6. Fallback to Menu with Prompt
         return (
             "🐕 【瘋狗流 LINE 助手指令說明】\n"
             "---------------------------\n"
-            "您可以直接傳送：\n"
-            "• 「20倍」或「50x」➔ 自動為您尋找最佳串關組合\n"
-            "• 「查戰績」或「餘額」➔ 查看每週錢包與儲備池最新數據\n"
-            "• 「今日開盤」➔ 查詢今日賽程狀態\n\n"
-            "輸入任何數字（如 15、30、100）即可開始組單！"
+            f"收到指令：「{user_text}」\n"
+            "未能辨識此關鍵字。您可以點擊下方快捷按鈕，或參考以下指令：\n\n"
+            "• 發送「20倍」➔ 智慧搜尋 20 倍串關\n"
+            "• 發送「查戰績」➔ 查看每週額度與獲利\n"
+            "• 發送「今日開盤」➔ 查看開盤聯賽與場次\n"
+            "• 發送「對沖」➔ 聽牌對沖保本計算\n"
+            "• 發送「功能表」➔ 查看完整功能說明"
         )
+
+    def _search_parlay_for_bot(
+        self,
+        target_mult: float,
+        parlay_engine: Optional[Any] = None,
+        available_legs: Optional[List[Any]] = None,
+    ) -> str:
+        """Execute parlay combo search and format betting recommendation with Kelly sizing."""
+        try:
+            if not parlay_engine:
+                from core.signal_hub import SignalHub
+                from core.parlay_engine import ParlayEngine
+                parlay_engine = ParlayEngine(signal_hub=SignalHub())
+
+            if not available_legs:
+                from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
+                adapter = PlaysportOddsAdapter()
+                raw_legs = adapter.get_taiwan_legs()
+                if raw_legs:
+                    available_legs = [parlay_engine.signal_hub.evaluate_taiwan_leg(leg) for leg in raw_legs]
+
+            if not available_legs:
+                return (
+                    f"🎯 目標倍率：{target_mult:.1f} 倍\n"
+                    "---------------------------\n"
+                    "⚠️ 目前盤口處於交界或夜間封盤時段，無合格即時開盤賽事。\n"
+                    "系統已記錄您的需求，早盤開出新盤口時將優先為您運算推薦！"
+                )
+
+            res = parlay_engine.search_parlays(
+                legs=available_legs,
+                target_odds=target_mult,
+                tolerance=0.25,
+                min_legs=2,
+                max_legs=6,
+                search_budget=30000,
+            )
+            top_combos = []
+            for tier, combos in res.items():
+                top_combos.extend(combos)
+
+            if top_combos:
+                best = top_combos[0]
+                total_odds = float(best.get("total_odds", target_mult))
+                joint_prob = float(best.get("joint_probability", 0.0)) * 100
+                ev_pct = float(best.get("parlay_ev_pct", 0.0))
+                legs = best.get("legs", [])
+
+                # Kelly sizing recommendation
+                from core.kelly import calculate_kelly_stake
+                kelly_res = calculate_kelly_stake(
+                    win_probability=max(0.01, min(0.99, joint_prob / 100.0)),
+                    decimal_odds=total_odds,
+                    bankroll=200.0,
+                )
+                recommended_stake = kelly_res.get("quarter_kelly_stake", 10.0)
+
+                lines = [
+                    f"🎯 【{best.get('parlay_name', '精選串關')} · 總賠率 {total_odds}x】",
+                    f"⚖️ 估算勝率：{joint_prob:.1f}% | EV：{ev_pct:+.1f}%",
+                    f"💵 建議注碼：NT$ {recommended_stake:.0f} (1/4 凱利風控)",
+                    "---------------------------",
+                ]
+                for idx, l in enumerate(legs, start=1):
+                    lines.append(
+                        f"{idx}. [{l.get('league')}] {l.get('away_team')} vs {l.get('home_team')} ➔ 【{l.get('selection')}】({l.get('taiwan_odds')}x)"
+                    )
+                lines.append("---------------------------")
+                lines.append("祝您場場過關，財庫滿載！🐕")
+                return "\n".join(lines)
+            else:
+                return (
+                    f"🔍 已為您精算 {target_mult:.1f} 倍組合。\n"
+                    "目前盤口中暫無完全符合 +EV 與風控標準之理想組合，建議微調倍率（如「10倍」或「30倍」）重新嘗試！"
+                )
+        except Exception as exc:
+            logger.error("Error in _search_parlay_for_bot: %s", exc)
+            return f"搜尋組合時發生錯誤，請稍候重試：{exc}"
+
+    def _get_wallet_status_text(self, wallet_mgr: Optional[Any] = None) -> str:
+        """Format wallet and financial discipline report."""
+        try:
+            if not wallet_mgr:
+                from core.wallet import WeeklyWalletManager
+                wallet_mgr = WeeklyWalletManager()
+            status = wallet_mgr.get_status()
+            return (
+                "💰 【瘋狗流資金與戰績總覽】\n"
+                "===========================\n"
+                f"• 本週可玩餘額：NT$ {status['weekly_wallet_balance']:.2f}\n"
+                f"• 本週已下注額：NT$ {status['weekly_staked']:.2f}\n"
+                f"• 🔒 保留儲備池：NT$ {status['prize_pool']:.2f}\n"
+                f"• 歷史累計淨利：NT$ {status.get('lifetime_net_profit', 0.0):+,.2f}\n"
+                f"• 累計下注金額：NT$ {status.get('lifetime_staked', 0.0):,.2f}\n"
+                f"• 累計實收派彩：NT$ {status.get('lifetime_gross_payout', 0.0):,.2f}\n"
+                "===========================\n"
+                "嚴守每週 NT$200 風控紀律，獲利全數入庫！🐕"
+            )
+        except Exception as exc:
+            logger.error("Error reading wallet: %s", exc)
+            return f"錢包數據讀取異常：{exc}"
+
+    def _get_radar_status_text(self) -> str:
+        """Format active league radar status."""
+        try:
+            from core.season_radar import SeasonRadar
+            radar = SeasonRadar()
+            summary = radar.scan()
+            active = [r for r in summary if r.get("status") == "GREEN"]
+            if active:
+                lines = [
+                    "☀️ 【今日運彩賽季開盤雷達】",
+                    "===========================",
+                ]
+                for r in active:
+                    lines.append(f"🟢 {r.get('icon', '⚽')} {r.get('name')}：{r.get('taiwan_market_count', 0)} 場開盤")
+                lines.append("===========================")
+                lines.append("您可以直接傳送「20倍」或點選下方按鈕開始組單！")
+                return "\n".join(lines)
+            return "☀️ 今日各聯賽盤口目前多處於交界或休兵時段，稍後開盤將自動更新！"
+        except Exception as exc:
+            logger.error("Error reading radar: %s", exc)
+            return f"賽季雷達讀取異常：{exc}"
+
+    def _get_hedging_status_text(self) -> str:
+        """Format current hedging/arbitrage status for active open tickets."""
+        try:
+            from core.ticket_recorder import TicketRecorder
+            from core.hedging import calculate_hedge
+            recorder = TicketRecorder()
+            open_tickets = recorder.list_tickets(status_filter="OPEN")
+            if not open_tickets:
+                return (
+                    "🛡️ 【對沖保本狀態查詢】\n"
+                    "---------------------------\n"
+                    "目前系統中暫無進行中的未結算注單。\n"
+                    "下注後系統會自動全程盯盤，一旦進入最後一關「聽牌」，會第一時間主動推播對沖方案給您！"
+                )
+
+            hedging_ready = []
+            for t in open_tickets:
+                legs = t.get("legs", [])
+                if len(legs) >= 2:
+                    pending_legs = [l for l in legs if l.get("outcome") in (None, "PENDING", "")]
+                    if len(pending_legs) == 1:
+                        hedging_ready.append((t, pending_legs[0]))
+
+            if hedging_ready:
+                t, pending = hedging_ready[0]
+                analysis = calculate_hedge(
+                    ticket_stake=float(t.get("stake", 0.0)),
+                    potential_payout=float(t.get("potential_payout", 0.0)),
+                    opposing_odds=1.75,
+                    opposing_selection="反向盤口",
+                )
+                return (
+                    "🔔 【恭喜聽牌！即時對沖方案】\n"
+                    "===========================\n"
+                    f"🎫 串關：{t.get('sports_summary', '運彩高倍串關')}\n"
+                    f"🎯 潛在派彩：NT$ {float(t.get('potential_payout', 0.0)):,.2f}\n"
+                    f"⏳ 最後決戰：[{pending.get('league')}] {pending.get('away_team')} vs {pending.get('home_team')}\n"
+                    f"手持關卡：【{pending.get('selection')}】\n\n"
+                    "🛡️ 建議對沖策略：\n"
+                    f"• ① 保本對沖：反買 NT$ {analysis['breakeven_stake']:.0f} ➔ 0 虧損\n"
+                    f"• ② 絕對鎖利：反買 NT$ {analysis['guaranteed_stake']:.0f} ➔ 保底淨賺 NT$ {analysis['guaranteed_profit']:,.2f}！"
+                )
+
+            return (
+                f"🛡️ 【對沖監控中】\n"
+                "---------------------------\n"
+                f"目前共有 {len(open_tickets)} 張進行中的未結算注單。\n"
+                "目前尚未達到最後一關聽牌條件，系統正密切監控賽事結果中！"
+            )
+        except Exception as exc:
+            logger.error("Error reading hedging: %s", exc)
+            return f"對沖狀態查詢異常：{exc}"

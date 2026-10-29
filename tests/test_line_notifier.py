@@ -205,3 +205,22 @@ def test_line_notifier_handle_user_message_help():
     notifier = LineNotifier()
     reply = notifier.handle_user_message("怎麼用")
     assert "瘋狗流 LINE 助手指令說明" in reply
+
+
+def test_line_notifier_reply_message():
+    mock_session = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_session.post.return_value = mock_resp
+
+    notifier = LineNotifier(session=mock_session)
+    notifier.config["channel_access_token"] = "fake-token"
+    quick_replies = notifier.default_quick_replies()
+
+    res = notifier.reply_message("fake-reply-token", "測試回覆", quick_replies=quick_replies)
+    assert res["success"] is True
+    assert mock_session.post.called
+    call_kwargs = mock_session.post.call_args[1]
+    assert call_kwargs["json"]["replyToken"] == "fake-reply-token"
+    assert "quickReply" in call_kwargs["json"]["messages"][0]
+    assert len(call_kwargs["json"]["messages"][0]["quickReply"]["items"]) == 6

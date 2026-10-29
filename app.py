@@ -1416,13 +1416,24 @@ with tab_wallet:
                     else:
                         st.error(f"❌ 發送失敗：[{test_res.get('status_code')}] {test_res.get('message')}")
         with col_ln2:
-            st.markdown("#### 📖 2 分鐘快速上手指南")
+            st.markdown("#### 🤖 LINE 雙向對話與指令互動設定")
             st.markdown("""
-            1. 前往 **[LINE Developers Console](https://developers.line.biz/)** 並以 LINE 帳號登入。
-            2. 建立 Provider (例如 `SportsLottery`) ➔ 建立 **Create a Messaging API channel**。
-            3. 在 **Messaging API** 分頁最下方 ➔ 點擊 **Issue** 產生 **Channel access token (long-lived)**。
-            4. 在 **Basic settings** 分頁最下方 ➔ 複製 **Your user ID** (格式 `U...`)。
-            5. 用手機掃描該 Bot 的 QR Code 加入好友，將兩組金鑰填入左方並點擊「儲存」與「測試」即可！
+            若希望直接在 LINE 傳送「**20倍**」、「**查戰績**」、「**功能表**」並立即收到 AI 推薦：
+
+            **步驟 1：關閉 LINE 預設罐頭回應**
+            前往 **[LINE Official Account Manager](https://manager.line.biz/)**：
+            點擊右上角「**設定**」➔「**回應設定**」：
+            - **回應模式**：改選「**Bot (機器人)**」
+            - **自動回應訊息**：設為「**停用 (關閉)**」*(防止官方傳送「無法個別回覆」罐頭訊息)*
+            - **Webhook**：切換為「**啟用**」
+
+            **步驟 2：啟動本機互動服務通道**
+            - 雙擊執行專案目錄下的 **`start_line_bot.bat`**
+            - 視窗會自動啟動並為您配發公開 Webhook 網址（例如 `https://xxxx.trycloudflare.com/callback`）
+
+            **步驟 3：綁定 Webhook 網址**
+            - 前往 **[LINE Developers Console](https://developers.line.biz/)** ➔ 進入 **Messaging API** 頁籤
+            - 在 **Webhook settings** 貼上該網址，開啟 **Use Webhook**，點擊 **Verify** 顯示 Success 即可！
             """)
 
     st.markdown("### 🎫 注單歷史清單")
