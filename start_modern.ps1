@@ -4,7 +4,7 @@
 #>
 
 Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host " 🐕 台灣運彩「瘋狗流」決策系統 - Modern Edition (v2.0)" -ForegroundColor Green
+Write-Host " 🐕 台灣運彩「瘋狗流」決策系統 - Modern Edition (v2.3.0 Dev)" -ForegroundColor Green
 Write-Host " React + TypeScript + Tailwind CSS + shadcn/ui + FastAPI" -ForegroundColor Yellow
 Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host ""

@@ -16,6 +16,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from core.tunnel_runtime import load_active_runtime
 import requests
 import yaml
 
@@ -423,15 +424,9 @@ class LineNotifier:
         generate_qr_code_file(compact_code, qr_file_path)
 
         # Detect active public tunnel for image hosting
-        tunnel_url = ""
         status_file = ROOT_DIR / "data" / "line_bot_runtime.json"
-        if status_file.exists():
-            try:
-                with open(status_file, "r", encoding="utf-8") as f:
-                    rt = json.load(f)
-                tunnel_url = str(rt.get("tunnel_url") or "").rstrip("/")
-            except Exception:
-                pass
+        runtime = load_active_runtime(status_file)
+        tunnel_url = runtime.get("tunnel_url", "")
 
         image_url = f"{tunnel_url}/static/qr/{qr_filename}" if tunnel_url else None
 
@@ -897,7 +892,7 @@ class LineNotifier:
         is_profile_query = any(k in cmd_lower for k in [
             "個人設定", "profile", "玩家", "個人池", "網頁", "決策台",
             "註冊", "帳號", "網址", "連結", "手機版", "設定", "修改",
-            "忘記密碼", "忘記pin", "忘記"
+            "忘記密碼", "忘記pin", "忘記", "登入", "login"
         ])
 
         if not (m_bind or m_unbind or m_change_pin or m_switch or m_add or m_cap or is_profile_query):
@@ -1021,33 +1016,36 @@ class LineNotifier:
                 except Exception as exc:
                     return f"❌ 更新預算失敗：{exc}"
 
-            # Permanent fixed public HTTPS URL via Tailscale Funnel
-            runtime_file = Path(__file__).resolve().parent.parent / "data" / "line_bot_runtime.json"
-            streamlit_url = None
-            if runtime_file.exists():
-                try:
-                    import json
-                    with open(runtime_file, "r", encoding="utf-8") as f:
-                        rdata = json.load(f)
-                        streamlit_url = rdata.get("streamlit_url")
-                except Exception:
-                    pass
+            # Resolve public HTTPS URL and local network URL (Port 8000)
+            runtime_file = ROOT_DIR / "data" / "line_bot_runtime.json"
+            public_url = load_active_runtime(runtime_file).get("tunnel_url")
+
+            lan_ip = "127.0.0.1"
+            try:
+                import socket
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                lan_ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                pass
 
             profs_str = "、".join([p["name"] for p in profs])
             user_param = f"?user={urllib.parse.quote(cur['name'])}" if cur.get("name") else ""
-            web_section = ""
-            if streamlit_url:
-                web_section = (
-                    f"\n🌐 【手機公網決策台】（出門在外 4G/5G 都能開）：\n"
-                    f"👉 {streamlit_url}{user_param}\n"
-                    f"💡 進入網頁後，選擇您的名字並輸入 4 位數 PIN 碼（預設 0000）即可登入；新朋友亦可點選「快速註冊」1秒免信箱直接開通！\n"
+            
+            web_parts = []
+            if public_url:
+                web_parts.append(
+                    f"🌐 【手機公網決策台】（出門在外 4G/5G 隨時開）：\n"
+                    f"👉 {public_url}{user_param}"
                 )
-            else:
-                web_section = (
-                    f"\n🌐 【手機區網連線】（同 Wi-Fi）：\n"
-                    f"👉 http://10.0.0.104:8501{user_param}\n"
-                    f"💡 進入網頁後，選擇您的名字並輸入 4 位數 PIN 碼（預設 0000）即可登入；新朋友亦可點選「快速註冊」1秒免信箱直接開通！\n"
+            if lan_ip and lan_ip != "127.0.0.1":
+                web_parts.append(
+                    f"📶 【家用 Wi-Fi 內網連線】：\n"
+                    f"👉 http://{lan_ip}:8000{user_param}"
                 )
+            web_parts.append("💡 進入網頁後，輸入 4 位數 PIN 碼（預設 0000）即可登入；新朋友亦可點選「快速註冊」1秒免信箱直接開通！")
+            web_section = "\n" + "\n\n".join(web_parts) + "\n"
 
             bind_status_str = f"（已綁定此 LINE）" if bound_profile else "（未綁定，可傳送「綁定 <名字> <PIN碼>」連動）"
 

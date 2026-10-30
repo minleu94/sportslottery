@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Mobile helper server for 台灣運彩瘋狗流決策台.
+"""Mobile URL helper for the unified 台灣運彩瘋狗流 service.
 
 Auto-detects local LAN and Tailscale IPs, renders terminal QR codes for iPhone scanning,
-and launches Streamlit on 0.0.0.0 for seamless mobile access.
+The tray manager owns the single FastAPI process and public tunnel. This
+compatibility command must never start a second server on the same port.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ import re
 import socket
 import subprocess
 import sys
-from pathlib import Path
 
 # Ensure UTF-8 output on Windows terminal
 if sys.platform == "win32":
@@ -80,7 +80,7 @@ def render_terminal_qr(url: str) -> None:
         print(f"   [QR 碼產生略過: {exc}]")
 
 
-def print_mobile_banner(lan_ip: str, tailscale_ip: str | None, port: int = 8501, qr_target: str = "auto") -> str:
+def print_mobile_banner(lan_ip: str, tailscale_ip: str | None, port: int = 8000, qr_target: str = "auto") -> str:
     """Print welcoming console banner with URLs and QR code.
     
     Returns the primary mobile target URL.
@@ -126,10 +126,12 @@ def print_mobile_banner(lan_ip: str, tailscale_ip: str | None, port: int = 8501,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="瘋狗流運彩 iPhone / 行動端啟動服務器")
-    parser.add_argument("--port", type=int, default=8501, help="Streamlit 監聽埠號 (預設: 8501)")
+    parser.add_argument("--port", type=int, default=8000, help="FastAPI 監聽埠號 (預設: 8000)")
     parser.add_argument("--qr-target", choices=["auto", "local", "tailscale"], default="auto", help="QR Code 目標網路")
-    parser.add_argument("--dry-run", action="store_true", help="僅印出網路資訊與 QR Code，不啟動 Streamlit")
+    parser.add_argument("--dry-run", action="store_true", help="僅印出網路資訊與 QR Code，不啟動服務")
     args = parser.parse_args()
+    if not args.dry_run and args.port != 8000:
+        parser.error("手機、桌面與 LINE 共用 Port 8000；請勿另外指定服務埠。")
 
     lan_ip, tailscale_ip = detect_network_ips()
     primary_url = print_mobile_banner(lan_ip, tailscale_ip, port=args.port, qr_target=args.qr_target)
@@ -137,28 +139,10 @@ def main() -> int:
     if args.dry_run:
         return 0
 
-    root_dir = Path(__file__).resolve().parent.parent
-    cmd = [
-        sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        "app.py",
-        "--server.address",
-        "0.0.0.0",
-        "--server.port",
-        str(args.port),
-        "--browser.gatherUsageStats",
-        "false",
-    ]
-
-    print("🚀 正在啟動 Streamlit 服務器 (0.0.0.0:8501)... (按 Ctrl+C 可停止服務)\n")
-    try:
-        proc = subprocess.run(cmd, cwd=str(root_dir))
-        return proc.returncode
-    except KeyboardInterrupt:
-        print("\n👋 瘋狗流服務器已停止。祝綠油油、期期中高倍！")
-        return 0
+    print("\n📱 行動端、LINE Bot 與桌面網頁共用同一個服務與公開網址。")
+    print("   即將啟動系統匣服務管理器，請從系統匣複製 HTTPS 手機網址。\n")
+    from scripts.tray_manager import AppTrayManager
+    return AppTrayManager().run()
 
 
 if __name__ == "__main__":

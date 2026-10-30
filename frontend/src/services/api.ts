@@ -15,7 +15,39 @@ export interface SearchParlaysParams {
   force_refresh?: boolean
 }
 
+let cachedAuthToken: string | null = typeof window !== "undefined" ? localStorage.getItem("auth_session_token") : null
+
+export function setAuthToken(token: string | null) {
+  cachedAuthToken = token
+  if (typeof window !== "undefined") {
+    if (token) {
+      localStorage.setItem("auth_session_token", token)
+    } else {
+      localStorage.removeItem("auth_session_token")
+    }
+  }
+}
+
+export function getAuthToken(): string | null {
+  if (!cachedAuthToken && typeof window !== "undefined") {
+    cachedAuthToken = localStorage.getItem("auth_session_token")
+  }
+  return cachedAuthToken
+}
+
+function authHeaders(existingHeaders: Record<string, string> = {}): Record<string, string> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = { ...existingHeaders }
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`
+  }
+  return headers
+}
+
 export const api = {
+  getAuthToken,
+  setAuthToken,
+
   async getHealth() {
     const res = await fetch(`${BASE_URL}/health`)
     return res.json()
@@ -69,7 +101,9 @@ export const api = {
   },
 
   async getWalletStatus(profileId: string): Promise<WalletStatus> {
-    const res = await fetch(`${BASE_URL}/wallet/status?profile_id=${encodeURIComponent(profileId)}`)
+    const res = await fetch(`${BASE_URL}/wallet/status?profile_id=${encodeURIComponent(profileId)}`, {
+      headers: authHeaders(),
+    })
     if (!res.ok) throw new Error("取得錢包狀態失敗")
     return res.json()
   },
@@ -77,7 +111,7 @@ export const api = {
   async depositWallet(profileId: string, amount: number, notes = "") {
     const res = await fetch(`${BASE_URL}/wallet/deposit`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ profile_id: profileId, amount, notes }),
     })
     if (!res.ok) {
@@ -90,7 +124,7 @@ export const api = {
   async withdrawWallet(profileId: string, amount: number) {
     const res = await fetch(`${BASE_URL}/wallet/withdraw`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ profile_id: profileId, amount }),
     })
     if (!res.ok) {
@@ -101,7 +135,9 @@ export const api = {
   },
 
   async getWalletLedger(profileId: string) {
-    const res = await fetch(`${BASE_URL}/wallet/ledger?profile_id=${encodeURIComponent(profileId)}`)
+    const res = await fetch(`${BASE_URL}/wallet/ledger?profile_id=${encodeURIComponent(profileId)}`, {
+      headers: authHeaders(),
+    })
     if (!res.ok) throw new Error("取得資金流水帳失敗")
     return res.json()
   },
@@ -109,7 +145,9 @@ export const api = {
   async getTickets(profileId: string, status?: string): Promise<{ tickets: Ticket[] }> {
     const qs = new URLSearchParams({ profile_id: profileId })
     if (status) qs.set("status", status)
-    const res = await fetch(`${BASE_URL}/tickets?${qs.toString()}`)
+    const res = await fetch(`${BASE_URL}/tickets?${qs.toString()}`, {
+      headers: authHeaders(),
+    })
     if (!res.ok) throw new Error("取得注單失敗")
     return res.json()
   },
@@ -124,7 +162,7 @@ export const api = {
   }) {
     const res = await fetch(`${BASE_URL}/tickets/place`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     })
     if (!res.ok) {
@@ -137,7 +175,7 @@ export const api = {
   async settleTicket(ticketId: string, result: "WON" | "LOST" | "VOID", customPayout?: number) {
     const res = await fetch(`${BASE_URL}/tickets/settle`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ ticket_id: ticketId, result, custom_payout: customPayout }),
     })
     if (!res.ok) {
@@ -153,7 +191,7 @@ export const api = {
     return res.json()
   },
 
-  async verifyPin(profileId: string, pinCode: string): Promise<{ success: boolean; profile: Profile }> {
+  async verifyPin(profileId: string, pinCode: string): Promise<{ success: boolean; token: string; profile: Profile }> {
     const res = await fetch(`${BASE_URL}/profiles/verify_pin`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -163,7 +201,11 @@ export const api = {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.detail || "PIN 碼錯誤")
     }
-    return res.json()
+    const data = await res.json()
+    if (data.token) {
+      setAuthToken(data.token)
+    }
+    return data
   },
 
   async updateProfile(payload: {
@@ -175,7 +217,7 @@ export const api = {
   }) {
     const res = await fetch(`${BASE_URL}/profiles/update`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     })
     if (!res.ok) {
@@ -188,6 +230,96 @@ export const api = {
   async getResearchAnalytics() {
     const res = await fetch(`${BASE_URL}/research/analytics`)
     if (!res.ok) throw new Error("取得前瞻研究數據失敗")
+    return res.json()
+  },
+
+  async loginProfile(identifier: string, pinCode: string): Promise<{ success: boolean; token: string; profile: Profile; message: string }> {
+    const res = await fetch(`${BASE_URL}/profiles/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier, pin_code: pinCode }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "登入失敗，PIN 碼或帳號錯誤")
+    }
+    const data = await res.json()
+    if (data.token) {
+      setAuthToken(data.token)
+    }
+    return data
+  },
+
+  async registerProfile(name: string, weeklyPlayCap: number = 200, pinCode: string = "0000"): Promise<{ success: boolean; token: string; profile: Profile }> {
+    const res = await fetch(`${BASE_URL}/profiles/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, weekly_play_cap: weeklyPlayCap, pin_code: pinCode }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "註冊失敗")
+    }
+    const data = await res.json()
+    if (data.token) {
+      setAuthToken(data.token)
+    }
+    return data
+  },
+
+  async getAuthMe(): Promise<{ success: boolean; profile: Profile; session: any }> {
+    const res = await fetch(`${BASE_URL}/auth/me`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "取得目前登入狀態失敗")
+    }
+    return res.json()
+  },
+
+  async logout(): Promise<void> {
+    try {
+      await fetch(`${BASE_URL}/profiles/logout`, {
+        method: "POST",
+        headers: authHeaders(),
+      })
+    } catch (e) {
+      // ignore
+    } finally {
+      setAuthToken(null)
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth_profile_id")
+      }
+    }
+  },
+
+  async getSystemStorageStatus() {
+    const res = await fetch(`${BASE_URL}/system/storage_status`)
+    if (!res.ok) throw new Error("取得系統設定與資料存放狀態失敗")
+    return res.json()
+  },
+
+  async getAdminPlayersOverview(adminProfileId: string = "default"): Promise<{
+    players: {
+      id: string
+      name: string
+      weekly_play_cap: number
+      weekly_wallet_balance: number
+      weekly_staked: number
+      prize_pool: number
+      lifetime_net_profit: number
+      is_line_bound: boolean
+      created_at: string
+      active_tickets_count: number
+      total_tickets_count: number
+    }[]
+    total_players: number
+  }> {
+    const res = await fetch(`${BASE_URL}/admin/players_overview?admin_profile_id=${encodeURIComponent(adminProfileId)}`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error("取得全體玩家監控資料失敗")
     return res.json()
   },
 }

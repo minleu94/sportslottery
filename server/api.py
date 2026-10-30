@@ -12,15 +12,19 @@ Provides high-performance RESTful API endpoints for:
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import json
+import logging
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi import FastAPI, HTTPException, Query, Body, Request, BackgroundTasks, Header, Response, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -30,7 +34,11 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+logger = logging.getLogger("server.api")
+
 from core.bet_validation import assess_leg
+from core.app_meta import APP_BUILD, APP_VERSION
+from core.line_notifier import LineNotifier
 from core.model_registry import ModelRegistry
 from core.parlay_engine import ParlayEngine
 from core.performance_metrics import PerformanceMetricsEngine
@@ -45,11 +53,17 @@ from core.ticket_recorder import TicketRecorder
 from core.wallet import WeeklyWalletManager
 from integrations.common.models import TaiwanLeg
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
+from server.auth import (
+    session_manager,
+    require_authenticated_session,
+    verify_profile_ownership,
+    get_current_session_optional,
+)
 
 app = FastAPI(
     title="Taiwan Sports Lottery API",
     description="台灣運彩「瘋狗流」高倍串關決策後端 API",
-    version="2.0.0",
+    version=APP_VERSION,
 )
 
 # CORS middleware to allow local React/Vite development
@@ -155,12 +169,47 @@ class ProfileLoginRequest(BaseModel):
     pin_code: str
 
 
+class ProfileLoginByNameRequest(BaseModel):
+    identifier: str
+    pin_code: str
+
+
+class ProfileRegisterRequest(BaseModel):
+    name: str
+    weekly_play_cap: float = Field(default=200.0, gt=0)
+    pin_code: str = Field(default="0000")
+
+
 class ProfileUpdateRequest(BaseModel):
     profile_id: str
     name: Optional[str] = None
     weekly_play_cap: Optional[float] = None
     current_pin: str
     new_pin: Optional[str] = None
+
+
+def clean_league_name(league: Optional[str]) -> str:
+    if not league:
+        return "綜合賽事"
+    s = re.sub(r"^unknown[_\-\s]*", "", str(league).strip(), flags=re.IGNORECASE).strip()
+    upper = s.upper()
+    league_map = {
+        "COLOMBIA_PRIMERA_A": "哥倫比亞甲級聯賽",
+        "SAUDI_PRO_LEAGUE": "沙烏地職業聯賽",
+        "KBO": "韓國職棒 (KBO)",
+        "NBA": "美國職籃 (NBA)",
+        "WNBA": "美國女子職籃 (WNBA)",
+        "MLB": "美國職棒 (MLB)",
+        "NPB": "日本職棒 (NPB)",
+        "CPBL": "中華職棒 (CPBL)",
+        "NFL": "美式足球 (NFL)",
+        "NHL": "國家冰球 (NHL)",
+        "SOCCER": "綜合足球",
+        "BASKETBALL": "綜合籃球",
+        "BASEBALL": "綜合棒球",
+        "FOOTBALL": "美式足球",
+    }
+    return league_map.get(upper, s) or "綜合賽事"
 
 
 # --- Endpoints ---
@@ -171,6 +220,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "sportslottery-api",
+        "app_build": APP_BUILD,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "strategy_metadata": meta,
         "alliances": ALLIANCE_MAP,
@@ -205,7 +255,7 @@ def get_radar(force_refresh: bool = False):
 def get_legs(
     alliances: Optional[str] = Query(None, description="Comma-separated alliance IDs"),
     force_refresh: bool = False,
-    limit: int = Query(200, ge=1, le=1000),
+    limit: int = Query(1000, ge=1, le=5000),
 ):
     odds_adapter, signal_hub, _, _, _, _, _, _ = get_services()
     selected = [a.strip() for a in alliances.split(",")] if alliances else list(ALLIANCE_MAP.keys())
@@ -214,8 +264,8 @@ def get_legs(
     # Return formatted legs
     results = []
     for leg in legs[:limit]:
-        d = leg.to_dict() if hasattr(leg, "to_dict") else leg.__dict__
-        # Clean signals for JSON serialization
+        d = leg.to_dict() if hasattr(leg, "to_dict") else dict(leg.__dict__)
+        d["display_league"] = clean_league_name(d.get("league"))
         results.append(d)
         
     return {
@@ -260,10 +310,37 @@ def search_parlays(req: ParlaySearchRequest):
         formatted = []
         for p in items:
             p_copy = dict(p)
-            # Ensure legs in parlay are dicts
+            p_copy["parlay_id"] = p.get("candidate_id") or p.get("parlay_id", "")
+            p_copy["expected_value"] = p.get("parlay_expected_value", 0.0)
+            p_copy["parlay_ev_pct"] = p.get("parlay_ev_pct", round(p.get("parlay_expected_value", 0.0) * 100.0, 1))
+            p_copy["sharp_parlay_ev_pct"] = p.get("sharp_parlay_ev_pct", 0.0)
+            p_copy["joint_probability"] = p.get("joint_probability", 0.0)
+            p_copy["sharp_badge"] = p.get("sharp_badge", "")
+            p_copy["is_positive_ev"] = p.get("is_positive_ev", False)
+
+            # Ensure legs in parlay are dicts and have display_league & signal fields
             clean_legs = []
             for l in p.get("legs", []):
-                clean_legs.append(l.to_dict() if hasattr(l, "to_dict") else l)
+                ld = l.to_dict() if hasattr(l, "to_dict") else dict(l.__dict__ if hasattr(l, "__dict__") else l)
+                ld["display_league"] = clean_league_name(ld.get("league"))
+                sig = ld.get("signal_evidence") or {}
+                t_odds = float(ld.get("taiwan_odds") or ld.get("odds") or 1.0)
+                prob = float(sig.get("consensus_probability") or sig.get("sharp_fair_probability") or sig.get("market_fair_probability") or (1.0 / t_odds if t_odds > 0 else 0.5))
+                leg_ev = sig.get("sharp_expected_value_pct")
+                if leg_ev is None:
+                    leg_ev = sig.get("expected_value_pct")
+                if leg_ev is None and prob and t_odds:
+                    leg_ev = round(((prob * t_odds) - 1.0) * 100.0, 1)
+
+                ld["expected_value_pct"] = leg_ev
+                ld["consensus_probability"] = prob
+                ld["market_implied_pct"] = sig.get("market_implied_pct", round((1.0 / t_odds) * 100.0, 1) if t_odds > 0 else 0.0)
+                ld["agreement_badge"] = sig.get("agreement_badge", "")
+                ld["is_positive_ev"] = bool(leg_ev and leg_ev > 0)
+                ld["is_sharp_value_bet"] = bool(sig.get("is_sharp_value_bet", False) or (leg_ev and leg_ev >= 5.0))
+                ld["crowd_desc"] = sig.get("crowd_desc", "")
+                ld["line_movement_label"] = (sig.get("line_movement") or {}).get("text_label", "")
+                clean_legs.append(ld)
             p_copy["legs"] = clean_legs
             formatted.append(p_copy)
         return formatted
@@ -286,14 +363,22 @@ def search_parlays(req: ParlaySearchRequest):
 
 
 @app.get("/api/wallet/status")
-def get_wallet_status(profile_id: str = Query(DEFAULT_PROFILE_ID)):
+def get_wallet_status(
+    profile_id: str = Query(DEFAULT_PROFILE_ID),
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(profile_id, session)
     wallet = get_wallet(profile_id=profile_id)
     status = wallet.get_status()
     return status
 
 
 @app.post("/api/wallet/deposit")
-def wallet_deposit(req: DepositRequest):
+def wallet_deposit(
+    req: DepositRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(req.profile_id, session)
     wallet = get_wallet(profile_id=req.profile_id)
     try:
         res = wallet.deposit_external(amount=req.amount, notes=req.notes)
@@ -303,7 +388,11 @@ def wallet_deposit(req: DepositRequest):
 
 
 @app.post("/api/wallet/withdraw")
-def wallet_withdraw(req: WithdrawRequest):
+def wallet_withdraw(
+    req: WithdrawRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(req.profile_id, session)
     wallet = get_wallet(profile_id=req.profile_id)
     try:
         res = wallet.withdraw_from_prize_pool(amount=req.amount)
@@ -313,7 +402,12 @@ def wallet_withdraw(req: WithdrawRequest):
 
 
 @app.get("/api/wallet/ledger")
-def get_wallet_ledger(profile_id: str = Query(DEFAULT_PROFILE_ID), limit: int = 50):
+def get_wallet_ledger(
+    profile_id: str = Query(DEFAULT_PROFILE_ID),
+    limit: int = 50,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(profile_id, session)
     wallet = get_wallet(profile_id=profile_id)
     history = wallet.get_ledger_history(limit=limit)
     return {"ledger": history}
@@ -324,14 +418,20 @@ def list_tickets(
     profile_id: str = Query(DEFAULT_PROFILE_ID),
     status: Optional[str] = Query(None, description="PENDING, WON, LOST, VOID"),
     limit: int = Query(50, ge=1, le=200),
+    session: Dict[str, Any] = Depends(require_authenticated_session),
 ):
+    verify_profile_ownership(profile_id, session)
     recorder = get_recorder(profile_id=profile_id)
     tickets = recorder.list_tickets(status_filter=status, limit=limit, profile_id=profile_id)
     return {"tickets": tickets}
 
 
 @app.post("/api/tickets/place")
-def place_ticket(req: PlaceTicketRequest):
+def place_ticket(
+    req: PlaceTicketRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(req.profile_id, session)
     recorder = get_recorder(profile_id=req.profile_id)
     _, _, _, _, _, snapshot_logger, _, _ = get_services()
     
@@ -376,13 +476,22 @@ def place_ticket(req: PlaceTicketRequest):
 
 
 @app.post("/api/tickets/settle")
-def settle_ticket(req: SettleTicketRequest):
+def settle_ticket(
+    req: SettleTicketRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
     _, _, _, _, _, _, _, _ = get_services()
-    # Find ticket to get profile_id
+    # Look up ticket's actual owner from tickets table
     ticket_recorder = TicketRecorder()
-    tickets = ticket_recorder.list_tickets(limit=100)
-    target = next((t for t in tickets if t["ticket_id"] == req.ticket_id), None)
-    profile_id = target.get("profile_id", DEFAULT_PROFILE_ID) if target else DEFAULT_PROFILE_ID
+    conn = ticket_recorder._get_connection()
+    try:
+        row = conn.execute("SELECT profile_id FROM tickets WHERE id = ?", (req.ticket_id,)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"找不到注單 ID: {req.ticket_id}")
+    profile_id = str(row["profile_id"] or DEFAULT_PROFILE_ID).strip()
+    verify_profile_ownership(profile_id, session)
     
     recorder = get_recorder(profile_id=profile_id)
     is_won = (req.result.upper() == "WON")
@@ -419,6 +528,52 @@ def list_profiles():
     return {"profiles": safe_profiles}
 
 
+@app.post("/api/profiles/login")
+def profile_login(req: ProfileLoginByNameRequest):
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    success, profile, msg = profile_mgr.verify_login(req.identifier, req.pin_code)
+    if not success or not profile:
+        raise HTTPException(status_code=401, detail=msg or "登入失敗，PIN 碼或帳號錯誤。")
+    token = session_manager.create_session(profile)
+    p_dict = dict(profile)
+    p_dict.pop("pin_code", None)
+    return {"success": True, "token": token, "profile": p_dict, "message": msg}
+
+
+@app.post("/api/profiles/logout")
+def profile_logout(session: Dict[str, Any] = Depends(require_authenticated_session)):
+    session_manager.revoke_session(session.get("token"))
+    return {"success": True, "message": "已成功登出。"}
+
+
+@app.get("/api/auth/me")
+def get_auth_me(session: Dict[str, Any] = Depends(require_authenticated_session)):
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    profile = profile_mgr.get_profile(session.get("profile_id"))
+    if not profile:
+        raise HTTPException(status_code=404, detail="找不到目前登入者的 Profile。")
+    p_dict = dict(profile)
+    p_dict.pop("pin_code", None)
+    return {"success": True, "profile": p_dict, "session": session}
+
+
+@app.post("/api/profiles/register")
+def profile_register(req: ProfileRegisterRequest):
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    try:
+        new_prof = profile_mgr.create_profile(
+            name=req.name,
+            weekly_play_cap=req.weekly_play_cap,
+            pin_code=req.pin_code,
+        )
+        token = session_manager.create_session(new_prof)
+        p_dict = dict(new_prof)
+        p_dict.pop("pin_code", None)
+        return {"success": True, "token": token, "profile": p_dict}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.post("/api/profiles/verify_pin")
 def verify_profile_pin(req: ProfileLoginRequest):
     _, _, _, _, profile_mgr, _, _, _ = get_services()
@@ -426,31 +581,82 @@ def verify_profile_pin(req: ProfileLoginRequest):
     if not is_valid:
         raise HTTPException(status_code=401, detail="PIN 碼錯誤。")
     profile = profile_mgr.get_profile(req.profile_id)
+    token = session_manager.create_session(profile)
     p_dict = dict(profile)
     p_dict.pop("pin_code", None)
-    return {"success": True, "profile": p_dict}
+    return {"success": True, "token": token, "profile": p_dict}
 
 
 @app.post("/api/profiles/update")
-def update_profile(req: ProfileUpdateRequest):
+def update_profile(
+    req: ProfileUpdateRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(req.profile_id, session)
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     is_valid = profile_mgr.verify_pin(profile_id=req.profile_id, pin_code=req.current_pin)
     if not is_valid:
         raise HTTPException(status_code=401, detail="目前 PIN 碼驗證失敗。")
     
-    kwargs: Dict[str, Any] = {}
-    if req.name is not None:
-        kwargs["name"] = req.name
-    if req.weekly_play_cap is not None:
-        kwargs["weekly_play_cap"] = req.weekly_play_cap
-    if req.new_pin is not None:
-        kwargs["pin_code"] = req.new_pin
-        
-    profile_mgr.update_profile(profile_id=req.profile_id, **kwargs)
-    updated = profile_mgr.get_profile(req.profile_id)
-    p_dict = dict(updated)
-    p_dict.pop("pin_code", None)
-    return {"success": True, "profile": p_dict}
+    try:
+        updated = profile_mgr.update_profile(
+            profile_id=req.profile_id,
+            current_pin=req.current_pin,
+            new_name=req.name,
+            new_weekly_play_cap=req.weekly_play_cap,
+            new_pin_code=req.new_pin,
+        )
+        p_dict = dict(updated)
+        p_dict.pop("pin_code", None)
+        return {"success": True, "profile": p_dict}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/admin/players_overview")
+def get_admin_players_overview(
+    admin_profile_id: str = Query("default"),
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    if not session.get("is_admin") and session.get("profile_id") != "default":
+        raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可檢視全體玩家風控總覽。")
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    all_profs = profile_mgr.list_profiles()
+    overview = []
+    for p in all_profs:
+        try:
+            wm = get_wallet(profile_id=p["id"])
+            ws = wm.get_status()
+            bal = ws.get("weekly_wallet_balance", 0.0)
+            staked = ws.get("weekly_staked", 0.0)
+            prize = ws.get("prize_pool", 0.0)
+            pnl = ws.get("lifetime_net_profit", 0.0)
+            cap = p.get("weekly_play_cap", 200.0)
+        except Exception:
+            bal, staked, prize, pnl, cap = 0.0, 0.0, 0.0, 0.0, 200.0
+
+        try:
+            tr = get_recorder(profile_id=p["id"])
+            t_list = tr.list_tickets(limit=100, profile_id=p["id"])
+            active_cnt = sum(1 for t in t_list if t.get("status") == "PENDING")
+            total_cnt = len(t_list)
+        except Exception:
+            active_cnt, total_cnt = 0, 0
+
+        overview.append({
+            "id": p["id"],
+            "name": p["name"],
+            "weekly_play_cap": cap,
+            "weekly_wallet_balance": bal,
+            "weekly_staked": staked,
+            "prize_pool": prize,
+            "lifetime_net_profit": pnl,
+            "is_line_bound": bool(p.get("line_user_id")),
+            "created_at": p.get("created_at", ""),
+            "active_tickets_count": active_cnt,
+            "total_tickets_count": total_cnt,
+        })
+    return {"players": overview, "total_players": len(overview)}
 
 
 @app.get("/api/research/analytics")
@@ -485,6 +691,118 @@ def get_research_analytics():
         "expert_data": expert_data,
         "shadow_portfolio": portfolio_summary,
     }
+
+
+@app.get("/api/system/storage_status")
+def get_system_storage_status():
+    from core.storage_config import get_storage_stats, get_scheduled_task_status, get_storage_root
+    try:
+        stats = get_storage_stats()
+    except Exception:
+        stats = {}
+    try:
+        task_status = get_scheduled_task_status()
+    except Exception:
+        task_status = {"installed": False, "enabled": False}
+    return {
+        "storage_root": str(get_storage_root()),
+        "stats": stats,
+        "scheduled_task": task_status,
+    }
+
+
+# ======================================================================
+# LINE Bot Webhook Single-Port Integration
+# ======================================================================
+
+_line_notifier = LineNotifier()
+
+# Mount static folder for serving QR code PNGs
+(ROOT_DIR / "static" / "qr").mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
+
+
+def verify_line_signature(body_bytes: bytes, signature: str, secret: str) -> bool:
+    """Validate X-Line-Signature against channel secret."""
+    if not secret:
+        return True
+    expected = hmac.new(secret.encode("utf-8"), body_bytes, hashlib.sha256).digest()
+    expected_b64 = base64.b64encode(expected).decode("utf-8")
+    return hmac.compare_digest(expected_b64, signature)
+
+
+def process_line_events(events: list[Dict[str, Any]]) -> None:
+    """Process accepted LINE events asynchronously outside the webhook response path."""
+    for ev in events:
+        try:
+            ev_type = ev.get("type")
+            reply_token = ev.get("replyToken")
+            source = ev.get("source", {})
+            user_id = source.get("userId")
+
+            if user_id and not _line_notifier.config.get("user_id"):
+                _line_notifier.save_config({"user_id": user_id, "enabled": True})
+
+            if ev_type == "message":
+                msg = ev.get("message", {})
+                if msg.get("type") == "text":
+                    user_text = str(msg.get("text", "")).strip()
+                    full_res = _line_notifier.handle_user_message_full(user_text, line_user_id=user_id)
+                    reply_text = full_res.get("text", "")
+                    image_url = full_res.get("image_url")
+                    if reply_token:
+                        _line_notifier.reply_message(
+                            reply_token=reply_token,
+                            text=reply_text,
+                            quick_replies=_line_notifier.default_quick_replies(),
+                            image_url=image_url,
+                        )
+
+            elif ev_type == "follow":
+                welcome_text = (
+                    "🎉 歡迎加入【台灣運彩 瘋狗流決策助手】(v2.3.0 Dev)！\n"
+                    "---------------------------\n"
+                    "本官方助手能為您即時提供：\n"
+                    "• 🎯 智慧串關推薦（直接輸入目標倍率，如「20倍」）\n"
+                    "• 💰 每週 NT$200 風控錢包與儲備池查詢\n"
+                    "• ☀️ 每日賽季開盤雷達焦點賽事\n"
+                    "• 🛡️ 串關聽牌對沖保本提醒\n\n"
+                    "請點選下方快捷按鈕開始體驗！🐕"
+                )
+                if reply_token:
+                    _line_notifier.reply_message(
+                        reply_token=reply_token,
+                        text=welcome_text,
+                        quick_replies=_line_notifier.default_quick_replies(),
+                    )
+        except Exception:
+            pass
+
+
+@app.post("/callback")
+async def line_webhook_callback(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_line_signature: Optional[str] = Header(None, alias="X-Line-Signature"),
+):
+    """Webhook callback endpoint for LINE Messaging API."""
+    body_bytes = await request.body()
+    secret = str(_line_notifier.config.get("channel_secret") or "").strip()
+    if secret:
+        if not x_line_signature or not verify_line_signature(body_bytes, x_line_signature, secret):
+            raise HTTPException(status_code=400, detail="Invalid signature")
+    else:
+        logger.debug("LINE channel_secret is not configured; skipping HMAC verification.")
+
+    try:
+        data = await request.json()
+    except Exception:
+        return Response(content="Invalid JSON", status_code=400)
+
+    events = data.get("events", [])
+    if events:
+        background_tasks.add_task(process_line_events, events)
+    return {"status": "ok", "events_processed": len(events)}
 
 
 # Mount built frontend dist directory if it exists

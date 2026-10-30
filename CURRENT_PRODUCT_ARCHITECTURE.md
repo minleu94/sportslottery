@@ -1,10 +1,19 @@
 # 台灣運彩「瘋狗流」10~500倍 高倍串關決策系統
 # 目前產品真實架構、資料流與完成度審查報告 (CURRENT_PRODUCT_ARCHITECTURE.md)
 
-**文件版本**：v1.0 (Codebase Reality Audit)  
-**審查日期**：2026-09-18  
+**文件版本**：v1.0 (Codebase Reality Audit) -> v2.3.0 Modern Architecture Note  
+**審查日期**：2026-09-18 (歷史基準) | 2026-10-30 (v2.3.0 升級補充)  
 **基準專案路徑**：`C:\Projects\PythonProjects\sportslottery`  
 **審查原則**：Technical Reality Only（依實際程式碼執行路徑為唯一依據，不美化、不猜測、不掩飾任何 Heuristic 與 Facade）。
+
+> [!NOTE]
+> **版本演進說明（2026-10-30，v2.3.0 Modern Edition）**：  
+> 本文件第 1~4 節紀錄了 2026-09-18 初始版本（Streamlit 單機架構）之原始審查歷史；系統現已正式升級為 **v2.3.0 現代化單端口架構**：
+> 1. **前端技術棧**：全量遷移為 React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui + Lucide Icons + Framer Motion，支援程式碼分割與 iPhone Safari PWA。
+> 2. **後端服務架構**：以 FastAPI（Port 8000）統一承載前端靜態檔案、REST API 與 `/callback` LINE Webhook，不再依賴多端口轉發。
+> 3. **公網與行動端連線**：由系統匣管理器統一掛載 ngrok 永久固定專屬網域 `https://fifty-saddlebag-immortal.ngrok-free.dev`（或 Cloudflare 隧道備援），支援 0.0.0.0 區域網路 Wi-Fi 手機連線。
+> 4. **資安防護**：PIN 碼全面升級為 PBKDF2-HMAC-SHA256 16 位元組 Salt 雜湊儲存，所有玩家資產操作全面要求 32 位元組加密 Session Token 驗證。
+> 最新維運與指令細節，請參閱 [docs/AGENT_HANDOFF_AND_LINE_BOT_MANUAL.md](docs/AGENT_HANDOFF_AND_LINE_BOT_MANUAL.md)。
 
 ---
 

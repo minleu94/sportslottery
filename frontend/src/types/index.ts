@@ -4,6 +4,7 @@ export interface Leg {
   canonical_event_id?: string
   sport: string
   league: string
+  display_league?: string
   market: string
   market_type?: string
   selection: string
@@ -22,12 +23,21 @@ export interface Leg {
   signal_evidence?: any
   signals?: any[]
   expected_value?: number | null
+  expected_value_pct?: number | null
+  consensus_probability?: number | null
+  market_implied_pct?: number | null
+  agreement_badge?: string
+  is_positive_ev?: boolean
+  is_sharp_value_bet?: boolean
+  crowd_desc?: string
+  line_movement_label?: string
   edge?: number | null
   market_probability?: number | null
   model_probability_calibrated?: number | null
 }
 
 export interface ParlayRecommendation {
+  candidate_id?: string
   parlay_id: string
   parlay_name: string
   total_odds: number
@@ -35,6 +45,14 @@ export interface ParlayRecommendation {
   legs: Leg[]
   combined_model_prob?: number
   expected_value?: number
+  parlay_expected_value?: number
+  parlay_ev_pct?: number
+  sharp_parlay_ev?: number
+  sharp_parlay_ev_pct?: number
+  joint_probability?: number
+  sharp_joint_probability?: number
+  is_positive_ev?: boolean
+  sharp_badge?: string
   confidence_score?: number
   is_valid: boolean
 }
@@ -77,14 +95,28 @@ export interface Profile {
   name: string
   weekly_play_cap: number
   created_at?: string
+  updated_at?: string
 }
 
 export interface RadarLeague {
-  league_id: string
-  league_name: string
-  sport: string
+  code: string
+  name: string
+  icon: string
   status: "GREEN" | "YELLOW" | "RED"
-  status_label: string
-  active_legs_count: number
-  reason: string
+  status_text: string
+  light_emoji: string
+  game_count: number
+  taiwan_market_count: number
+  espn_event_count?: number
+  in_season_calendar?: boolean
+  opportunity_badge?: string
+  positive_ev_count?: number
+  banker_count?: number
+  high_agreement_count?: number
+  // Fallbacks
+  league_id?: string
+  league_name?: string
+  sport?: string
+  reason?: string
+  active_legs_count?: number
 }
