@@ -108,3 +108,11 @@ def test_frontend_spa_serving():
     assert res.status_code == 200
     assert "text/html" in res.headers.get("content-type", "")
     assert '<div id="root">' in res.text
+
+
+def test_line_callback():
+    # Verify LINE webhook endpoint responds with status ok
+    res = client.post("/callback", json={"events": []})
+    assert res.status_code == 200
+    assert res.json()["status"] == "ok"
+    assert res.json()["events_processed"] == 0

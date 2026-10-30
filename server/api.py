@@ -12,15 +12,18 @@ Provides high-performance RESTful API endpoints for:
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import json
+import logging
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi import FastAPI, HTTPException, Query, Body, Request, BackgroundTasks, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -31,6 +34,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from core.bet_validation import assess_leg
+from core.line_notifier import LineNotifier
 from core.model_registry import ModelRegistry
 from core.parlay_engine import ParlayEngine
 from core.performance_metrics import PerformanceMetricsEngine
@@ -485,6 +489,98 @@ def get_research_analytics():
         "expert_data": expert_data,
         "shadow_portfolio": portfolio_summary,
     }
+
+
+# ======================================================================
+# LINE Bot Webhook Single-Port Integration
+# ======================================================================
+
+_line_notifier = LineNotifier()
+
+# Mount static folder for serving QR code PNGs
+(ROOT_DIR / "static" / "qr").mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
+
+
+def verify_line_signature(body_bytes: bytes, signature: str, secret: str) -> bool:
+    """Validate X-Line-Signature against channel secret."""
+    if not secret:
+        return True
+    expected = hmac.new(secret.encode("utf-8"), body_bytes, hashlib.sha256).digest()
+    expected_b64 = base64.b64encode(expected).decode("utf-8")
+    return hmac.compare_digest(expected_b64, signature)
+
+
+def process_line_events(events: list[Dict[str, Any]]) -> None:
+    """Process accepted LINE events asynchronously outside the webhook response path."""
+    for ev in events:
+        try:
+            ev_type = ev.get("type")
+            reply_token = ev.get("replyToken")
+            source = ev.get("source", {})
+            user_id = source.get("userId")
+
+            if user_id and not _line_notifier.config.get("user_id"):
+                _line_notifier.save_config({"user_id": user_id, "enabled": True})
+
+            if ev_type == "message":
+                msg = ev.get("message", {})
+                if msg.get("type") == "text":
+                    user_text = str(msg.get("text", "")).strip()
+                    full_res = _line_notifier.handle_user_message_full(user_text, line_user_id=user_id)
+                    reply_text = full_res.get("text", "")
+                    image_url = full_res.get("image_url")
+                    if reply_token:
+                        _line_notifier.reply_message(
+                            reply_token=reply_token,
+                            text=reply_text,
+                            quick_replies=_line_notifier.default_quick_replies(),
+                            image_url=image_url,
+                        )
+
+            elif ev_type == "follow":
+                welcome_text = (
+                    "🎉 歡迎加入【台灣運彩 瘋狗流決策助手】(v2.3.0 Dev)！\n"
+                    "---------------------------\n"
+                    "本官方助手能為您即時提供：\n"
+                    "• 🎯 智慧串關推薦（直接輸入目標倍率，如「20倍」）\n"
+                    "• 💰 每週 NT$200 風控錢包與儲備池查詢\n"
+                    "• ☀️ 每日賽季開盤雷達焦點賽事\n"
+                    "• 🛡️ 串關聽牌對沖保本提醒\n\n"
+                    "請點選下方快捷按鈕開始體驗！🐕"
+                )
+                if reply_token:
+                    _line_notifier.reply_message(
+                        reply_token=reply_token,
+                        text=welcome_text,
+                        quick_replies=_line_notifier.default_quick_replies(),
+                    )
+        except Exception:
+            pass
+
+
+@app.post("/callback")
+async def line_webhook_callback(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_line_signature: Optional[str] = Header(None),
+):
+    """Webhook callback endpoint for LINE Messaging API."""
+    body_bytes = await request.body()
+    secret = _line_notifier.config.get("channel_secret")
+    if secret:
+        if not x_line_signature or not verify_line_signature(body_bytes, x_line_signature, secret):
+            raise HTTPException(status_code=400, detail="Invalid signature")
+
+    try:
+        data = await request.json()
+    except Exception:
+        return Response(content="Invalid JSON", status_code=400)
+
+    events = data.get("events", [])
+    if events:
+        background_tasks.add_task(process_line_events, events)
+    return {"status": "ok", "events_processed": len(events)}
 
 
 # Mount built frontend dist directory if it exists

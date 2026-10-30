@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 > nul
-title 台灣運彩「瘋狗流」決策台 (Modern Edition)
+title 台灣運彩「瘋狗流」決策台 (v2.3.0 Dev)
 
 echo ========================================================
-echo  🐕 台灣運彩「瘋狗流」決策系統 - Modern Edition (v2.0)
+echo  🐕 台灣運彩「瘋狗流」決策系統 - Modern Edition (v2.3.0 Dev)
 echo  React + TypeScript + Tailwind CSS + shadcn/ui + FastAPI
 echo ========================================================
 echo.

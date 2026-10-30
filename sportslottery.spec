@@ -3,10 +3,20 @@
 
 a = Analysis(
     ['launcher.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[
+        ('app_icon.ico', '.'),
+        ('scripts', 'scripts'),
+    ],
+    hiddenimports=[
+        'pystray',
+        'pystray._win32',
+        'PIL',
+        'PIL.Image',
+        'PIL.ImageDraw',
+        'scripts.tray_manager',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -29,7 +39,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

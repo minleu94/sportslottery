@@ -11,7 +11,7 @@ $sc1 = $ws.CreateShortcut($desktopLnk)
 $sc1.TargetPath = $targetExe
 $sc1.WorkingDirectory = $projDir
 $sc1.IconLocation = $iconPath
-$sc1.Description = "台灣運彩「瘋狗流」決策系統 (Modern Edition)"
+$sc1.Description = "台灣運彩「瘋狗流」決策系統 (v2.3.0 Dev)"
 $sc1.Save()
 Write-Host "Created Desktop shortcut: $desktopLnk"
 
@@ -22,6 +22,6 @@ $sc2 = $ws.CreateShortcut($startMenuLnk)
 $sc2.TargetPath = $targetExe
 $sc2.WorkingDirectory = $projDir
 $sc2.IconLocation = $iconPath
-$sc2.Description = "台灣運彩「瘋狗流」決策系統 (Modern Edition)"
+$sc2.Description = "台灣運彩「瘋狗流」決策系統 (v2.3.0 Dev)"
 $sc2.Save()
 Write-Host "Created Start Menu shortcut: $startMenuLnk"
