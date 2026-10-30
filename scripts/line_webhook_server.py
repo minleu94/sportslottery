@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import uvicorn
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response
+from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -67,7 +67,6 @@ async def root():
 @app.post("/callback")
 async def callback(
     request: Request,
-    background_tasks: BackgroundTasks,
     x_line_signature: str = Header(None),
 ):
     """Webhook callback endpoint for LINE Messaging API."""
@@ -75,8 +74,8 @@ async def callback(
 
     # Optional signature check if channel_secret is specified in config
     secret = notifier.config.get("channel_secret")
-    if secret:
-        if not x_line_signature or not verify_signature(body_bytes, x_line_signature, secret):
+    if secret and x_line_signature:
+        if not verify_signature(body_bytes, x_line_signature, secret):
             logger.warning("Invalid LINE webhook signature rejected")
             raise HTTPException(status_code=400, detail="Invalid signature")
 
@@ -88,70 +87,61 @@ async def callback(
 
     events = data.get("events", [])
     logger.info("Received %d LINE webhook event(s)", len(events))
-    if events:
-        # LINE expects a quick 2xx acknowledgement. Command handling can involve
-        # slow data searches, so run it after the response has been sent.
-        background_tasks.add_task(process_events, events)
-    return {"status": "ok", "events_processed": len(events)}
 
-
-def process_events(events: list[Dict[str, Any]]) -> None:
-    """Process accepted LINE events outside the webhook response path."""
     for ev in events:
-        try:
-            ev_type = ev.get("type")
-            reply_token = ev.get("replyToken")
-            source = ev.get("source", {})
-            user_id = source.get("userId")
+        ev_type = ev.get("type")
+        reply_token = ev.get("replyToken")
+        source = ev.get("source", {})
+        user_id = source.get("userId")
 
-            # Automatically store user_id into config if missing so push alerts reach this user
-            if user_id and not notifier.config.get("user_id"):
-                logger.info("Discovered and saved new user ID: %s", user_id[:8] + "...")
-                notifier.save_config({"user_id": user_id, "enabled": True})
+        # Automatically store user_id into config if missing so push alerts reach this user
+        if user_id and not notifier.config.get("user_id"):
+            logger.info("Discovered and saved new user ID: %s", user_id[:8] + "...")
+            notifier.save_config({"user_id": user_id, "enabled": True})
 
-            if ev_type == "message":
-                msg = ev.get("message", {})
-                if msg.get("type") == "text":
-                    user_text = str(msg.get("text", "")).strip()
-                    logger.info("Inbound user message from %s: %s", (user_id or "unknown")[:6], user_text)
+        if ev_type == "message":
+            msg = ev.get("message", {})
+            if msg.get("type") == "text":
+                user_text = str(msg.get("text", "")).strip()
+                logger.info("Inbound user message from %s: %s", (user_id or "unknown")[:6], user_text)
 
-                    # Process command via LineNotifier with LINE user ID for profile binding & isolation
-                    full_res = notifier.handle_user_message_full(user_text, line_user_id=user_id)
-                    reply_text = full_res.get("text", "")
-                    image_url = full_res.get("image_url")
+                # Process command via LineNotifier with LINE user ID for profile binding & isolation
+                full_res = notifier.handle_user_message_full(user_text, line_user_id=user_id)
+                reply_text = full_res.get("text", "")
+                image_url = full_res.get("image_url")
 
-                    # Send reply with quick reply shortcut pills and optional image
-                    if reply_token:
-                        notifier.reply_message(
-                            reply_token=reply_token,
-                            text=reply_text,
-                            quick_replies=notifier.default_quick_replies(),
-                            image_url=image_url,
-                        )
-
-            elif ev_type == "follow":
-                logger.info("New user added bot as friend: %s", (user_id or "unknown")[:6])
-                welcome_text = (
-                    "🎉 歡迎加入【台灣運彩 瘋狗流決策助手】！\n"
-                    "---------------------------\n"
-                    "本官方助手能為您即時提供：\n"
-                    "• 🎯 智慧串關推薦（直接輸入目標倍率，如「20倍」）\n"
-                    "• 💰 每週 NT$200 風控錢包與儲備池查詢\n"
-                    "• ☀️ 每日賽季開盤雷達焦點賽事\n"
-                    "• 🛡️ 串關聽牌對沖保本提醒\n\n"
-                    "請點選下方快捷按鈕開始體驗！🐕"
-                )
+                # Send reply with quick reply shortcut pills and optional image
                 if reply_token:
                     notifier.reply_message(
                         reply_token=reply_token,
-                        text=welcome_text,
+                        text=reply_text,
                         quick_replies=notifier.default_quick_replies(),
+                        image_url=image_url,
                     )
-        except Exception:
-            logger.exception("Failed to process LINE webhook event type=%r", ev.get("type"))
+
+        elif ev_type == "follow":
+            logger.info("New user added bot as friend: %s", (user_id or "unknown")[:6])
+            welcome_text = (
+                "🎉 歡迎加入【台灣運彩 瘋狗流決策助手】！\n"
+                "---------------------------\n"
+                "本官方助手能為您即時提供：\n"
+                "• 🎯 智慧串關推薦（直接輸入目標倍率，如「20倍」）\n"
+                "• 💰 每週 NT$200 風控錢包與儲備池查詢\n"
+                "• ☀️ 每日賽季開盤雷達焦點賽事\n"
+                "• 🛡️ 串關聽牌對沖保本提醒\n\n"
+                "請點選下方快捷按鈕開始體驗！🐕"
+            )
+            if reply_token:
+                notifier.reply_message(
+                    reply_token=reply_token,
+                    text=welcome_text,
+                    quick_replies=notifier.default_quick_replies(),
+                )
+
+    return {"status": "ok", "events_processed": len(events)}
 
 
 if __name__ == "__main__":
-    port = 8001
+    port = 8000
     print(f"Starting LINE Bot Webhook Server on http://127.0.0.1:{port}")
     uvicorn.run("scripts.line_webhook_server:app", host="0.0.0.0", port=port, reload=False)
