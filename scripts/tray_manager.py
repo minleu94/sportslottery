@@ -12,11 +12,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
 import threading
 import time
+import urllib.request
 import webbrowser
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -37,6 +39,22 @@ STATUS_FILE = ROOT_DIR / "data" / "line_bot_runtime.json"
 ICON_PATH = ROOT_DIR / "app_icon.ico"
 LOCK_PORT = 28501  # Socket port used to ensure single instance
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+
+
+def find_python_executable(gui: bool = False) -> str:
+    """Find installed Python executable on host system."""
+    name = "pythonw.exe" if gui else "python.exe"
+    candidates = [
+        rf"C:\Program Files\Python311\{name}",
+        shutil.which("pythonw" if gui else "python"),
+        os.path.expandvars(rf"%LOCALAPPDATA%\Programs\Python\Python311\{name}"),
+        os.path.expandvars(rf"%LOCALAPPDATA%\Programs\Python\Python312\{name}"),
+        sys.executable,
+    ]
+    for c in candidates:
+        if c and Path(c).is_file():
+            return str(Path(c).resolve())
+    return name
 
 
 def copy_to_clipboard(text: str) -> bool:
@@ -112,12 +130,27 @@ class AppTrayManager:
         draw.polygon([(20, 42), (32, 18), (44, 42)], fill=(255, 255, 255))
         return img
 
+    def _open_browser_when_ready(self, timeout: float = 35.0) -> None:
+        """Poll Streamlit health check and automatically open browser."""
+        url = "http://localhost:8501"
+        start_t = time.time()
+        while time.time() - start_t < timeout and self.is_running:
+            try:
+                req = urllib.request.Request(f"{url}/_stcore/health", headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=1.0) as resp:
+                    if resp.status == 200:
+                        time.sleep(0.5)
+                        webbrowser.open(url)
+                        return
+            except Exception:
+                time.sleep(0.5)
+
     def start_services(self) -> None:
         """Launch bot runner and streamlit server without console windows."""
-        python_exe = sys.executable
+        python_gui = find_python_executable(gui=True)
 
-        # 1. Start LINE Bot runner (includes FastAPI on 8000 + cloudflared tunnels)
-        bot_cmd = [python_exe, "scripts/serve_line_bot.py"]
+        # 1. Start LINE Bot runner (FastAPI on 8000 + cloudflared tunnels for LINE + mobile)
+        bot_cmd = [python_gui, "scripts/serve_line_bot.py"]
         self.proc_bot = subprocess.Popen(
             bot_cmd,
             cwd=str(ROOT_DIR),
@@ -128,7 +161,7 @@ class AppTrayManager:
 
         # 2. Start Streamlit web server on port 8501
         st_cmd = [
-            python_exe,
+            python_gui,
             "-m",
             "streamlit",
             "run",
@@ -150,6 +183,9 @@ class AppTrayManager:
 
         self.is_running = True
         self._status_text = "🟢 服務正常運行中 (LINE + Web)"
+
+        # 3. Background thread to auto-open browser when Streamlit is responsive
+        threading.Thread(target=self._open_browser_when_ready, daemon=True).start()
 
     def stop_services(self) -> None:
         """Terminate all background processes and tunnels."""
@@ -188,7 +224,7 @@ class AppTrayManager:
         if url:
             copy_to_clipboard(url)
             if self.icon:
-                self.icon.notify(f"已複製公網網址至剪貼簿：\n{url}\n（可直接傳送給朋友）", "瘋狗流運彩")
+                self.icon.notify(f"已複製公網網址至剪貼簿：\n{url}\n（可直接傳送給手機使用）", "瘋狗流運彩")
         else:
             if self.icon:
                 self.icon.notify("公網通道尚未連線完成，請稍候 3 秒後再試。", "瘋狗流運彩")
@@ -235,7 +271,7 @@ class AppTrayManager:
         return Menu(
             MenuItem(lambda text: self._status_text, None, enabled=False),
             Menu.SEPARATOR,
-            MenuItem("🌐 開啟決策台 (電腦瀏覽器)", lambda: self.open_web_browser()),
+            MenuItem("🌐 開啟決策台 (電腦瀏覽器)", lambda: self.open_web_browser(), default=True),
             MenuItem("📱 複製手機公網網址 (HTTPS)", lambda: self.copy_public_url()),
             MenuItem("💬 複製 LINE Webhook 網址", lambda: self.copy_webhook_url()),
             Menu.SEPARATOR,
@@ -267,10 +303,8 @@ class AppTrayManager:
         try:
             # Notify user on startup
             time.sleep(1.0)
-            info = get_runtime_info()
-            url = info.get("streamlit_url", "http://localhost:8501")
             self.icon.notify(
-                "瘋狗流服務已在系統匣啟動！\n右鍵點擊圖示可查看狀態、複製公網網址或停止服務。",
+                "瘋狗流 3-in-1 服務已啟動！\n已在右下角系統匣常駐，並已為您開啟決策台。\n右鍵點擊圖示可查看狀態或複製手機網址。",
                 "台灣運彩 瘋狗流",
             )
         except Exception:
