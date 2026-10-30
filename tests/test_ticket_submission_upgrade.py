@@ -95,7 +95,9 @@ def test_app_renders_small_balances_without_live_calls_or_invalid_widgets(tmp_pa
         "reports": res_root / "reports",
     })
     st.cache_resource.clear()
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=35).run()
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=35)
+    app.session_state["main_segmented_nav"] = "🔥 瘋狗看盤"
+    app.run()
     assert not app.exception
     stake_widget = next(widget for widget in app.number_input if "本張注金" in widget.label)
     assert stake_widget.disabled is (balance < 10)

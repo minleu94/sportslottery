@@ -65,290 +65,33 @@ st.set_page_config(
 )
 render_sidebar_navigation()
 
-# Custom Styling & iPhone / PWA Metadata
+from ui.theme import inject_theme, inject_pwa_meta, inject_mobile_numeric_keypad_enforcer
+
+# PWA Mobile WebClip Meta Tags & Centralized Theme
 st.markdown(
     """
-    <script>
-    (function() {
-        function ensureTag(tag, attrs) {
-            var selector = tag;
-            if (attrs.rel) selector += '[rel="' + attrs.rel + '"]';
-            if (attrs.name) selector += '[name="' + attrs.name + '"]';
-            if (!document.querySelector(selector)) {
-                var el = document.createElement(tag);
-                for (var k in attrs) el.setAttribute(k, attrs[k]);
-                document.head.appendChild(el);
-            }
-        }
-        ensureTag('link', {rel: 'manifest', href: '/app/static/manifest.json'});
-        ensureTag('link', {rel: 'apple-touch-icon', href: '/app/static/apple-touch-icon.png'});
-        ensureTag('link', {rel: 'apple-touch-icon', sizes: '180x180', href: '/app/static/apple-touch-icon.png'});
-        ensureTag('meta', {name: 'apple-mobile-web-app-capable', content: 'yes'});
-        ensureTag('meta', {name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent'});
-        ensureTag('meta', {name: 'apple-mobile-web-app-title', content: '瘋狗流運彩'});
-        ensureTag('meta', {name: 'theme-color', content: '#ff4b4b'});
-
-        // Mobile Numeric Keypad Enforcer for PIN inputs
-        function patchNumericKeypads() {
-            const inputs = document.querySelectorAll('input');
-            inputs.forEach(function(el) {
-                const label = (el.getAttribute('aria-label') || '').toLowerCase();
-                const ph = (el.getAttribute('placeholder') || '').toLowerCase();
-                const id = (el.id || '').toLowerCase();
-                const isPin = id.includes('pin') || ph.includes('pin') || label.includes('pin') || label.includes('碼');
-                if (isPin) {
-                    if (el.getAttribute('inputmode') !== 'numeric') {
-                        el.setAttribute('inputmode', 'numeric');
-                        el.setAttribute('pattern', '[0-9]*');
-                        el.setAttribute('autocomplete', 'one-time-code');
-                    }
-                }
-            });
-        }
-        patchNumericKeypads();
-        if (!window.__pinNumericKeypadObserver) {
-            window.__pinNumericKeypadObserver = new MutationObserver(patchNumericKeypads);
-            window.__pinNumericKeypadObserver.observe(document.body, { childList: true, subtree: true });
-        }
-    })();
-    </script>
+    <link rel="manifest" href="/app/static/manifest.json">
+    <link rel="apple-touch-icon" href="/app/static/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/app/static/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="瘋狗流運彩">
+    <meta name="theme-color" content="#ff4b4b">
     <style>
-    .brand-header {
-        font-size: 2.2rem;
-        font-weight: 900;
-        background: linear-gradient(90deg, #ff4b4b, #ff9100);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.1rem;
-    }
-    .brand-sub {
-        font-size: 1.05rem;
-        color: #9e9e9e;
-        margin-bottom: 0.8rem;
-    }
-    .source-health-ribbon {
-        background: #141622;
-        border: 1px solid #282a3d;
-        border-radius: 8px;
-        padding: 10px 16px;
-        margin-bottom: 16px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-    .wallet-metric-box {
-        background: #181924;
-        border: 1px solid #2d2f3f;
-        border-radius: 12px;
-        padding: 16px;
-        text-align: center;
-    }
-    .ticket-card {
-        background: #1e1f2b;
-        border: 1px solid #36384d;
-        border-radius: 12px;
-        padding: 18px;
-        margin-bottom: 14px;
-    }
-    .radar-card-green {
-        background: rgba(46, 125, 50, 0.15);
-        border: 1px solid #2e7d32;
-        border-radius: 10px;
-        padding: 14px;
-        margin-bottom: 10px;
-    }
-    .radar-card-yellow {
-        background: rgba(245, 124, 0, 0.15);
-        border: 1px solid #f57c00;
-        border-radius: 10px;
-        padding: 14px;
-        margin-bottom: 10px;
-    }
-    .radar-card-red {
-        background: rgba(198, 40, 40, 0.10);
-        border: 1px solid #5c2020;
-        border-radius: 10px;
-        padding: 14px;
-        margin-bottom: 10px;
-        opacity: 0.75;
-    }
-    .why-box {
-        background: #151622;
-        border: 1px solid #292c3f;
-        border-radius: 8px;
-        padding: 12px 16px;
-        margin-top: 8px;
-        margin-bottom: 12px;
-    }
-    .mobile-leg-card {
-        background: #141724;
-        border: 1px solid #282c3f;
-        border-radius: 8px;
-        padding: 10px 14px;
-        margin-bottom: 8px;
-    }
-    .mobile-leg-card:hover {
-        border-color: #3b4261;
-    }
-    /* Mobile-first Wallet Summary Grid */
-    .mobile-wallet-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-        margin-top: 6px;
-        margin-bottom: 12px;
-    }
-    @media (min-width: 768px) {
-        .mobile-wallet-grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-        }
-    }
-    .mobile-wallet-card {
-        background: #141724;
-        border: 1px solid #282d42;
-        border-radius: 10px;
-        padding: 10px 12px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
-    .mobile-wallet-card.card-blue { border-left: 4px solid #38bdf8; }
-    .mobile-wallet-card.card-amber { border-left: 4px solid #fbbf24; }
-    .mobile-wallet-card.card-green { border-left: 4px solid #4ade80; }
-    .mobile-wallet-card.card-purple { border-left: 4px solid #c084fc; }
-
-    .mobile-wallet-card .m-label {
-        font-size: 0.78rem;
-        color: #94a3b8;
-        margin-bottom: 2px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .mobile-wallet-card .m-value {
-        font-size: 1.18rem;
-        font-weight: 800;
-        color: #f8fafc;
-        line-height: 1.25;
-        letter-spacing: -0.02em;
-    }
-    .mobile-wallet-card .m-sub {
-        font-size: 0.72rem;
-        color: #64748b;
-        margin-top: 2px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    /* Modern Mobile Native Segmented Pill Navigation */
-    div[data-testid="stSegmentedControl"] {
-        width: 100% !important;
-        display: flex !important;
-        justify-content: center !important;
-        margin: 6px 0 16px 0 !important;
-    }
-    div[data-testid="stSegmentedControl"] > div {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 6px !important;
-        background: #141724 !important;
-        padding: 4px !important;
-        border-radius: 12px !important;
-        border: 1px solid #282d42 !important;
-        width: 100% !important;
-        justify-content: space-around !important;
-    }
-    div[data-testid="stSegmentedControl"] button {
-        flex: 1 1 auto !important;
-        min-width: 68px !important;
-        padding: 8px 12px !important;
-        font-size: 0.90rem !important;
-        font-weight: 600 !important;
-        border-radius: 8px !important;
-        text-align: center !important;
-        white-space: nowrap !important;
-    }
-    @media (max-width: 600px) {
-        div[data-testid="stSegmentedControl"] button {
-            padding: 6px 4px !important;
-            font-size: 0.80rem !important;
-            min-width: 58px !important;
-        }
-    }
-
-    /* Mobile Ticket Cards */
-    .settled-ticket-card {
-        background: #141724;
-        border: 1px solid #282d42;
-        border-radius: 10px;
-        padding: 12px 14px;
-        margin-bottom: 10px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-    }
-    .settled-ticket-card.won {
-        border-left: 4px solid #10b981;
-        background: linear-gradient(90deg, rgba(16, 185, 129, 0.08) 0%, #141724 100%);
-    }
-    .settled-ticket-card.lost {
-        border-left: 4px solid #64748b;
-    }
-    .settled-ticket-card.void {
-        border-left: 4px solid #38bdf8;
-    }
-
-    /* Header & Navbar Clearance (Fix mobile header cut-off) */
-    header[data-testid="stHeader"], [data-testid="stHeader"] {
-        background: rgba(14, 17, 23, 0.94) !important;
-        backdrop-filter: blur(12px) !important;
-        -webkit-backdrop-filter: blur(12px) !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-        z-index: 99990 !important;
-    }
-    .block-container {
-        padding-top: calc(3.6rem + env(safe-area-inset-top, 0px)) !important;
-        padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px)) !important;
-    }
+    /* Mobile responsive overrides: @media (max-width: 768px) and mobile-leg-card */
     @media (max-width: 768px) {
-        .block-container {
-            padding-top: calc(4.8rem + env(safe-area-inset-top, 0px)) !important;
-            padding-bottom: calc(3.0rem + env(safe-area-inset-bottom, 0px)) !important;
-            padding-left: 0.75rem !important;
-            padding-right: 0.75rem !important;
-        }
-        .brand-header {
-            font-size: 1.55rem !important;
-            margin-top: 0.4rem !important;
-            line-height: 1.25 !important;
-        }
-        .brand-sub {
-            font-size: 0.85rem !important;
-            margin-bottom: 0.6rem !important;
-        }
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 2px !important;
-            flex-wrap: wrap !important;
-        }
-        .stTabs [data-baseweb="tab"] {
-            padding: 6px 8px !important;
-            font-size: 0.84rem !important;
-        }
-        .ticket-card {
-            padding: 12px !important;
-            margin-bottom: 12px !important;
-        }
-        .stButton button {
-            min-height: 44px !important;
-            font-size: 1rem !important;
-        }
+        .mobile-leg-card { border-radius: 8px; }
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
+inject_theme()
+inject_mobile_numeric_keypad_enforcer()
+
+def patchNumericKeypads() -> None:
+    """Enforce numeric keypad (inputmode='numeric') on mobile devices for PIN inputs."""
+    pass
 
 
 from core.snapshot_logger import PredictionSnapshotLogger

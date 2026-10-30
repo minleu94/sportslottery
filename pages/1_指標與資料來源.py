@@ -11,8 +11,10 @@ if str(ROOT_DIR) not in sys.path:
 from ui.metric_guide import render_metric_guide
 from ui.source_overview import render_source_overview
 from ui.navigation import render_sidebar_navigation
+from ui.theme import inject_theme
 
 st.set_page_config(page_title="指標與資料來源｜瘋狗流", page_icon="📖", layout="wide")
+inject_theme()
 render_sidebar_navigation()
 render_metric_guide()
 st.divider()

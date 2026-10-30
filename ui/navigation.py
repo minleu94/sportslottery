@@ -57,18 +57,19 @@ def render_sidebar_navigation() -> None:
             border-color: #ffffff !important;
         }
         .profile-side-card {
-            background: #1e293b;
+            background: var(--card-bg, #1e293b);
             padding: 10px 14px;
             border-radius: 8px;
-            border: 1px solid #334155;
+            border: 1px solid var(--card-border, #334155);
+            box-shadow: var(--card-shadow, 0 2px 6px rgba(0,0,0,0.2));
             margin-bottom: 12px;
         }
         /* Mobile top clearance: ensure top banner never cuts off page content */
         header[data-testid="stHeader"], [data-testid="stHeader"] {
-            background: rgba(14, 17, 23, 0.94) !important;
+            background: var(--card-bg, #0e1117) !important;
             backdrop-filter: blur(12px) !important;
             -webkit-backdrop-filter: blur(12px) !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-bottom: 1px solid var(--card-border, rgba(255, 255, 255, 0.08)) !important;
             z-index: 99990 !important;
         }
         @media (max-width: 768px) {
@@ -105,11 +106,11 @@ def render_sidebar_navigation() -> None:
                 st.markdown(
                     f"""
                     <div class="profile-side-card">
-                        <div style="font-size:0.8rem; color:#94a3b8; display:flex; justify-content:space-between;">
+                        <div style="font-size:0.8rem; color:var(--text-secondary); display:flex; justify-content:space-between;">
                             <span>👤 當前登入玩家</span>
                             <span style="color:#a855f7; font-weight:600;">PIN 保護</span>
                         </div>
-                        <div style="font-size:1.15rem; font-weight:bold; color:#f8fafc; margin-top:2px;">{active_profile['name']}</div>
+                        <div style="font-size:1.15rem; font-weight:bold; color:var(--text-primary); margin-top:2px;">{active_profile['name']}</div>
                         <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.82rem;">
                             <span style="color:#38bdf8;">💵 可用: NT$ {ws['weekly_wallet_balance']:,.0f}</span>
                             <span style="color:#4ade80;">🏆 儲備: NT$ {ws['prize_pool']:,.1f}</span>

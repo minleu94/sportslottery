@@ -7,8 +7,12 @@ if str(root) not in sys.path:
     sys.path.insert(0,str(root))
 from ui.navigation import render_sidebar_navigation
 from ui.research_tools import render_health_panel, render_clv_panel, render_replay_panel
-st.set_page_config(page_title="資料健康與研究工具｜瘋狗流",page_icon="🔎",layout="wide")
+from ui.theme import inject_theme
+
+st.set_page_config(page_title="資料健康與研究工具｜瘋狗流", page_icon="🔎", layout="wide")
+inject_theme()
 render_sidebar_navigation()
+
 health,clv,replay=st.tabs(["資料與排程健康","CLV價格追蹤","推薦重播與版本比較"])
 with health:
     render_health_panel()

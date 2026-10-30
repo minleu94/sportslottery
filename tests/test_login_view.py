@@ -30,6 +30,8 @@ def test_login_gate_unauthenticated_session(tmp_path):
     mock_session = {}
     with patch("ui.login_view.st.session_state", mock_session), \
          patch("ui.login_view.st.tabs", return_value=[MagicMock(), MagicMock(), MagicMock()]), \
+         patch("ui.login_view.st.form"), \
+         patch("ui.login_view.st.form_submit_button", return_value=False), \
          patch("ui.login_view.st.selectbox", return_value=DEFAULT_PROFILE_ID), \
          patch("ui.login_view.st.text_input", return_value=""), \
          patch("ui.login_view.st.button", return_value=False), \

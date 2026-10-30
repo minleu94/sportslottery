@@ -273,7 +273,7 @@ def test_weekly_rollover_draws_from_prize_pool(temp_wallet):
             UPDATE wallet_state
             SET current_week = '2026-W01', wallet_balance = 0.0, weekly_staked = 200.0,
                 prize_pool = 500.0, weekly_external_deposited = 200.0
-            WHERE id = 1
+            WHERE profile_id = 'default'
             """
         )
         conn.commit()

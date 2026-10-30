@@ -19,10 +19,12 @@ from core.storage_config import (
     update_storage_location,
 )
 from ui.navigation import render_sidebar_navigation
+from ui.theme import inject_theme
 from core.profile_manager import ProfileManager
 
 st.set_page_config(page_title="系統設定與資料存放｜瘋狗流", page_icon="⚙️", layout="wide")
 render_sidebar_navigation()
+inject_theme()
 
 # Admin Archie Permission Gate
 pm = ProfileManager()

@@ -8,6 +8,66 @@ import streamlit as st
 
 from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
 from core.wallet import WeeklyWalletManager
+from ui.theme import inject_theme, inject_mobile_numeric_keypad_enforcer
+
+
+def render_line_binding_card(profile: Dict[str, Any]) -> None:
+    """Render an intuitive, copyable guide on how to bind LINE Bot and operate via LINE."""
+    is_bound = bool(profile.get("line_user_id"))
+    status_badge = (
+        "<span style='color:#06c755; font-weight:bold;'>✅ 已成功連動 LINE 帳號</span>"
+        if is_bound
+        else "<span style='color:#f59e0b; font-weight:bold;'>⚠️ 尚未連動 LINE 帳號</span>"
+    )
+
+    p_name = profile.get("name", "玩家")
+    p_pin = profile.get("pin_code", "0000")
+    bind_cmd = f"綁定 {p_name} {p_pin}"
+
+    st.markdown(
+        f"""
+        <div class="line-guide-card">
+            <div class="lg-title">
+                📲 LINE 機器人帳號連動指引 · {status_badge}
+            </div>
+            <div class="lg-sub">
+                直接在 LINE 官方對話中輸入指令，即可隨時查閱即時推薦、注單戰績、個人娛樂餘額與修改設定！
+            </div>
+            <div style="margin: 8px 0;">
+                <span style="font-size: 0.85rem; color: var(--text-secondary);">連動指令（長按或點選複製）：</span><br>
+                <code class="line-code-pill">{bind_cmd}</code>
+            </div>
+            <div class="line-step">
+                <div class="line-step-num">1</div>
+                <div>打開您的 <b>LINE「瘋狗流決策台」</b> 官方帳號對話框。</div>
+            </div>
+            <div class="line-step">
+                <div class="line-step-num">2</div>
+                <div>複製並傳送上方指令：<code>{bind_cmd}</code></div>
+            </div>
+            <div class="line-step">
+                <div class="line-step-num">3</div>
+                <div>收到機器人回覆「🎉 綁定成功」後，日後所有 LINE 查詢與投注紀錄將全自動同步至<b>【{p_name}】</b>的專屬空間！</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("💬 常用 LINE 對話指令一覽表", expanded=False):
+        st.markdown(
+            f"""
+            | LINE 指令 | 說明 | 範例 |
+            | :--- | :--- | :--- |
+            | **`{bind_cmd}`** | 將目前 LINE 帳號與玩家 Profile 綁定 | `綁定 {p_name} {p_pin}` |
+            | **`我的狀態`** 或 **`餘額`** | 查看本週錢包餘額與中獎儲備池 | `我的狀態` |
+            | **`今日推薦`** 或 **`今日開盤`** | 取得當日高 EV 瘋狗串關與單關雷達 | `今日推薦` |
+            | **`查戰績`** | 查詢個人注單歷史盈虧與過關明細 | `查戰績` |
+            | **`改密碼 <舊PIN> <新PIN>`** | 於 LINE 線上修改 4 位數 PIN 碼 | `改密碼 {p_pin} 1234` |
+            | **`預算 <金額>`** | 調整每週娛樂預算上限 | `預算 300` |
+            | **`解綁`** | 解除此 LINE 帳號與 Profile 的連動 | `解綁` |
+            """
+        )
 
 
 def render_profile_view(
@@ -16,6 +76,9 @@ def render_profile_view(
     wallet_mgr: Optional[WeeklyWalletManager] = None,
 ) -> str:
     """Render the user profile dashboard and return the currently active profile_id."""
+    inject_theme()
+    inject_mobile_numeric_keypad_enforcer()
+
     active_id = current_profile_id or DEFAULT_PROFILE_ID
     profile = profile_mgr.get_or_default(active_id)
     if wallet_mgr is None:
@@ -49,16 +112,16 @@ def render_profile_view(
             """
         )
 
-    # 2. Logged-in Profile Overview Card
+    # 2. Logged-in Profile Overview Card (Themed)
     col_card, col_logout = st.columns([4, 1])
     with col_card:
         st.markdown(
             f"""
-            <div style="background:#141724; border:1px solid #2d334d; border-radius:10px; padding:12px 18px; margin-bottom:12px;">
-                <div style="font-size:0.85rem; color:#94a3b8;">當前登入身分</div>
-                <div style="font-size:1.35rem; font-weight:bold; color:#f8fafc; margin-top:2px;">
+            <div class="profile-badge-card">
+                <div class="p-label">當前登入身分</div>
+                <div class="p-name">
                     👤 【{profile['name']}】
-                    <span style="font-size:0.80rem; background:rgba(56, 189, 248, 0.15); color:#38bdf8; border:1px solid #0284c7; padding:2px 8px; border-radius:4px; margin-left:8px;">PIN 碼防護中</span>
+                    <span class="p-tag">PIN 碼防護中</span>
                 </div>
             </div>
             """,
@@ -100,6 +163,9 @@ def render_profile_view(
         unsafe_allow_html=True,
     )
 
+    # 3. LINE Account Binding Guidance Card
+    render_line_binding_card(profile)
+
     st.markdown("---")
 
     # Tabs for Settings and Creation (Archie sees all players, others see only self)
@@ -127,6 +193,7 @@ def render_profile_view(
                 max_chars=4,
                 placeholder="0000",
                 help="預設為 0000",
+                autocomplete="one-time-code",
             )
             new_name = st.text_input("✏️ 修改玩家名稱 / 暱稱", value=profile["name"])
             new_cap = st.number_input(
@@ -140,9 +207,21 @@ def render_profile_view(
             change_pin = st.checkbox("🔒 變更為新的 4 位數 PIN 碼")
             c_p1, c_p2 = st.columns(2)
             with c_p1:
-                new_pin1 = st.text_input("新 PIN 碼 (4 位數字)", type="password", max_chars=4, disabled=not change_pin)
+                new_pin1 = st.text_input(
+                    "新 PIN 碼 (4 位數字)",
+                    type="password",
+                    max_chars=4,
+                    disabled=not change_pin,
+                    autocomplete="one-time-code",
+                )
             with c_p2:
-                new_pin2 = st.text_input("再次確認新 PIN 碼", type="password", max_chars=4, disabled=not change_pin)
+                new_pin2 = st.text_input(
+                    "再次確認新 PIN 碼",
+                    type="password",
+                    max_chars=4,
+                    disabled=not change_pin,
+                    autocomplete="one-time-code",
+                )
 
             submit_edit = st.form_submit_button("儲存並套用個人設定", type="primary", use_container_width=True)
 
@@ -197,12 +276,18 @@ def render_profile_view(
                     "每週預算限額": f"NT$ {p['weekly_play_cap']:.0f}",
                     "本週可玩": w_bal,
                     "保留儲備池": p_pool,
-                    "LINE 綁定": "✅ 已綁定" if p.get("line_user_id") else "未綁定",
+                    "LINE 綁定狀態": "✅ 已綁定" if p.get("line_user_id") else "未綁定",
                     "建立日期": p.get("created_at", "")[:10],
                     "ID": p["id"][:8],
                 })
 
             st.dataframe(prof_data_display, use_container_width=True)
+
+            st.info(
+                "💡 **LINE 帳號綁定提示**：\n"
+                "成員若欲在 LINE 對話中使用自身帳號，只需在 LINE 機器人對話框輸入：\n"
+                "`綁定 <名字> <PIN碼>`（例如：`綁定 小明 0000`），即可自動將其 LINE 帳號連動至個人空間。"
+            )
 
             with st.expander("🛠️ 管理員重設玩家 PIN 碼 (僅 Archie 可見)", expanded=False):
                 st.caption("若成員忘記密碼，管理員 Archie 可在此直接將其重設為預設 PIN 碼 0000。")
@@ -230,7 +315,14 @@ def render_profile_view(
         with st.form("create_profile_form"):
             c_name = st.text_input("玩家暱稱 (如：小明、阿美、老陳)", placeholder="請輸入名稱")
             c_cap = st.number_input("每週預算限額 (NT$)", min_value=10.0, max_value=100000.0, value=200.0, step=50.0)
-            c_pin = st.text_input("設定 4 位數安全 PIN 碼", value="0000", max_chars=4, type="password", help="預設為 0000")
+            c_pin = st.text_input(
+                "設定 4 位數安全 PIN 碼",
+                value="0000",
+                max_chars=4,
+                type="password",
+                help="預設為 0000",
+                autocomplete="one-time-code",
+            )
             submit_create = st.form_submit_button("立即建立玩家 Profile", type="primary", use_container_width=True)
 
         if submit_create:
