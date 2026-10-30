@@ -71,7 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <h1 className="font-black text-lg text-slate-900 dark:text-slate-100 tracking-tight">
                   台灣運彩 <span className="text-emerald-500 dark:text-emerald-400">瘋狗流</span> 決策台
                 </h1>
-                <Badge variant="green" className="text-[10px] px-1.5 py-0 font-mono">v2.1 Pro</Badge>
+                <Badge variant="green" className="text-[10px] px-1.5 py-0 font-mono">v2.3.0 Dev</Badge>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 10~500倍 串關決策 · 週額度風控 · 玩家【{currentProfile?.name || "主帳號"}】
