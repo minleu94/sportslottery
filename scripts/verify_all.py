@@ -76,6 +76,7 @@ def run_python_tests() -> bool:
         "tests/test_ticket_settlement.py",
         "tests/test_bet_validation.py",
         "tests/test_profile_manager.py",
+        "tests/test_modern_api.py",
     ]
 
     cmd = [sys.executable, "-m", "pytest"] + test_targets + ["-v", "--tb=short"]

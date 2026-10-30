@@ -350,71 +350,75 @@ def test_admin_player_management_endpoints():
     from server.auth import session_manager
     suffix = uuid.uuid4().hex[:6]
 
-    # 1. Authenticate as admin Archie (default)
+    # 1. Authenticate as admin Archie (default) with 8-digit PIN
     pm = ProfileManager()
-    admin_p = pm.get_profile("default")
-    admin_token = session_manager.create_session(admin_p)
-    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    pm.admin_reset_pin("default", new_pin_code="88776655")
+    try:
+        admin_p = pm.get_profile("default")
+        admin_token = session_manager.create_session(admin_p)
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
-    # 2. Register a temporary user to be managed
-    user_res = client.post(
-        "/api/profiles/register",
-        json={"name": f"受管理測試員_{suffix}", "weekly_play_cap": 250.0, "pin_code": "5555"},
-    )
-    assert user_res.status_code == 200
-    user_pid = user_res.json()["profile"]["id"]
-    user_token = user_res.json()["token"]
-    user_headers = {"Authorization": f"Bearer {user_token}"}
+        # 2. Register a temporary user to be managed
+        user_res = client.post(
+            "/api/profiles/register",
+            json={"name": f"受管理測試員_{suffix}", "weekly_play_cap": 250.0, "pin_code": "5555"},
+        )
+        assert user_res.status_code == 200
+        user_pid = user_res.json()["profile"]["id"]
+        user_token = user_res.json()["token"]
+        user_headers = {"Authorization": f"Bearer {user_token}"}
 
-    # 3. Non-admin attempting admin actions must be rejected with 403 Forbidden
-    forbidden_del = client.delete(f"/api/admin/players/{user_pid}", headers=user_headers)
-    assert forbidden_del.status_code == 403
+        # 3. Non-admin attempting admin actions must be rejected with 403 Forbidden
+        forbidden_del = client.delete(f"/api/admin/players/{user_pid}", headers=user_headers)
+        assert forbidden_del.status_code == 403
 
-    forbidden_reset = client.post(
-        "/api/admin/players/reset_pin",
-        headers=user_headers,
-        json={"profile_id": user_pid, "new_pin": "0000"},
-    )
-    assert forbidden_reset.status_code == 403
+        forbidden_reset = client.post(
+            "/api/admin/players/reset_pin",
+            headers=user_headers,
+            json={"profile_id": user_pid, "new_pin": "0000"},
+        )
+        assert forbidden_reset.status_code == 403
 
-    forbidden_update = client.post(
-        "/api/admin/players/update",
-        headers=user_headers,
-        json={"profile_id": user_pid, "name": "新名稱"},
-    )
-    assert forbidden_update.status_code == 403
+        forbidden_update = client.post(
+            "/api/admin/players/update",
+            headers=user_headers,
+            json={"profile_id": user_pid, "name": "新名稱"},
+        )
+        assert forbidden_update.status_code == 403
 
-    # 4. Admin resets PIN for user to 0000
-    reset_res = client.post(
-        "/api/admin/players/reset_pin",
-        headers=admin_headers,
-        json={"profile_id": user_pid, "new_pin": "0000"},
-    )
-    assert reset_res.status_code == 200
-    assert reset_res.json()["success"] is True
+        # 4. Admin resets PIN for user to 0000
+        reset_res = client.post(
+            "/api/admin/players/reset_pin",
+            headers=admin_headers,
+            json={"profile_id": user_pid, "new_pin": "0000"},
+        )
+        assert reset_res.status_code == 200
+        assert reset_res.json()["success"] is True
 
-    # User can now login with 0000
-    login_new = client.post("/api/profiles/login", json={"identifier": user_pid, "pin_code": "0000"})
-    assert login_new.status_code == 200
+        # User can now login with 0000
+        login_new = client.post("/api/profiles/login", json={"identifier": user_pid, "pin_code": "0000"})
+        assert login_new.status_code == 200
 
-    # 5. Admin updates player settings
-    update_res = client.post(
-        "/api/admin/players/update",
-        headers=admin_headers,
-        json={"profile_id": user_pid, "name": f"管理者改名_{suffix}", "weekly_play_cap": 800.0},
-    )
-    assert update_res.status_code == 200
-    assert update_res.json()["profile"]["name"] == f"管理者改名_{suffix}"
-    assert update_res.json()["profile"]["weekly_play_cap"] == 800.0
+        # 5. Admin updates player settings
+        update_res = client.post(
+            "/api/admin/players/update",
+            headers=admin_headers,
+            json={"profile_id": user_pid, "name": f"管理者改名_{suffix}", "weekly_play_cap": 800.0},
+        )
+        assert update_res.status_code == 200
+        assert update_res.json()["profile"]["name"] == f"管理者改名_{suffix}"
+        assert update_res.json()["profile"]["weekly_play_cap"] == 800.0
 
-    # 6. Admin cannot delete Archie / default
-    del_admin_res = client.delete("/api/admin/players/default", headers=admin_headers)
-    assert del_admin_res.status_code == 400
+        # 6. Admin cannot delete Archie / default
+        del_admin_res = client.delete("/api/admin/players/default", headers=admin_headers)
+        assert del_admin_res.status_code == 400
 
-    # 7. Admin successfully deletes player
-    del_res = client.delete(f"/api/admin/players/{user_pid}", headers=admin_headers)
-    assert del_res.status_code == 200
-    assert del_res.json()["success"] is True
+        # 7. Admin successfully deletes player
+        del_res = client.delete(f"/api/admin/players/{user_pid}", headers=admin_headers)
+        assert del_res.status_code == 200
+        assert del_res.json()["success"] is True
 
-    # User profile is deleted
-    assert pm.get_profile(user_pid) is None
+        # User profile is deleted
+        assert pm.get_profile(user_pid) is None
+    finally:
+        pm.admin_reset_pin("default", new_pin_code="0000")

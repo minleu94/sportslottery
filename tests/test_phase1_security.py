@@ -135,13 +135,47 @@ def test_admin_weak_pin_warning_and_strong_passphrase(tmp_path):
         token = data["token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        # P1-1: Admin using default 0000 CANNOT operate administrative endpoints
+        # P1-1: Admin using default 0000 CANNOT operate administrative, wallet, ticket, or recommendation endpoints
         res_admin_overview = client.get("/api/admin/players_overview", headers=headers)
         assert res_admin_overview.status_code == 403
         assert "安全限制" in res_admin_overview.json()["detail"]
 
         res_storage = client.get("/api/system/storage_status", headers=headers)
         assert res_storage.status_code == 403
+
+        # Wallet access blocked with 403
+        res_wallet = client.get("/api/wallet/status", headers=headers)
+        assert res_wallet.status_code == 403
+        assert "安全限制" in res_wallet.json()["detail"]
+
+        # Ticket access blocked with 403
+        res_tickets = client.get("/api/tickets", headers=headers)
+        assert res_tickets.status_code == 403
+
+        res_place = client.post("/api/tickets/place", headers=headers, json={"stake": 50})
+        assert res_place.status_code == 403
+
+        # Recommendation and radar blocked with 403
+        res_parlays = client.post("/api/parlays/search", headers=headers, json={})
+        assert res_parlays.status_code == 403
+        assert "安全限制" in res_parlays.json()["detail"]
+
+        res_radar = client.get("/api/radar", headers=headers)
+        assert res_radar.status_code == 403
+
+        # Profile info check allowed (to show user change prompt)
+        res_me = client.get("/api/auth/me", headers=headers)
+        assert res_me.status_code == 200
+        assert res_me.json()["session"]["must_change_password"] is True
+
+        # Non-password updates rejected with 403
+        bad_name_only = client.post(
+            "/api/profiles/update",
+            headers=headers,
+            json={"profile_id": "default", "current_pin": "0000", "name": "NewName"},
+        )
+        assert bad_name_only.status_code == 403
+        assert "必須設定新密碼" in bad_name_only.json()["detail"]
 
         # P1-1: Admin MUST use exactly 8-digit numeric password (non-8 or letters rejected)
         bad_short = client.post(
@@ -170,15 +204,26 @@ def test_admin_weak_pin_warning_and_strong_passphrase(tmp_path):
         assert update_res.status_code == 200
         new_token = update_res.json().get("token")
         assert new_token is not None
+        assert new_token != token
         new_headers = {"Authorization": f"Bearer {new_token}"}
 
-        # Now admin has changed from default 0000, admin endpoints are fully unlocked!
+        # Old session token is revoked (401)
+        res_old_token = client.get("/api/wallet/status", headers=headers)
+        assert res_old_token.status_code == 401
+
+        # Now admin has changed from default 0000, all functions (admin, wallet, tickets, radar) are unlocked!
         res_overview_ok = client.get("/api/admin/players_overview", headers=new_headers)
         assert res_overview_ok.status_code == 200
         assert "players" in res_overview_ok.json()
 
         res_storage_ok = client.get("/api/system/storage_status", headers=new_headers)
         assert res_storage_ok.status_code == 200
+
+        res_wallet_ok = client.get("/api/wallet/status", headers=new_headers)
+        assert res_wallet_ok.status_code == 200
+
+        res_tickets_ok = client.get("/api/tickets", headers=new_headers)
+        assert res_tickets_ok.status_code == 200
 
         # Subsequent login with 8-digit password has requires_pin_change=False
         login_8digit = client.post(

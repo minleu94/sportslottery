@@ -14,7 +14,7 @@ import threading
 import time
 from typing import Any, Dict, Optional
 
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 
 SESSION_TTL_SECONDS = 7 * 86400  # 7 days
 
@@ -161,12 +161,12 @@ def get_current_session_optional(
     return session_manager.get_session(token)
 
 
-def require_authenticated_session(
+def require_any_authenticated_session(
     request: Request,
     authorization: Optional[str] = Header(None, alias="Authorization"),
     x_session_token: Optional[str] = Header(None, alias="X-Session-Token"),
 ) -> Dict[str, Any]:
-    """Enforce that request provides a valid, unexpired, unrevoked session token."""
+    """Enforce that request provides a valid, unexpired, unrevoked session token (permits password change state)."""
     token = extract_token_from_request(request, authorization, x_session_token)
     session = session_manager.get_session(token)
     if not session:
@@ -174,6 +174,33 @@ def require_authenticated_session(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="【未授權存取】請先完成身分登入以取得有效作業 Session。",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    return session
+
+
+def require_authenticated_session(
+    request: Request,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    x_session_token: Optional[str] = Header(None, alias="X-Session-Token"),
+) -> Dict[str, Any]:
+    """Enforce that request provides a valid session that has no pending password change requirements."""
+    session = require_any_authenticated_session(request, authorization, x_session_token)
+    if session.get("must_change_password"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="【安全限制】管理員使用預設密碼 0000，必須先變更為 8 位純數字密碼方可操作系統功能。",
+        )
+    return session
+
+
+def verify_no_pending_password_change(
+    session: Optional[Dict[str, Any]] = Depends(get_current_session_optional),
+) -> Optional[Dict[str, Any]]:
+    """Guard optional-auth endpoints (e.g. recommendation search) against locked default admin sessions."""
+    if session and session.get("must_change_password"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="【安全限制】管理員使用預設密碼 0000，必須先變更為 8 位純數字密碼方可操作推薦功能。",
         )
     return session
 
@@ -197,7 +224,7 @@ def require_active_admin_session(
     x_session_token: Optional[str] = Header(None, alias="X-Session-Token"),
 ) -> Dict[str, Any]:
     """Enforce that request provides a valid admin session that has completed initial 0000 password change."""
-    session = require_authenticated_session(request, authorization, x_session_token)
+    session = require_any_authenticated_session(request, authorization, x_session_token)
     is_admin = session.get("is_admin", False) or (session.get("profile_id") == "default") or (session.get("name") == "Archie")
     if not is_admin:
         raise HTTPException(

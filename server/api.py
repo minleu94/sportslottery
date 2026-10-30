@@ -57,8 +57,10 @@ from integrations.common.models import TaiwanLeg
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
 from server.auth import (
     session_manager,
+    require_any_authenticated_session,
     require_authenticated_session,
     require_active_admin_session,
+    verify_no_pending_password_change,
     verify_profile_ownership,
     get_current_session_optional,
     SESSION_TTL_SECONDS,
@@ -285,7 +287,10 @@ def health_check():
 
 
 @app.get("/api/radar")
-def get_radar(force_refresh: bool = False):
+def get_radar(
+    force_refresh: bool = False,
+    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+):
     odds_adapter, _, _, season_radar, _, _, _, _ = get_services()
     all_alliances = list(ALLIANCE_MAP.keys())
     legs = odds_adapter.get_taiwan_legs(all_alliances, force_refresh=force_refresh)
@@ -313,6 +318,7 @@ def get_legs(
     alliances: Optional[str] = Query(None, description="Comma-separated alliance IDs"),
     force_refresh: bool = False,
     limit: int = Query(1000, ge=1, le=5000),
+    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
 ):
     odds_adapter, signal_hub, _, _, _, _, _, _ = get_services()
     selected = [a.strip() for a in alliances.split(",")] if alliances else list(ALLIANCE_MAP.keys())
@@ -334,7 +340,10 @@ def get_legs(
 
 
 @app.post("/api/parlays/search")
-def search_parlays(req: ParlaySearchRequest):
+def search_parlays(
+    req: ParlaySearchRequest,
+    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+):
     odds_adapter, signal_hub, parlay_engine, _, _, _, _, _ = get_services()
     
     selected_alliances = req.alliances if req.alliances else list(ALLIANCE_MAP.keys())
@@ -711,7 +720,7 @@ def profile_login(
 @app.post("/api/profiles/logout")
 def profile_logout(
     response: Response,
-    session: Dict[str, Any] = Depends(require_authenticated_session),
+    session: Dict[str, Any] = Depends(require_any_authenticated_session),
 ):
     session_manager.revoke_session(session.get("token"))
     response.delete_cookie(key="auth_session_token", path="/")
@@ -719,7 +728,7 @@ def profile_logout(
 
 
 @app.get("/api/auth/me")
-def get_auth_me(session: Dict[str, Any] = Depends(require_authenticated_session)):
+def get_auth_me(session: Dict[str, Any] = Depends(require_any_authenticated_session)):
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     profile = profile_mgr.get_profile(session.get("profile_id"))
     if not profile:
@@ -835,9 +844,14 @@ def update_profile(
     req: ProfileUpdateRequest,
     request: Request,
     response: Response,
-    session: Dict[str, Any] = Depends(require_authenticated_session),
+    session: Dict[str, Any] = Depends(require_any_authenticated_session),
 ):
     verify_profile_ownership(req.profile_id, session)
+    if session.get("must_change_password") and not req.new_pin:
+        raise HTTPException(
+            status_code=403,
+            detail="【安全限制】管理員使用預設密碼 0000，必須設定新密碼（剛好 8 位純數字）。",
+        )
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     is_valid = profile_mgr.verify_pin(profile_id=req.profile_id, pin_code=req.current_pin)
     if not is_valid:

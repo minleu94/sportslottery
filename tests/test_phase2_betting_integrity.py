@@ -59,8 +59,9 @@ def test_idempotency_retry_vs_deliberate_rebet(isolated_env):
     wallet = WeeklyWalletManager(db_path=db_path, profile_id=DEFAULT_PROFILE_ID)
     wallet.deposit_external(200.0)
 
-    # Login as default admin
-    login_resp = client.post("/api/profiles/login", json={"identifier": "default", "pin_code": "0000"})
+    # Login as default admin with active 8-digit PIN
+    prof_mgr.admin_reset_pin("default", new_pin_code="88776655")
+    login_resp = client.post("/api/profiles/login", json={"identifier": "default", "pin_code": "88776655"})
     assert login_resp.status_code == 200
     token = login_resp.json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -353,8 +354,9 @@ def test_cross_user_isolation_and_rbac(isolated_env):
     token_a = client.post("/api/profiles/login", json={"identifier": user_a_id, "pin_code": "1111"}).json()["token"]
     # Login user_b
     token_b = client.post("/api/profiles/login", json={"identifier": user_b_id, "pin_code": "2222"}).json()["token"]
-    # Login admin (default)
-    token_admin = client.post("/api/profiles/login", json={"identifier": "default", "pin_code": "0000"}).json()["token"]
+    # Login admin with active 8-digit PIN
+    prof_mgr.admin_reset_pin("default", new_pin_code="88776655")
+    token_admin = client.post("/api/profiles/login", json={"identifier": "default", "pin_code": "88776655"}).json()["token"]
 
     leg = {
         "sport": "baseball",
