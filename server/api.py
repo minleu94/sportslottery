@@ -18,6 +18,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -181,16 +182,25 @@ class ProfileUpdateRequest(BaseModel):
 def clean_league_name(league: Optional[str]) -> str:
     if not league:
         return "綜合賽事"
-    s = str(league).strip()
-    if s.startswith("UNKNOWN_"):
-        s = s[8:]
-    if s == "SOCCER":
-        return "綜合足球"
-    if s == "BASKETBALL":
-        return "綜合籃球"
-    if s == "BASEBALL":
-        return "綜合棒球"
-    return s
+    s = re.sub(r"^unknown[_\-\s]*", "", str(league).strip(), flags=re.IGNORECASE).strip()
+    upper = s.upper()
+    league_map = {
+        "COLOMBIA_PRIMERA_A": "哥倫比亞甲級聯賽",
+        "SAUDI_PRO_LEAGUE": "沙烏地職業聯賽",
+        "KBO": "韓國職棒 (KBO)",
+        "NBA": "美國職籃 (NBA)",
+        "WNBA": "美國女子職籃 (WNBA)",
+        "MLB": "美國職棒 (MLB)",
+        "NPB": "日本職棒 (NPB)",
+        "CPBL": "中華職棒 (CPBL)",
+        "NFL": "美式足球 (NFL)",
+        "NHL": "國家冰球 (NHL)",
+        "SOCCER": "綜合足球",
+        "BASKETBALL": "綜合籃球",
+        "BASEBALL": "綜合棒球",
+        "FOOTBALL": "美式足球",
+    }
+    return league_map.get(upper, s) or "綜合賽事"
 
 
 # --- Endpoints ---
@@ -235,7 +245,7 @@ def get_radar(force_refresh: bool = False):
 def get_legs(
     alliances: Optional[str] = Query(None, description="Comma-separated alliance IDs"),
     force_refresh: bool = False,
-    limit: int = Query(200, ge=1, le=1000),
+    limit: int = Query(1000, ge=1, le=5000),
 ):
     odds_adapter, signal_hub, _, _, _, _, _, _ = get_services()
     selected = [a.strip() for a in alliances.split(",")] if alliances else list(ALLIANCE_MAP.keys())
@@ -510,6 +520,47 @@ def update_profile(req: ProfileUpdateRequest):
     p_dict = dict(updated)
     p_dict.pop("pin_code", None)
     return {"success": True, "profile": p_dict}
+
+
+@app.get("/api/admin/players_overview")
+def get_admin_players_overview(admin_profile_id: str = Query("default")):
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    all_profs = profile_mgr.list_profiles()
+    overview = []
+    for p in all_profs:
+        try:
+            wm = get_wallet(profile_id=p["id"])
+            ws = wm.get_status()
+            bal = ws.get("weekly_wallet_balance", 0.0)
+            staked = ws.get("weekly_staked", 0.0)
+            prize = ws.get("prize_pool", 0.0)
+            pnl = ws.get("lifetime_net_profit", 0.0)
+            cap = p.get("weekly_play_cap", 200.0)
+        except Exception:
+            bal, staked, prize, pnl, cap = 0.0, 0.0, 0.0, 0.0, 200.0
+
+        try:
+            tr = get_recorder(profile_id=p["id"])
+            t_list = tr.list_tickets(limit=100, profile_id=p["id"])
+            active_cnt = sum(1 for t in t_list if t.get("status") == "PENDING")
+            total_cnt = len(t_list)
+        except Exception:
+            active_cnt, total_cnt = 0, 0
+
+        overview.append({
+            "id": p["id"],
+            "name": p["name"],
+            "weekly_play_cap": cap,
+            "weekly_wallet_balance": bal,
+            "weekly_staked": staked,
+            "prize_pool": prize,
+            "lifetime_net_profit": pnl,
+            "is_line_bound": bool(p.get("line_user_id")),
+            "created_at": p.get("created_at", ""),
+            "active_tickets_count": active_cnt,
+            "total_tickets_count": total_cnt,
+        })
+    return {"players": overview, "total_players": len(overview)}
 
 
 @app.get("/api/research/analytics")

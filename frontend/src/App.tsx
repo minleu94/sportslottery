@@ -29,6 +29,7 @@ function MainLayout() {
   const [storageSettingsOpen, setStorageSettingsOpen] = useState(false)
 
   useEffect(() => {
+    document.title = "🐕 瘋狗運彩 (MadDog Sports) - 智慧賠率與串關風控系統 (v2.3.0 Dev)"
     initApp()
   }, [])
 

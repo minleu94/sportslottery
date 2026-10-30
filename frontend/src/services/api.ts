@@ -222,4 +222,25 @@ export const api = {
     if (!res.ok) throw new Error("取得系統設定與資料存放狀態失敗")
     return res.json()
   },
+
+  async getAdminPlayersOverview(adminProfileId: string = "default"): Promise<{
+    players: {
+      id: string
+      name: string
+      weekly_play_cap: number
+      weekly_wallet_balance: number
+      weekly_staked: number
+      prize_pool: number
+      lifetime_net_profit: number
+      is_line_bound: boolean
+      created_at: string
+      active_tickets_count: number
+      total_tickets_count: number
+    }[]
+    total_players: number
+  }> {
+    const res = await fetch(`${BASE_URL}/admin/players_overview?admin_profile_id=${encodeURIComponent(adminProfileId)}`)
+    if (!res.ok) throw new Error("取得全體玩家監控資料失敗")
+    return res.json()
+  },
 }

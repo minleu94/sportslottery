@@ -6,12 +6,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatNTD(amount: number): string {
-  return new Intl.NumberFormat("zh-TW", {
-    style: "currency",
-    currency: "TWD",
-    maximumFractionDigits: 1,
-    minimumFractionDigits: 0,
-  }).format(amount).replace("TWD", "NT$")
+  const num = typeof amount === "number" && Number.isFinite(amount) ? amount : Number(amount || 0)
+  return `NT$ ${Math.round(num).toLocaleString("zh-TW")}`
 }
 
 export function formatOdds(odds: number): string {
@@ -21,12 +17,30 @@ export function formatOdds(odds: number): string {
 export function cleanLeagueName(league?: string | null): string {
   if (!league) return "綜合賽事"
   let s = league.trim()
-  if (s.startsWith("UNKNOWN_")) {
-    s = s.slice(8)
+  // Strip UNKNOWN_ or unknown_ prefix (case-insensitive)
+  s = s.replace(/^unknown[_\-\s]*/i, "").trim()
+  
+  const upper = s.toUpperCase()
+  const leagueMap: Record<string, string> = {
+    COLOMBIA_PRIMERA_A: "哥倫比亞甲級聯賽",
+    SAUDI_PRO_LEAGUE: "沙烏地職業聯賽",
+    KBO: "韓國職棒 (KBO)",
+    NBA: "美國職籃 (NBA)",
+    WNBA: "美國女子職籃 (WNBA)",
+    MLB: "美國職棒 (MLB)",
+    NPB: "日本職棒 (NPB)",
+    CPBL: "中華職棒 (CPBL)",
+    NFL: "美式足球 (NFL)",
+    NHL: "國家冰球 (NHL)",
+    SOCCER: "綜合足球",
+    BASKETBALL: "綜合籃球",
+    BASEBALL: "綜合棒球",
+    FOOTBALL: "美式足球",
   }
-  if (s === "SOCCER") return "綜合足球"
-  if (s === "BASKETBALL") return "綜合籃球"
-  if (s === "BASEBALL") return "綜合棒球"
-  if (s === "FOOTBALL") return "美式足球"
-  return s
+  
+  if (leagueMap[upper]) {
+    return leagueMap[upper]
+  }
+  
+  return s || "綜合賽事"
 }
