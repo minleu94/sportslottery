@@ -23,11 +23,17 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
 LOCK_PORT = 28501
+DEBUG_LOG = Path(r"C:\Projects\PythonProjects\sportslottery\data\launcher_debug.log")
+
+
+def log_debug(msg: str):
+    try:
+        DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(DEBUG_LOG, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%X')}] {msg}\n")
+    except Exception:
+        pass
 
 
 def hide_console():
@@ -36,15 +42,13 @@ def hide_console():
         try:
             hwnd = ctypes.windll.kernel32.GetConsoleWindow()
             if hwnd:
-                ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE = 0
+                ctypes.windll.user32.ShowWindow(hwnd, 0)
         except Exception:
             pass
 
 
 def ensure_streamlit_credentials(project_dir: Path):
-    """Ensure ~/.streamlit/credentials.toml and project/.streamlit/credentials.toml exist to prevent email prompt."""
     content = "[general]\nemail = ''\n"
-    # User home
     try:
         home_st = Path.home() / ".streamlit"
         home_st.mkdir(parents=True, exist_ok=True)
@@ -54,7 +58,6 @@ def ensure_streamlit_credentials(project_dir: Path):
     except Exception:
         pass
 
-    # Project directory
     try:
         proj_st = project_dir / ".streamlit"
         proj_st.mkdir(parents=True, exist_ok=True)
@@ -73,18 +76,16 @@ def ensure_streamlit_credentials(project_dir: Path):
 
 
 def find_project_dir() -> Path:
-    # If running as compiled exe, sys.executable is the exe path
     exe_dir = Path(sys.executable).resolve().parent
     if (exe_dir / "app.py").exists():
         return exe_dir
-    # If running as script
     script_dir = Path(__file__).resolve().parent
     if (script_dir / "app.py").exists():
         return script_dir
     configured = os.environ.get("SPORTSLOTTERY_WORKSPACE")
     if configured and (Path(configured) / "app.py").is_file():
         return Path(configured).expanduser().resolve()
-    return ROOT_DIR
+    return Path(r"C:\Projects\PythonProjects\sportslottery")
 
 
 def is_port_in_use(port: int) -> bool:
@@ -96,21 +97,31 @@ def is_port_in_use(port: int) -> bool:
 
 
 def main():
-    project_dir = find_project_dir()
-    ensure_streamlit_credentials(project_dir)
+    log_debug("Launcher started")
+    try:
+        project_dir = find_project_dir()
+        log_debug(f"Project dir: {project_dir}")
+        if str(project_dir) not in sys.path:
+            sys.path.insert(0, str(project_dir))
 
-    # 1. If tray manager is already running, open browser and exit
-    if is_port_in_use(LOCK_PORT):
-        webbrowser.open("http://localhost:8501")
-        return
+        ensure_streamlit_credentials(project_dir)
 
-    # 2. Hide console window so it acts like a clean system tray app
-    hide_console()
+        if is_port_in_use(LOCK_PORT):
+            log_debug("Lock port in use, opening browser and exiting")
+            webbrowser.open("http://localhost:8501")
+            return
 
-    # 3. Import and run AppTrayManager
-    from scripts.tray_manager import AppTrayManager
-    app = AppTrayManager()
-    sys.exit(app.run())
+        hide_console()
+        log_debug("Importing AppTrayManager")
+        from scripts.tray_manager import AppTrayManager
+        log_debug("Instantiating AppTrayManager")
+        app = AppTrayManager()
+        log_debug("Running AppTrayManager")
+        sys.exit(app.run())
+    except Exception as exc:
+        import traceback
+        log_debug(f"Exception: {traceback.format_exc()}")
+        raise
 
 
 if __name__ == "__main__":

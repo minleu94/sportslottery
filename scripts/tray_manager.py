@@ -27,7 +27,26 @@ from PIL import Image
 import pystray
 from pystray import Icon, Menu, MenuItem
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+
+def get_project_root() -> Path:
+    """Find the canonical project directory."""
+    configured = os.environ.get("SPORTSLOTTERY_WORKSPACE")
+    if configured and (Path(configured) / "app.py").is_file():
+        return Path(configured).expanduser().resolve()
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        if (exe_dir / "app.py").exists():
+            return exe_dir
+    cwd = Path.cwd().resolve()
+    if (cwd / "app.py").exists():
+        return cwd
+    file_dir = Path(__file__).resolve().parent.parent
+    if (file_dir / "app.py").exists():
+        return file_dir
+    return Path(r"C:\Projects\PythonProjects\sportslottery")
+
+
+ROOT_DIR = get_project_root()
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
@@ -39,6 +58,16 @@ STATUS_FILE = ROOT_DIR / "data" / "line_bot_runtime.json"
 ICON_PATH = ROOT_DIR / "app_icon.ico"
 LOCK_PORT = 28501  # Socket port used to ensure single instance
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+TRAY_LOG = ROOT_DIR / "data" / "tray_runtime.log"
+
+
+def log_tray(msg: str):
+    try:
+        TRAY_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(TRAY_LOG, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%X')}] {msg}\n")
+    except Exception:
+        pass
 
 
 def find_python_executable(gui: bool = False) -> str:
@@ -52,9 +81,9 @@ def find_python_executable(gui: bool = False) -> str:
         sys.executable,
     ]
     for c in candidates:
-        if c and Path(c).is_file():
+        if c and Path(c).is_file() and not Path(c).name.lower().startswith("sportslottery"):
             return str(Path(c).resolve())
-    return name
+    return rf"C:\Program Files\Python311\{name}"
 
 
 def copy_to_clipboard(text: str) -> bool:
@@ -111,8 +140,10 @@ class AppTrayManager:
             self._lock_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._lock_sock.bind(("127.0.0.1", LOCK_PORT))
             self._lock_sock.listen(1)
+            log_tray(f"Acquired single instance lock on port {LOCK_PORT}")
             return True
-        except Exception:
+        except Exception as exc:
+            log_tray(f"Failed to acquire lock: {exc}")
             return False
 
     def load_tray_icon(self) -> Image.Image:
@@ -120,9 +151,8 @@ class AppTrayManager:
         if ICON_PATH.exists():
             try:
                 return Image.open(ICON_PATH)
-            except Exception:
-                pass
-        # Fallback 64x64 green circle icon
+            except Exception as exc:
+                log_tray(f"Error loading icon: {exc}")
         from PIL import ImageDraw
         img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -140,6 +170,7 @@ class AppTrayManager:
                 with urllib.request.urlopen(req, timeout=1.0) as resp:
                     if resp.status == 200:
                         time.sleep(0.5)
+                        log_tray(f"Streamlit healthy, opening browser: {url}")
                         webbrowser.open(url)
                         return
             except Exception:
@@ -148,9 +179,10 @@ class AppTrayManager:
     def start_services(self) -> None:
         """Launch bot runner and streamlit server without console windows."""
         python_gui = find_python_executable(gui=True)
+        log_tray(f"Starting services using python_gui: {python_gui} in ROOT_DIR: {ROOT_DIR}")
 
         # 1. Start LINE Bot runner (FastAPI on 8000 + cloudflared tunnels for LINE + mobile)
-        bot_cmd = [python_gui, "scripts/serve_line_bot.py"]
+        bot_cmd = [python_gui, str(ROOT_DIR / "scripts" / "serve_line_bot.py")]
         self.proc_bot = subprocess.Popen(
             bot_cmd,
             cwd=str(ROOT_DIR),
@@ -158,6 +190,7 @@ class AppTrayManager:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        log_tray(f"LINE Bot runner started with PID: {self.proc_bot.pid}")
 
         # 2. Start Streamlit web server on port 8501
         st_cmd = [
@@ -165,7 +198,7 @@ class AppTrayManager:
             "-m",
             "streamlit",
             "run",
-            "app.py",
+            str(ROOT_DIR / "app.py"),
             "--server.address",
             "0.0.0.0",
             "--server.port",
@@ -180,6 +213,7 @@ class AppTrayManager:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        log_tray(f"Streamlit server started with PID: {self.proc_st.pid}")
 
         self.is_running = True
         self._status_text = "🟢 服務正常運行中 (LINE + Web)"
@@ -189,6 +223,7 @@ class AppTrayManager:
 
     def stop_services(self) -> None:
         """Terminate all background processes and tunnels."""
+        log_tray("Stopping services...")
         self.is_running = False
         self._status_text = "🔴 服務已停止"
         kill_proc_tree(self.proc_bot)
@@ -200,6 +235,7 @@ class AppTrayManager:
                 STATUS_FILE.unlink(missing_ok=True)
             except Exception:
                 pass
+        log_tray("Services stopped cleanly.")
 
     def restart_services(self) -> None:
         """Restart all services."""
@@ -258,6 +294,7 @@ class AppTrayManager:
 
     def on_quit(self, icon: Icon, item: Any) -> None:
         """Handle Quit menu item."""
+        log_tray("Quit menu clicked by user.")
         self.stop_services()
         if self._lock_sock:
             try:
@@ -281,8 +318,9 @@ class AppTrayManager:
 
     def run(self) -> int:
         """Main entry point."""
+        log_tray("AppTrayManager.run() starting")
         if not self.acquire_single_instance():
-            print("瘋狗流系統匣服務已經在運行中，請檢查右下角系統匣圖示。")
+            log_tray("Single instance acquire failed, exiting run()")
             return 1
 
         self.start_services()
@@ -307,11 +345,13 @@ class AppTrayManager:
                 "瘋狗流 3-in-1 服務已啟動！\n已在右下角系統匣常駐，並已為您開啟決策台。\n右鍵點擊圖示可查看狀態或複製手機網址。",
                 "台灣運彩 瘋狗流",
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            log_tray(f"Notify error: {exc}")
 
+        log_tray("Starting self.icon.run() event loop...")
         # Blocks until icon.stop() is called
         self.icon.run()
+        log_tray("self.icon.run() exited cleanly.")
         return 0
 
 
