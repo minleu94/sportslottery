@@ -300,11 +300,28 @@ def search_parlays(req: ParlaySearchRequest):
         formatted = []
         for p in items:
             p_copy = dict(p)
-            # Ensure legs in parlay are dicts and have display_league
+            p_copy["parlay_id"] = p.get("candidate_id") or p.get("parlay_id", "")
+            p_copy["expected_value"] = p.get("parlay_expected_value", 0.0)
+            p_copy["parlay_ev_pct"] = p.get("parlay_ev_pct", round(p.get("parlay_expected_value", 0.0) * 100.0, 1))
+            p_copy["sharp_parlay_ev_pct"] = p.get("sharp_parlay_ev_pct", 0.0)
+            p_copy["joint_probability"] = p.get("joint_probability", 0.0)
+            p_copy["sharp_badge"] = p.get("sharp_badge", "")
+            p_copy["is_positive_ev"] = p.get("is_positive_ev", False)
+
+            # Ensure legs in parlay are dicts and have display_league & signal fields
             clean_legs = []
             for l in p.get("legs", []):
                 ld = l.to_dict() if hasattr(l, "to_dict") else dict(l.__dict__ if hasattr(l, "__dict__") else l)
                 ld["display_league"] = clean_league_name(ld.get("league"))
+                sig = ld.get("signal_evidence") or {}
+                ld["expected_value_pct"] = sig.get("sharp_expected_value_pct", sig.get("expected_value_pct"))
+                ld["consensus_probability"] = sig.get("consensus_probability", 0.0)
+                ld["market_implied_pct"] = sig.get("market_implied_pct", 0.0)
+                ld["agreement_badge"] = sig.get("agreement_badge", "")
+                ld["is_positive_ev"] = sig.get("is_positive_ev", False)
+                ld["is_sharp_value_bet"] = sig.get("is_sharp_value_bet", False)
+                ld["crowd_desc"] = sig.get("crowd_desc", "")
+                ld["line_movement_label"] = (sig.get("line_movement") or {}).get("text_label", "")
                 clean_legs.append(ld)
             p_copy["legs"] = clean_legs
             formatted.append(p_copy)

@@ -23,12 +23,21 @@ export interface Leg {
   signal_evidence?: any
   signals?: any[]
   expected_value?: number | null
+  expected_value_pct?: number | null
+  consensus_probability?: number | null
+  market_implied_pct?: number | null
+  agreement_badge?: string
+  is_positive_ev?: boolean
+  is_sharp_value_bet?: boolean
+  crowd_desc?: string
+  line_movement_label?: string
   edge?: number | null
   market_probability?: number | null
   model_probability_calibrated?: number | null
 }
 
 export interface ParlayRecommendation {
+  candidate_id?: string
   parlay_id: string
   parlay_name: string
   total_odds: number
@@ -36,6 +45,14 @@ export interface ParlayRecommendation {
   legs: Leg[]
   combined_model_prob?: number
   expected_value?: number
+  parlay_expected_value?: number
+  parlay_ev_pct?: number
+  sharp_parlay_ev?: number
+  sharp_parlay_ev_pct?: number
+  joint_probability?: number
+  sharp_joint_probability?: number
+  is_positive_ev?: boolean
+  sharp_badge?: string
   confidence_score?: number
   is_valid: boolean
 }

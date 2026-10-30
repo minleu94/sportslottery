@@ -558,55 +558,111 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                           <Badge variant="blue" className="text-[10px] font-mono">
                             {parlay.legs.length} 串 1
                           </Badge>
+                          {parlay.sharp_badge && (
+                            <Badge variant={parlay.is_positive_ev ? "green" : "secondary"} className="text-[10px]">
+                              {parlay.sharp_badge}
+                            </Badge>
+                          )}
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          各關賠率連乘 · 獨立賽事檢驗合格
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
+                          <span>各關賠率連乘</span>
+                          {parlay.joint_probability ? (
+                            <>
+                              <span>·</span>
+                              <span className="text-sky-600 dark:text-sky-400 font-semibold font-mono">
+                                聯合預估勝率 {(parlay.joint_probability * 100).toFixed(1)}%
+                              </span>
+                            </>
+                          ) : null}
+                          <span>·</span>
+                          <span className="text-slate-400">獨立賽事檢驗合格</span>
                         </div>
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <div className="text-2xl font-black text-amber-500 dark:text-amber-400 font-mono tabular-nums tracking-tight">
                           {parlay.total_odds.toFixed(2)}x
                         </div>
-                        {parlay.expected_value !== undefined && parlay.expected_value !== null && (
-                          <div
-                            className={`text-xs font-bold tabular-nums font-mono ${
-                              parlay.expected_value > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"
-                            }`}
-                          >
-                            EV: {parlay.expected_value > 0 ? "+" : ""}{(parlay.expected_value * 100).toFixed(1)}%
-                          </div>
-                        )}
+                        {(() => {
+                          const evVal = parlay.parlay_ev_pct ?? (parlay.expected_value ? parlay.expected_value * 100 : null)
+                          if (evVal === null || evVal === undefined) return null
+                          const isPos = evVal > 0
+                          return (
+                            <div
+                              className={`text-xs font-bold tabular-nums font-mono flex items-center justify-end gap-1 ${
+                                isPos ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"
+                              }`}
+                            >
+                              <span>{isPos ? "⚡ +EV" : "EV"}</span>
+                              <span>{isPos ? `+${evVal.toFixed(1)}%` : `${evVal.toFixed(1)}%`}</span>
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
 
-                    {/* Legs list inside parlay (with cleanLeagueName applied!) */}
+                    {/* Legs list inside parlay (with cleanLeagueName applied & leg-level EV displayed!) */}
                     <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800/80">
-                      {parlay.legs.map((leg, lIdx) => (
-                        <div
-                          key={lIdx}
-                          className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60 flex items-center justify-between text-xs"
-                        >
-                          <div className="space-y-0.5">
-                            <div className="font-medium text-slate-800 dark:text-slate-300">
-                              <span className="font-semibold text-slate-500 mr-1.5">
-                                {cleanLeagueName(leg.league || leg.sport)}
-                              </span>
-                              {leg.away_team} vs {leg.home_team}
-                            </div>
-                            <div className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
-                              <span className="text-[11px] text-slate-500 dark:text-slate-400">[{leg.market}]</span>
-                              <span>{leg.selection}</span>
-                            </div>
-                          </div>
+                      {parlay.legs.map((leg, lIdx) => {
+                        const legEv = leg.expected_value_pct ?? (leg.expected_value ? leg.expected_value * 100 : null)
+                        const legProb = leg.consensus_probability ? (leg.consensus_probability * 100).toFixed(0) : null
+                        const isPos = Boolean(leg.is_positive_ev || (legEv !== null && legEv > 0))
 
-                          <div className="text-right">
-                            <span className="font-bold font-mono tabular-nums text-amber-500 dark:text-amber-400 text-sm">
-                              {leg.taiwan_odds?.toFixed(2)}x
-                            </span>
+                        return (
+                          <div
+                            key={lIdx}
+                            className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60 flex items-center justify-between text-xs"
+                          >
+                            <div className="space-y-1">
+                              <div className="font-medium text-slate-800 dark:text-slate-300">
+                                <span className="font-semibold text-slate-500 mr-1.5">
+                                  {cleanLeagueName(leg.display_league || leg.league || leg.sport)}
+                                </span>
+                                {leg.away_team} vs {leg.home_team}
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400">[{leg.market}]</span>
+                                  <span>{leg.selection}</span>
+                                </div>
+
+                                {/* Leg EV Badge */}
+                                {legEv !== null && (
+                                  <span
+                                    className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                                      isPos
+                                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                        : "bg-slate-200 dark:bg-slate-800 text-slate-500"
+                                    }`}
+                                  >
+                                    {isPos ? `⚡ +EV +${legEv.toFixed(1)}%` : `EV ${legEv.toFixed(1)}%`}
+                                  </span>
+                                )}
+
+                                {/* Leg Prob */}
+                                {legProb && (
+                                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-mono">
+                                    勝率 {legProb}%
+                                  </span>
+                                )}
+
+                                {/* Crowd desc */}
+                                {leg.crowd_desc && (
+                                  <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                                    {leg.crowd_desc}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="text-right pl-3 shrink-0">
+                              <span className="font-bold font-mono tabular-nums text-amber-500 dark:text-amber-400 text-sm">
+                                {leg.taiwan_odds?.toFixed(2)}x
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
 
                     {/* Actions Bar */}
