@@ -320,6 +320,14 @@ export const api = {
 
     parlay_name?: string
 
+    notes?: string
+
+    idempotency_key?: string
+
+    client_request_id?: string
+
+    entry_mode?: string
+
   }) {
 
     const res = await fetch(`${BASE_URL}/tickets/place`, {

@@ -150,15 +150,6 @@ class TicketRecorder:
             raise ValueError("預計派彩金額超出有限數值範圍。")
         potential_payout = round(raw_potential_payout, 2)
         ticket_id, now_iso = str(uuid.uuid4()), get_now_iso()
-        leagues: List[str] = []
-        for leg in legs:
-            league = leg.get("league", "")
-            cleaned = league.split()[0] if league else "賽事"
-            if cleaned not in leagues:
-                leagues.append(cleaned)
-        sports_summary = " + ".join(leagues)
-        legs_json = json.dumps(legs, ensure_ascii=False)
-
         with self._transaction() as conn:
             # Resolve retries before recommendation freshness checks: a successful
             # earlier submission remains successful even after kickoff.
@@ -175,9 +166,29 @@ class TicketRecorder:
                         raise ValueError("此 idempotency_key 已用於不同下注內容，請使用新的提交 key。")
                     result["ticket_id"] = result["id"]
                     return result
+
+            # Unified validation policy by entry mode
             if entry_mode == "recommendation":
                 from .bet_validation import validate_recommendation_legs
                 validate_recommendation_legs(legs)
+                for leg in legs:
+                    if isinstance(leg, dict) and "data_source" not in leg:
+                        leg["data_source"] = "verified_recommendation"
+            else:
+                from .bet_validation import validate_manual_legs
+                validate_manual_legs(legs, default_odds=effective_odds if len(legs) == 1 else None)
+                for leg in legs:
+                    if isinstance(leg, dict) and "data_source" not in leg:
+                        leg["data_source"] = "user_input"
+
+            leagues: List[str] = []
+            for leg in legs:
+                league = leg.get("league", "") if isinstance(leg, dict) else getattr(leg, "league", "")
+                cleaned = str(league).split()[0] if league else "賽事"
+                if cleaned not in leagues:
+                    leagues.append(cleaned)
+            sports_summary = " + ".join(leagues)
+            legs_json = json.dumps(legs, ensure_ascii=False)
 
             self.wallet.stake_bet(stake, ticket_id=ticket_id,
                                   notes=f"瘋狗流串關下注 ({len(legs)} 關, {effective_odds} 倍)", conn=conn)
@@ -253,6 +264,24 @@ class TicketRecorder:
                     notes=f"注單 #{ticket_id[:8]} ({status}) 派彩/退款 NT$ {payout:.2f} 入保留儲備池", conn=conn)
         return {"ticket_id": ticket_id, "won": won, "payout": payout, "status": status,
                 "net_profit": round(payout - float(ticket["stake"]), 2), "profile_id": ticket.get("profile_id", self.profile_id)}
+
+    def get_ticket(self, ticket_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a single ticket by its ID."""
+        conn = self._get_connection()
+        try:
+            row = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+            if not row:
+                return None
+            item = self._ticket_dict(row)
+            item["net_profit"] = round(item["actual_payout"] - item["stake"], 2) if item["status"] in ("WON", "LOST", "VOID") else 0.0
+            return item
+        finally:
+            conn.close()
+
+    def get_ticket_owner(self, ticket_id: str) -> Optional[str]:
+        """Retrieve the owner profile_id for a given ticket ID."""
+        ticket = self.get_ticket(ticket_id)
+        return ticket.get("profile_id") if ticket else None
 
     def list_tickets(self, status_filter: Optional[str] = None, limit: int = 50, profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
         target_pid = self.profile_id if profile_id is None else profile_id

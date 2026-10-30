@@ -118,3 +118,64 @@ def validate_recommendation_legs(legs: list[dict[str, Any]], now: Any = None) ->
         errors.append(REASON_LABELS["DUPLICATE_EVENT"])
     if errors:
         raise ValueError("推薦目前無法記錄：" + "；".join(errors))
+
+def validate_manual_legs(legs: list[dict[str, Any]], default_odds: float | None = None) -> None:
+    """Validate legs for manual accounting / bookkeeping.
+
+    Permits historical / past matches and unobserved odds timestamps (for recording
+    wagers already made at the kiosk), but strictly validates odds (> 1.0), leg count (1~8),
+    and basic team/selection metadata.
+    """
+    if not legs:
+        raise ValueError("手動記帳注單必須包含至少 1 個賽事關卡。")
+    if len(legs) > 8:
+        raise ValueError("串關關卡數量不可超過 8 關。")
+
+    errors: list[str] = []
+    for index, leg in enumerate(legs, 1):
+        raw_odds = _get(leg, "taiwan_odds", _get(leg, "odds", default_odds))
+        if raw_odds is None and default_odds is not None:
+            raw_odds = default_odds
+
+        if raw_odds is not None:
+            try:
+                odds = float(raw_odds)
+                if not math.isfinite(odds) or odds <= 1.0:
+                    errors.append(f"關卡 {index} 賠率無效 ({raw_odds})，必須大於 1.0。")
+            except (ValueError, TypeError):
+                errors.append(f"關卡 {index} 賠率格式錯誤 ({raw_odds})。")
+        else:
+            errors.append(f"關卡 {index} 缺少有效賠率。")
+
+        market = str(_get(leg, "market", _get(leg, "market_type", _get(leg, "play_type", ""))) or "").strip()
+        selection = str(_get(leg, "selection", _get(leg, "side", _get(leg, "recommend_side", ""))) or "").strip()
+        home = str(_get(leg, "home_team", "") or "").strip()
+        away = str(_get(leg, "away_team", "") or "").strip()
+        team = str(_get(leg, "team", "") or "").strip()
+        event = str(_get(leg, "event_id", _get(leg, "match_id", _get(leg, "game_id", ""))) or "").strip()
+        league = str(_get(leg, "league", _get(leg, "alliance", _get(leg, "sport", ""))) or "").strip()
+
+        has_bet_spec = bool(selection or market)
+        has_event_spec = bool(home or away or team or event)
+
+        if not has_bet_spec:
+            # Allow pure league-level placeholder records (e.g. {"league": "NBA"}) for generic bookkeeping
+            if not (league and not has_event_spec):
+                errors.append(f"關卡 {index} 缺少投注選項或玩法資訊。")
+
+        if not has_event_spec and not league:
+            errors.append(f"關卡 {index} 缺少賽事識別或隊伍名稱。")
+
+        if market in {"讓分", "大小", "spread", "totals"}:
+            line_val = _get(leg, "line")
+            if line_val is not None and str(line_val).strip() != "":
+                try:
+                    line_f = float(line_val)
+                    if not math.isfinite(line_f):
+                        errors.append(f"關卡 {index} 門檻數值 ({line_val}) 無效。")
+                except (ValueError, TypeError):
+                    errors.append(f"關卡 {index} 門檻數值 ({line_val}) 格式錯誤。")
+
+    if errors:
+        raise ValueError("手動注單驗證失敗：" + "；".join(errors))
+

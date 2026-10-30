@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -183,6 +184,9 @@ class PlaceTicketRequest(BaseModel):
     recommendation_odds: Optional[float] = None
     parlay_name: Optional[str] = "瘋狗串關"
     notes: Optional[str] = "前端下注記錄"
+    idempotency_key: Optional[str] = None
+    client_request_id: Optional[str] = None
+    entry_mode: Optional[str] = None
 
 
 class SettleTicketRequest(BaseModel):
@@ -482,14 +486,12 @@ def place_ticket(
     recorder = get_recorder(profile_id=req.profile_id)
     _, _, _, _, _, snapshot_logger, _, _ = get_services()
     
-    # Calculate idempotency key based on legs + stake
-    payload_raw = {
-        "legs": req.legs,
-        "stake": req.stake,
-        "placed_odds": req.placed_odds,
-        "profile_id": req.profile_id,
-    }
-    key = hashlib.sha256(json.dumps(payload_raw, sort_keys=True, default=str).encode()).hexdigest()
+    # Use client-provided idempotency key (or client_request_id) if available,
+    # otherwise generate a new unique UUID so deliberate identical bets create distinct tickets.
+    client_key = (req.idempotency_key or req.client_request_id or "").strip()
+    idempotency_key = client_key if client_key else str(uuid.uuid4())
+    
+    entry_mode = req.entry_mode or "frontend_api"
     
     try:
         rec_odds = req.recommendation_odds or req.placed_odds
@@ -499,8 +501,8 @@ def place_ticket(
             total_odds=req.placed_odds,
             recommendation_odds=rec_odds,
             placed_odds=req.placed_odds,
-            entry_mode="frontend_api",
-            idempotency_key=key,
+            entry_mode=entry_mode,
+            idempotency_key=idempotency_key,
             notes=f"{req.parlay_name or '瘋狗串關'} (Web API 下注)",
         )
         
@@ -528,16 +530,12 @@ def settle_ticket(
     session: Dict[str, Any] = Depends(require_authenticated_session),
 ):
     _, _, _, _, _, _, _, _ = get_services()
-    # Look up ticket's actual owner from tickets table
-    ticket_recorder = TicketRecorder()
-    conn = ticket_recorder._get_connection()
-    try:
-        row = conn.execute("SELECT profile_id FROM tickets WHERE id = ?", (req.ticket_id,)).fetchone()
-    finally:
-        conn.close()
-    if not row:
+    # Look up ticket's actual owner via TicketRecorder repository method (no raw SQL in API)
+    recorder = get_recorder()
+    ticket = recorder.get_ticket(req.ticket_id)
+    if not ticket:
         raise HTTPException(status_code=404, detail=f"找不到注單 ID: {req.ticket_id}")
-    profile_id = str(row["profile_id"] or DEFAULT_PROFILE_ID).strip()
+    profile_id = str(ticket.get("profile_id") or DEFAULT_PROFILE_ID).strip()
     verify_profile_ownership(profile_id, session)
     
     recorder = get_recorder(profile_id=profile_id)
