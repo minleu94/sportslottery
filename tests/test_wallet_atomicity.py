@@ -168,7 +168,7 @@ def test_old_database_migrates_without_losing_ledger_or_tickets(tmp_path):
 
 def test_recommendation_validation_is_strict_but_manual_history_is_allowed(tmp_path):
     _, wallet, recorder = setup_wallet(tmp_path)
-    stale_leg = {"event_id": "e1", "league": "MLB", "odds": 2.0}
+    stale_leg = {"event_id": "e1", "league": "MLB", "odds": 2.0, "selection": "主隊"}
     with pytest.raises(ValueError, match="無法記錄"):
         recorder.place_ticket([stale_leg], 10, 2, entry_mode="recommendation")
     assert wallet.get_status()["weekly_wallet_balance"] == 200

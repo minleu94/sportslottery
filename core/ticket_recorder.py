@@ -120,6 +120,7 @@ class TicketRecorder:
         notes: str = "",
         entry_mode: str = "manual",
         idempotency_key: Optional[str] = None,
+        client_source: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Record a locally confirmed ticket; this does not place an official wager."""
         stake = _money(stake, "注金")
@@ -134,8 +135,14 @@ class TicketRecorder:
             raise ValueError("總賠率必須是大於 1.0 的有限數值。")
         if not legs:
             raise ValueError("注單必須包含至少 1 個賽事關卡。")
-        if entry_mode not in ("manual", "recommendation", "frontend_api", "api"):
-            raise ValueError("entry_mode 僅支援 manual, recommendation 或 frontend_api。")
+
+        # Normalize business entry_mode vs caller client_source
+        if entry_mode in ("frontend_api", "api"):
+            client_source = client_source or entry_mode
+            entry_mode = "manual"
+        elif entry_mode not in ("manual", "recommendation"):
+            raise ValueError("entry_mode 僅支援 'recommendation' 或 'manual'。")
+
         if idempotency_key is not None:
             idempotency_key = str(idempotency_key).strip()
             if not idempotency_key:
@@ -172,14 +179,15 @@ class TicketRecorder:
                 from .bet_validation import validate_recommendation_legs
                 validate_recommendation_legs(legs)
                 for leg in legs:
-                    if isinstance(leg, dict) and "data_source" not in leg:
+                    if isinstance(leg, dict):
                         leg["data_source"] = "verified_recommendation"
             else:
                 from .bet_validation import validate_manual_legs
                 validate_manual_legs(legs, default_odds=effective_odds if len(legs) == 1 else None)
                 for leg in legs:
-                    if isinstance(leg, dict) and "data_source" not in leg:
-                        leg["data_source"] = "user_input"
+                    if isinstance(leg, dict):
+                        # Do not allow client to arbitrarily claim a manual entry is verified
+                        leg["data_source"] = "manual_entry"
 
             leagues: List[str] = []
             for leg in legs:

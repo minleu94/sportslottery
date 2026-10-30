@@ -39,6 +39,7 @@ def isolated_env(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr("server.api.get_wallet", lambda profile_id="default": WeeklyWalletManager(db_path=db_path, profile_id=profile_id))
     monkeypatch.setattr("server.api.get_recorder", lambda profile_id="default": TicketRecorder(db_path=db_path, profile_id=profile_id))
+    monkeypatch.setattr("server.api.get_betting_service", lambda profile_id="default": BettingService(db_path=db_path, profile_id=profile_id))
     monkeypatch.setattr("server.api._profile_mgr", prof_mgr)
     monkeypatch.setattr("core.profile_manager.DEFAULT_DB_PATH", db_path)
     monkeypatch.setattr("core.wallet.DEFAULT_DB_PATH", db_path)
@@ -216,7 +217,18 @@ def test_unified_validation_policies(isolated_env):
         entry_mode="manual",
     )
     assert manual_ticket["status"] == "OPEN"
-    assert manual_ticket["legs"][0]["data_source"] == "user_input"
+    assert manual_ticket["legs"][0]["data_source"] == "manual_entry"
+
+    # Client forging data_source: "verified_recommendation" on a manual ticket is overridden
+    forged_leg = dict(historical_leg)
+    forged_leg["data_source"] = "verified_recommendation"
+    forged_ticket = recorder.place_ticket(
+        legs=[forged_leg],
+        stake=50.0,
+        total_odds=1.80,
+        entry_mode="manual",
+    )
+    assert forged_ticket["legs"][0]["data_source"] == "manual_entry"
 
     # 2. Invalid odds rejected in manual bookkeeping
     invalid_odds_leg = dict(historical_leg)

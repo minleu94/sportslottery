@@ -134,6 +134,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
       setMessage({ type: "error", text: "修改設定需輸入目前 PIN 碼進行身分驗證。" })
       return
     }
+    if (newPin) {
+      if (isAdmin) {
+        if (newPin.length !== 8 || !/^\d{8}$/.test(newPin)) {
+          setMessage({ type: "error", text: "管理員密碼必須剛好為 8 位純數字（例如：12345678）。" })
+          return
+        }
+      } else {
+        if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+          setMessage({ type: "error", text: "PIN 碼必須為 4 位純數字。" })
+          return
+        }
+      }
+    }
     setLoading(true)
     setMessage(null)
 
@@ -399,25 +412,29 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
 
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80 space-y-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">變更新 PIN 碼 (留空則不變)</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {isAdmin ? "變更新密碼 (管理員必須剛好為 8 位純數字，留空則不變)" : "變更新 PIN 碼 (留空則不變)"}
+                  </label>
                   <input
                     type="password"
-                    maxLength={4}
+                    maxLength={isAdmin ? 8 : 4}
                     value={newPin}
-                    onChange={(e) => setNewPin(e.target.value)}
-                    placeholder="4 位數新 PIN"
+                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                    placeholder={isAdmin ? "8 位純數字新密碼" : "4 位數新 PIN"}
                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 dark:text-slate-200"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-amber-600 dark:text-amber-400">輸入目前 PIN 碼驗證授權</label>
+                  <label className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    {isAdmin ? "輸入目前密碼驗證授權 (首次預設 0000)" : "輸入目前 PIN 碼驗證授權"}
+                  </label>
                   <input
                     type="password"
-                    maxLength={4}
+                    maxLength={isAdmin ? 8 : 4}
                     value={currentPinForEdit}
-                    onChange={(e) => setCurrentPinForEdit(e.target.value)}
-                    placeholder="目前 4 位 PIN"
+                    onChange={(e) => setCurrentPinForEdit(e.target.value.replace(/\D/g, ""))}
+                    placeholder={isAdmin ? "目前 8 位密碼或 0000" : "目前 4 位 PIN"}
                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 dark:text-slate-200"
                   />
                 </div>

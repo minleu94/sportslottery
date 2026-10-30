@@ -1,7 +1,7 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Dialog } from "@/components/ui/Dialog"
 import { Button } from "@/components/ui/Button"
-import { formatNTD } from "@/lib/utils"
+import { formatNTD, generateUUID } from "@/lib/utils"
 import type { ParlayRecommendation, WalletStatus } from "@/types"
 import { api } from "@/services/api"
 import { CheckCircle2, AlertTriangle, Loader2 } from "lucide-react"
@@ -25,6 +25,18 @@ export const BetModal: React.FC<BetModalProps> = ({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [idempotencyKey, setIdempotencyKey] = useState<string>("")
+
+  useEffect(() => {
+    if (open) {
+      setError(null)
+      setSuccess(false)
+      // Generate fresh UUID for new bet confirmation
+      setIdempotencyKey(generateUUID())
+    } else {
+      setIdempotencyKey("")
+    }
+  }, [open, parlay])
 
   if (!parlay) return null
 
@@ -39,6 +51,12 @@ export const BetModal: React.FC<BetModalProps> = ({
     setError(null)
     setSubmitting(true)
 
+    // Ensure we have an active idempotency key for this attempt
+    const activeKey = idempotencyKey || generateUUID()
+    if (!idempotencyKey) {
+      setIdempotencyKey(activeKey)
+    }
+
     try {
       const res = await api.placeTicket({
         profile_id: wallet.profile_id,
@@ -47,18 +65,31 @@ export const BetModal: React.FC<BetModalProps> = ({
         placed_odds: parlay.total_odds,
         recommendation_odds: parlay.total_odds,
         parlay_name: parlay.parlay_name,
+        entry_mode: "recommendation",
+        idempotency_key: activeKey,
       })
 
       setSuccess(true)
       setTimeout(() => {
         setSuccess(false)
+        setIdempotencyKey("")
         onClose()
         if (res.wallet_status) onSuccess(res.wallet_status)
       }, 1200)
     } catch (err: any) {
+      // Keep activeKey on error so retrying uses the same idempotency key
       setError(err.message || "下注失敗")
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  function handleStakeSelect(amt: number) {
+    if (amt !== stake) {
+      setStake(amt)
+      setError(null)
+      // When stake changes, generate a fresh idempotency key
+      setIdempotencyKey(generateUUID())
     }
   }
 
@@ -108,7 +139,7 @@ export const BetModal: React.FC<BetModalProps> = ({
                   <button
                     key={amt}
                     type="button"
-                    onClick={() => setStake(amt)}
+                    onClick={() => handleStakeSelect(amt)}
                     disabled={amt > maxStakeAllowed}
                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       stake === amt
@@ -127,7 +158,12 @@ export const BetModal: React.FC<BetModalProps> = ({
                 max={maxStakeAllowed}
                 step={10}
                 value={stake}
-                onChange={(e) => setStake(Math.max(10, Number(e.target.value)))}
+                onChange={(e) => {
+                  const val = Math.max(10, Number(e.target.value))
+                  setStake(val)
+                  setError(null)
+                  setIdempotencyKey(generateUUID())
+                }}
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 font-mono text-sm focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -143,8 +179,15 @@ export const BetModal: React.FC<BetModalProps> = ({
             )}
 
             {error && (
-              <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs">
-                {error}
+              <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs space-y-1">
+                <div className="font-semibold flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>提交失敗</span>
+                </div>
+                <div>{error}</div>
+                <div className="text-[10px] text-slate-400">
+                  提示：點選「重試下注」將使用相同冪等鍵安全重試，不會重複扣款。
+                </div>
               </div>
             )}
 
@@ -160,7 +203,7 @@ export const BetModal: React.FC<BetModalProps> = ({
                 className="gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                確認下注 NT$ {stake}
+                {error ? `重試下注 NT$ ${stake}` : `確認下注 NT$ ${stake}`}
               </Button>
             </div>
           </>

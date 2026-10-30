@@ -476,7 +476,7 @@ export const api = {
 
 
 
-  async loginProfile(identifier: string, pinCode: string): Promise<{ success: boolean; token: string; profile: Profile; message: string }> {
+  async loginProfile(identifier: string, pinCode: string): Promise<{ success: boolean; token: string; profile: Profile; message: string; requires_pin_change?: boolean; warning?: string }> {
 
     const res = await fetch(`${BASE_URL}/profiles/login`, {
 

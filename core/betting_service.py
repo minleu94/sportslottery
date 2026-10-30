@@ -35,6 +35,7 @@ class BettingService:
         notes: str = "",
         entry_mode: str = "manual",
         idempotency_key: Optional[str] = None,
+        client_source: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Record wager and deduct stake from player wallet atomically."""
         return self.recorder.place_ticket(
@@ -46,6 +47,7 @@ class BettingService:
             notes=notes,
             entry_mode=entry_mode,
             idempotency_key=idempotency_key,
+            client_source=client_source,
         )
 
     def settle_ticket(
@@ -89,3 +91,12 @@ class BettingService:
     def get_wallet_status(self) -> Dict[str, Any]:
         """Retrieve player wallet status."""
         return self.wallet.get_status()
+
+    def update_closing_odds(self, ticket_id: str, closing_odds: float) -> Optional[Dict[str, Any]]:
+        """Update closing odds and recalculate CLV for a ticket."""
+        return self.recorder.update_closing_odds(ticket_id=ticket_id, closing_odds=closing_odds)
+
+    def get_clv_analytics(self, profile_id: Optional[str] = None) -> Dict[str, Any]:
+        """Retrieve CLV analytics for player or all players."""
+        return self.recorder.get_clv_analytics(profile_id=profile_id)
+

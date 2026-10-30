@@ -117,19 +117,13 @@ def test_admin_weak_pin_warning_and_strong_passphrase(tmp_path):
     pm = ProfileManager()
     default_p = pm.get_profile(DEFAULT_PROFILE_ID)
     client = TestClient(app)
-    suffix = uuid.uuid4().hex[:6]
 
-    # Verify that updating admin to strong passphrase works
-    # Create an admin session directly
-    admin_token = session_manager.create_session(default_p)
-    admin_headers = {"Authorization": f"Bearer {admin_token}"}
-
-    # Temporarily set admin PIN to 0000 to test warning detection
+    # Temporarily set admin PIN to 0000 to test warning detection and restrictions
     pm.admin_reset_pin("default", new_pin_code="0000")
     assert pm.is_default_admin_pin() is True
 
     try:
-        # Login with weak 0000 PIN returns requires_pin_change=True with warning
+        # Login with default 0000 PIN returns requires_pin_change=True with warning
         res_login = client.post(
             "/api/profiles/login",
             json={"identifier": "default", "pin_code": "0000"},
@@ -139,29 +133,89 @@ def test_admin_weak_pin_warning_and_strong_passphrase(tmp_path):
         assert data["requires_pin_change"] is True
         assert "安全警告" in data["warning"]
         token = data["token"]
+        headers = {"Authorization": f"Bearer {token}"}
 
-        # Update admin PIN to strong passphrase (alphanumeric with symbol, e.g. 14 chars)
-        strong_pwd = f"Admin@Secure_{suffix}"
+        # P1-1: Admin using default 0000 CANNOT operate administrative endpoints
+        res_admin_overview = client.get("/api/admin/players_overview", headers=headers)
+        assert res_admin_overview.status_code == 403
+        assert "安全限制" in res_admin_overview.json()["detail"]
+
+        res_storage = client.get("/api/system/storage_status", headers=headers)
+        assert res_storage.status_code == 403
+
+        # P1-1: Admin MUST use exactly 8-digit numeric password (non-8 or letters rejected)
+        bad_short = client.post(
+            "/api/profiles/update",
+            headers=headers,
+            json={"profile_id": "default", "current_pin": "0000", "new_pin": "1234"},
+        )
+        assert bad_short.status_code == 400
+        assert "8 位純數字" in bad_short.json()["detail"]
+
+        bad_letters = client.post(
+            "/api/profiles/update",
+            headers=headers,
+            json={"profile_id": "default", "current_pin": "0000", "new_pin": "1234abcd"},
+        )
+        assert bad_letters.status_code == 400
+        assert "8 位純數字" in bad_letters.json()["detail"]
+
+        # P1-1: Admin sets valid exactly 8-digit numeric password
+        admin_8digit = "88776655"
         update_res = client.post(
             "/api/profiles/update",
-            headers={"Authorization": f"Bearer {token}"},
-            json={
-                "profile_id": "default",
-                "current_pin": "0000",
-                "new_pin": strong_pwd,
-            },
+            headers=headers,
+            json={"profile_id": "default", "current_pin": "0000", "new_pin": admin_8digit},
         )
         assert update_res.status_code == 200
         new_token = update_res.json().get("token")
         assert new_token is not None
+        new_headers = {"Authorization": f"Bearer {new_token}"}
 
-        # Subsequent login with strong passphrase has requires_pin_change=False
-        strong_login = client.post(
+        # Now admin has changed from default 0000, admin endpoints are fully unlocked!
+        res_overview_ok = client.get("/api/admin/players_overview", headers=new_headers)
+        assert res_overview_ok.status_code == 200
+        assert "players" in res_overview_ok.json()
+
+        res_storage_ok = client.get("/api/system/storage_status", headers=new_headers)
+        assert res_storage_ok.status_code == 200
+
+        # Subsequent login with 8-digit password has requires_pin_change=False
+        login_8digit = client.post(
             "/api/profiles/login",
-            json={"identifier": "default", "pin_code": strong_pwd},
+            json={"identifier": "default", "pin_code": admin_8digit},
         )
-        assert strong_login.status_code == 200
-        assert strong_login.json()["requires_pin_change"] is False
+        assert login_8digit.status_code == 200
+        assert login_8digit.json()["requires_pin_change"] is False
+
+        # Verify general player PIN remains exactly 4 digits
+        # Register a general player
+        player_name = f"TestPlayer_{uuid.uuid4().hex[:6]}"
+        reg_res = client.post(
+            "/api/profiles/register",
+            json={"name": player_name, "weekly_play_cap": 200, "pin_code": "1234"},
+        )
+        assert reg_res.status_code == 200
+        player_data = reg_res.json()["profile"]
+
+        # Player cannot use 8 digits
+        player_token = reg_res.json()["token"]
+        player_headers = {"Authorization": f"Bearer {player_token}"}
+        player_bad_8 = client.post(
+            "/api/profiles/update",
+            headers=player_headers,
+            json={"profile_id": player_data["id"], "current_pin": "1234", "new_pin": "12345678"},
+        )
+        assert player_bad_8.status_code == 400
+        assert "4 位純數字" in player_bad_8.json()["detail"]
+
+        # Player updating to 4 digits succeeds
+        player_ok = client.post(
+            "/api/profiles/update",
+            headers=player_headers,
+            json={"profile_id": player_data["id"], "current_pin": "1234", "new_pin": "5678"},
+        )
+        assert player_ok.status_code == 200
     finally:
         # Restore admin PIN back to 0000
         pm.admin_reset_pin("default", new_pin_code="0000")
@@ -304,13 +358,23 @@ def test_system_storage_status_access_control():
         assert user_res.status_code == 403
         assert "權限不足" in user_res.json()["detail"]
 
-        # 3. Admin user access -> 200 and path is masked
+        # 3. Admin user on default 0000 -> 403 Forbidden until password changed
         pm = ProfileManager()
         admin_p = pm.get_profile(DEFAULT_PROFILE_ID)
-        admin_token = session_manager.create_session(admin_p)
+        admin_token_0000 = session_manager.create_session(admin_p)
+        admin_res_0000 = unauth_client.get(
+            "/api/system/storage_status",
+            headers={"Authorization": f"Bearer {admin_token_0000}"},
+        )
+        assert admin_res_0000.status_code == 403
+
+        # Update admin to valid 8-digit password to unlock admin operations
+        pm.update_profile(DEFAULT_PROFILE_ID, current_pin="0000", new_pin_code="88776655")
+        admin_active = pm.get_profile(DEFAULT_PROFILE_ID)
+        admin_token_ok = session_manager.create_session(admin_active)
         admin_res = unauth_client.get(
             "/api/system/storage_status",
-            headers={"Authorization": f"Bearer {admin_token}"},
+            headers={"Authorization": f"Bearer {admin_token_ok}"},
         )
         assert admin_res.status_code == 200
         data = admin_res.json()
@@ -322,6 +386,7 @@ def test_system_storage_status_access_control():
         assert data["storage_root"].startswith(".../")
     finally:
         pm = ProfileManager()
+        pm.admin_reset_pin(DEFAULT_PROFILE_ID, new_pin_code="0000")
         try:
             pm.admin_delete_profile(user_pid)
         except Exception:
@@ -381,18 +446,22 @@ def test_session_lifecycle_httponly_cookie_and_revocation():
 
     # 4. Admin resetting player PIN revokes all player sessions
     pm = ProfileManager()
-    admin_p = pm.get_profile(DEFAULT_PROFILE_ID)
-    admin_token = session_manager.create_session(admin_p)
-    admin_reset_res = clean_client.post(
-        "/api/admin/players/reset_pin",
-        headers={"Authorization": f"Bearer {admin_token}"},
-        json={"profile_id": pid, "new_pin": "5555"},
-    )
-    assert admin_reset_res.status_code == 200
+    pm.update_profile(DEFAULT_PROFILE_ID, current_pin="0000", new_pin_code="88776655")
+    try:
+        admin_p = pm.get_profile(DEFAULT_PROFILE_ID)
+        admin_token = session_manager.create_session(admin_p)
+        admin_reset_res = clean_client.post(
+            "/api/admin/players/reset_pin",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"profile_id": pid, "new_pin": "5555"},
+        )
+        assert admin_reset_res.status_code == 200
 
-    # The player's token is revoked immediately
-    after_admin_reset = clean_client.get("/api/auth/me", headers={"Authorization": f"Bearer {new_token}"})
-    assert after_admin_reset.status_code == 401
+        # The player's token is revoked immediately
+        after_admin_reset = clean_client.get("/api/auth/me", headers={"Authorization": f"Bearer {new_token}"})
+        assert after_admin_reset.status_code == 401
+    finally:
+        pm.admin_reset_pin(DEFAULT_PROFILE_ID, new_pin_code="0000")
 
     # 5. Clean up
     try:

@@ -33,20 +33,33 @@ def get_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def validate_pin_code(pin: str, allow_extended: bool = False) -> str:
+def validate_pin_code(
+    pin: str,
+    is_admin: bool = False,
+    allow_default_admin: bool = False,
+    allow_extended: bool = False,
+) -> str:
     pin_str = str(pin).strip()
-    if allow_extended:
-        if not re.fullmatch(r"[A-Za-z0-9@#$%^&+=_\-]{4,32}", pin_str):
-            raise ValueError("密碼長度須為 4 至 32 個字元（支援數字、英文字母及常用安全符號）。")
+    if is_admin:
+        if allow_default_admin and pin_str == DEFAULT_PIN_CODE:
+            return pin_str
+        if not re.fullmatch(r"\d{8}", pin_str):
+            raise ValueError("管理員密碼必須剛好為 8 位純數字（例如：12345678）。")
+        return pin_str
     else:
         if not re.fullmatch(r"\d{4}", pin_str):
             raise ValueError("PIN 碼必須為 4 位純數字（例如：0000、1234）。")
-    return pin_str
+        return pin_str
 
 
-def hash_pin_code(pin: str, allow_extended: bool = False) -> str:
+def hash_pin_code(
+    pin: str,
+    is_admin: bool = False,
+    allow_default_admin: bool = False,
+    allow_extended: bool = False,
+) -> str:
     """Hash a PIN code or password using PBKDF2-HMAC-SHA256 with a cryptographically random 16-byte salt."""
-    valid_pin = validate_pin_code(pin, allow_extended=allow_extended)
+    valid_pin = validate_pin_code(pin, is_admin=is_admin, allow_default_admin=allow_default_admin, allow_extended=allow_extended)
     salt = secrets.token_bytes(16)
     dk = hashlib.pbkdf2_hmac("sha256", valid_pin.encode("utf-8"), salt, 100000)
     return f"{PBKDF2_PREFIX}{salt.hex()}:{dk.hex()}"
@@ -149,7 +162,7 @@ class ProfileManager:
                 conn.execute(
                     """INSERT INTO profiles (id, name, weekly_play_cap, pin_code, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?)""",
-                    (DEFAULT_PROFILE_ID, DEFAULT_PROFILE_NAME, DEFAULT_WEEKLY_CAP, hash_pin_code(DEFAULT_PIN_CODE), now, now),
+                    (DEFAULT_PROFILE_ID, DEFAULT_PROFILE_NAME, DEFAULT_WEEKLY_CAP, hash_pin_code(DEFAULT_PIN_CODE, is_admin=True, allow_default_admin=True), now, now),
                 )
 
             # Migration: Auto-migrate any legacy plaintext PINs to salted PBKDF2 hashes
@@ -272,7 +285,7 @@ class ProfileManager:
             "id": DEFAULT_PROFILE_ID,
             "name": DEFAULT_PROFILE_NAME,
             "weekly_play_cap": DEFAULT_WEEKLY_CAP,
-            "pin_code": hash_pin_code(DEFAULT_PIN_CODE),
+            "pin_code": hash_pin_code(DEFAULT_PIN_CODE, is_admin=True, allow_default_admin=True),
             "created_at": get_now_iso(),
             "updated_at": get_now_iso(),
         }
@@ -307,8 +320,8 @@ class ProfileManager:
         if not math.isfinite(cap) or cap <= 0:
             raise ValueError("每週預算必須為大於 0 的正數。")
         cap = round(cap, 2)
-        valid_pin = validate_pin_code(pin_code)
-        hashed_pin = hash_pin_code(valid_pin)
+        valid_pin = validate_pin_code(pin_code, is_admin=False)
+        hashed_pin = hash_pin_code(valid_pin, is_admin=False)
 
         profile_id = f"p_{uuid.uuid4().hex[:8]}"
         now = get_now_iso()
@@ -370,8 +383,8 @@ class ProfileManager:
         target_pin = profile["pin_code"]
         pin_changed = False
         if new_pin_code is not None:
-            is_admin = (pid == DEFAULT_PROFILE_ID)
-            target_pin = hash_pin_code(new_pin_code, allow_extended=is_admin)
+            is_admin = (pid == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+            target_pin = hash_pin_code(new_pin_code, is_admin=is_admin, allow_default_admin=False)
             pin_changed = True
 
         now = get_now_iso()
@@ -474,8 +487,9 @@ class ProfileManager:
             if not self.verify_pin(admin_profile_id, admin_pin):
                 raise ValueError("【PIN 碼驗證失敗】管理員 PIN 碼不正確。")
 
-        valid_pin = validate_pin_code(new_pin_code, allow_extended=True)
-        hashed_pin = hash_pin_code(valid_pin, allow_extended=True)
+        is_target_admin = (pid == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+        valid_pin = validate_pin_code(new_pin_code, is_admin=is_target_admin, allow_default_admin=True)
+        hashed_pin = hash_pin_code(valid_pin, is_admin=is_target_admin, allow_default_admin=True)
         now = get_now_iso()
 
         with self._transaction() as conn:
@@ -526,7 +540,8 @@ class ProfileManager:
         target_pin = profile["pin_code"]
         pin_changed = False
         if new_pin_code is not None:
-            target_pin = hash_pin_code(new_pin_code, allow_extended=True)
+            is_target_admin = (pid == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+            target_pin = hash_pin_code(new_pin_code, is_admin=is_target_admin, allow_default_admin=False)
             pin_changed = True
 
         now = get_now_iso()

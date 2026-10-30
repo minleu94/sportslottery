@@ -35,6 +35,16 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
   const [newPin, setNewPin] = useState<string>("")
   const [newPinConfirm, setNewPinConfirm] = useState<string>("")
 
+  const selectedProfileObj = profiles.find(
+    (p) => p.name.toLowerCase() === selectedIdentifier.trim().toLowerCase() || p.id === selectedIdentifier.trim()
+  )
+  const isSelectedAdmin = selectedProfileObj
+    ? selectedProfileObj.name === "Archie" || selectedProfileObj.id === "default"
+    : selectedIdentifier.trim().toLowerCase() === "archie" || selectedIdentifier.trim().toLowerCase() === "default"
+
+  const changeProfileObj = profiles.find((p) => p.id === changeProfileId)
+  const isChangeAdmin = changeProfileObj ? (changeProfileObj.name === "Archie" || changeProfileObj.id === "default") : false
+
   // Admin Reset State (Forgot Password)
   const [isAdminResetMode, setIsAdminResetMode] = useState<boolean>(false)
   const [adminAuthPin, setAdminAuthPin] = useState<string>("")
@@ -88,6 +98,14 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
     try {
       const res = await api.loginProfile(selectedIdentifier.trim(), pinCode.trim())
       localStorage.setItem("auth_profile_id", res.profile.id)
+      if (res.requires_pin_change) {
+        setChangeProfileId(res.profile.id)
+        setOldPin(pinCode.trim())
+        setActiveTab("pin")
+        setError(null)
+        setSuccessMsg("👑【管理員首次登入安全設定】目前仍在使用預設密碼 0000，請立即變更為 8 位純數字密碼以解鎖管理功能！")
+        return
+      }
       onLoginSuccess(res.profile)
     } catch (err: any) {
       setError(err.message || "登入失敗，請確認玩家名稱與 PIN 碼。")
@@ -129,7 +147,7 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
     e.preventDefault()
     const targetId = adminTargetProfileId || changeProfileId || (profiles[0]?.id || "default")
     if (!adminAuthPin.trim()) {
-      setError("請輸入管理員 Archie 的 PIN 碼進行授權。")
+      setError("請輸入管理員 Archie 的密碼進行授權。")
       return
     }
     if (adminResetNewPin.length !== 4 || !/^\d{4}$/.test(adminResetNewPin)) {
@@ -159,12 +177,19 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
       setError("請輸入目前 PIN 碼。")
       return
     }
-    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
-      setError("新 PIN 碼必須為 4 位純數字。")
-      return
+    if (isChangeAdmin) {
+      if (newPin.length !== 8 || !/^\d{8}$/.test(newPin)) {
+        setError("管理員密碼必須剛好為 8 位純數字（例如：12345678）。")
+        return
+      }
+    } else {
+      if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+        setError("新 PIN 碼必須為 4 位純數字。")
+        return
+      }
     }
     if (newPin !== newPinConfirm) {
-      setError("兩次輸入的新 PIN 碼不一致。")
+      setError("兩次輸入的新密碼不一致。")
       return
     }
 
@@ -172,18 +197,21 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
     setError(null)
     setSuccessMsg(null)
     try {
-      await api.updateProfile({
+      const res = await api.updateProfile({
         profile_id: changeProfileId,
         current_pin: oldPin,
         new_pin: newPin,
       })
-      setSuccessMsg("PIN 碼變更成功！請以此新 PIN 碼登入。")
+      if (res.token) {
+        api.setAuthToken(res.token)
+      }
+      setSuccessMsg(isChangeAdmin ? "🎉 管理員 8 位密碼變更成功！請以此新密碼登入。" : "PIN 碼變更成功！請以此新 PIN 碼登入。")
       setOldPin("")
       setNewPin("")
       setNewPinConfirm("")
       setActiveTab("login")
     } catch (err: any) {
-      setError(err.message || "變更 PIN 碼失敗。")
+      setError(err.message || "變更密碼失敗。")
     } finally {
       setLoading(false)
     }
@@ -317,19 +345,21 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
                       <Lock className="w-3.5 h-3.5 text-slate-400" />
-                      4 位數 PIN 碼
+                      {isSelectedAdmin ? "8 位純數字密碼" : "4 位數 PIN 碼"}
                     </label>
-                    <span className="text-[11px] text-slate-400">預設為 0000</span>
+                    <span className="text-[11px] text-slate-400">
+                      {isSelectedAdmin ? "首次預設 0000" : "預設為 0000"}
+                    </span>
                   </div>
                   <div className="relative">
                     <input
                       type={showPin ? "text" : "password"}
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      maxLength={4}
+                      maxLength={isSelectedAdmin ? 8 : 4}
                       value={pinCode}
                       onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ""))}
-                      placeholder="••••"
+                      placeholder={isSelectedAdmin ? "••••••••" : "••••"}
                       className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-800 text-white text-center text-lg tracking-widest font-mono focus:outline-none focus:border-emerald-500"
                     />
                     <button
@@ -462,18 +492,18 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-xs font-semibold text-amber-400 flex items-center gap-1">
-                          👑 輸入管理員 Archie 的 PIN 碼授權
+                          👑 輸入管理員 Archie 的密碼授權
                         </label>
                       </div>
                       <input
                         type="password"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        maxLength={4}
+                        maxLength={8}
                         required
                         value={adminAuthPin}
                         onChange={(e) => setAdminAuthPin(e.target.value.replace(/\D/g, ""))}
-                        placeholder="請輸入 Archie 的 PIN 碼"
+                        placeholder="請輸入 Archie 的密碼 (預設 0000 或 8 位數字)"
                         className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-amber-500/50 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-amber-400"
                       />
                     </div>
@@ -523,41 +553,49 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">目前舊 PIN 碼</label>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        目前舊密碼 / PIN 碼
+                      </label>
                       <input
                         type="password"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        maxLength={4}
+                        maxLength={isChangeAdmin ? 8 : 4}
                         value={oldPin}
                         onChange={(e) => setOldPin(e.target.value.replace(/\D/g, ""))}
-                        placeholder="預設 0000"
+                        placeholder={isChangeAdmin ? "預設 0000 或 8 位數字" : "預設 0000"}
                         className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-emerald-500"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">新 4 位 PIN</label>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          {isChangeAdmin ? "新 8 位純數字密碼" : "新 4 位 PIN"}
+                        </label>
                         <input
                           type="password"
                           inputMode="numeric"
                           pattern="[0-9]*"
-                          maxLength={4}
+                          maxLength={isChangeAdmin ? 8 : 4}
                           value={newPin}
                           onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                          placeholder={isChangeAdmin ? "8 位純數字" : "4 位純數字"}
                           className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-emerald-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">確認新 PIN</label>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          確認新密碼
+                        </label>
                         <input
                           type="password"
                           inputMode="numeric"
                           pattern="[0-9]*"
-                          maxLength={4}
+                          maxLength={isChangeAdmin ? 8 : 4}
                           value={newPinConfirm}
                           onChange={(e) => setNewPinConfirm(e.target.value.replace(/\D/g, ""))}
+                          placeholder={isChangeAdmin ? "再次輸入 8 位數" : "再次輸入 4 位數"}
                           className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-emerald-500"
                         />
                       </div>

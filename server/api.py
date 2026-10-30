@@ -52,11 +52,13 @@ from core.snapshot_logger import PredictionSnapshotLogger
 from core.strategy_version import get_strategy_metadata
 from core.ticket_recorder import TicketRecorder
 from core.wallet import WeeklyWalletManager
+from core.betting_service import BettingService
 from integrations.common.models import TaiwanLeg
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
 from server.auth import (
     session_manager,
     require_authenticated_session,
+    require_active_admin_session,
     verify_profile_ownership,
     get_current_session_optional,
     SESSION_TTL_SECONDS,
@@ -146,6 +148,10 @@ def get_wallet(profile_id: str = DEFAULT_PROFILE_ID) -> WeeklyWalletManager:
 def get_recorder(profile_id: str = DEFAULT_PROFILE_ID) -> TicketRecorder:
     wallet = get_wallet(profile_id=profile_id)
     return TicketRecorder(wallet=wallet, profile_id=profile_id)
+
+
+def get_betting_service(profile_id: str = DEFAULT_PROFILE_ID) -> BettingService:
+    return BettingService(profile_id=profile_id)
 
 
 # --- Request/Response Models ---
@@ -472,8 +478,8 @@ def list_tickets(
     session: Dict[str, Any] = Depends(require_authenticated_session),
 ):
     verify_profile_ownership(profile_id, session)
-    recorder = get_recorder(profile_id=profile_id)
-    tickets = recorder.list_tickets(status_filter=status, limit=limit, profile_id=profile_id)
+    service = get_betting_service(profile_id=profile_id)
+    tickets = service.list_tickets(status_filter=status, limit=limit, profile_id=profile_id)
     return {"tickets": tickets}
 
 
@@ -483,7 +489,7 @@ def place_ticket(
     session: Dict[str, Any] = Depends(require_authenticated_session),
 ):
     verify_profile_ownership(req.profile_id, session)
-    recorder = get_recorder(profile_id=req.profile_id)
+    service = get_betting_service(profile_id=req.profile_id)
     _, _, _, _, _, snapshot_logger, _, _ = get_services()
     
     # Use client-provided idempotency key (or client_request_id) if available,
@@ -491,11 +497,17 @@ def place_ticket(
     client_key = (req.idempotency_key or req.client_request_id or "").strip()
     idempotency_key = client_key if client_key else str(uuid.uuid4())
     
-    entry_mode = req.entry_mode or "frontend_api"
+    raw_mode = (req.entry_mode or "").strip().lower()
+    if raw_mode == "recommendation":
+        entry_mode = "recommendation"
+    else:
+        entry_mode = "manual"
+    
+    client_source = "frontend_api"
     
     try:
         rec_odds = req.recommendation_odds or req.placed_odds
-        res = recorder.place_ticket(
+        res = service.place_ticket(
             legs=req.legs,
             stake=req.stake,
             total_odds=req.placed_odds,
@@ -503,6 +515,7 @@ def place_ticket(
             placed_odds=req.placed_odds,
             entry_mode=entry_mode,
             idempotency_key=idempotency_key,
+            client_source=client_source,
             notes=f"{req.parlay_name or '瘋狗串關'} (Web API 下注)",
         )
         
@@ -514,13 +527,28 @@ def place_ticket(
             except Exception:
                 pass
                 
-        wallet = get_wallet(profile_id=req.profile_id)
+        wallet_status = service.get_wallet_status()
+        logger.info(
+            "[BET_PLACED] profile_id=%s ticket_id=%s stake=%.2f odds=%.2f mode=%s key=%s",
+            req.profile_id,
+            res.get("ticket_id"),
+            req.stake,
+            req.placed_odds,
+            entry_mode,
+            idempotency_key,
+        )
         return {
             "success": True,
             "ticket": res,
-            "wallet_status": wallet.get_status(),
+            "wallet_status": wallet_status,
         }
     except ValueError as exc:
+        logger.warning(
+            "[BET_REJECTED] profile_id=%s reason=%s mode=%s",
+            req.profile_id,
+            str(exc),
+            raw_mode,
+        )
         raise HTTPException(status_code=400, detail=str(exc))
 
 
@@ -530,33 +558,44 @@ def settle_ticket(
     session: Dict[str, Any] = Depends(require_authenticated_session),
 ):
     _, _, _, _, _, _, _, _ = get_services()
-    # Look up ticket's actual owner via TicketRecorder repository method (no raw SQL in API)
-    recorder = get_recorder()
-    ticket = recorder.get_ticket(req.ticket_id)
+    service = get_betting_service()
+    ticket = service.get_ticket(req.ticket_id)
     if not ticket:
         raise HTTPException(status_code=404, detail=f"找不到注單 ID: {req.ticket_id}")
     profile_id = str(ticket.get("profile_id") or DEFAULT_PROFILE_ID).strip()
     verify_profile_ownership(profile_id, session)
     
-    recorder = get_recorder(profile_id=profile_id)
+    target_service = get_betting_service(profile_id=profile_id)
     is_won = (req.result.upper() == "WON")
     is_void = (req.result.upper() == "VOID")
     
     try:
-        res = recorder.settle_ticket(
+        res = target_service.settle_ticket(
             ticket_id=req.ticket_id,
             won=is_won,
             custom_payout=req.custom_payout,
             is_void=is_void,
             notes=req.notes or f"Web API Settle: {req.result}",
         )
-        wallet = get_wallet(profile_id=profile_id)
+        wallet_status = target_service.get_wallet_status()
+        logger.info(
+            "[BET_SETTLED] ticket_id=%s profile_id=%s result=%s payout=%.2f",
+            req.ticket_id,
+            profile_id,
+            req.result,
+            res.get("payout", 0.0),
+        )
         return {
             "success": True,
             "result": res,
-            "wallet_status": wallet.get_status(),
+            "wallet_status": wallet_status,
         }
     except Exception as exc:
+        logger.warning(
+            "[SETTLE_FAILED] ticket_id=%s reason=%s",
+            req.ticket_id,
+            str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc))
 
 
@@ -844,17 +883,15 @@ def update_profile(
 @app.get("/api/admin/players_overview")
 def get_admin_players_overview(
     admin_profile_id: str = Query("default"),
-    session: Dict[str, Any] = Depends(require_authenticated_session),
+    session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
-    if not session.get("is_admin") and session.get("profile_id") != "default":
-        raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可檢視全體玩家風控總覽。")
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     all_profs = profile_mgr.list_profiles()
     overview = []
     for p in all_profs:
         try:
-            wm = get_wallet(profile_id=p["id"])
-            ws = wm.get_status()
+            bs = get_betting_service(profile_id=p["id"])
+            ws = bs.get_wallet_status()
             bal = ws.get("weekly_wallet_balance", 0.0)
             staked = ws.get("weekly_staked", 0.0)
             prize = ws.get("prize_pool", 0.0)
@@ -864,9 +901,9 @@ def get_admin_players_overview(
             bal, staked, prize, pnl, cap = 0.0, 0.0, 0.0, 0.0, 200.0
 
         try:
-            tr = get_recorder(profile_id=p["id"])
-            t_list = tr.list_tickets(limit=100, profile_id=p["id"])
-            active_cnt = sum(1 for t in t_list if t.get("status") == "PENDING")
+            bs = get_betting_service(profile_id=p["id"])
+            t_list = bs.list_tickets(limit=100, profile_id=p["id"])
+            active_cnt = sum(1 for t in t_list if t.get("status") == "OPEN")
             total_cnt = len(t_list)
         except Exception:
             active_cnt, total_cnt = 0, 0
@@ -891,10 +928,8 @@ def get_admin_players_overview(
 def admin_delete_player(
     profile_id: str,
     admin_pin: Optional[str] = None,
-    session: Dict[str, Any] = Depends(require_authenticated_session),
+    session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
-    if not session.get("is_admin") and session.get("profile_id") != "default":
-        raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可刪除玩家帳號。")
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     profile = profile_mgr.get_profile(profile_id)
     if not profile:
@@ -920,7 +955,7 @@ def admin_delete_player(
 @app.post("/api/admin/players/delete")
 def admin_delete_player_post(
     req: AdminDeletePlayerRequest,
-    session: Dict[str, Any] = Depends(require_authenticated_session),
+    session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
     return admin_delete_player(profile_id=req.profile_id, admin_pin=req.admin_pin, session=session)
 
@@ -933,14 +968,25 @@ def admin_reset_player_pin(
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     is_admin = bool(session and (session.get("is_admin") or session.get("profile_id") == "default"))
 
-    # If not authenticated as admin via session, verify admin_pin against Archie (default profile)
-    if not is_admin:
+    if is_admin:
+        if session.get("must_change_password"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="【安全限制】管理員使用預設密碼 0000，必須先變更為 8 位純數字密碼方可操作管理功能。",
+            )
+    else:
+        # If not authenticated as admin via session, verify admin_pin against Archie (default profile)
         if session and not req.admin_pin:
             raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可重設玩家 PIN 碼。")
         if not req.admin_pin:
-            raise HTTPException(status_code=401, detail="【需要管理員授權】請輸入管理員 Archie 的 PIN 碼以執行重設。")
+            raise HTTPException(status_code=401, detail="【需要管理員授權】請輸入管理員 Archie 的密碼以執行重設。")
+        if profile_mgr.is_default_admin_pin():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="【安全限制】管理員使用預設密碼 0000，必須先登入變更為 8 位純數字密碼方可授權重設。",
+            )
         if not profile_mgr.verify_pin("default", req.admin_pin):
-            raise HTTPException(status_code=401, detail="【管理員 PIN 碼驗證失敗】輸入的管理員 PIN 碼不正確。")
+            raise HTTPException(status_code=401, detail="【管理員密碼驗證失敗】輸入的管理員密碼不正確。")
 
     try:
         updated = profile_mgr.admin_reset_pin(
@@ -962,10 +1008,8 @@ def admin_reset_player_pin(
 @app.post("/api/admin/players/update")
 def admin_update_player_settings(
     req: AdminUpdatePlayerRequest,
-    session: Dict[str, Any] = Depends(require_authenticated_session),
+    session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
-    if not session.get("is_admin") and session.get("profile_id") != "default":
-        raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可修改玩家設定。")
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     try:
         updated = profile_mgr.admin_update_player(
@@ -1023,11 +1067,9 @@ def get_research_analytics():
 
 @app.get("/api/system/storage_status")
 def get_system_storage_status(
-    session: Dict[str, Any] = Depends(require_authenticated_session),
+    session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
-    """System runtime and storage status (restricted to admin sessions; hides absolute server paths)."""
-    if not session.get("is_admin") and session.get("profile_id") != DEFAULT_PROFILE_ID:
-        raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可存取系統儲存與運行狀態。")
+    """System runtime and storage status (restricted to active admin sessions; hides absolute server paths)."""
     from core.storage_config import get_storage_stats, get_scheduled_task_status, get_storage_root
     try:
         stats = get_storage_stats()
@@ -1111,8 +1153,8 @@ def process_line_events(events: list[Dict[str, Any]]) -> None:
                         text=welcome_text,
                         quick_replies=_line_notifier.default_quick_replies(),
                     )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("[LINE_BOT_EVENT_ERROR] event_type=%s user_id=%s error=%s", ev_type, user_id, str(exc), exc_info=True)
 
 
 @app.post("/callback")

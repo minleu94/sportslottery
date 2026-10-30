@@ -77,6 +77,15 @@ CLOUDFLARED_PATHS = [
 ]
 
 
+def is_port_in_use(port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            return s.connect_ex(("127.0.0.1", port)) == 0
+    except Exception:
+        return False
+
+
 def load_ngrok_config() -> Dict[str, str]:
     """Read domain and authtoken from config/ngrok_config.yaml if present."""
     if NGROK_CONFIG_FILE.exists():
@@ -393,9 +402,31 @@ class AppTrayManager:
 
         python_bin = find_python_executable(gui=False)
         cloudflared_exe = find_cloudflared()
+
+        # Check if port is already active with our current build
+        if is_port_in_use(PORT):
+            try:
+                req = urllib.request.Request(f"http://127.0.0.1:{PORT}/api/health", headers={"User-Agent": "sportslottery-tray/1.0"})
+                with urllib.request.urlopen(req, timeout=1.5) as resp:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                if resp.status == 200 and payload.get("app_build") == APP_BUILD:
+                    log_tray(f"Existing verified FastAPI found on port {PORT} (build {APP_BUILD}). Reusing active service.")
+                    self.is_running = True
+                    self._status_text = "🟢 新版網頁正常"
+                    threading.Thread(target=self._start_tunnel, args=(cloudflared_exe,), daemon=True).start()
+                    threading.Thread(target=self._open_browser_when_ready, daemon=True).start()
+                    return
+            except Exception:
+                pass
+            log_tray(f"Port {PORT} is currently in use. Launching current backend instance...")
+
         log_tray(f"Starting FastAPI on port {PORT} via: {python_bin}")
 
-        # 1. Start FastAPI server
+        # 1. Start FastAPI server with structured output log
+        server_log_path = ROOT_DIR / "data" / "server.log"
+        server_log_path.parent.mkdir(parents=True, exist_ok=True)
+        server_log_file = open(server_log_path, "a", encoding="utf-8")
+
         api_cmd = [
             python_bin,
             "-m",
@@ -412,8 +443,8 @@ class AppTrayManager:
             api_cmd,
             cwd=str(ROOT_DIR),
             creationflags=CREATE_NO_WINDOW,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=server_log_file,
+            stderr=subprocess.STDOUT,
         )
         log_tray(f"FastAPI server started with PID: {self.proc_api.pid}")
 

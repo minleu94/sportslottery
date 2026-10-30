@@ -33,11 +33,23 @@ class SessionManager:
         pid = str(profile.get("id") or "").strip()
         pname = str(profile.get("name") or "").strip()
         token_version = int(profile.get("token_version") or 1)
+        is_admin = (pid == "default") or (pname == "Archie") or bool(profile.get("is_admin"))
+
+        must_change_password = False
+        if is_admin:
+            try:
+                from core.profile_manager import ProfileManager
+                pm = ProfileManager()
+                must_change_password = pm.is_default_admin_pin()
+            except Exception:
+                pass
+
         session_data = {
             "token": token,
             "profile_id": pid,
             "name": pname,
-            "is_admin": (pid == "default") or bool(profile.get("is_admin")),
+            "is_admin": is_admin,
+            "must_change_password": must_change_password,
             "token_version": token_version,
             "created_at": now,
             "expires_at": now + self.ttl_seconds,
@@ -69,6 +81,8 @@ class SessionManager:
                 if session_copy.get("token_version", 1) < current_ver:
                     self.revoke_session(token_str)
                     return None
+                if session_copy.get("is_admin"):
+                    session_copy["must_change_password"] = pm.is_default_admin_pin()
             except Exception:
                 pass
 
@@ -175,3 +189,25 @@ def verify_profile_ownership(profile_id: str, session: Dict[str, Any]) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"【權限不足】您目前的登入身分（ID: {sess_pid}）無權操作玩家（ID: {target_pid}）的資金或注單。",
         )
+
+
+def require_active_admin_session(
+    request: Request,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    x_session_token: Optional[str] = Header(None, alias="X-Session-Token"),
+) -> Dict[str, Any]:
+    """Enforce that request provides a valid admin session that has completed initial 0000 password change."""
+    session = require_authenticated_session(request, authorization, x_session_token)
+    is_admin = session.get("is_admin", False) or (session.get("profile_id") == "default") or (session.get("name") == "Archie")
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="【權限不足】僅系統管理者可執行此項管理操作。",
+        )
+    if session.get("must_change_password"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="【安全限制】管理員使用預設密碼 0000，必須先變更為 8 位純數字密碼方可操作管理功能。",
+        )
+    return session
+
