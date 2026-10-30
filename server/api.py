@@ -314,12 +314,20 @@ def search_parlays(req: ParlaySearchRequest):
                 ld = l.to_dict() if hasattr(l, "to_dict") else dict(l.__dict__ if hasattr(l, "__dict__") else l)
                 ld["display_league"] = clean_league_name(ld.get("league"))
                 sig = ld.get("signal_evidence") or {}
-                ld["expected_value_pct"] = sig.get("sharp_expected_value_pct", sig.get("expected_value_pct"))
-                ld["consensus_probability"] = sig.get("consensus_probability", 0.0)
-                ld["market_implied_pct"] = sig.get("market_implied_pct", 0.0)
+                t_odds = float(ld.get("taiwan_odds") or ld.get("odds") or 1.0)
+                prob = float(sig.get("consensus_probability") or sig.get("sharp_fair_probability") or sig.get("market_fair_probability") or (1.0 / t_odds if t_odds > 0 else 0.5))
+                leg_ev = sig.get("sharp_expected_value_pct")
+                if leg_ev is None:
+                    leg_ev = sig.get("expected_value_pct")
+                if leg_ev is None and prob and t_odds:
+                    leg_ev = round(((prob * t_odds) - 1.0) * 100.0, 1)
+
+                ld["expected_value_pct"] = leg_ev
+                ld["consensus_probability"] = prob
+                ld["market_implied_pct"] = sig.get("market_implied_pct", round((1.0 / t_odds) * 100.0, 1) if t_odds > 0 else 0.0)
                 ld["agreement_badge"] = sig.get("agreement_badge", "")
-                ld["is_positive_ev"] = sig.get("is_positive_ev", False)
-                ld["is_sharp_value_bet"] = sig.get("is_sharp_value_bet", False)
+                ld["is_positive_ev"] = bool(leg_ev and leg_ev > 0)
+                ld["is_sharp_value_bet"] = bool(sig.get("is_sharp_value_bet", False) or (leg_ev and leg_ev >= 5.0))
                 ld["crowd_desc"] = sig.get("crowd_desc", "")
                 ld["line_movement_label"] = (sig.get("line_movement") or {}).get("text_label", "")
                 clean_legs.append(ld)
