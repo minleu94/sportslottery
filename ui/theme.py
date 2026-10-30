@@ -171,12 +171,82 @@ def get_theme_css() -> str:
             margin-bottom: 0.6rem !important;
         }
         .stTabs [data-baseweb="tab-list"] {
-            gap: 2px !important;
-            flex-wrap: wrap !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+            overflow: visible !important;
+            border-bottom: 0 !important;
         }
         .stTabs [data-baseweb="tab"] {
-            padding: 6px 8px !important;
-            font-size: 0.84rem !important;
+            display: flex !important;
+            width: 100% !important;
+            min-height: 48px !important;
+            height: auto !important;
+            justify-content: flex-start !important;
+            padding: 10px 14px !important;
+            border: 1px solid var(--card-border) !important;
+            border-radius: 10px !important;
+            background: var(--card-bg) !important;
+            color: var(--text-primary) !important;
+            font-size: 0.92rem !important;
+            line-height: 1.4 !important;
+            text-align: left !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+        }
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            border-color: var(--color-red, #ff4b4b) !important;
+            border-left-width: 4px !important;
+            background: var(--card-subtle-bg) !important;
+            color: var(--text-primary) !important;
+            font-weight: 700 !important;
+        }
+        .stTabs [data-baseweb="tab-highlight"] {
+            display: none !important;
+        }
+
+        [data-testid="stExpander"] summary {
+            min-height: 48px !important;
+            height: auto !important;
+            align-items: flex-start !important;
+            gap: 8px !important;
+            padding: 12px !important;
+            white-space: normal !important;
+        }
+        [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+        }
+        [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] p {
+            margin: 0 !important;
+            line-height: 1.45 !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+        }
+        [data-testid="stExpander"] summary [data-testid="stIconMaterial"] {
+            flex: 0 0 20px !important;
+            width: 20px !important;
+            height: 24px !important;
+            overflow: hidden !important;
+            font-size: 0 !important;
+            line-height: 0 !important;
+        }
+        [data-testid="stExpander"] summary [data-testid="stIconMaterial"]::before {
+            content: "›";
+            display: block;
+            font-family: system-ui, sans-serif;
+            font-size: 25px;
+            line-height: 22px;
+        }
+        [data-testid="stExpander"] details[open] summary [data-testid="stIconMaterial"]::before {
+            transform: rotate(90deg);
+        }
+
+        [data-testid="stExpander"] summary,
+        [data-testid="stSidebarCollapsedControl"] button,
+        [data-testid="stSidebarCollapseButton"] button {
+            overflow: hidden !important;
         }
         .ticket-card {
             padding: 12px !important;

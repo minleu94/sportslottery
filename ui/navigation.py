@@ -39,8 +39,29 @@ def render_sidebar_navigation() -> None:
         [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"],
         [data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"],
         [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"] {
-            font-size: 1.45rem !important;
+            width: 1.45rem !important;
+            height: 1.45rem !important;
+            overflow: hidden !important;
+            font-size: 0 !important;
+            line-height: 0 !important;
             color: #ffffff !important;
+        }
+        [data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"]::before,
+        [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"]::before {
+            content: "›";
+        }
+        [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"]::before {
+            content: "‹";
+        }
+        [data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"]::before,
+        [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"]::before,
+        [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"]::before {
+            display: block;
+            font-family: system-ui, sans-serif;
+            font-size: 1.8rem;
+            line-height: 1.35rem;
+            font-weight: 600;
+            text-align: center;
         }
         [data-testid="stSidebarCollapseButton"] button svg,
         [data-testid="stSidebarCollapsedControl"] button svg,
@@ -55,6 +76,14 @@ def render_sidebar_navigation() -> None:
         button[data-testid="stExpandSidebarButton"]:hover {
             background: #46506e !important;
             border-color: #ffffff !important;
+        }
+        [data-testid="stSidebarCollapseButton"] button,
+        [data-testid="stSidebarCollapsedControl"] button,
+        button[data-testid="stExpandSidebarButton"] {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: hidden !important;
         }
         .profile-side-card {
             background: var(--card-bg, #1e293b);

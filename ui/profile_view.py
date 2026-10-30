@@ -172,14 +172,14 @@ def render_profile_view(
     is_admin = bool(profile.get("name") == "Archie")
     if is_admin:
         tab_edit, tab_admin_all, tab_create = st.tabs([
-            "⚙️ 調整個人設定 (修改名稱 / 預算 / 變更 PIN 碼)",
-            "👑 全系統玩家名單 (管理員 Archie 專屬)",
-            "➕ 新增其他玩家 Profile",
+            "⚙️ 編輯我的設定",
+            "👑 管理玩家",
+            "➕ 新增玩家",
         ])
     else:
         tab_edit, tab_create = st.tabs([
-            "⚙️ 調整個人設定 (修改名稱 / 預算 / 變更 PIN 碼)",
-            "➕ 新增其他玩家 Profile",
+            "⚙️ 編輯我的設定",
+            "➕ 新增玩家",
         ])
 
     with tab_edit:

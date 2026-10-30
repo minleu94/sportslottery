@@ -93,9 +93,9 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
     )
 
     tab_login, tab_register, tab_change_pin = st.tabs([
-        "🔑 玩家身分登入",
-        "✨ 快速註冊 (自用無痛開通)",
-        "🔒 變更 PIN 碼 / 更改密碼",
+        "🔑 登入｜已有帳號",
+        "✨ 註冊｜建立帳號",
+        "🔒 變更 PIN｜已有帳號",
     ])
 
     # -------------------------------------------------------------
