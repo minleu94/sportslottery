@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react"
+import { motion } from "framer-motion"
 import { api } from "@/services/api"
 import type { Profile } from "@/types"
 import { formatNTD } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
-import { Badge } from "@/components/ui/Badge"
 import { User, KeyRound, Shield, CheckCircle2, AlertCircle } from "lucide-react"
 
 interface ProfileViewProps {
@@ -94,13 +94,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="max-w-2xl mx-auto space-y-6"
+    >
       <div>
-        <h2 className="text-xl font-black text-slate-100 flex items-center gap-2">
-          <User className="w-5 h-5 text-emerald-400" />
+        <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <User className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
           個人設定與風控上限 (Player Profile & Safety)
         </h2>
-        <p className="text-sm text-slate-400 mt-0.5">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           獨立錢包帳本、PIN 碼隱私防護與每週理性投注額度管理
         </p>
       </div>
@@ -109,8 +114,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
         <div
           className={`p-4 rounded-xl text-sm flex items-center gap-2 ${
             message.type === "success"
-              ? "bg-emerald-950/40 border border-emerald-500/30 text-emerald-300"
-              : "bg-rose-950/40 border border-rose-500/30 text-rose-300"
+              ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+              : "bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300"
           }`}
         >
           {message.type === "success" ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
@@ -119,20 +124,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
       )}
 
       {/* Switch Profile Card */}
-      <Card className="border-slate-800 bg-slate-900/80">
-        <CardHeader className="pb-3 border-b border-slate-800/80">
+      <Card className="border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
+        <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/80">
           <CardTitle className="text-base flex items-center gap-2">
-            <Shield className="w-4 h-4 text-emerald-400" />
+            <Shield className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
             切換帳號身分
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">選擇帳號</label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">選擇帳號</label>
             <select
               value={selectedProfileId}
               onChange={(e) => setSelectedProfileId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 cursor-pointer"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 cursor-pointer"
             >
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -143,8 +148,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <KeyRound className="w-3.5 h-3.5 text-amber-500" />
               輸入 4 位數 PIN 碼 (預設: 0000)
             </label>
             <input
@@ -153,7 +158,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
               value={pinCode}
               onChange={(e) => setPinCode(e.target.value)}
               placeholder="••••"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-center text-lg font-mono tracking-widest text-slate-100"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-center text-lg font-mono tracking-widest text-slate-900 dark:text-slate-100"
             />
           </div>
 
@@ -169,26 +174,26 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
       </Card>
 
       {/* Edit Profile Settings Card */}
-      <Card className="border-slate-800 bg-slate-900/80">
-        <CardHeader className="pb-3 border-b border-slate-800/80">
+      <Card className="border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
+        <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/80">
           <CardTitle className="text-base flex items-center gap-2">
-            <User className="w-4 h-4 text-sky-400" />
+            <User className="w-4 h-4 text-sky-500" />
             修改目前帳號【{currentProfile?.name}】參數
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">顯示暱稱</label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">顯示暱稱</label>
             <input
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-slate-200"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">每週最大損失風控上限 (NT$)</label>
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">每週最大損失風控上限 (NT$)</label>
             <input
               type="number"
               min={100}
@@ -196,35 +201,35 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
               step={50}
               value={editCap}
               onChange={(e) => setEditCap(Number(e.target.value))}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-slate-200"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-200"
             />
             <p className="text-[11px] text-slate-500">
               嚴格控制每週最多承受的外部補金總額，超出後必須等待下週自動重置。
             </p>
           </div>
 
-          <div className="pt-2 border-t border-slate-800/80 space-y-3">
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80 space-y-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">變更新 PIN 碼 (留空則不變)</label>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">變更新 PIN 碼 (留空則不變)</label>
               <input
                 type="password"
                 maxLength={4}
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value)}
                 placeholder="4 位數新 PIN"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-slate-200"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 dark:text-slate-200"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-amber-400">輸入目前 PIN 碼驗證授權</label>
+              <label className="text-xs font-semibold text-amber-600 dark:text-amber-400">輸入目前 PIN 碼驗證授權</label>
               <input
                 type="password"
                 maxLength={4}
                 value={currentPinForEdit}
                 onChange={(e) => setCurrentPinForEdit(e.target.value)}
                 placeholder="目前 4 位 PIN"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-slate-200"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-slate-900 dark:text-slate-200"
               />
             </div>
           </div>
@@ -239,6 +244,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   )
 }

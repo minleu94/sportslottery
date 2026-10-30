@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"
+import { UIProvider } from "@/context/UIContext"
 import { Navbar, type NavTab } from "@/components/Navbar"
 import { WalletBanner } from "@/components/WalletBanner"
 import { RadarView } from "@/views/RadarView"
@@ -9,14 +10,13 @@ import { ResearchView } from "@/views/ResearchView"
 import { api } from "@/services/api"
 import type { Profile, WalletStatus } from "@/types"
 
-export function App() {
+function MainLayout() {
   const [activeTab, setActiveTab] = useState<NavTab>("radar")
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null)
   const [walletStatus, setWalletStatus] = useState<WalletStatus | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  // Initialize profile & wallet
   useEffect(() => {
     initApp()
   }, [])
@@ -70,7 +70,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col font-sans selection:bg-emerald-500/30">
+    <div className="min-h-screen flex flex-col font-sans selection:bg-emerald-500/30 transition-colors duration-300">
       {/* Top Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -81,7 +81,7 @@ export function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4 space-y-4">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4 space-y-4 relative z-10">
         {/* Wallet Risk Governance Banner */}
         <WalletBanner wallet={walletStatus} loading={loading} />
 
@@ -111,13 +111,21 @@ export function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950/60 py-6 text-center text-xs text-slate-500 space-y-1">
-        <p>🐕 台灣運彩「瘋狗流」10~500倍 高倍串關決策輔助平台 · v2.0 Modern Edition</p>
-        <p className="text-[11px] text-slate-600">
+      <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-white/60 dark:bg-slate-950/60 backdrop-blur py-6 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1 relative z-10">
+        <p>🐕 台灣運彩「瘋狗流」10~500倍 高倍串關決策輔助平台 · v2.1 Pro Edition</p>
+        <p className="text-[11px] text-slate-400 dark:text-slate-500">
           理性投注，保護個人生活與資金。未成年人不得購買或兌領運動彩券。
         </p>
       </footer>
     </div>
+  )
+}
+
+export function App() {
+  return (
+    <UIProvider>
+      <MainLayout />
+    </UIProvider>
   )
 }
 
