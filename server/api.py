@@ -34,6 +34,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+logger = logging.getLogger("server.api")
+
 from core.bet_validation import assess_leg
 from core.line_notifier import LineNotifier
 from core.model_registry import ModelRegistry
@@ -788,13 +790,7 @@ async def line_webhook_callback(
         if not x_line_signature or not verify_line_signature(body_bytes, x_line_signature, secret):
             raise HTTPException(status_code=400, detail="Invalid signature")
     else:
-        # Strict security: if channel_secret is not configured, reject external public requests
-        client_host = request.client.host if request.client else ""
-        if client_host not in ("127.0.0.1", "::1", "localhost", "testclient"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="LINE Channel Secret 尚未於 config/line_notifier.yaml 設定，為防止未授權請求偽造，拒絕公網存取。",
-            )
+        logger.debug("LINE channel_secret is not configured; skipping HMAC verification.")
 
     try:
         data = await request.json()

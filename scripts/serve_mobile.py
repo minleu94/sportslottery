@@ -80,7 +80,7 @@ def render_terminal_qr(url: str) -> None:
         print(f"   [QR 碼產生略過: {exc}]")
 
 
-def print_mobile_banner(lan_ip: str, tailscale_ip: str | None, port: int = 8501, qr_target: str = "auto") -> str:
+def print_mobile_banner(lan_ip: str, tailscale_ip: str | None, port: int = 8000, qr_target: str = "auto") -> str:
     """Print welcoming console banner with URLs and QR code.
     
     Returns the primary mobile target URL.
@@ -126,9 +126,9 @@ def print_mobile_banner(lan_ip: str, tailscale_ip: str | None, port: int = 8501,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="瘋狗流運彩 iPhone / 行動端啟動服務器")
-    parser.add_argument("--port", type=int, default=8501, help="Streamlit 監聽埠號 (預設: 8501)")
+    parser.add_argument("--port", type=int, default=8000, help="FastAPI 監聽埠號 (預設: 8000)")
     parser.add_argument("--qr-target", choices=["auto", "local", "tailscale"], default="auto", help="QR Code 目標網路")
-    parser.add_argument("--dry-run", action="store_true", help="僅印出網路資訊與 QR Code，不啟動 Streamlit")
+    parser.add_argument("--dry-run", action="store_true", help="僅印出網路資訊與 QR Code，不啟動服務")
     args = parser.parse_args()
 
     lan_ip, tailscale_ip = detect_network_ips()
@@ -141,18 +141,15 @@ def main() -> int:
     cmd = [
         sys.executable,
         "-m",
-        "streamlit",
-        "run",
-        "app.py",
-        "--server.address",
+        "uvicorn",
+        "server.api:app",
+        "--host",
         "0.0.0.0",
-        "--server.port",
+        "--port",
         str(args.port),
-        "--browser.gatherUsageStats",
-        "false",
     ]
 
-    print("🚀 正在啟動 Streamlit 服務器 (0.0.0.0:8501)... (按 Ctrl+C 可停止服務)\n")
+    print("🚀 正在啟動 FastAPI + React 行動端服務器 (0.0.0.0:8000)... (按 Ctrl+C 可停止服務)\n")
     try:
         proc = subprocess.run(cmd, cwd=str(root_dir))
         return proc.returncode

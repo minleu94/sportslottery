@@ -429,9 +429,23 @@ class LineNotifier:
             try:
                 with open(status_file, "r", encoding="utf-8") as f:
                     rt = json.load(f)
-                tunnel_url = str(rt.get("tunnel_url") or "").rstrip("/")
+                tunnel_url = str(rt.get("tunnel_url") or rt.get("web_app_url") or rt.get("streamlit_url") or "").rstrip("/")
             except Exception:
                 pass
+
+        if not tunnel_url:
+            ngrok_cfg_file = ROOT_DIR / "config" / "ngrok_config.yaml"
+            if ngrok_cfg_file.exists():
+                try:
+                    import yaml
+                    with open(ngrok_cfg_file, "r", encoding="utf-8") as f:
+                        ndata = yaml.safe_load(f) or {}
+                        d = str(ndata.get("domain") or "").strip()
+                        if d and not d.startswith("填寫"):
+                            clean_d = d.replace("https://", "").replace("http://", "").rstrip("/")
+                            tunnel_url = f"https://{clean_d}"
+                except Exception:
+                    pass
 
         image_url = f"{tunnel_url}/static/qr/{qr_filename}" if tunnel_url else None
 
@@ -897,7 +911,7 @@ class LineNotifier:
         is_profile_query = any(k in cmd_lower for k in [
             "個人設定", "profile", "玩家", "個人池", "網頁", "決策台",
             "註冊", "帳號", "網址", "連結", "手機版", "設定", "修改",
-            "忘記密碼", "忘記pin", "忘記"
+            "忘記密碼", "忘記pin", "忘記", "登入", "login"
         ])
 
         if not (m_bind or m_unbind or m_change_pin or m_switch or m_add or m_cap or is_profile_query):
@@ -1021,33 +1035,58 @@ class LineNotifier:
                 except Exception as exc:
                     return f"❌ 更新預算失敗：{exc}"
 
-            # Permanent fixed public HTTPS URL via Tailscale Funnel
-            runtime_file = Path(__file__).resolve().parent.parent / "data" / "line_bot_runtime.json"
-            streamlit_url = None
+            # Resolve public HTTPS URL and local network URL (Port 8000)
+            runtime_file = ROOT_DIR / "data" / "line_bot_runtime.json"
+            public_url = None
             if runtime_file.exists():
                 try:
                     import json
                     with open(runtime_file, "r", encoding="utf-8") as f:
                         rdata = json.load(f)
-                        streamlit_url = rdata.get("streamlit_url")
+                        public_url = rdata.get("tunnel_url") or rdata.get("web_app_url") or rdata.get("streamlit_url")
                 except Exception:
                     pass
 
+            if not public_url:
+                ngrok_cfg_file = ROOT_DIR / "config" / "ngrok_config.yaml"
+                if ngrok_cfg_file.exists():
+                    try:
+                        import yaml
+                        with open(ngrok_cfg_file, "r", encoding="utf-8") as f:
+                            ndata = yaml.safe_load(f) or {}
+                            d = str(ndata.get("domain") or "").strip()
+                            if d and not d.startswith("填寫"):
+                                clean_d = d.replace("https://", "").replace("http://", "").rstrip("/")
+                                public_url = f"https://{clean_d}"
+                    except Exception:
+                        pass
+
+            lan_ip = "127.0.0.1"
+            try:
+                import socket
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                lan_ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                pass
+
             profs_str = "、".join([p["name"] for p in profs])
             user_param = f"?user={urllib.parse.quote(cur['name'])}" if cur.get("name") else ""
-            web_section = ""
-            if streamlit_url:
-                web_section = (
-                    f"\n🌐 【手機公網決策台】（出門在外 4G/5G 都能開）：\n"
-                    f"👉 {streamlit_url}{user_param}\n"
-                    f"💡 進入網頁後，選擇您的名字並輸入 4 位數 PIN 碼（預設 0000）即可登入；新朋友亦可點選「快速註冊」1秒免信箱直接開通！\n"
+            
+            web_parts = []
+            if public_url:
+                web_parts.append(
+                    f"🌐 【手機公網決策台】（出門在外 4G/5G 隨時開）：\n"
+                    f"👉 {public_url}{user_param}"
                 )
-            else:
-                web_section = (
-                    f"\n🌐 【手機區網連線】（同 Wi-Fi）：\n"
-                    f"👉 http://10.0.0.104:8501{user_param}\n"
-                    f"💡 進入網頁後，選擇您的名字並輸入 4 位數 PIN 碼（預設 0000）即可登入；新朋友亦可點選「快速註冊」1秒免信箱直接開通！\n"
+            if lan_ip and lan_ip != "127.0.0.1":
+                web_parts.append(
+                    f"📶 【家用 Wi-Fi 內網連線】：\n"
+                    f"👉 http://{lan_ip}:8000{user_param}"
                 )
+            web_parts.append("💡 進入網頁後，輸入 4 位數 PIN 碼（預設 0000）即可登入；新朋友亦可點選「快速註冊」1秒免信箱直接開通！")
+            web_section = "\n" + "\n\n".join(web_parts) + "\n"
 
             bind_status_str = f"（已綁定此 LINE）" if bound_profile else "（未綁定，可傳送「綁定 <名字> <PIN碼>」連動）"
 

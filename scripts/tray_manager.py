@@ -374,7 +374,7 @@ class AppTrayManager:
             "uvicorn",
             "server.api:app",
             "--host",
-            "127.0.0.1",
+            "0.0.0.0",
             "--port",
             str(PORT),
             "--log-level",
@@ -393,7 +393,7 @@ class AppTrayManager:
         threading.Thread(target=self._start_tunnel, args=(cloudflared_exe,), daemon=True).start()
 
         self.is_running = True
-        self._status_text = "🟢 服務正常運行中 (v2.3.0 Dev)"
+        self._status_text = "🟢 服務正常運行中 (LINE + Web + Mobile)"
 
         # 3. Background thread to auto-open browser when ready
         threading.Thread(target=self._open_browser_when_ready, daemon=True).start()
@@ -429,41 +429,109 @@ class AppTrayManager:
             self.icon.update_menu()
             self.icon.notify("決策台與對外通道已成功重新啟動！", "瘋狗流 v2.3.0 Dev")
 
+    def get_lan_url(self) -> str:
+        """Detect local machine LAN IP."""
+        lan_ip = "127.0.0.1"
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            lan_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            pass
+        return f"http://{lan_ip}:{PORT}"
+
     def open_web_browser(self) -> None:
         """Open local FastAPI modern React UI in default browser."""
         webbrowser.open(f"http://localhost:{PORT}")
 
-    def copy_public_url(self) -> None:
-        """Copy public Cloudflare HTTPS URL to clipboard."""
+    def open_mobile_browser(self) -> None:
+        """Open public HTTPS tunnel URL or LAN URL in browser."""
         info = get_runtime_info()
-        url = info.get("tunnel_url") or info.get("streamlit_url")
+        url = info.get("tunnel_url") or info.get("web_app_url") or self.get_lan_url()
+        webbrowser.open(url)
+
+    def copy_public_url(self) -> None:
+        """Copy public Cloudflare or ngrok HTTPS URL to clipboard."""
+        info = get_runtime_info()
+        url = info.get("tunnel_url") or info.get("web_app_url") or info.get("streamlit_url")
+        if not url:
+            ngrok_cfg = load_ngrok_config()
+            d = ngrok_cfg.get("domain", "").strip()
+            if d and not d.startswith("填寫"):
+                url = f"https://{d.replace('https://', '').replace('http://', '').rstrip('/')}"
+
         if url:
             copy_to_clipboard(url)
             if self.icon:
-                self.icon.notify(f"已複製公網網址至剪貼簿：\n{url}\n（可直接於手機瀏覽器開啟）", "瘋狗流 v2.3.0 Dev")
+                self.icon.notify(f"已複製手機公網網址至剪貼簿：\n{url}\n（出門在外 4G/5G 手機瀏覽器可直接開啟）", "瘋狗流 v2.3.0 Dev")
         else:
             if self.icon:
-                self.icon.notify("公網安全通道建立中，請稍候 3 秒後再試。", "瘋狗流 v2.3.0 Dev")
+                self.icon.notify("公網安全通道連線中，請稍候 3 秒後再試。", "瘋狗流 v2.3.0 Dev")
+
+    def copy_lan_url(self) -> None:
+        """Copy local network Wi-Fi URL to clipboard."""
+        url = self.get_lan_url()
+        copy_to_clipboard(url)
+        if self.icon:
+            self.icon.notify(f"已複製區網網址至剪貼簿：\n{url}\n（手機連線同一 Wi-Fi 即可開啟）", "瘋狗流 v2.3.0 Dev")
 
     def copy_webhook_url(self) -> None:
         """Copy LINE Webhook URL to clipboard."""
         info = get_runtime_info()
         url = info.get("webhook_url")
+        if not url:
+            ngrok_cfg = load_ngrok_config()
+            d = ngrok_cfg.get("domain", "").strip()
+            if d and not d.startswith("填寫"):
+                url = f"https://{d.replace('https://', '').replace('http://', '').rstrip('/')}/callback"
+
         if url:
             copy_to_clipboard(url)
             if self.icon:
-                self.icon.notify(f"已複製 Webhook 網址：\n{url}", "瘋狗流 v2.3.0 Dev")
+                self.icon.notify(f"已複製 LINE Webhook 網址：\n{url}", "瘋狗流 v2.3.0 Dev")
         else:
             if self.icon:
                 self.icon.notify("Webhook 尚未配發，請稍候再試。", "瘋狗流 v2.3.0 Dev")
+
+    def rebind_line_webhook(self) -> None:
+        """Re-register LINE webhook endpoint."""
+        info = get_runtime_info()
+        webhook_url = info.get("webhook_url")
+        if not webhook_url:
+            ngrok_cfg = load_ngrok_config()
+            d = ngrok_cfg.get("domain", "").strip()
+            if d and not d.startswith("填寫"):
+                clean_d = d.replace("https://", "").replace("http://", "").rstrip("/")
+                webhook_url = f"https://{clean_d}/callback"
+
+        token = load_line_token()
+        if not webhook_url:
+            if self.icon:
+                self.icon.notify("尚未建立公網通道，請稍候重試。", "瘋狗流 v2.3.0 Dev")
+            return
+        if not token:
+            if self.icon:
+                self.icon.notify("未在 config/line_notifier.yaml 設定 channel_access_token。", "瘋狗流 v2.3.0 Dev")
+            return
+        ok = register_line_webhook(webhook_url, token)
+        log_tray(f"Manual rebind LINE Webhook: {webhook_url} -> {ok}")
+        if self.icon:
+            if ok:
+                self.icon.notify(f"✅ LINE Webhook 已成功重新綁定！\n{webhook_url}", "瘋狗流 v2.3.0 Dev")
+            else:
+                self.icon.notify(f"❌ 綁定失敗，請確認 Access Token 或網路狀態。", "瘋狗流 v2.3.0 Dev")
 
     def monitor_loop(self) -> None:
         """Background thread monitoring process health."""
         while self.is_running:
             time.sleep(3.0)
             a_alive = self.proc_api and self.proc_api.poll() is None
-            if a_alive:
-                self._status_text = "🟢 服務正常運行中 (v2.3.0 Dev)"
+            t_alive = self.proc_tunnel and self.proc_tunnel.poll() is None
+            if a_alive and t_alive:
+                self._status_text = "🟢 服務正常運行中 (LINE + Web + Mobile)"
+            elif a_alive:
+                self._status_text = "🟡 網頁正常 (公網通道連線中)"
             else:
                 self._status_text = "🔴 服務異常中斷"
 
@@ -483,11 +551,14 @@ class AppTrayManager:
         return Menu(
             MenuItem(lambda text: self._status_text, None, enabled=False),
             Menu.SEPARATOR,
-            MenuItem("🌐 開啟決策台 (電腦瀏覽器)", lambda: self.open_web_browser(), default=True),
-            MenuItem("📱 複製手機公網網址 (HTTPS)", lambda: self.copy_public_url()),
+            MenuItem("🌐 開啟決策台 (電腦端瀏覽器)", lambda: self.open_web_browser(), default=True),
+            MenuItem("📱 開啟手機端網頁 (預設瀏覽器)", lambda: self.open_mobile_browser()),
+            MenuItem("📋 複製手機公網網址 (HTTPS)", lambda: self.copy_public_url()),
+            MenuItem("📶 複製手機區網網址 (Wi-Fi)", lambda: self.copy_lan_url()),
             MenuItem("💬 複製 LINE Webhook 網址", lambda: self.copy_webhook_url()),
+            MenuItem("🤖 重新連動 LINE Webhook", lambda: threading.Thread(target=self.rebind_line_webhook, daemon=True).start()),
             Menu.SEPARATOR,
-            MenuItem("🔄 重新啟動服務", lambda: threading.Thread(target=self.restart_services, daemon=True).start()),
+            MenuItem("🔄 重新啟動服務 (Web + LINE + Tunnel)", lambda: threading.Thread(target=self.restart_services, daemon=True).start()),
             MenuItem("❌ 停止並退出服務 (Quit)", self.on_quit),
         )
 

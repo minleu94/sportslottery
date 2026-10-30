@@ -60,7 +60,7 @@ def load_ngrok_config() -> Dict[str, str]:
     return {}
 
 
-def launch_ngrok_tunnel(domain: str, authtoken: str = "", port: int = 8501) -> tuple[Optional[subprocess.Popen], Optional[str]]:
+def launch_ngrok_tunnel(domain: str, authtoken: str = "", port: int = 8000) -> tuple[Optional[subprocess.Popen], Optional[str]]:
     """Launch official ngrok tunnel with user's permanent static dev domain."""
     clean_domain = domain.replace("https://", "").replace("http://", "").rstrip("/")
     if authtoken and not authtoken.startswith("填寫"):

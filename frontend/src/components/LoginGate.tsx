@@ -42,10 +42,23 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
   async function loadProfiles() {
     try {
       const res = await api.getProfiles()
-      setProfiles(res.profiles || [])
-      if (res.profiles && res.profiles.length > 0) {
-        setSelectedIdentifier(res.profiles[0].name)
-        setChangeProfileId(res.profiles[0].id)
+      const profs = res.profiles || []
+      setProfiles(profs)
+      if (profs.length > 0) {
+        // Check URL query parameters: e.g. ?user=xxx
+        const searchParams = new URLSearchParams(window.location.search)
+        const userQuery = searchParams.get("user")
+        let target = profs[0]
+        if (userQuery) {
+          const matched = profs.find(
+            (p) => p.name.toLowerCase() === userQuery.toLowerCase() || p.id === userQuery
+          )
+          if (matched) {
+            target = matched
+          }
+        }
+        setSelectedIdentifier(target.name)
+        setChangeProfileId(target.id)
       }
     } catch (err: any) {
       console.error(err)
