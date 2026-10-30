@@ -269,6 +269,11 @@ class AppTrayManager:
 
         # 1. Prioritize ngrok static domain if configured
         if ngrok_exe and domain:
+            # Terminate any stray previous ngrok instance to prevent ERR_NGROK_334
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/F", "/IM", "ngrok.exe"], capture_output=True, creationflags=CREATE_NO_WINDOW)
+            time.sleep(0.5)
+
             clean_domain = domain.replace("https://", "").replace("http://", "").rstrip("/")
             if authtoken and not authtoken.startswith("填寫"):
                 try:
@@ -402,6 +407,9 @@ class AppTrayManager:
         kill_proc_tree(self.proc_tunnel)
         self.proc_api = None
         self.proc_tunnel = None
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/F", "/IM", "ngrok.exe"], capture_output=True, creationflags=CREATE_NO_WINDOW)
+            subprocess.run(["taskkill", "/F", "/IM", "cloudflared.exe"], capture_output=True, creationflags=CREATE_NO_WINDOW)
         if STATUS_FILE.exists():
             try:
                 STATUS_FILE.unlink(missing_ok=True)
