@@ -12,6 +12,19 @@ from core.wallet import WeeklyWalletManager
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def cleanup_test_profiles():
+    yield
+    pm = ProfileManager()
+    keep_ids = {"default", "p_dd23e52d"}
+    for prof in pm.list_profiles():
+        if prof["id"] not in keep_ids and prof["name"] not in {"Archie", "guest"}:
+            try:
+                pm.admin_delete_profile(prof["id"])
+            except Exception:
+                pass
+
+
 def test_health_check():
     response = client.get("/api/health")
     assert response.status_code == 200
@@ -251,16 +264,24 @@ def test_place_and_settle_ticket_e2e():
     assert final_wallet["prize_pool"] >= round(payout - stake, 2)
 
 
-def test_line_webhook_signature_verification():
-    # 1. Local loopback / testclient call without secret should succeed
-    res = client.post("/callback", json={"events": []})
-    assert res.status_code == 200
-    assert res.json()["status"] == "ok"
-
-    # 2. With channel_secret configured, invalid signature must be rejected
-    orig_secret = _line_notifier.config.get("channel_secret")
-    test_secret = "test_line_channel_secret_xyz123"
+def test_line_webhook_signature_verification(monkeypatch):
+    # 1. In production (no test mode flag and no secret), unsigned callback is rejected with 503
+    monkeypatch.delenv("ALLOW_INSECURE_LINE_WEBHOOK", raising=False)
+    orig_secret = _line_notifier.config.pop("channel_secret", None)
     try:
+        res_prod_missing = client.post("/callback", json={"events": []})
+        assert res_prod_missing.status_code == 503
+        assert "channel_secret is not configured" in res_prod_missing.json()["detail"]
+
+        # 2. In explicit test mode (ALLOW_INSECURE_LINE_WEBHOOK=true), test loopback succeeds
+        monkeypatch.setenv("ALLOW_INSECURE_LINE_WEBHOOK", "true")
+        res_test = client.post("/callback", json={"events": []})
+        assert res_test.status_code == 200
+        assert res_test.json()["status"] == "ok"
+
+        # 3. With channel_secret configured (out of test mode), invalid signature must be rejected
+        monkeypatch.delenv("ALLOW_INSECURE_LINE_WEBHOOK", raising=False)
+        test_secret = "test_line_channel_secret_xyz123"
         _line_notifier.config["channel_secret"] = test_secret
         body_bytes = b'{"events":[]}'
 
@@ -322,3 +343,78 @@ def test_frontend_spa_serving():
     assert res.status_code == 200
     assert "text/html" in res.headers.get("content-type", "")
     assert '<div id="root">' in res.text
+
+
+def test_admin_player_management_endpoints():
+    import uuid
+    from server.auth import session_manager
+    suffix = uuid.uuid4().hex[:6]
+
+    # 1. Authenticate as admin Archie (default)
+    pm = ProfileManager()
+    admin_p = pm.get_profile("default")
+    admin_token = session_manager.create_session(admin_p)
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # 2. Register a temporary user to be managed
+    user_res = client.post(
+        "/api/profiles/register",
+        json={"name": f"受管理測試員_{suffix}", "weekly_play_cap": 250.0, "pin_code": "5555"},
+    )
+    assert user_res.status_code == 200
+    user_pid = user_res.json()["profile"]["id"]
+    user_token = user_res.json()["token"]
+    user_headers = {"Authorization": f"Bearer {user_token}"}
+
+    # 3. Non-admin attempting admin actions must be rejected with 403 Forbidden
+    forbidden_del = client.delete(f"/api/admin/players/{user_pid}", headers=user_headers)
+    assert forbidden_del.status_code == 403
+
+    forbidden_reset = client.post(
+        "/api/admin/players/reset_pin",
+        headers=user_headers,
+        json={"profile_id": user_pid, "new_pin": "0000"},
+    )
+    assert forbidden_reset.status_code == 403
+
+    forbidden_update = client.post(
+        "/api/admin/players/update",
+        headers=user_headers,
+        json={"profile_id": user_pid, "name": "新名稱"},
+    )
+    assert forbidden_update.status_code == 403
+
+    # 4. Admin resets PIN for user to 0000
+    reset_res = client.post(
+        "/api/admin/players/reset_pin",
+        headers=admin_headers,
+        json={"profile_id": user_pid, "new_pin": "0000"},
+    )
+    assert reset_res.status_code == 200
+    assert reset_res.json()["success"] is True
+
+    # User can now login with 0000
+    login_new = client.post("/api/profiles/login", json={"identifier": user_pid, "pin_code": "0000"})
+    assert login_new.status_code == 200
+
+    # 5. Admin updates player settings
+    update_res = client.post(
+        "/api/admin/players/update",
+        headers=admin_headers,
+        json={"profile_id": user_pid, "name": f"管理者改名_{suffix}", "weekly_play_cap": 800.0},
+    )
+    assert update_res.status_code == 200
+    assert update_res.json()["profile"]["name"] == f"管理者改名_{suffix}"
+    assert update_res.json()["profile"]["weekly_play_cap"] == 800.0
+
+    # 6. Admin cannot delete Archie / default
+    del_admin_res = client.delete("/api/admin/players/default", headers=admin_headers)
+    assert del_admin_res.status_code == 400
+
+    # 7. Admin successfully deletes player
+    del_res = client.delete(f"/api/admin/players/{user_pid}", headers=admin_headers)
+    assert del_res.status_code == 200
+    assert del_res.json()["success"] is True
+
+    # User profile is deleted
+    assert pm.get_profile(user_pid) is None

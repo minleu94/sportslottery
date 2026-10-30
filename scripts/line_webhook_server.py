@@ -11,6 +11,7 @@ from __future__ import annotations
 import hmac
 import hashlib
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -73,11 +74,22 @@ async def callback(
     """Webhook callback endpoint for LINE Messaging API."""
     body_bytes = await request.body()
 
-    # Optional signature check if channel_secret is specified in config
-    secret = notifier.config.get("channel_secret")
-    if secret:
+    # Enforce mandatory cryptographic signature verification
+    secret = str(notifier.config.get("channel_secret") or "").strip()
+    is_test_mode = os.environ.get("ALLOW_INSECURE_LINE_WEBHOOK", "").lower() in ("1", "true", "yes")
+
+    if not is_test_mode:
+        if not secret:
+            logger.warning("LINE webhook rejected: channel_secret is not configured on this server.")
+            raise HTTPException(
+                status_code=503,
+                detail="LINE webhook service unavailable: channel_secret is not configured",
+            )
         if not x_line_signature or not verify_signature(body_bytes, x_line_signature, secret):
             logger.warning("Invalid LINE webhook signature rejected")
+            raise HTTPException(status_code=400, detail="Invalid signature")
+    else:
+        if secret and x_line_signature and not verify_signature(body_bytes, x_line_signature, secret):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
     try:

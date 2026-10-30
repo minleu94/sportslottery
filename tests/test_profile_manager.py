@@ -168,3 +168,36 @@ def test_line_user_binding_and_change_pin(tmp_path):
     # Unbind
     pm.unbind_line_user(p["id"], current_pin="9999")
     assert pm.get_profile_by_line_user_id("U1234567890abcdef") is None
+
+
+def test_admin_player_management_and_deletion(tmp_path):
+    db = tmp_path / "test_profiles.sqlite3"
+    pm = ProfileManager(db_path=db)
+
+    # Create test players
+    p1 = pm.create_profile(name="測試員A", weekly_play_cap=200.0, pin_code="1234")
+    p2 = pm.create_profile(name="測試員B", weekly_play_cap=300.0, pin_code="5678")
+
+    # 1. Admin reset PIN for player A without needing player's old PIN
+    reset_res = pm.admin_reset_pin(p1["id"], new_pin_code="0000")
+    assert pm.verify_pin(p1["id"], "0000") is True
+    assert pm.verify_pin(p1["id"], "1234") is False
+
+    # 2. Admin update player settings directly
+    upd_res = pm.admin_update_player(p2["id"], new_name="測試員B_改名", new_weekly_play_cap=500.0)
+    assert upd_res["name"] == "測試員B_改名"
+    assert upd_res["weekly_play_cap"] == 500.0
+
+    # 3. Cannot delete default profile (Archie / 主帳號)
+    with pytest.raises(ValueError, match="系統預設的「主帳號」不可被刪除"):
+        pm.admin_delete_profile(DEFAULT_PROFILE_ID)
+
+    # 4. Admin deletes player A
+    del_ok = pm.admin_delete_profile(p1["id"])
+    assert del_ok is True
+    assert pm.get_profile(p1["id"]) is None
+
+    # Verify only default and player B remain
+    remaining = [p["name"] for p in pm.list_profiles()]
+    assert "測試員A" not in remaining
+    assert "測試員B_改名" in remaining

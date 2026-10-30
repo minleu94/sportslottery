@@ -1,2 +1,4 @@
 @echo off
-call "%~dp0start_tray.bat"
+cd /d "%~dp0"
+python scripts\dev_runner.py
+if errorlevel 1 pause

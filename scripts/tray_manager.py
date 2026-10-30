@@ -31,9 +31,6 @@ from PIL import Image
 import pystray
 from pystray import Icon, Menu, MenuItem
 
-from core.app_meta import APP_BUILD
-from core.tunnel_runtime import load_active_runtime
-
 
 def get_project_root() -> Path:
     """Find the canonical project directory."""
@@ -56,6 +53,9 @@ def get_project_root() -> Path:
 ROOT_DIR = get_project_root()
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+
+from core.app_meta import APP_BUILD
+from core.tunnel_runtime import load_active_runtime
 
 # Ensure UTF-8 output
 if hasattr(sys.stdout, "reconfigure"):
@@ -620,5 +620,10 @@ class AppTrayManager:
 
 
 if __name__ == "__main__":
-    app = AppTrayManager()
-    sys.exit(app.run())
+    try:
+        app = AppTrayManager()
+        sys.exit(app.run())
+    except Exception as exc:
+        import traceback
+        log_tray(f"FATAL UNCAUGHT ERROR: {exc}\n{traceback.format_exc()}")
+        raise

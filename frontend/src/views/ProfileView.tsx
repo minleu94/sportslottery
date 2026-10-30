@@ -6,7 +6,8 @@ import { formatNTD } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
-import { User, KeyRound, Shield, CheckCircle2, AlertCircle, Users, Crown, Eye, UserPlus, RefreshCw } from "lucide-react"
+import { User, KeyRound, Shield, CheckCircle2, AlertCircle, Users, Crown, Eye, UserPlus, RefreshCw, Trash2, Settings2, AlertTriangle } from "lucide-react"
+import { Dialog } from "@/components/ui/Dialog"
 
 interface ProfileViewProps {
   currentProfile: Profile | null
@@ -43,9 +44,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
   const [currentPinForEdit, setCurrentPinForEdit] = useState<string>("")
   const [newPin, setNewPin] = useState<string>("")
 
-  // Admin Overview
+  // Admin Overview & Player Governance
   const [adminPlayers, setAdminPlayers] = useState<PlayerOverviewItem[]>([])
   const [loadingAdmin, setLoadingAdmin] = useState(false)
+  const [adminActionLoading, setAdminActionLoading] = useState(false)
+
+  // Admin Action Dialogs
+  const [deletePlayerTarget, setDeletePlayerTarget] = useState<PlayerOverviewItem | null>(null)
+  const [resetPinPlayerTarget, setResetPinPlayerTarget] = useState<PlayerOverviewItem | null>(null)
+  const [editPlayerTarget, setEditPlayerTarget] = useState<PlayerOverviewItem | null>(null)
+  const [editPlayerName, setEditPlayerName] = useState("")
+  const [editPlayerCap, setEditPlayerCap] = useState(200)
 
   // Create Profile Form
   const [newName, setNewName] = useState("")
@@ -136,14 +145,70 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
         weekly_play_cap: editCap,
         new_pin: newPin || undefined,
       })
+      if (res.token) {
+        api.setAuthToken(res.token)
+      }
       onProfileChange(res.profile)
-      setMessage({ type: "success", text: "個人設定已成功更新！" })
+      setMessage({ type: "success", text: res.message || "個人設定已成功更新！" })
       setCurrentPinForEdit("")
       setNewPin("")
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "更新失敗" })
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deletePlayerTarget) return
+    setAdminActionLoading(true)
+    try {
+      const res = await api.adminDeletePlayer(deletePlayerTarget.id)
+      setMessage({ type: "success", text: res.message || `已成功刪除玩家【${deletePlayerTarget.name}】！` })
+      setDeletePlayerTarget(null)
+      await loadProfiles()
+      if (isAdmin) await loadAdminPlayers()
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "刪除玩家失敗" })
+    } finally {
+      setAdminActionLoading(false)
+    }
+  }
+
+  async function handleConfirmResetPin() {
+    if (!resetPinPlayerTarget) return
+    setAdminActionLoading(true)
+    try {
+      const res = await api.adminResetPin(resetPinPlayerTarget.id, "0000")
+      setMessage({ type: "success", text: res.message || `已成功將【${resetPinPlayerTarget.name}】的 PIN 碼重設為 0000！` })
+      setResetPinPlayerTarget(null)
+      await loadProfiles()
+      if (isAdmin) await loadAdminPlayers()
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "重設 PIN 碼失敗" })
+    } finally {
+      setAdminActionLoading(false)
+    }
+  }
+
+  async function handleConfirmEditPlayer(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editPlayerTarget) return
+    setAdminActionLoading(true)
+    try {
+      const res = await api.adminUpdatePlayer({
+        profile_id: editPlayerTarget.id,
+        name: editPlayerName.trim() || undefined,
+        weekly_play_cap: editPlayerCap,
+      })
+      setMessage({ type: "success", text: res.message || `已成功更新玩家【${editPlayerName}】的管理設定！` })
+      setEditPlayerTarget(null)
+      await loadProfiles()
+      if (isAdmin) await loadAdminPlayers()
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "更新玩家設定失敗" })
+    } finally {
+      setAdminActionLoading(false)
     }
   }
 
@@ -442,16 +507,62 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
                             </span>
                           </td>
                           <td className="p-3 text-right">
-                            {isCurrent ? (
-                              <span className="text-slate-400 text-xs">正在檢視中</span>
+                            {p.name === "Archie" || p.id === "default" ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Badge variant="amber" className="text-[10px]">👑 系統管理者</Badge>
+                                {!isCurrent && (
+                                  <button
+                                    onClick={() => handleAdminDirectSwitch(p)}
+                                    className="px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    <span>切回 Archie</span>
+                                  </button>
+                                )}
+                              </div>
                             ) : (
-                              <button
-                                onClick={() => handleAdminDirectSwitch(p)}
-                                className="px-2.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ml-auto"
-                              >
-                                <Eye className="w-3 h-3" />
-                                <span>切換此視角</span>
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                {isCurrent ? (
+                                  <Badge variant="green" className="text-[10px]">目前視角</Badge>
+                                ) : (
+                                  <button
+                                    onClick={() => handleAdminDirectSwitch(p)}
+                                    title="切換至該玩家視角"
+                                    className="px-2 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-600 dark:text-sky-400 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    <span>切換</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setEditPlayerTarget(p)
+                                    setEditPlayerName(p.name)
+                                    setEditPlayerCap(p.weekly_play_cap)
+                                  }}
+                                  title="管理玩家每週限額與暱稱"
+                                  className="px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  <Settings2 className="w-3 h-3" />
+                                  <span>設定</span>
+                                </button>
+                                <button
+                                  onClick={() => setResetPinPlayerTarget(p)}
+                                  title="重設 PIN 碼為 0000"
+                                  className="px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  <KeyRound className="w-3 h-3" />
+                                  <span>重設PIN</span>
+                                </button>
+                                <button
+                                  onClick={() => setDeletePlayerTarget(p)}
+                                  title="永久刪除此玩家"
+                                  className="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>刪除</span>
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -525,6 +636,156 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
           </CardContent>
         </Card>
       )}
+      {/* Admin Action: Delete Player Dialog */}
+      <Dialog
+        open={!!deletePlayerTarget}
+        onClose={() => setDeletePlayerTarget(null)}
+        title={
+          <div className="flex items-center gap-2 text-rose-500 font-bold">
+            <Trash2 className="w-5 h-5" />
+            <span>永久刪除玩家帳號確認</span>
+          </div>
+        }
+        description="此為不可復原之高風險動作，請管理員 Archie 謹慎確認。"
+      >
+        {deletePlayerTarget && (
+          <div className="space-y-4 pt-2">
+            <div className="p-3.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-1.5">
+              <p className="font-bold text-sm text-rose-400">
+                ⚠️ 即將永久刪除玩家【{deletePlayerTarget.name}】（ID: {deletePlayerTarget.id}）
+              </p>
+              <p>執行此操作將全數清空該玩家之以下所有數據且無法復原：</p>
+              <ul className="list-disc list-inside space-y-0.5 text-slate-300 pl-1">
+                <li>本週錢包可玩餘額：<b className="text-white">{formatNTD(deletePlayerTarget.weekly_wallet_balance)}</b></li>
+                <li>保留儲備池：<b className="text-white">{formatNTD(deletePlayerTarget.prize_pool)}</b></li>
+                <li>歷史投注注單紀錄與所有帳本明細</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                onClick={() => setDeletePlayerTarget(null)}
+                disabled={adminActionLoading}
+              >
+                取消
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={adminActionLoading}
+                className="font-bold flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{adminActionLoading ? "刪除處理中..." : "確認永久刪除"}</span>
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      {/* Admin Action: Reset PIN Dialog */}
+      <Dialog
+        open={!!resetPinPlayerTarget}
+        onClose={() => setResetPinPlayerTarget(null)}
+        title={
+          <div className="flex items-center gap-2 text-amber-400 font-bold">
+            <KeyRound className="w-5 h-5" />
+            <span>管理員重設玩家 PIN 碼</span>
+          </div>
+        }
+        description="管理員 Archie 特權：免舊密碼直接將成員 PIN 碼重設為預設值。"
+      >
+        {resetPinPlayerTarget && (
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-slate-300">
+              您確定要將玩家【<b className="text-white">{resetPinPlayerTarget.name}</b>】的 4 位數 PIN 碼重設為預設值 <code className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300 font-mono font-bold">0000</code> 嗎？
+            </p>
+            <p className="text-xs text-slate-400">重設後成員可立即使用 0000 登入並自行變更密碼。</p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                onClick={() => setResetPinPlayerTarget(null)}
+                disabled={adminActionLoading}
+              >
+                取消
+              </Button>
+              <Button
+                variant="amber"
+                onClick={handleConfirmResetPin}
+                disabled={adminActionLoading}
+                className="font-bold flex items-center gap-1.5"
+              >
+                <KeyRound className="w-4 h-4" />
+                <span>{adminActionLoading ? "重設中..." : "確認重設為 0000"}</span>
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      {/* Admin Action: Edit Player Settings Dialog */}
+      <Dialog
+        open={!!editPlayerTarget}
+        onClose={() => setEditPlayerTarget(null)}
+        title={
+          <div className="flex items-center gap-2 text-indigo-400 font-bold">
+            <Settings2 className="w-5 h-5" />
+            <span>管理員編輯玩家設定</span>
+          </div>
+        }
+        description="直接調整玩家暱稱或每週娛樂預算限額。"
+      >
+        {editPlayerTarget && (
+          <form onSubmit={handleConfirmEditPlayer} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">玩家姓名 / 暱稱</label>
+              <input
+                type="text"
+                required
+                value={editPlayerName}
+                onChange={(e) => setEditPlayerName(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">每週娛樂限額上限 (NT$)</label>
+              <input
+                type="number"
+                min={10}
+                max={100000}
+                step={50}
+                required
+                value={editPlayerCap}
+                onChange={(e) => setEditPlayerCap(Number(e.target.value))}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-slate-100"
+              />
+              <p className="text-[11px] text-slate-500">每週重置時允許自動注入錢包的額度上限。</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditPlayerTarget(null)}
+                disabled={adminActionLoading}
+              >
+                取消
+              </Button>
+              <Button
+                type="submit"
+                variant="default"
+                disabled={adminActionLoading}
+                className="font-bold flex items-center gap-1.5"
+              >
+                <span>{adminActionLoading ? "儲存中..." : "儲存設定變更"}</span>
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
     </motion.div>
   )
 }

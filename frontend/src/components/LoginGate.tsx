@@ -35,6 +35,12 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
   const [newPin, setNewPin] = useState<string>("")
   const [newPinConfirm, setNewPinConfirm] = useState<string>("")
 
+  // Admin Reset State (Forgot Password)
+  const [isAdminResetMode, setIsAdminResetMode] = useState<boolean>(false)
+  const [adminAuthPin, setAdminAuthPin] = useState<string>("")
+  const [adminTargetProfileId, setAdminTargetProfileId] = useState<string>("")
+  const [adminResetNewPin, setAdminResetNewPin] = useState<string>("0000")
+
   useEffect(() => {
     loadProfiles()
   }, [])
@@ -114,6 +120,34 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
       onLoginSuccess(res.profile)
     } catch (err: any) {
       setError(err.message || "註冊失敗。")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleAdminResetPinSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const targetId = adminTargetProfileId || changeProfileId || (profiles[0]?.id || "default")
+    if (!adminAuthPin.trim()) {
+      setError("請輸入管理員 Archie 的 PIN 碼進行授權。")
+      return
+    }
+    if (adminResetNewPin.length !== 4 || !/^\d{4}$/.test(adminResetNewPin)) {
+      setError("新 PIN 碼必須為 4 位純數字。")
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setSuccessMsg(null)
+    try {
+      const res = await api.adminResetPin(targetId, adminResetNewPin, adminAuthPin.trim())
+      setSuccessMsg(res.message || "🎉 PIN 碼已由管理員成功重設！現在請以此新密碼登入。")
+      setAdminAuthPin("")
+      setIsAdminResetMode(false)
+      setActiveTab("login")
+    } catch (err: any) {
+      setError(err.message || "管理員授權失敗，無法重設密碼。")
     } finally {
       setLoading(false)
     }
@@ -383,73 +417,162 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
               </form>
             )}
 
-            {/* TAB 3: CHANGE PIN */}
+            {/* TAB 3: CHANGE PIN / ADMIN RESET */}
             {activeTab === "pin" && (
-              <form onSubmit={handleChangePin} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">選擇玩家</label>
-                  <select
-                    value={changeProfileId}
-                    onChange={(e) => setChangeProfileId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-emerald-500"
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs">
+                  <span className="text-slate-400 font-medium">
+                    {isAdminResetMode ? "👑 管理員協助重設 (免舊密碼)" : "🔒 一般會員修改密碼 (需舊密碼)"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAdminResetMode(!isAdminResetMode)
+                      setError(null)
+                      setSuccessMsg(null)
+                    }}
+                    className="text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer"
                   >
-                    {profiles.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    {isAdminResetMode ? "切換回一般修改" : "❓ 忘記密碼？管理員協助重設"}
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">目前 PIN 碼</label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={4}
-                    value={oldPin}
-                    onChange={(e) => setOldPin(e.target.value.replace(/\D/g, ""))}
-                    placeholder="預設 0000"
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
+                {isAdminResetMode ? (
+                  <form onSubmit={handleAdminResetPinSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        選擇要重設密碼的成員
+                      </label>
+                      <select
+                        value={adminTargetProfileId || changeProfileId}
+                        onChange={(e) => {
+                          setAdminTargetProfileId(e.target.value)
+                          setChangeProfileId(e.target.value)
+                        }}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-amber-500"
+                      >
+                        {profiles.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            👤 {p.name} {p.name === "Archie" ? "(管理員)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">新 4 位 PIN</label>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={4}
-                      value={newPin}
-                      onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">確認新 PIN</label>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={4}
-                      value={newPinConfirm}
-                      onChange={(e) => setNewPinConfirm(e.target.value.replace(/\D/g, ""))}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-amber-400 flex items-center gap-1">
+                          👑 輸入管理員 Archie 的 PIN 碼授權
+                        </label>
+                      </div>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={4}
+                        required
+                        value={adminAuthPin}
+                        onChange={(e) => setAdminAuthPin(e.target.value.replace(/\D/g, ""))}
+                        placeholder="請輸入 Archie 的 PIN 碼"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-amber-500/50 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
 
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
-                >
-                  {loading ? "更新中..." : "🔒 確認變更 PIN 碼"}
-                </Button>
-              </form>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        設定該成員之新 PIN 碼 (預設 0000)
+                      </label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={4}
+                        required
+                        value={adminResetNewPin}
+                        onChange={(e) => setAdminResetNewPin(e.target.value.replace(/\D/g, ""))}
+                        placeholder="0000"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-amber-500"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">重設後成員即可立即以新 PIN 碼登入。</p>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      variant="amber"
+                      className="w-full py-2.5 font-bold cursor-pointer"
+                    >
+                      {loading ? "授權重設中..." : "🔄 執行管理員授權重設"}
+                    </Button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleChangePin} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">選擇玩家</label>
+                      <select
+                        value={changeProfileId}
+                        onChange={(e) => setChangeProfileId(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-emerald-500"
+                      >
+                        {profiles.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">目前舊 PIN 碼</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={4}
+                        value={oldPin}
+                        onChange={(e) => setOldPin(e.target.value.replace(/\D/g, ""))}
+                        placeholder="預設 0000"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">新 4 位 PIN</label>
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={4}
+                          value={newPin}
+                          onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">確認新 PIN</label>
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={4}
+                          value={newPinConfirm}
+                          onChange={(e) => setNewPinConfirm(e.target.value.replace(/\D/g, ""))}
+                          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-center font-mono tracking-widest text-sm focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
+                    >
+                      {loading ? "更新中..." : "🔒 確認變更 PIN 碼"}
+                    </Button>
+                  </form>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

@@ -310,8 +310,37 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
 
             submit_chg = st.form_submit_button("💾 儲存新密碼並直接登入", type="primary", use_container_width=True)
 
-        if st.button("❓ 忘記舊密碼 / PIN 碼？", use_container_width=True, key="chg_forgot_pin_btn"):
-            st.info("💬 **忘記舊密碼？** 請聯絡管理員 **Archie** 為您重設 PIN 碼！")
+        with st.expander("👑 忘記舊密碼？管理員 Archie 授權重設", expanded=False):
+            st.caption("若成員忘記舊密碼，管理員 Archie 可在此輸入管理員 PIN 碼授權直接重設。")
+            with st.form("admin_auth_reset_form"):
+                admin_target_name = st.text_input("👤 輸入要重設密碼的成員名稱：", placeholder="例如：guest", key="admin_gate_target_input")
+                admin_auth_pin_input = st.text_input("🔑 輸入管理員 Archie 的 PIN 碼：", type="password", max_chars=4, key="admin_gate_auth_pin_input")
+                admin_new_pin_input = st.text_input("🔑 設定該成員之新 PIN 碼 (預設 0000)：", value="0000", max_chars=4, type="password", key="admin_gate_new_pin_input")
+                submit_admin_gate_reset = st.form_submit_button("🔄 執行管理員授權重設", type="primary", use_container_width=True)
+
+                if submit_admin_gate_reset:
+                    clean_target = admin_target_name.strip()
+                    if not clean_target:
+                        st.error("請輸入要重設密碼的成員名稱！")
+                    elif not admin_auth_pin_input:
+                        st.error("請輸入管理員 Archie 的 PIN 碼以取得授權！")
+                    elif not profile_mgr.verify_pin("default", admin_auth_pin_input):
+                        st.error("❌ 管理員 Archie 的 PIN 碼不正確！")
+                    elif not re.fullmatch(r"\d{4}", admin_new_pin_input):
+                        st.error("新 PIN 碼必須為 4 位純數字！")
+                    else:
+                        target_p = next((p for p in all_profiles if p["name"] == clean_target), None)
+                        if not target_p:
+                            st.error(f"❌ 找不到成員【{clean_target}】，請確認名稱是否正確！")
+                        elif target_p["id"] == "default":
+                            st.error("❌ 管理員 Archie 的密碼不可透過此處重設！")
+                        else:
+                            try:
+                                profile_mgr.admin_reset_pin(target_p["id"], new_pin_code=admin_new_pin_input)
+                                st.success(f"🎉 成功！已將【{clean_target}】的 PIN 碼重設為 {admin_new_pin_input}！請以此密碼登入。")
+                                st.rerun()
+                            except Exception as exc:
+                                st.error(f"❌ 重設失敗：{exc}")
 
         if submit_chg:
             clean_name = chg_name.strip()

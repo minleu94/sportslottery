@@ -58,7 +58,9 @@ from server.auth import (
     require_authenticated_session,
     verify_profile_ownership,
     get_current_session_optional,
+    SESSION_TTL_SECONDS,
 )
+from server.security import login_rate_limiter, get_client_ip, log_security_event
 
 app = FastAPI(
     title="Taiwan Sports Lottery API",
@@ -66,14 +68,40 @@ app = FastAPI(
     version=APP_VERSION,
 )
 
-# CORS middleware to allow local React/Vite development
+# CORS middleware with strict origin whitelist & LAN/tunnel regex (no wildcard credentials)
+cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
+if cors_env:
+    cors_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
+    cors_origin_regex = None
+else:
+    cors_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    cors_origin_regex = r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$|^https://[a-zA-Z0-9-]+\.(trycloudflare\.com|ngrok-free\.app|ngrok\.app|ngrok\.io)(:\d+)?$"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Session-Token", "X-Line-Signature"],
 )
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Inject defensive HTTP security headers."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # Global lazy singletons
 _odds_adapter: Optional[PlaysportOddsAdapter] = None
@@ -186,6 +214,25 @@ class ProfileUpdateRequest(BaseModel):
     weekly_play_cap: Optional[float] = None
     current_pin: str
     new_pin: Optional[str] = None
+
+
+class AdminDeletePlayerRequest(BaseModel):
+    profile_id: str
+    admin_pin: Optional[str] = None
+
+
+class AdminResetPinRequest(BaseModel):
+    profile_id: str
+    new_pin: str = "0000"
+    admin_pin: Optional[str] = None
+
+
+class AdminUpdatePlayerRequest(BaseModel):
+    profile_id: str
+    name: Optional[str] = None
+    weekly_play_cap: Optional[float] = None
+    new_pin: Optional[str] = None
+    admin_pin: Optional[str] = None
 
 
 def clean_league_name(league: Optional[str]) -> str:
@@ -516,33 +563,121 @@ def settle_ticket(
 
 
 @app.get("/api/profiles")
-def list_profiles():
+def list_profiles(session: Optional[Dict[str, Any]] = Depends(get_current_session_optional)):
+    """List profiles with privacy boundaries:
+    - Admin session: receives all profiles (without PIN)
+    - Regular user session: receives only their own profile
+    - Unauthenticated: receives minimal public structure (id and name only for selector)
+    """
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     profiles = profile_mgr.list_profiles()
-    # Strip PIN codes for security
-    safe_profiles = []
-    for p in profiles:
-        p_dict = dict(p)
-        p_dict.pop("pin_code", None)
-        safe_profiles.append(p_dict)
-    return {"profiles": safe_profiles}
+
+    if session and (session.get("is_admin") or session.get("profile_id") == DEFAULT_PROFILE_ID):
+        safe_profiles = []
+        for p in profiles:
+            p_dict = dict(p)
+            p_dict.pop("pin_code", None)
+            safe_profiles.append(p_dict)
+        return {"profiles": safe_profiles}
+
+    if session and session.get("profile_id"):
+        my_prof = profile_mgr.get_profile(session["profile_id"])
+        if my_prof:
+            p_dict = dict(my_prof)
+            p_dict.pop("pin_code", None)
+            return {"profiles": [p_dict]}
+
+    minimal_profiles = [{"id": p["id"], "name": p["name"]} for p in profiles]
+    return {"profiles": minimal_profiles}
+
+
+@app.get("/api/profiles/public_list")
+def list_public_profiles():
+    """Explicit public endpoint returning only minimal identifier & name for login dropdown."""
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    profiles = profile_mgr.list_profiles()
+    return {"profiles": [{"id": p["id"], "name": p["name"]} for p in profiles]}
 
 
 @app.post("/api/profiles/login")
-def profile_login(req: ProfileLoginByNameRequest):
+def profile_login(
+    req: ProfileLoginByNameRequest,
+    request: Request,
+    response: Response,
+):
+    """Authenticate by player name or profile ID with rate limiting, lockout, and HttpOnly cookie."""
+    ip = get_client_ip(request)
+    ident = str(req.identifier or "").strip()
+
+    # 1. Anti-brute-force check
+    lock_rem = login_rate_limiter.check_rate_limit(ident, ip)
+    if lock_rem is not None:
+        log_security_event("LOGIN_ATTEMPT_LOCKED", ident, ip, {"retry_after": lock_rem})
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"【安全鎖定】登入嘗試失敗次數過多，帳號或IP已暫時鎖定，請於 {lock_rem} 秒後再試。",
+            headers={"Retry-After": str(lock_rem)},
+        )
+
     _, _, _, _, profile_mgr, _, _, _ = get_services()
-    success, profile, msg = profile_mgr.verify_login(req.identifier, req.pin_code)
+    success, profile, msg = profile_mgr.verify_login(ident, req.pin_code)
+
     if not success or not profile:
-        raise HTTPException(status_code=401, detail=msg or "登入失敗，PIN 碼或帳號錯誤。")
+        fail_cnt, is_locked, lock_sec = login_rate_limiter.record_failure(ident, ip)
+        log_security_event("LOGIN_FAILED", ident, ip, {"fail_count": fail_cnt, "locked": is_locked})
+        if is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"【安全鎖定】登入連續失敗達 {fail_cnt} 次，帳號已鎖定，請於 {lock_sec} 秒後再試。",
+                headers={"Retry-After": str(lock_sec)},
+            )
+        rem_attempts = max(0, login_rate_limiter.max_failures - fail_cnt)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"{msg or '登入失敗，PIN 碼或帳號錯誤。'}（剩餘嘗試次數：{rem_attempts} 次）",
+        )
+
+    # Success: reset rate limiter
+    login_rate_limiter.record_success(ident, ip)
+    log_security_event("LOGIN_SUCCESS", ident, ip, {"profile_id": profile["id"]})
     token = session_manager.create_session(profile)
+
+    # Set secure HttpOnly Cookie
+    is_secure = (request.url.scheme == "https") or (request.headers.get("x-forwarded-proto") == "https")
+    response.set_cookie(
+        key="auth_session_token",
+        value=token,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=is_secure,
+        path="/",
+    )
+
+    # Check for default admin weak PIN
+    is_admin = (profile["id"] == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+    is_weak_pin = (str(req.pin_code).strip() == "0000")
+    requires_pin_change = bool(is_admin and is_weak_pin)
+
     p_dict = dict(profile)
     p_dict.pop("pin_code", None)
-    return {"success": True, "token": token, "profile": p_dict, "message": msg}
+    return {
+        "success": True,
+        "token": token,
+        "profile": p_dict,
+        "message": msg,
+        "requires_pin_change": requires_pin_change,
+        "warning": "【安全警告】管理員帳號目前使用預設弱 PIN 碼 (0000)，請立即修改為自訂安全密碼！" if requires_pin_change else None,
+    }
 
 
 @app.post("/api/profiles/logout")
-def profile_logout(session: Dict[str, Any] = Depends(require_authenticated_session)):
+def profile_logout(
+    response: Response,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
     session_manager.revoke_session(session.get("token"))
+    response.delete_cookie(key="auth_session_token", path="/")
     return {"success": True, "message": "已成功登出。"}
 
 
@@ -558,7 +693,11 @@ def get_auth_me(session: Dict[str, Any] = Depends(require_authenticated_session)
 
 
 @app.post("/api/profiles/register")
-def profile_register(req: ProfileRegisterRequest):
+def profile_register(
+    req: ProfileRegisterRequest,
+    request: Request,
+    response: Response,
+):
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     try:
         new_prof = profile_mgr.create_profile(
@@ -567,6 +706,16 @@ def profile_register(req: ProfileRegisterRequest):
             pin_code=req.pin_code,
         )
         token = session_manager.create_session(new_prof)
+        is_secure = (request.url.scheme == "https") or (request.headers.get("x-forwarded-proto") == "https")
+        response.set_cookie(
+            key="auth_session_token",
+            value=token,
+            max_age=SESSION_TTL_SECONDS,
+            httponly=True,
+            samesite="lax",
+            secure=is_secure,
+            path="/",
+        )
         p_dict = dict(new_prof)
         p_dict.pop("pin_code", None)
         return {"success": True, "token": token, "profile": p_dict}
@@ -575,21 +724,80 @@ def profile_register(req: ProfileRegisterRequest):
 
 
 @app.post("/api/profiles/verify_pin")
-def verify_profile_pin(req: ProfileLoginRequest):
+def verify_profile_pin(
+    req: ProfileLoginRequest,
+    request: Request,
+    response: Response,
+):
+    """Verify profile PIN with rate limiting and issue session with HttpOnly cookie."""
+    ip = get_client_ip(request)
+    ident = str(req.profile_id or "").strip()
+
+    lock_rem = login_rate_limiter.check_rate_limit(ident, ip)
+    if lock_rem is not None:
+        log_security_event("VERIFY_PIN_LOCKED", ident, ip, {"retry_after": lock_rem})
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"【安全鎖定】PIN 碼嘗試次數過多，帳號或IP已暫時鎖定，請於 {lock_rem} 秒後再試。",
+            headers={"Retry-After": str(lock_rem)},
+        )
+
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     is_valid = profile_mgr.verify_pin(profile_id=req.profile_id, pin_code=req.pin_code)
     if not is_valid:
-        raise HTTPException(status_code=401, detail="PIN 碼錯誤。")
+        fail_cnt, is_locked, lock_sec = login_rate_limiter.record_failure(ident, ip)
+        log_security_event("VERIFY_PIN_FAILED", ident, ip, {"fail_count": fail_cnt, "locked": is_locked})
+        if is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"【安全鎖定】PIN 碼嘗試失敗達 {fail_cnt} 次，帳號已鎖定，請於 {lock_sec} 秒後再試。",
+                headers={"Retry-After": str(lock_sec)},
+            )
+        rem_attempts = max(0, login_rate_limiter.max_failures - fail_cnt)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"PIN 碼錯誤。（剩餘嘗試次數：{rem_attempts} 次）",
+        )
+
+    login_rate_limiter.record_success(ident, ip)
     profile = profile_mgr.get_profile(req.profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="找不到玩家 Profile。")
+
+    log_security_event("VERIFY_PIN_SUCCESS", ident, ip, {"profile_id": profile["id"]})
     token = session_manager.create_session(profile)
+
+    is_secure = (request.url.scheme == "https") or (request.headers.get("x-forwarded-proto") == "https")
+    response.set_cookie(
+        key="auth_session_token",
+        value=token,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=is_secure,
+        path="/",
+    )
+
+    is_admin = (profile["id"] == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+    is_weak_pin = (str(req.pin_code).strip() == "0000")
+    requires_pin_change = bool(is_admin and is_weak_pin)
+
     p_dict = dict(profile)
     p_dict.pop("pin_code", None)
-    return {"success": True, "token": token, "profile": p_dict}
+    return {
+        "success": True,
+        "token": token,
+        "profile": p_dict,
+        "requires_pin_change": requires_pin_change,
+        "warning": "【安全警告】管理員帳號目前使用預設弱 PIN 碼 (0000)，請立即修改為自訂安全密碼！" if requires_pin_change else None,
+    }
 
 
 @app.post("/api/profiles/update")
 def update_profile(
     req: ProfileUpdateRequest,
+    request: Request,
+    response: Response,
     session: Dict[str, Any] = Depends(require_authenticated_session),
 ):
     verify_profile_ownership(req.profile_id, session)
@@ -597,7 +805,7 @@ def update_profile(
     is_valid = profile_mgr.verify_pin(profile_id=req.profile_id, pin_code=req.current_pin)
     if not is_valid:
         raise HTTPException(status_code=401, detail="目前 PIN 碼驗證失敗。")
-    
+
     try:
         updated = profile_mgr.update_profile(
             profile_id=req.profile_id,
@@ -606,9 +814,31 @@ def update_profile(
             new_weekly_play_cap=req.weekly_play_cap,
             new_pin_code=req.new_pin,
         )
+
         p_dict = dict(updated)
         p_dict.pop("pin_code", None)
-        return {"success": True, "profile": p_dict}
+
+        # If PIN was updated, revoke all existing sessions for this profile across devices
+        new_token = None
+        if req.new_pin:
+            session_manager.revoke_all_for_profile(req.profile_id)
+            new_token = session_manager.create_session(updated)
+            is_secure = (request.url.scheme == "https") or (request.headers.get("x-forwarded-proto") == "https")
+            response.set_cookie(
+                key="auth_session_token",
+                value=new_token,
+                max_age=SESSION_TTL_SECONDS,
+                httponly=True,
+                samesite="lax",
+                secure=is_secure,
+                path="/",
+            )
+
+        res = {"success": True, "profile": p_dict}
+        if new_token:
+            res["token"] = new_token
+            res["message"] = "PIN 碼已更新，其他裝置已強制登出。"
+        return res
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -659,6 +889,106 @@ def get_admin_players_overview(
     return {"players": overview, "total_players": len(overview)}
 
 
+@app.delete("/api/admin/players/{profile_id}")
+def admin_delete_player(
+    profile_id: str,
+    admin_pin: Optional[str] = None,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    if not session.get("is_admin") and session.get("profile_id") != "default":
+        raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可刪除玩家帳號。")
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    profile = profile_mgr.get_profile(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"找不到 ID 為 {profile_id} 的玩家。")
+    if profile_id == "default" or profile.get("name") == "Archie":
+        raise HTTPException(status_code=400, detail="管理者帳號「Archie」不可被刪除。")
+
+    try:
+        profile_mgr.admin_delete_profile(
+            target_profile_id=profile_id,
+            admin_pin=admin_pin,
+            admin_profile_id=session.get("profile_id", "default"),
+        )
+        session_manager.revoke_all_for_profile(profile_id)
+        return {
+            "success": True,
+            "message": f"已成功刪除玩家【{profile['name']}】及其相關錢包帳本與投注注單！",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/admin/players/delete")
+def admin_delete_player_post(
+    req: AdminDeletePlayerRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    return admin_delete_player(profile_id=req.profile_id, admin_pin=req.admin_pin, session=session)
+
+
+@app.post("/api/admin/players/reset_pin")
+def admin_reset_player_pin(
+    req: AdminResetPinRequest,
+    session: Optional[Dict[str, Any]] = Depends(get_current_session_optional),
+):
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    is_admin = bool(session and (session.get("is_admin") or session.get("profile_id") == "default"))
+
+    # If not authenticated as admin via session, verify admin_pin against Archie (default profile)
+    if not is_admin:
+        if session and not req.admin_pin:
+            raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可重設玩家 PIN 碼。")
+        if not req.admin_pin:
+            raise HTTPException(status_code=401, detail="【需要管理員授權】請輸入管理員 Archie 的 PIN 碼以執行重設。")
+        if not profile_mgr.verify_pin("default", req.admin_pin):
+            raise HTTPException(status_code=401, detail="【管理員 PIN 碼驗證失敗】輸入的管理員 PIN 碼不正確。")
+
+    try:
+        updated = profile_mgr.admin_reset_pin(
+            target_profile_id=req.profile_id,
+            new_pin_code=req.new_pin,
+        )
+        session_manager.revoke_all_for_profile(req.profile_id)
+        p_dict = dict(updated)
+        p_dict.pop("pin_code", None)
+        return {
+            "success": True,
+            "profile": p_dict,
+            "message": f"已成功將【{updated['name']}】的 PIN 碼重設為 {req.new_pin}！已強制登出該帳號所有作用中 Session。",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/admin/players/update")
+def admin_update_player_settings(
+    req: AdminUpdatePlayerRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    if not session.get("is_admin") and session.get("profile_id") != "default":
+        raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可修改玩家設定。")
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    try:
+        updated = profile_mgr.admin_update_player(
+            target_profile_id=req.profile_id,
+            new_name=req.name,
+            new_weekly_play_cap=req.weekly_play_cap,
+            new_pin_code=req.new_pin,
+            admin_pin=req.admin_pin,
+            admin_profile_id=session.get("profile_id", "default"),
+        )
+        p_dict = dict(updated)
+        p_dict.pop("pin_code", None)
+        return {
+            "success": True,
+            "profile": p_dict,
+            "message": f"已成功更新玩家【{updated['name']}】的管理設定！",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.get("/api/research/analytics")
 def get_research_analytics():
     _, _, _, _, _, snapshot_logger, metrics_engine, shadow_portfolio = get_services()
@@ -694,7 +1024,12 @@ def get_research_analytics():
 
 
 @app.get("/api/system/storage_status")
-def get_system_storage_status():
+def get_system_storage_status(
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    """System runtime and storage status (restricted to admin sessions; hides absolute server paths)."""
+    if not session.get("is_admin") and session.get("profile_id") != DEFAULT_PROFILE_ID:
+        raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可存取系統儲存與運行狀態。")
     from core.storage_config import get_storage_stats, get_scheduled_task_status, get_storage_root
     try:
         stats = get_storage_stats()
@@ -704,8 +1039,11 @@ def get_system_storage_status():
         task_status = get_scheduled_task_status()
     except Exception:
         task_status = {"installed": False, "enabled": False}
+
+    raw_root = str(get_storage_root())
+    masked_root = f".../{Path(raw_root).name}"
     return {
-        "storage_root": str(get_storage_root()),
+        "storage_root": masked_root,
         "stats": stats,
         "scheduled_task": task_status,
     }
@@ -724,8 +1062,8 @@ app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="stat
 
 def verify_line_signature(body_bytes: bytes, signature: str, secret: str) -> bool:
     """Validate X-Line-Signature against channel secret."""
-    if not secret:
-        return True
+    if not secret or not signature:
+        return False
     expected = hmac.new(secret.encode("utf-8"), body_bytes, hashlib.sha256).digest()
     expected_b64 = base64.b64encode(expected).decode("utf-8")
     return hmac.compare_digest(expected_b64, signature)
@@ -785,14 +1123,25 @@ async def line_webhook_callback(
     background_tasks: BackgroundTasks,
     x_line_signature: Optional[str] = Header(None, alias="X-Line-Signature"),
 ):
-    """Webhook callback endpoint for LINE Messaging API."""
+    """Webhook callback endpoint for LINE Messaging API with mandatory cryptographic signature verification."""
     body_bytes = await request.body()
     secret = str(_line_notifier.config.get("channel_secret") or "").strip()
-    if secret:
+    is_test_mode = os.environ.get("ALLOW_INSECURE_LINE_WEBHOOK", "").lower() in ("1", "true", "yes")
+
+    if not is_test_mode:
+        if not secret:
+            logger.warning("LINE webhook rejected: channel_secret is not configured on this server.")
+            raise HTTPException(
+                status_code=503,
+                detail="LINE webhook service unavailable: channel_secret is not configured",
+            )
         if not x_line_signature or not verify_line_signature(body_bytes, x_line_signature, secret):
-            raise HTTPException(status_code=400, detail="Invalid signature")
+            logger.warning("LINE webhook rejected: invalid or missing X-Line-Signature header.")
+            raise HTTPException(status_code=400, detail="Invalid LINE webhook signature")
     else:
-        logger.debug("LINE channel_secret is not configured; skipping HMAC verification.")
+        if secret and x_line_signature and not verify_line_signature(body_bytes, x_line_signature, secret):
+            raise HTTPException(status_code=400, detail="Invalid LINE webhook signature")
+        logger.debug("LINE webhook running in test mode (ALLOW_INSECURE_LINE_WEBHOOK=true).")
 
     try:
         data = await request.json()

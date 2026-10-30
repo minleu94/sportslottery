@@ -8,10 +8,6 @@ Each profile owns an isolated wallet state, prize reserve pool, and betting ledg
 
 from __future__ import annotations
 
-import math
-import re
-import sqlite3
-import uuid
 import hashlib
 import math
 import re
@@ -37,16 +33,20 @@ def get_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def validate_pin_code(pin: str) -> str:
+def validate_pin_code(pin: str, allow_extended: bool = False) -> str:
     pin_str = str(pin).strip()
-    if not re.fullmatch(r"\d{4}", pin_str):
-        raise ValueError("PIN 碼必須為 4 位純數字（例如：0000、1234）。")
+    if allow_extended:
+        if not re.fullmatch(r"[A-Za-z0-9@#$%^&+=_\-]{4,32}", pin_str):
+            raise ValueError("密碼長度須為 4 至 32 個字元（支援數字、英文字母及常用安全符號）。")
+    else:
+        if not re.fullmatch(r"\d{4}", pin_str):
+            raise ValueError("PIN 碼必須為 4 位純數字（例如：0000、1234）。")
     return pin_str
 
 
-def hash_pin_code(pin: str) -> str:
-    """Hash a 4-digit PIN code using PBKDF2-HMAC-SHA256 with a cryptographically random 16-byte salt."""
-    valid_pin = validate_pin_code(pin)
+def hash_pin_code(pin: str, allow_extended: bool = False) -> str:
+    """Hash a PIN code or password using PBKDF2-HMAC-SHA256 with a cryptographically random 16-byte salt."""
+    valid_pin = validate_pin_code(pin, allow_extended=allow_extended)
     salt = secrets.token_bytes(16)
     dk = hashlib.pbkdf2_hmac("sha256", valid_pin.encode("utf-8"), salt, 100000)
     return f"{PBKDF2_PREFIX}{salt.hex()}:{dk.hex()}"
@@ -121,6 +121,7 @@ class ProfileManager:
                 weekly_play_cap REAL NOT NULL DEFAULT 200.0,
                 pin_code TEXT NOT NULL DEFAULT '0000',
                 line_user_id TEXT,
+                token_version INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )""")
@@ -132,6 +133,12 @@ class ProfileManager:
                 try:
                     conn.execute("ALTER TABLE profiles ADD COLUMN line_user_id TEXT")
                     conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_line_user ON profiles(line_user_id)")
+                except Exception:
+                    pass
+
+            if "token_version" not in cols:
+                try:
+                    conn.execute("ALTER TABLE profiles ADD COLUMN token_version INTEGER NOT NULL DEFAULT 1")
                 except Exception:
                     pass
 
@@ -228,6 +235,30 @@ class ProfileManager:
             except Exception:
                 pass
         return True, profile, "驗證成功。"
+
+    def is_default_admin_pin(self) -> bool:
+        """Check if the default admin profile is still using the weak default 0000 PIN."""
+        default_p = self.get_profile(DEFAULT_PROFILE_ID)
+        if not default_p:
+            return False
+        stored = str(default_p.get("pin_code", "")).strip()
+        return verify_pin_code(DEFAULT_PIN_CODE, stored)
+
+    def get_token_version(self, profile_id: str) -> int:
+        prof = self.get_profile(profile_id)
+        if prof and "token_version" in prof and prof["token_version"] is not None:
+            return int(prof["token_version"])
+        return 1
+
+    def increment_token_version(self, profile_id: str) -> int:
+        pid = str(profile_id or "").strip()
+        now = get_now_iso()
+        with self._transaction() as conn:
+            conn.execute(
+                "UPDATE profiles SET token_version = token_version + 1, updated_at = ? WHERE id = ?",
+                (now, pid),
+            )
+        return self.get_token_version(pid)
 
     def get_or_default(self, profile_id: Optional[str] = None) -> Dict[str, Any]:
         if profile_id:
@@ -337,8 +368,11 @@ class ProfileManager:
             target_cap = round(cap_val, 2)
 
         target_pin = profile["pin_code"]
+        pin_changed = False
         if new_pin_code is not None:
-            target_pin = hash_pin_code(new_pin_code)
+            is_admin = (pid == DEFAULT_PROFILE_ID)
+            target_pin = hash_pin_code(new_pin_code, allow_extended=is_admin)
+            pin_changed = True
 
         now = get_now_iso()
         with self._transaction() as conn:
@@ -348,11 +382,18 @@ class ProfileManager:
                 if existing:
                     raise ValueError(f"已存在名為「{target_name}」的其他玩家 Profile。")
 
-            conn.execute(
-                """UPDATE profiles SET name = ?, weekly_play_cap = ?, pin_code = ?, updated_at = ?
-                WHERE id = ?""",
-                (target_name, target_cap, target_pin, now, pid),
-            )
+            if pin_changed:
+                conn.execute(
+                    """UPDATE profiles SET name = ?, weekly_play_cap = ?, pin_code = ?, updated_at = ?, token_version = token_version + 1
+                    WHERE id = ?""",
+                    (target_name, target_cap, target_pin, now, pid),
+                )
+            else:
+                conn.execute(
+                    """UPDATE profiles SET name = ?, weekly_play_cap = ?, pin_code = ?, updated_at = ?
+                    WHERE id = ?""",
+                    (target_name, target_cap, target_pin, now, pid),
+                )
 
             # Sync weekly_play_cap to wallet_state if wallet_state exists
             table_info = [r["name"] for r in conn.execute("PRAGMA table_info(wallet_state)").fetchall()]
@@ -362,21 +403,32 @@ class ProfileManager:
                     (target_cap, now, pid),
                 )
 
-        return {
-            "id": pid,
-            "name": target_name,
-            "weekly_play_cap": target_cap,
-            "pin_code": target_pin,
-            "created_at": profile["created_at"],
-            "updated_at": now,
-        }
+        updated = self.get_profile(pid)
+        return dict(updated) if updated else profile
 
-    def delete_profile(self, profile_id: str, current_pin: str) -> bool:
+    def delete_profile(
+        self,
+        profile_id: str,
+        current_pin: Optional[str] = None,
+        is_admin: bool = False,
+        admin_profile_id: str = DEFAULT_PROFILE_ID,
+    ) -> bool:
         pid = str(profile_id or "").strip()
         if pid == DEFAULT_PROFILE_ID:
             raise ValueError("系統預設的「主帳號」不可被刪除。")
-        if not self.verify_pin(pid, current_pin):
-            raise ValueError("【PIN 碼驗證失敗】目前輸入的 PIN 碼不正確，無法刪除 Profile。")
+        profile = self.get_profile(pid)
+        if not profile:
+            raise ValueError(f"找不到 ID 為 {pid} 的玩家 Profile。")
+        if profile.get("name") == "Archie":
+            raise ValueError("管理者帳號「Archie」不可被刪除。")
+
+        if is_admin:
+            if current_pin is not None:
+                if not self.verify_pin(admin_profile_id, current_pin):
+                    raise ValueError("【PIN 碼驗證失敗】管理員 PIN 碼不正確，無法執行刪除。")
+        else:
+            if not current_pin or not self.verify_pin(pid, current_pin):
+                raise ValueError("【PIN 碼驗證失敗】目前輸入的 PIN 碼不正確，無法刪除 Profile。")
 
         with self._transaction() as conn:
             conn.execute("DELETE FROM profiles WHERE id = ?", (pid,))
@@ -390,3 +442,119 @@ class ProfileManager:
             if "profile_id" in ticket_info:
                 conn.execute("DELETE FROM tickets WHERE profile_id = ?", (pid,))
         return True
+
+    def admin_delete_profile(
+        self,
+        target_profile_id: str,
+        admin_pin: Optional[str] = None,
+        admin_profile_id: str = DEFAULT_PROFILE_ID,
+    ) -> bool:
+        """Administrative deletion of any player profile and associated records."""
+        return self.delete_profile(
+            profile_id=target_profile_id,
+            current_pin=admin_pin,
+            is_admin=True,
+            admin_profile_id=admin_profile_id,
+        )
+
+    def admin_reset_pin(
+        self,
+        target_profile_id: str,
+        new_pin_code: str = DEFAULT_PIN_CODE,
+        admin_pin: Optional[str] = None,
+        admin_profile_id: str = DEFAULT_PROFILE_ID,
+    ) -> Dict[str, Any]:
+        """Admin directly resets any player's PIN to new_pin_code (default 0000)."""
+        pid = str(target_profile_id or "").strip()
+        profile = self.get_profile(pid)
+        if not profile:
+            raise ValueError(f"找不到 ID 為 {pid} 的玩家 Profile。")
+
+        if admin_pin is not None:
+            if not self.verify_pin(admin_profile_id, admin_pin):
+                raise ValueError("【PIN 碼驗證失敗】管理員 PIN 碼不正確。")
+
+        valid_pin = validate_pin_code(new_pin_code, allow_extended=True)
+        hashed_pin = hash_pin_code(valid_pin, allow_extended=True)
+        now = get_now_iso()
+
+        with self._transaction() as conn:
+            conn.execute(
+                "UPDATE profiles SET pin_code = ?, updated_at = ?, token_version = token_version + 1 WHERE id = ?",
+                (hashed_pin, now, pid),
+            )
+
+        updated = self.get_profile(pid)
+        return dict(updated) if updated else profile
+
+    def admin_update_player(
+        self,
+        target_profile_id: str,
+        new_name: Optional[str] = None,
+        new_weekly_play_cap: Optional[float] = None,
+        new_pin_code: Optional[str] = None,
+        admin_pin: Optional[str] = None,
+        admin_profile_id: str = DEFAULT_PROFILE_ID,
+    ) -> Dict[str, Any]:
+        """Admin directly updates any player's settings without needing target player's PIN."""
+        pid = str(target_profile_id or "").strip()
+        profile = self.get_profile(pid)
+        if not profile:
+            raise ValueError(f"找不到 ID 為 {pid} 的玩家 Profile。")
+
+        if admin_pin is not None:
+            if not self.verify_pin(admin_profile_id, admin_pin):
+                raise ValueError("【PIN 碼驗證失敗】管理員 PIN 碼不正確。")
+
+        target_name = profile["name"]
+        if new_name is not None:
+            name_str = str(new_name).strip()
+            if not name_str:
+                raise ValueError("玩家名稱不可為空。")
+            target_name = name_str
+
+        target_cap = float(profile["weekly_play_cap"])
+        if new_weekly_play_cap is not None:
+            try:
+                cap_val = float(new_weekly_play_cap)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError("每週預算必須為大於 0 的正數。") from exc
+            if not math.isfinite(cap_val) or cap_val <= 0:
+                raise ValueError("每週預算必須為大於 0 的正數。")
+            target_cap = round(cap_val, 2)
+
+        target_pin = profile["pin_code"]
+        pin_changed = False
+        if new_pin_code is not None:
+            target_pin = hash_pin_code(new_pin_code, allow_extended=True)
+            pin_changed = True
+
+        now = get_now_iso()
+        with self._transaction() as conn:
+            if target_name != profile["name"]:
+                existing = conn.execute("SELECT id FROM profiles WHERE name = ? AND id != ?", (target_name, pid)).fetchone()
+                if existing:
+                    raise ValueError(f"已存在名為「{target_name}」的其他玩家 Profile。")
+
+            if pin_changed:
+                conn.execute(
+                    """UPDATE profiles SET name = ?, weekly_play_cap = ?, pin_code = ?, updated_at = ?, token_version = token_version + 1
+                    WHERE id = ?""",
+                    (target_name, target_cap, target_pin, now, pid),
+                )
+            else:
+                conn.execute(
+                    """UPDATE profiles SET name = ?, weekly_play_cap = ?, pin_code = ?, updated_at = ?
+                    WHERE id = ?""",
+                    (target_name, target_cap, target_pin, now, pid),
+                )
+
+            table_info = [r["name"] for r in conn.execute("PRAGMA table_info(wallet_state)").fetchall()]
+            if "profile_id" in table_info and "weekly_play_cap" in table_info:
+                conn.execute(
+                    "UPDATE wallet_state SET weekly_play_cap = ?, updated_at = ? WHERE profile_id = ?",
+                    (target_cap, now, pid),
+                )
+
+        updated = self.get_profile(pid)
+        return dict(updated) if updated else profile
