@@ -59,6 +59,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 CONFIG_FILE = ROOT_DIR / "config" / "line_notifier.yaml"
+NGROK_CONFIG_FILE = ROOT_DIR / "config" / "ngrok_config.yaml"
 STATUS_FILE = ROOT_DIR / "data" / "line_bot_runtime.json"
 ICON_PATH = ROOT_DIR / "app_icon.ico"
 TRAY_LOG = ROOT_DIR / "data" / "tray_runtime.log"
@@ -71,6 +72,34 @@ CLOUDFLARED_PATHS = [
     r"C:\Program Files\cloudflared\cloudflared.exe",
     "cloudflared",
 ]
+
+
+def load_ngrok_config() -> Dict[str, str]:
+    """Read domain and authtoken from config/ngrok_config.yaml if present."""
+    if NGROK_CONFIG_FILE.exists():
+        try:
+            with open(NGROK_CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+                return {k: str(v).strip() for k, v in data.items() if v is not None}
+        except Exception:
+            pass
+    return {}
+
+
+def find_ngrok() -> str:
+    """Find installed ngrok executable."""
+    which = shutil.which("ngrok")
+    if which:
+        return which
+    candidates = [
+        os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WindowsApps\ngrok.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\ngrok\ngrok.exe"),
+        r"C:\Program Files\ngrok\ngrok.exe",
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return ""
 
 
 def log_tray(msg: str):
@@ -232,9 +261,61 @@ class AppTrayManager:
                 time.sleep(0.4)
 
     def _start_tunnel(self, cloudflared_exe: str) -> None:
-        """Launch Cloudflare tunnel for Port 8000 and auto-register LINE webhook."""
+        """Launch public tunnel (ngrok static domain prioritized, cloudflared as fallback) and auto-register LINE webhook."""
+        ngrok_cfg = load_ngrok_config()
+        domain = ngrok_cfg.get("domain", "").strip()
+        authtoken = ngrok_cfg.get("authtoken", "").strip()
+        ngrok_exe = find_ngrok()
+
+        # 1. Prioritize ngrok static domain if configured
+        if ngrok_exe and domain:
+            clean_domain = domain.replace("https://", "").replace("http://", "").rstrip("/")
+            if authtoken and not authtoken.startswith("填寫"):
+                try:
+                    subprocess.run([ngrok_exe, "config", "add-authtoken", authtoken], capture_output=True, check=True)
+                except Exception as exc:
+                    log_tray(f"Error configuring ngrok authtoken: {exc}")
+
+            ngrok_cmd = [ngrok_exe, "http", f"http://127.0.0.1:{PORT}", f"--url=https://{clean_domain}"]
+            try:
+                log_file = open(ROOT_DIR / "data" / "ngrok.log", "a", encoding="utf-8")
+                self.proc_tunnel = subprocess.Popen(
+                    ngrok_cmd,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
+                    creationflags=CREATE_NO_WINDOW,
+                )
+                time.sleep(1.5)
+                if self.proc_tunnel.poll() is None:
+                    self._tunnel_url = f"https://{clean_domain}"
+                    self._webhook_url = f"{self._tunnel_url}/callback"
+                    log_tray(f"ngrok static domain tunnel live: {self._tunnel_url} (PID: {self.proc_tunnel.pid})")
+
+                    STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    with open(STATUS_FILE, "w", encoding="utf-8") as f:
+                        json.dump({
+                            "pid": os.getpid(),
+                            "started_at": time.time(),
+                            "tunnel_url": self._tunnel_url,
+                            "webhook_url": self._webhook_url,
+                            "streamlit_url": self._tunnel_url,
+                            "port": PORT,
+                            "provider": "ngrok",
+                        }, f, indent=2)
+
+                    token = load_line_token()
+                    reg_ok = register_line_webhook(self._webhook_url, token)
+                    log_tray(f"LINE Webhook auto-registration result: {reg_ok}")
+                    return
+                else:
+                    log_tray(f"ngrok exited prematurely (code {self.proc_tunnel.returncode}), falling back to cloudflared...")
+            except Exception as exc:
+                log_tray(f"ngrok launch failed: {exc}, falling back to cloudflared...")
+
+        # 2. Fallback to Cloudflare quick tunnel
         if not cloudflared_exe:
-            log_tray("No cloudflared executable found, skipping public tunnel.")
+            log_tray("No tunnel executable (ngrok or cloudflared) found, skipping public tunnel.")
             return
 
         cmd = [cloudflared_exe, "tunnel", "--url", f"http://127.0.0.1:{PORT}"]
@@ -258,7 +339,6 @@ class AppTrayManager:
                 self._webhook_url = f"{self._tunnel_url}/callback"
                 log_tray(f"Cloudflare tunnel live: {self._tunnel_url}")
 
-                # Save runtime status
                 STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
                 with open(STATUS_FILE, "w", encoding="utf-8") as f:
                     json.dump({
@@ -266,11 +346,11 @@ class AppTrayManager:
                         "started_at": time.time(),
                         "tunnel_url": self._tunnel_url,
                         "webhook_url": self._webhook_url,
-                        "streamlit_url": self._tunnel_url,  # Backwards-compat key
+                        "streamlit_url": self._tunnel_url,
                         "port": PORT,
+                        "provider": "cloudflare",
                     }, f, indent=2)
 
-                # Register LINE Webhook via API
                 token = load_line_token()
                 reg_ok = register_line_webhook(self._webhook_url, token)
                 log_tray(f"LINE Webhook auto-registration result: {reg_ok}")

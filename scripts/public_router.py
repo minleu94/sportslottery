@@ -12,8 +12,8 @@ from tornado.websocket import WebSocketClosedError, WebSocketHandler, websocket_
 
 
 WEBHOOK_PREFIX = "/callback"
-STREAMLIT_UPSTREAM = "http://127.0.0.1:8501"
-WEBHOOK_UPSTREAM = "http://127.0.0.1:8001"
+STREAMLIT_UPSTREAM = "http://127.0.0.1:8000"
+WEBHOOK_UPSTREAM = "http://127.0.0.1:8000"
 
 _HOP_BY_HOP_HEADERS = {
     "connection",
@@ -92,7 +92,7 @@ class WebSocketProxyHandler(WebSocketHandler):
     async def open(self, *_args):
         self._client_closed = False
         self._pending_client_messages = []
-        upstream_url = "ws://127.0.0.1:8501" + self.request.uri
+        upstream_url = "ws://127.0.0.1:8000" + self.request.uri
         headers = _copy_request_headers(self.request.headers)
         headers["Origin"] = STREAMLIT_UPSTREAM
         request = HTTPRequest(
@@ -151,7 +151,7 @@ class WebSocketProxyHandler(WebSocketHandler):
             upstream.close()
 
 
-def run_public_router(port: int = 8502) -> None:
+def run_public_router(port: int = 8000) -> None:
     app = Application(
         [
             (r"/_stcore/stream", WebSocketProxyHandler),

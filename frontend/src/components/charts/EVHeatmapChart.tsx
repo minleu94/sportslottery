@@ -16,6 +16,40 @@ interface EVHeatmapChartProps {
   targetOdds: number
 }
 
+// Custom high-contrast tooltip ensuring text is crisp white & visible
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload
+    return (
+      <div className="bg-slate-900 border border-slate-700/90 p-3 rounded-xl shadow-2xl text-xs space-y-1.5 backdrop-blur z-50 min-w-44">
+        <div className="font-bold text-slate-100 border-b border-slate-800 pb-1 flex items-center justify-between gap-3">
+          <span>賠率區間：{label}</span>
+          <span className="font-mono text-emerald-400 font-bold">{data.count} 組</span>
+        </div>
+        <div className="flex items-center justify-between gap-4 text-slate-200">
+          <span className="text-slate-400">推薦組合數：</span>
+          <span className="font-bold font-mono text-white text-sm">{data.count} 組</span>
+        </div>
+        {data.count > 0 && (
+          <>
+            <div className="flex items-center justify-between gap-4 text-slate-200">
+              <span className="text-slate-400">平均預估勝率：</span>
+              <span className="font-bold font-mono text-sky-400">{data.winProbPercent}%</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 text-slate-200">
+              <span className="text-slate-400">平均期望值：</span>
+              <span className={`font-bold font-mono ${data.evPercent > 0 ? "text-emerald-400" : "text-amber-400"}`}>
+                {data.evPercent > 0 ? `+${data.evPercent}%` : `${data.evPercent}%`}
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+  return null
+}
+
 export const EVHeatmapChart: React.FC<EVHeatmapChartProps> = ({ parlays, targetOdds }) => {
   // 1. Determine dynamic brackets matching current search scale
   let brackets: { label: string; min: number; max: number }[] = []
@@ -146,21 +180,7 @@ export const EVHeatmapChart: React.FC<EVHeatmapChartProps> = ({ parlays, targetO
               allowDecimals={false}
               unit=" 組"
             />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "rgba(15, 23, 42, 0.95)",
-                borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.15)",
-                color: "#f8fafc",
-                fontSize: "12px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-              }}
-              formatter={(value: any, name: any, item: any) => {
-                if (name === "count") return [`${value} 組`, "推薦組合數"]
-                return [value, name]
-              }}
-              labelFormatter={(label) => `賠率區間：${label}`}
-            />
+            <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="count" radius={[6, 6, 0, 0]}>
               {chartData.map((entry, index) => (
                 <Cell

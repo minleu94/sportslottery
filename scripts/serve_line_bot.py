@@ -200,9 +200,9 @@ def launch_cloudflared_tunnel(
 
 
 def main():
-    port = 8001
-    st_port = 8501
-    router_port = 8502
+    port = 8000
+    st_port = 8000
+    router_port = 8000
     cloudflared_exe = find_cloudflared()
     token = load_token()
 
