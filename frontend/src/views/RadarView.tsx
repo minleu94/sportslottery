@@ -2,19 +2,21 @@ import React, { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { api } from "@/services/api"
 import type { RadarLeague, Leg } from "@/types"
+import { cleanLeagueName } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Skeleton } from "@/components/ui/Skeleton"
 import { VersusBar } from "@/components/VersusBar"
 import { Sparkline } from "@/components/charts/Sparkline"
 import { useUI } from "@/context/UIContext"
-import { Radio, Activity, AlertCircle } from "lucide-react"
+import { Radio, Activity, AlertCircle, Search, Flame, ArrowUpRight, TrendingDown } from "lucide-react"
 
 export const RadarView: React.FC = () => {
   const { viewMode } = useUI()
   const [leagues, setLeagues] = useState<RadarLeague[]>([])
   const [legs, setLegs] = useState<Leg[]>([])
   const [selectedSport, setSelectedSport] = useState<string>("all")
+  const [searchKeyword, setSearchKeyword] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,9 +41,27 @@ export const RadarView: React.FC = () => {
     }
   }
 
-  const filteredLegs = selectedSport === "all"
-    ? legs
-    : legs.filter((l) => l.sport === selectedSport || l.league.toLowerCase().includes(selectedSport.toLowerCase()))
+  // Filter by sport pill & search keyword
+  const filteredLegs = legs.filter((l) => {
+    const cleanedLg = cleanLeagueName(l.league).toLowerCase()
+    const matchesSport =
+      selectedSport === "all" ||
+      l.sport === selectedSport ||
+      cleanedLg.includes(selectedSport.toLowerCase())
+
+    if (!matchesSport) return false
+
+    if (!searchKeyword.trim()) return true
+    const kw = searchKeyword.trim().toLowerCase()
+    return (
+      (l.away_team && l.away_team.toLowerCase().includes(kw)) ||
+      (l.home_team && l.home_team.toLowerCase().includes(kw)) ||
+      cleanedLg.includes(kw) ||
+      (l.event_id && String(l.event_id).includes(kw)) ||
+      (l.market && l.market.toLowerCase().includes(kw)) ||
+      (l.selection && l.selection.toLowerCase().includes(kw))
+    )
+  })
 
   const sports = Array.from(new Set(legs.map((l) => l.sport).filter(Boolean)))
 
@@ -57,18 +77,18 @@ export const RadarView: React.FC = () => {
         <div>
           <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Radio className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
-            賽季雷達 (Season Radar)
+            📡 今日賽季雷達 (Season Radar)
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            即時監控台灣運彩官方開盤賽事與 ESPN 國際賽程比對
+            🟢 綠燈：賽季中且今日台彩有開盤；🟡 黃燈：賽季中但今日無開盤；🔴 紅燈：休賽季
           </p>
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
           <button
             onClick={() => setSelectedSport("all")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               selectedSport === "all"
                 ? "bg-slate-800 text-white dark:bg-slate-700"
                 : "bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -82,13 +102,13 @@ export const RadarView: React.FC = () => {
               <button
                 key={sp}
                 onClick={() => setSelectedSport(sp)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer capitalize ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer capitalize whitespace-nowrap ${
                   selectedSport === sp
                     ? "bg-emerald-600 text-white"
                     : "bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                {sp} ({count})
+                {sp === "soccer" ? "⚽ 足球" : sp === "basketball" ? "🏀 籃球" : sp === "baseball" ? "⚾ 棒球" : sp} ({count})
               </button>
             )
           })}
@@ -102,7 +122,7 @@ export const RadarView: React.FC = () => {
         </div>
       )}
 
-      {/* Radar Status Grid */}
+      {/* Radar Status Grid (Displaying correct league name, icon, count, and opportunity badge) */}
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map((i) => (
@@ -114,52 +134,80 @@ export const RadarView: React.FC = () => {
           {leagues.map((lg) => {
             const isGreen = lg.status === "GREEN"
             const isYellow = lg.status === "YELLOW"
+            const displayName = lg.name || lg.league_name || lg.code
+            const displayIcon = lg.icon || "⚽"
+            const marketCount = lg.taiwan_market_count ?? lg.active_legs_count ?? 0
+
             return (
               <div
-                key={lg.league_id || lg.league_name}
-                className={`p-3.5 rounded-xl border transition-all ${
+                key={lg.code || lg.league_id || displayName}
+                className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
                   isGreen
                     ? "border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-950/20"
                     : isYellow
-                    ? "border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/10 opacity-75"
+                    ? "border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/10 opacity-80"
                     : "border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/40 opacity-50"
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <Badge
-                    variant={isGreen ? "green" : isYellow ? "yellow" : "secondary"}
-                    className="text-[10px] px-1.5 py-0"
-                  >
-                    {isGreen ? "🟢 開盤中" : isYellow ? "🟡 賽程中" : "🔴 休賽季"}
-                  </Badge>
-                  {isGreen && (
-                    <span className="text-[11px] font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-bold">
-                      {lg.active_legs_count} 盤
-                    </span>
-                  )}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge
+                      variant={isGreen ? "green" : isYellow ? "yellow" : "secondary"}
+                      className="text-[10px] px-1.5 py-0"
+                    >
+                      {isGreen ? "🟢 開盤中" : isYellow ? "🟡 賽程中" : "🔴 休賽季"}
+                    </Badge>
+                    <span className="text-xs">{lg.light_emoji || (isGreen ? "🟢" : isYellow ? "🟡" : "🔴")}</span>
+                  </div>
+
+                  <div className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate" title={displayName}>
+                    {displayIcon} {displayName}
+                  </div>
+
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
+                    {marketCount > 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">{marketCount} 場盤口開盤</span>
+                    ) : (
+                      lg.status_text || "今日暫無開盤"
+                    )}
+                  </div>
                 </div>
-                <div className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate" title={lg.league_name}>
-                  {lg.league_name}
-                </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                  {lg.reason || (isGreen ? "今日有開盤賽事" : "目前暫無開盤")}
-                </div>
+
+                {lg.opportunity_badge && (
+                  <div className="mt-2 text-[10px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded inline-block self-start">
+                    {lg.opportunity_badge}
+                  </div>
+                )}
               </div>
             )
           })}
         </div>
       )}
 
-      {/* Live Legs / Matches */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-1.5">
-            <Activity className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-            今日即時開盤項目 (共 {filteredLegs.length} 個盤口可選)
-          </h3>
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-            來源：玩運彩即時盤口
-          </span>
+      {/* Live Legs / Matches Header & Search Bar */}
+      <div className="space-y-3 pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-1.5">
+              <Activity className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+              今日台灣運彩開盤對戰詳情 (共 {filteredLegs.length} 個盤口可選)
+            </h3>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+              即時連線玩運彩公開盤口
+            </span>
+          </div>
+
+          {/* Search Box */}
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="搜尋球隊、聯賽或編號..."
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
         </div>
 
         {loading ? (
@@ -170,7 +218,7 @@ export const RadarView: React.FC = () => {
           </div>
         ) : filteredLegs.length === 0 ? (
           <Card className="text-center py-12">
-            <CardContent className="text-slate-500 dark:text-slate-400">目前所選分類沒有可下注的即時盤口。</CardContent>
+            <CardContent className="text-slate-500 dark:text-slate-400">目前所選分類沒有符合的即時盤口。</CardContent>
           </Card>
         ) : viewMode === "compact" ? (
           /* Compact Trader Mode (High Density Table View) */
@@ -191,11 +239,19 @@ export const RadarView: React.FC = () => {
                   {filteredLegs.map((leg, idx) => {
                     const ev = leg.signal_evidence || {}
                     const consensus = ev.consensus_ratio || 0.5
+                    const lm = ev.line_movement || {}
+                    const legEv = ev.sharp_expected_value_pct ?? ev.expected_value_pct
+                    const isPositiveEv = typeof legEv === "number" && legEv > 0
+
                     return (
                       <tr key={idx} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/40 transition-colors">
                         <td className="p-2.5 text-slate-500">
-                          <div>{leg.league || leg.sport}</div>
-                          <div className="text-[10px]">{leg.game_time || leg.start_time || "即時"}</div>
+                          <div className="font-semibold text-slate-700 dark:text-slate-300">
+                            {cleanLeagueName(leg.league || leg.sport)}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {leg.game_time || leg.start_time || "即時"} · #{leg.event_id}
+                          </div>
                         </td>
                         <td className="p-2.5 font-sans font-semibold text-slate-900 dark:text-slate-200">
                           {leg.away_team} <span className="text-slate-400 font-normal">vs</span> {leg.home_team}
@@ -203,6 +259,17 @@ export const RadarView: React.FC = () => {
                         <td className="p-2.5 font-sans">
                           <span className="text-[11px] text-slate-400 mr-1">[{leg.market}]</span>
                           <strong className="text-emerald-600 dark:text-emerald-400">{leg.selection}</strong>
+                          {isPositiveEv && (
+                            <span className="ml-1.5 text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1 py-0.5 rounded">
+                              +EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
+                            </span>
+                          )}
+                          {lm.is_steam && (
+                            <span className="ml-1 text-[10px] font-bold text-emerald-400">📉跳水</span>
+                          )}
+                          {lm.is_trap_warning && (
+                            <span className="ml-1 text-[10px] font-bold text-amber-400">⚠️升水</span>
+                          )}
                         </td>
                         <td className="p-2.5 w-44 font-sans">
                           <VersusBar
@@ -232,6 +299,8 @@ export const RadarView: React.FC = () => {
               const evidence = leg.signal_evidence || {}
               const consensus = evidence.consensus_ratio || 0.5
               const votes = evidence.vote_count || null
+              const lm = evidence.line_movement || {}
+              const legEv = evidence.sharp_expected_value_pct ?? evidence.expected_value_pct
 
               return (
                 <motion.div
@@ -241,46 +310,62 @@ export const RadarView: React.FC = () => {
                   className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 backdrop-blur p-4 hover:border-emerald-500/40 dark:hover:border-slate-700 transition-all shadow-sm space-y-3"
                 >
                   <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-700 dark:text-slate-300">
-                      {leg.league || leg.sport}
+                    <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-700 dark:text-slate-300 font-semibold">
+                      {cleanLeagueName(leg.league || leg.sport)}
                     </span>
-                    <span>{leg.game_time || leg.start_time || "即時"}</span>
+                    <span className="font-mono">#{leg.event_id} · {leg.game_time || leg.start_time || "即時"}</span>
                   </div>
 
                   <div className="font-bold text-slate-900 dark:text-slate-100 text-base">
-                    <span className="text-slate-700 dark:text-slate-300">{leg.away_team}</span>
-                    <span className="text-slate-400 mx-2 font-normal">vs</span>
-                    <span className="text-slate-900 dark:text-slate-100">{leg.home_team}</span>
+                    {leg.away_team} <span className="text-slate-400 font-normal text-xs">客 vs 主</span> {leg.home_team}
                   </div>
 
-                  {/* Dual Versus Bar */}
-                  <VersusBar
-                    awayTeam={leg.away_team}
-                    homeTeam={leg.home_team}
-                    awayRatio={consensus}
-                    voteCount={votes}
-                  />
-
-                  {/* Market & Odds Row */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800/80">
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
                     <div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">{leg.market}</div>
-                      <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                      <div className="text-[10px] text-slate-400 uppercase font-semibold">
+                        {leg.market}
+                      </div>
+                      <div className="font-black text-slate-900 dark:text-slate-100 text-sm">
                         {leg.selection}
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 hidden sm:block">
-                        <Sparkline height={28} />
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-slate-500 dark:text-slate-400">台彩賠率</div>
-                        <div className="text-lg font-black tabular-nums text-amber-500 dark:text-amber-400 font-mono">
-                          {leg.taiwan_odds?.toFixed(2)}x
-                        </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-slate-400">官方賠率</div>
+                      <div className="font-black text-amber-500 dark:text-amber-400 text-lg tabular-nums">
+                        {leg.taiwan_odds?.toFixed(2)}x
                       </div>
                     </div>
+                  </div>
+
+                  {/* Signals & Indicators */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {typeof legEv === "number" && legEv > 0 && (
+                      <Badge variant="green" className="text-[10px] flex items-center gap-1">
+                        <Flame className="w-3 h-3" />
+                        +EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
+                      </Badge>
+                    )}
+                    {lm.is_steam && (
+                      <Badge variant="green" className="text-[10px] flex items-center gap-1">
+                        <TrendingDown className="w-3 h-3" />
+                        📉 跳水順勢
+                      </Badge>
+                    )}
+                    {lm.is_trap_warning && (
+                      <Badge variant="yellow" className="text-[10px] flex items-center gap-1">
+                        ⚠️ 升水誘盤防禦
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Public Consensus Meter */}
+                  <div className="pt-1">
+                    <VersusBar
+                      awayTeam={leg.away_team.slice(0, 3)}
+                      homeTeam={leg.home_team.slice(0, 3)}
+                      awayRatio={consensus}
+                      voteCount={votes}
+                    />
                   </div>
                 </motion.div>
               )

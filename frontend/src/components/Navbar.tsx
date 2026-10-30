@@ -24,6 +24,7 @@ interface NavbarProps {
   currentProfile: Profile | null
   onRefresh: () => void
   refreshing: boolean
+  onToggleSidebar?: () => void
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -32,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentProfile,
   onRefresh,
   refreshing,
+  onToggleSidebar,
 }) => {
   const { theme, setTheme, viewMode, toggleViewMode } = useUI()
 
@@ -65,6 +67,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Logo & Profile */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
+            {onToggleSidebar && (
+              <button
+                onClick={onToggleSidebar}
+                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-800 text-slate-800 dark:text-slate-100 text-base font-bold flex items-center justify-center transition-all cursor-pointer shadow-sm"
+                title="展開/收起系統側邊欄 (›)"
+              >
+                ›
+              </button>
+            )}
             <span className="text-2xl select-none">🐕</span>
             <div>
               <div className="flex items-center gap-2">

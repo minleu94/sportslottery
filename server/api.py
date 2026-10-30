@@ -159,12 +159,38 @@ class ProfileLoginRequest(BaseModel):
     pin_code: str
 
 
+class ProfileLoginByNameRequest(BaseModel):
+    identifier: str
+    pin_code: str
+
+
+class ProfileRegisterRequest(BaseModel):
+    name: str
+    weekly_play_cap: float = Field(default=200.0, gt=0)
+    pin_code: str = Field(default="0000")
+
+
 class ProfileUpdateRequest(BaseModel):
     profile_id: str
     name: Optional[str] = None
     weekly_play_cap: Optional[float] = None
     current_pin: str
     new_pin: Optional[str] = None
+
+
+def clean_league_name(league: Optional[str]) -> str:
+    if not league:
+        return "綜合賽事"
+    s = str(league).strip()
+    if s.startswith("UNKNOWN_"):
+        s = s[8:]
+    if s == "SOCCER":
+        return "綜合足球"
+    if s == "BASKETBALL":
+        return "綜合籃球"
+    if s == "BASEBALL":
+        return "綜合棒球"
+    return s
 
 
 # --- Endpoints ---
@@ -218,8 +244,8 @@ def get_legs(
     # Return formatted legs
     results = []
     for leg in legs[:limit]:
-        d = leg.to_dict() if hasattr(leg, "to_dict") else leg.__dict__
-        # Clean signals for JSON serialization
+        d = leg.to_dict() if hasattr(leg, "to_dict") else dict(leg.__dict__)
+        d["display_league"] = clean_league_name(d.get("league"))
         results.append(d)
         
     return {
@@ -264,10 +290,12 @@ def search_parlays(req: ParlaySearchRequest):
         formatted = []
         for p in items:
             p_copy = dict(p)
-            # Ensure legs in parlay are dicts
+            # Ensure legs in parlay are dicts and have display_league
             clean_legs = []
             for l in p.get("legs", []):
-                clean_legs.append(l.to_dict() if hasattr(l, "to_dict") else l)
+                ld = l.to_dict() if hasattr(l, "to_dict") else dict(l.__dict__ if hasattr(l, "__dict__") else l)
+                ld["display_league"] = clean_league_name(ld.get("league"))
+                clean_legs.append(ld)
             p_copy["legs"] = clean_legs
             formatted.append(p_copy)
         return formatted
@@ -423,6 +451,33 @@ def list_profiles():
     return {"profiles": safe_profiles}
 
 
+@app.post("/api/profiles/login")
+def profile_login(req: ProfileLoginByNameRequest):
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    success, profile, msg = profile_mgr.verify_login(req.identifier, req.pin_code)
+    if not success or not profile:
+        raise HTTPException(status_code=401, detail=msg or "登入失敗，PIN 碼或帳號錯誤。")
+    p_dict = dict(profile)
+    p_dict.pop("pin_code", None)
+    return {"success": True, "profile": p_dict, "message": msg}
+
+
+@app.post("/api/profiles/register")
+def profile_register(req: ProfileRegisterRequest):
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    try:
+        new_prof = profile_mgr.create_profile(
+            name=req.name,
+            weekly_play_cap=req.weekly_play_cap,
+            pin_code=req.pin_code,
+        )
+        p_dict = dict(new_prof)
+        p_dict.pop("pin_code", None)
+        return {"success": True, "profile": p_dict}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.post("/api/profiles/verify_pin")
 def verify_profile_pin(req: ProfileLoginRequest):
     _, _, _, _, profile_mgr, _, _, _ = get_services()
@@ -488,6 +543,24 @@ def get_research_analytics():
         "crowd_data": crowd_data,
         "expert_data": expert_data,
         "shadow_portfolio": portfolio_summary,
+    }
+
+
+@app.get("/api/system/storage_status")
+def get_system_storage_status():
+    from core.storage_config import get_storage_stats, get_scheduled_task_status, get_storage_root
+    try:
+        stats = get_storage_stats()
+    except Exception:
+        stats = {}
+    try:
+        task_status = get_scheduled_task_status()
+    except Exception:
+        task_status = {"installed": False, "enabled": False}
+    return {
+        "storage_root": str(get_storage_root()),
+        "stats": stats,
+        "scheduled_task": task_status,
     }
 
 

@@ -190,4 +190,36 @@ export const api = {
     if (!res.ok) throw new Error("取得前瞻研究數據失敗")
     return res.json()
   },
+
+  async loginProfile(identifier: string, pinCode: string): Promise<{ success: boolean; profile: Profile; message: string }> {
+    const res = await fetch(`${BASE_URL}/profiles/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier, pin_code: pinCode }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "登入失敗，PIN 碼或帳號錯誤")
+    }
+    return res.json()
+  },
+
+  async registerProfile(name: string, weeklyPlayCap: number = 200, pinCode: string = "0000"): Promise<{ success: boolean; profile: Profile }> {
+    const res = await fetch(`${BASE_URL}/profiles/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, weekly_play_cap: weeklyPlayCap, pin_code: pinCode }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "註冊失敗")
+    }
+    return res.json()
+  },
+
+  async getSystemStorageStatus() {
+    const res = await fetch(`${BASE_URL}/system/storage_status`)
+    if (!res.ok) throw new Error("取得系統設定與資料存放狀態失敗")
+    return res.json()
+  },
 }

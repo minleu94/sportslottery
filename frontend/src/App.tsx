@@ -7,6 +7,11 @@ import { ParlayView } from "@/views/ParlayView"
 import { WalletView } from "@/views/WalletView"
 import { ProfileView } from "@/views/ProfileView"
 import { ResearchView } from "@/views/ResearchView"
+import { LoginGate } from "@/components/LoginGate"
+import { SidebarDrawer } from "@/components/SidebarDrawer"
+import { MetricGuideModal } from "@/components/MetricGuideModal"
+import { SystemHealthModal } from "@/components/SystemHealthModal"
+import { StorageSettingsModal } from "@/components/StorageSettingsModal"
 import { api } from "@/services/api"
 import type { Profile, WalletStatus } from "@/types"
 
@@ -17,6 +22,12 @@ function MainLayout() {
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  // Drawer & Modals state
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [metricGuideOpen, setMetricGuideOpen] = useState(false)
+  const [systemHealthOpen, setSystemHealthOpen] = useState(false)
+  const [storageSettingsOpen, setStorageSettingsOpen] = useState(false)
+
   useEffect(() => {
     initApp()
   }, [])
@@ -24,15 +35,26 @@ function MainLayout() {
   async function initApp() {
     setLoading(true)
     try {
+      const savedAuthId = localStorage.getItem("auth_profile_id")
       const pRes = await api.getProfiles()
-      const def = pRes.profiles?.find((p) => p.id === "default") || pRes.profiles?.[0]
-      if (def) {
-        setCurrentProfile(def)
-        const wRes = await api.getWalletStatus(def.id)
-        setWalletStatus(wRes)
+      const profiles = pRes.profiles || []
+
+      if (savedAuthId) {
+        const found = profiles.find((p) => p.id === savedAuthId)
+        if (found) {
+          setCurrentProfile(found)
+          const wRes = await api.getWalletStatus(found.id)
+          setWalletStatus(wRes)
+          setLoading(false)
+          return
+        }
       }
+
+      // If no valid saved session, keep currentProfile null so LoginGate is rendered
+      setCurrentProfile(null)
     } catch (err) {
       console.error("初始化失敗:", err)
+      setCurrentProfile(null)
     } finally {
       setLoading(false)
     }
@@ -66,7 +88,25 @@ function MainLayout() {
 
   function handleProfileChange(newProfile: Profile) {
     setCurrentProfile(newProfile)
+    localStorage.setItem("auth_profile_id", newProfile.id)
     refreshWallet(newProfile.id)
+  }
+
+  function handleLoginSuccess(profile: Profile) {
+    setCurrentProfile(profile)
+    localStorage.setItem("auth_profile_id", profile.id)
+    refreshWallet(profile.id)
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("auth_profile_id")
+    setCurrentProfile(null)
+    setWalletStatus(null)
+  }
+
+  // If not logged in yet, render Login Gate
+  if (!loading && !currentProfile) {
+    return <LoginGate onLoginSuccess={handleLoginSuccess} />
   }
 
   return (
@@ -78,6 +118,20 @@ function MainLayout() {
         currentProfile={currentProfile}
         onRefresh={handleRefreshAll}
         refreshing={refreshing}
+        onToggleSidebar={() => setSidebarOpen(true)}
+      />
+
+      {/* Slide-out Sidebar Navigation Drawer */}
+      <SidebarDrawer
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        currentProfile={currentProfile}
+        wallet={walletStatus}
+        onLogout={handleLogout}
+        onOpenMetricGuide={() => setMetricGuideOpen(true)}
+        onOpenSystemHealth={() => setSystemHealthOpen(true)}
+        onOpenStorageSettings={() => setStorageSettingsOpen(true)}
+        onNavigateHome={() => setActiveTab("radar")}
       />
 
       {/* Main Container */}
@@ -109,6 +163,22 @@ function MainLayout() {
           {activeTab === "research" && <ResearchView />}
         </div>
       </main>
+
+      {/* System Modals */}
+      <MetricGuideModal
+        open={metricGuideOpen}
+        onClose={() => setMetricGuideOpen(false)}
+      />
+
+      <SystemHealthModal
+        open={systemHealthOpen}
+        onClose={() => setSystemHealthOpen(false)}
+      />
+
+      <StorageSettingsModal
+        open={storageSettingsOpen}
+        onClose={() => setStorageSettingsOpen(false)}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-white/60 dark:bg-slate-950/60 backdrop-blur py-6 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1 relative z-10">

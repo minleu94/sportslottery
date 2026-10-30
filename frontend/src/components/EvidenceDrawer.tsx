@@ -2,6 +2,7 @@ import React from "react"
 import { Sheet } from "@/components/ui/Sheet"
 import { Badge } from "@/components/ui/Badge"
 import type { ParlayRecommendation, Leg } from "@/types"
+import { cleanLeagueName } from "@/lib/utils"
 import { ShieldCheck, Users, TrendingUp, Sparkles, AlertTriangle } from "lucide-react"
 
 interface EvidenceDrawerProps {
@@ -69,7 +70,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
               >
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
-                    第 {index + 1} 關 · {leg.league || leg.sport}
+                    第 {index + 1} 關 · {cleanLeagueName(leg.league || leg.sport)}
                   </span>
                   <span className="text-amber-400 font-mono font-bold text-sm">
                     {leg.taiwan_odds?.toFixed(2)}x
