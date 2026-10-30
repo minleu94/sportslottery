@@ -152,6 +152,7 @@ def process_events(events: list[Dict[str, Any]]) -> None:
 
 
 if __name__ == "__main__":
-    port = 8001
-    print(f"Starting LINE Bot Webhook Server on http://127.0.0.1:{port}")
-    uvicorn.run("scripts.line_webhook_server:app", host="0.0.0.0", port=port, reload=False)
+    # Keep the historical command as an alias for the unified service manager.
+    # Running an isolated webhook would leave the React UI and tunnel out of sync.
+    from scripts.tray_manager import AppTrayManager
+    raise SystemExit(AppTrayManager().run())

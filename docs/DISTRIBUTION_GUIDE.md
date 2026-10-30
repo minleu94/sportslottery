@@ -13,28 +13,28 @@
 
 | 朋友的電腦系統 | 點擊下載的檔案 | 檔案類型 | 安裝方式 |
 | :--- | :--- | :--- | :--- |
-| **Windows 11 (PC)** | `Sportslottery_Win11_Setup_v2.1.0.exe` | 一鍵安裝精靈 | 雙擊安裝，自動建立桌面捷徑 |
-| **Windows 11 (免安裝)** | `Sportslottery_Win11_Portable_v2.1.0.zip` | 綠色便攜包 | 解壓縮後雙擊 `Sportslottery.exe` 即開即用 |
-| **macOS (蘋果電腦)** | `Sportslottery_macOS_v2.1.0.dmg` | Mac 映像檔 | 雙擊掛載後，拖曳至「應用程式」即可 |
+| **Windows 11 (PC)** | `Sportslottery_Win11_Setup_v2.3.0.exe` | 一鍵安裝精靈 | 雙擊安裝，自動建立桌面捷徑 |
+| **Windows 11 (免安裝)** | `Sportslottery_Win11_Portable_v2.3.0.zip` | 綠色便攜包 | 解壓縮後雙擊 `Sportslottery.exe` 即開即用 |
+| **macOS (蘋果電腦)** | `Sportslottery_macOS_v2.3.0.dmg` | Mac 映像檔 | 雙擊掛載後，拖曳至「應用程式」即可 |
 
 ---
 
 ## 一、 朋友使用指南（給非技術朋友看的安裝說明）
 
 ### 1. Windows 11 安裝步驟（最簡單）
-1. 下載 `Sportslottery_Win11_Setup_v2.1.0.exe`。
+1. 下載 `Sportslottery_Win11_Setup_v2.3.0.exe`。
 2. 雙擊執行安裝程式。
    - *（若 Windows Defender 提示「未知發行者」，點擊「其他資訊」->「仍要執行」即可）*。
 3. 按照精靈提示點擊「下一步」，程式會自動安裝至電腦中，並在**桌面產生「台灣運彩瘋狗流決策系統」圖示**。
 4. 安裝完成後，直接在桌面雙擊圖示：
    - 黑色系統視窗將會啟動引擎。
-   - **約 2~3 秒內會自動在瀏覽器彈出決策台（http://localhost:8501）**。
+   - **服務啟動後會在瀏覽器開啟新版決策台（http://localhost:8000）**，並由系統匣同時管理 LINE Webhook 和手機公開網址。
 5. **關閉方式**：直接關閉黑色系統視窗或瀏覽器分頁即可。
 
 ---
 
 ### 2. macOS 安裝步驟（蘋果電腦）
-1. 下載 `Sportslottery_macOS_v2.1.0.dmg`。
+1. 下載 `Sportslottery_macOS_v2.3.0.dmg`。
 2. 雙擊開啟 DMG 檔案。
 3. 將畫面中的 **Sportslottery 圖示** 拖入 **Applications（應用程式）** 資料夾。
 4. 進入 Launchpad（啟動台）或應用程式資料夾，點擊 **Sportslottery**。
@@ -50,13 +50,13 @@
 1. 您在本地完成代碼開發或更新後，提交並推送到 GitHub：
    ```bash
    git add .
-   git commit -m "發布 v2.1.0 雙平台獨立安裝版本"
+   git commit -m "發布 v2.3.0 雙平台獨立安裝版本"
    git push origin main
    ```
 2. 建立並推送版本標籤（Tag）：
    ```bash
-   git tag v2.1.0
-   git push origin v2.1.0
+   git tag v2.3.0
+   git push origin v2.3.0
    ```
 3. GitHub 雲端虛擬機會**同時啟動 Windows 11 機器與 macOS 機器**，自動執行打包並在 5~8 分鐘內將 `Setup.exe`、`Portable.zip` 與 `macOS.dmg` 附件自動掛載在 GitHub Releases 頁面！
 4. 您只要將 Release 頁面連結複製給朋友即可。
@@ -71,7 +71,7 @@
    .\packaging\windows\build_windows.ps1
    ```
 3. 執行完成後，打包產物會自動存放在專案下的 `dist/installer/`：
-   - `dist/installer/Sportslottery_Win11_Portable_v2.1.0.zip`
+   - `dist/installer/Sportslottery_Win11_Portable_v2.3.0.zip`
 4. 您可以直接將這個 `.zip` 壓縮檔透過 LINE、Google 雲端硬碟或隨身碟傳給朋友！
    - 朋友解壓縮後，點進資料夾雙擊 `Sportslottery.exe` 即可開箱即用！
 

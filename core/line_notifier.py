@@ -16,6 +16,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from core.tunnel_runtime import load_active_runtime
 import requests
 import yaml
 
@@ -423,29 +424,9 @@ class LineNotifier:
         generate_qr_code_file(compact_code, qr_file_path)
 
         # Detect active public tunnel for image hosting
-        tunnel_url = ""
         status_file = ROOT_DIR / "data" / "line_bot_runtime.json"
-        if status_file.exists():
-            try:
-                with open(status_file, "r", encoding="utf-8") as f:
-                    rt = json.load(f)
-                tunnel_url = str(rt.get("tunnel_url") or rt.get("web_app_url") or rt.get("streamlit_url") or "").rstrip("/")
-            except Exception:
-                pass
-
-        if not tunnel_url:
-            ngrok_cfg_file = ROOT_DIR / "config" / "ngrok_config.yaml"
-            if ngrok_cfg_file.exists():
-                try:
-                    import yaml
-                    with open(ngrok_cfg_file, "r", encoding="utf-8") as f:
-                        ndata = yaml.safe_load(f) or {}
-                        d = str(ndata.get("domain") or "").strip()
-                        if d and not d.startswith("填寫"):
-                            clean_d = d.replace("https://", "").replace("http://", "").rstrip("/")
-                            tunnel_url = f"https://{clean_d}"
-                except Exception:
-                    pass
+        runtime = load_active_runtime(status_file)
+        tunnel_url = runtime.get("tunnel_url", "")
 
         image_url = f"{tunnel_url}/static/qr/{qr_filename}" if tunnel_url else None
 
@@ -1037,29 +1018,7 @@ class LineNotifier:
 
             # Resolve public HTTPS URL and local network URL (Port 8000)
             runtime_file = ROOT_DIR / "data" / "line_bot_runtime.json"
-            public_url = None
-            if runtime_file.exists():
-                try:
-                    import json
-                    with open(runtime_file, "r", encoding="utf-8") as f:
-                        rdata = json.load(f)
-                        public_url = rdata.get("tunnel_url") or rdata.get("web_app_url") or rdata.get("streamlit_url")
-                except Exception:
-                    pass
-
-            if not public_url:
-                ngrok_cfg_file = ROOT_DIR / "config" / "ngrok_config.yaml"
-                if ngrok_cfg_file.exists():
-                    try:
-                        import yaml
-                        with open(ngrok_cfg_file, "r", encoding="utf-8") as f:
-                            ndata = yaml.safe_load(f) or {}
-                            d = str(ndata.get("domain") or "").strip()
-                            if d and not d.startswith("填寫"):
-                                clean_d = d.replace("https://", "").replace("http://", "").rstrip("/")
-                                public_url = f"https://{clean_d}"
-                    except Exception:
-                        pass
+            public_url = load_active_runtime(runtime_file).get("tunnel_url")
 
             lan_ip = "127.0.0.1"
             try:

@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react"
+import React, { lazy, Suspense, useState, useEffect } from "react"
 import { UIProvider } from "@/context/UIContext"
 import { Navbar, type NavTab } from "@/components/Navbar"
 import { WalletBanner } from "@/components/WalletBanner"
-import { RadarView } from "@/views/RadarView"
-import { ParlayView } from "@/views/ParlayView"
-import { WalletView } from "@/views/WalletView"
-import { ProfileView } from "@/views/ProfileView"
-import { ResearchView } from "@/views/ResearchView"
+const RadarView = lazy(() => import("@/views/RadarView").then((m) => ({ default: m.RadarView })))
+const ParlayView = lazy(() => import("@/views/ParlayView").then((m) => ({ default: m.ParlayView })))
+const WalletView = lazy(() => import("@/views/WalletView").then((m) => ({ default: m.WalletView })))
+const ProfileView = lazy(() => import("@/views/ProfileView").then((m) => ({ default: m.ProfileView })))
+const ResearchView = lazy(() => import("@/views/ResearchView").then((m) => ({ default: m.ResearchView })))
 import { LoginGate } from "@/components/LoginGate"
 import { SidebarDrawer } from "@/components/SidebarDrawer"
 import { MetricGuideModal } from "@/components/MetricGuideModal"
@@ -28,13 +28,7 @@ function MainLayout() {
   const [systemHealthOpen, setSystemHealthOpen] = useState(false)
   const [storageSettingsOpen, setStorageSettingsOpen] = useState(false)
 
-  useEffect(() => {
-    document.title = "🐕 瘋狗運彩 (MadDog Sports) - 智慧賠率與串關風控系統 (v2.3.0 Dev)"
-    initApp()
-  }, [])
-
   async function initApp() {
-    setLoading(true)
     try {
       const savedToken = api.getAuthToken()
       if (savedToken) {
@@ -64,6 +58,12 @@ function MainLayout() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    document.title = "🐕 瘋狗運彩 (MadDog Sports) - 智慧賠率與串關風控系統 (v2.3.0 Dev)"
+    const initTimer = window.setTimeout(() => void initApp(), 0)
+    return () => window.clearTimeout(initTimer)
+  }, [])
 
   async function refreshWallet(profileId: string) {
     try {
@@ -145,6 +145,7 @@ function MainLayout() {
         <WalletBanner wallet={walletStatus} loading={loading} />
 
         {/* Tab Views */}
+        <Suspense fallback={<div className="py-12 text-center text-slate-500">頁面載入中…</div>}>
         <div className="pt-2">
           {activeTab === "radar" && <RadarView />}
           {activeTab === "parlay" && (
@@ -167,6 +168,7 @@ function MainLayout() {
           )}
           {activeTab === "research" && <ResearchView />}
         </div>
+        </Suspense>
       </main>
 
       {/* System Modals */}

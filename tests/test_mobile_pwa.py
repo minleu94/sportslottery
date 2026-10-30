@@ -74,8 +74,8 @@ def test_serve_mobile_ip_detection():
     if tailscale_ip:
         assert tailscale_ip.startswith("100."), "Tailscale IP should be in CGNAT range 100.x.x.x"
 
-    target_url = print_mobile_banner(lan_ip, tailscale_ip, port=8501, qr_target="auto")
-    assert f":8501" in target_url
+    target_url = print_mobile_banner(lan_ip, tailscale_ip, port=8000, qr_target="auto")
+    assert f":8000" in target_url
 
 
 def test_start_mobile_bat_exists():

@@ -19,6 +19,7 @@ def test_health_check():
     assert data["status"] == "ok"
     assert "strategy_metadata" in data
     assert "alliances" in data
+    assert data["app_build"] == "2.3.0-dev-react"
 
 
 def test_auth_and_session_lifecycle():

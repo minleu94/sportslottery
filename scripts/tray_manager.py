@@ -31,6 +31,9 @@ from PIL import Image
 import pystray
 from pystray import Icon, Menu, MenuItem
 
+from core.app_meta import APP_BUILD
+from core.tunnel_runtime import load_active_runtime
+
 
 def get_project_root() -> Path:
     """Find the canonical project directory."""
@@ -178,13 +181,7 @@ def copy_to_clipboard(text: str) -> bool:
 
 def get_runtime_info() -> Dict[str, Any]:
     """Read line_bot_runtime.json for active tunnel URLs."""
-    if STATUS_FILE.exists():
-        try:
-            with open(STATUS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
+    return load_active_runtime(STATUS_FILE)
 
 
 def kill_proc_tree(proc: Optional[subprocess.Popen]) -> None:
@@ -260,6 +257,26 @@ class AppTrayManager:
             except Exception:
                 time.sleep(0.4)
 
+    def _wait_for_current_api(self, timeout: float = 35.0) -> bool:
+        """Require the newly launched backend to answer, not a stale port owner."""
+        deadline = time.monotonic() + timeout
+        url = f"http://127.0.0.1:{PORT}/api/health"
+        while time.monotonic() < deadline:
+            if self.proc_api is None or self.proc_api.poll() is not None:
+                return False
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "sportslottery-tray/1.0"})
+                with urllib.request.urlopen(req, timeout=1.5) as resp:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                if resp.status == 200 and payload.get("app_build") == APP_BUILD:
+                    log_tray(f"Current API build verified: {APP_BUILD}")
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.4)
+        log_tray(f"API did not become ready with expected build {APP_BUILD}; tunnel will not start.")
+        return False
+
     def _start_tunnel(self, cloudflared_exe: str) -> None:
         """Launch public tunnel (ngrok static domain prioritized, cloudflared as fallback) and auto-register LINE webhook."""
         ngrok_cfg = load_ngrok_config()
@@ -302,6 +319,8 @@ class AppTrayManager:
                         json.dump({
                             "pid": os.getpid(),
                             "started_at": time.time(),
+                            "app_build": APP_BUILD,
+                            "api_pid": self.proc_api.pid if self.proc_api else None,
                             "tunnel_url": self._tunnel_url,
                             "webhook_url": self._webhook_url,
                             "streamlit_url": self._tunnel_url,
@@ -349,6 +368,8 @@ class AppTrayManager:
                     json.dump({
                         "pid": os.getpid(),
                         "started_at": time.time(),
+                        "app_build": APP_BUILD,
+                        "api_pid": self.proc_api.pid if self.proc_api else None,
                         "tunnel_url": self._tunnel_url,
                         "webhook_url": self._webhook_url,
                         "streamlit_url": self._tunnel_url,
@@ -362,7 +383,14 @@ class AppTrayManager:
                 break
 
     def start_services(self) -> None:
-        """Launch modern FastAPI server and Cloudflare tunnel silently."""
+        """Launch the verified modern backend, then expose it through one tunnel."""
+        self.is_running = False
+        if STATUS_FILE.exists():
+            try:
+                STATUS_FILE.unlink(missing_ok=True)
+            except Exception as exc:
+                log_tray(f"Could not clear previous runtime status: {exc}")
+
         python_bin = find_python_executable(gui=False)
         cloudflared_exe = find_cloudflared()
         log_tray(f"Starting FastAPI on port {PORT} via: {python_bin}")
@@ -389,11 +417,17 @@ class AppTrayManager:
         )
         log_tray(f"FastAPI server started with PID: {self.proc_api.pid}")
 
-        # 2. Start Cloudflare Tunnel in background thread
-        threading.Thread(target=self._start_tunnel, args=(cloudflared_exe,), daemon=True).start()
+        if not self._wait_for_current_api():
+            kill_proc_tree(self.proc_api)
+            self.proc_api = None
+            self._status_text = "🔴 新版 API 未就緒；未啟動公開通道"
+            return
 
         self.is_running = True
-        self._status_text = "🟢 服務正常運行中 (LINE + Web + Mobile)"
+        self._status_text = "🟡 新版網頁正常 (公網通道連線中)"
+
+        # 2. Start the tunnel only after verifying this process owns the expected API.
+        threading.Thread(target=self._start_tunnel, args=(cloudflared_exe,), daemon=True).start()
 
         # 3. Background thread to auto-open browser when ready
         threading.Thread(target=self._open_browser_when_ready, daemon=True).start()
@@ -407,6 +441,8 @@ class AppTrayManager:
         kill_proc_tree(self.proc_tunnel)
         self.proc_api = None
         self.proc_tunnel = None
+        self._tunnel_url = None
+        self._webhook_url = None
         if sys.platform == "win32":
             subprocess.run(["taskkill", "/F", "/IM", "ngrok.exe"], capture_output=True, creationflags=CREATE_NO_WINDOW)
             subprocess.run(["taskkill", "/F", "/IM", "cloudflared.exe"], capture_output=True, creationflags=CREATE_NO_WINDOW)
@@ -448,18 +484,13 @@ class AppTrayManager:
     def open_mobile_browser(self) -> None:
         """Open public HTTPS tunnel URL or LAN URL in browser."""
         info = get_runtime_info()
-        url = info.get("tunnel_url") or info.get("web_app_url") or self.get_lan_url()
+        url = info.get("tunnel_url") or self.get_lan_url()
         webbrowser.open(url)
 
     def copy_public_url(self) -> None:
         """Copy public Cloudflare or ngrok HTTPS URL to clipboard."""
         info = get_runtime_info()
-        url = info.get("tunnel_url") or info.get("web_app_url") or info.get("streamlit_url")
-        if not url:
-            ngrok_cfg = load_ngrok_config()
-            d = ngrok_cfg.get("domain", "").strip()
-            if d and not d.startswith("填寫"):
-                url = f"https://{d.replace('https://', '').replace('http://', '').rstrip('/')}"
+        url = info.get("tunnel_url")
 
         if url:
             copy_to_clipboard(url)
@@ -480,11 +511,6 @@ class AppTrayManager:
         """Copy LINE Webhook URL to clipboard."""
         info = get_runtime_info()
         url = info.get("webhook_url")
-        if not url:
-            ngrok_cfg = load_ngrok_config()
-            d = ngrok_cfg.get("domain", "").strip()
-            if d and not d.startswith("填寫"):
-                url = f"https://{d.replace('https://', '').replace('http://', '').rstrip('/')}/callback"
 
         if url:
             copy_to_clipboard(url)
@@ -498,12 +524,6 @@ class AppTrayManager:
         """Re-register LINE webhook endpoint."""
         info = get_runtime_info()
         webhook_url = info.get("webhook_url")
-        if not webhook_url:
-            ngrok_cfg = load_ngrok_config()
-            d = ngrok_cfg.get("domain", "").strip()
-            if d and not d.startswith("填寫"):
-                clean_d = d.replace("https://", "").replace("http://", "").rstrip("/")
-                webhook_url = f"https://{clean_d}/callback"
 
         token = load_line_token()
         if not webhook_url:

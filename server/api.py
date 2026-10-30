@@ -37,6 +37,7 @@ if str(ROOT_DIR) not in sys.path:
 logger = logging.getLogger("server.api")
 
 from core.bet_validation import assess_leg
+from core.app_meta import APP_BUILD, APP_VERSION
 from core.line_notifier import LineNotifier
 from core.model_registry import ModelRegistry
 from core.parlay_engine import ParlayEngine
@@ -62,7 +63,7 @@ from server.auth import (
 app = FastAPI(
     title="Taiwan Sports Lottery API",
     description="台灣運彩「瘋狗流」高倍串關決策後端 API",
-    version="2.0.0",
+    version=APP_VERSION,
 )
 
 # CORS middleware to allow local React/Vite development
@@ -219,6 +220,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "sportslottery-api",
+        "app_build": APP_BUILD,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "strategy_metadata": meta,
         "alliances": ALLIANCE_MAP,

@@ -30,23 +30,18 @@ python -m pip install -r requirements-lock.txt
 
 ---
 
-### 方式一：Windows 桌面／常駐系統匣啟動（最推薦，免黑視窗、附 LINE Bot 與公網）
-- 直接雙擊桌面或開始功能表中的 **「台灣運彩瘋狗流」** 捷徑（或專案目錄下的 `start_tray.vbs`）。
-- 系統將在背景同時啟動：
-  1. **Streamlit 決策台**（本地 `http://localhost:8501` + ngrok 永久公網 `https://fifty-saddlebag-immortal.ngrok-free.dev`）
-  2. **LINE Bot 互動 Webhook**（Port 8001，自動向 LINE API 註冊更新 Webhook）
-- 螢幕右下角系統匣將常駐綠色小狗圖示，右鍵即可快速開啟網頁、複製公網網址或重啟服務。
+### 方式一：Windows 桌面／常駐系統匣啟動（推薦）
+- 雙擊桌面捷徑或專案目錄中的 `start_tray.vbs`／`sportslottery.exe`。
+- 系統會用同一個 FastAPI + React 服務（本機 Port `8000`）提供桌面網頁、手機網頁及 LINE `/callback`；ngrok 只連到這個服務，並在啟動時同步 LINE Webhook。
+- 系統匣綠色小狗圖示可開啟網頁、複製目前運行中的 HTTPS 網址、重綁 Webhook 或重新啟動服務。若新版 API 未成功啟動，程式不會把固定網址指向其他佔用中的舊服務。
 
-### 方式二：Windows 雙擊 `sportslottery.exe` (獨立單機模式)
-直接雙擊專案目錄下的 **`sportslottery.exe`**，系統將自動啟動並在瀏覽器開啟決策台 (`http://localhost:8501`)。
+### 批次檔啟動
+`start_modern.bat`、`start_mobile.bat` 和 `start_line_bot.bat` 都會啟動同一個系統匣服務管理器，避免重複啟動不同的 Web／LINE 服務。
 
-### 方式二：雙擊批次檔
-雙擊專案目錄下的 **`run_app.bat`**。
-
-### 方式三：指令列啟動（開發者模式）
+### 指令列啟動（開發者模式）
 ```powershell
 cd C:\Projects\PythonProjects\sportslottery
-python main.py
+python scripts/tray_manager.py
 ```
 
 ---

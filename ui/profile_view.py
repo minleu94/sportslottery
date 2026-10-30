@@ -256,7 +256,7 @@ def render_profile_view(
 
     if is_admin:
         with tab_admin_all:
-            st.markdown("#### 👑 管理員 Archie 專屬控制台：全系統所有玩家監控")
+            st.markdown("#### 👑 全系統玩家名單 (管理員 Archie 專屬)")
             st.caption("僅管理員 Archie 可查閱全體玩家之預算額度、即時餘額、儲備池及 LINE 綁定狀態。")
             all_profs = profile_mgr.list_profiles()
 

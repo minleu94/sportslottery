@@ -14,7 +14,7 @@
    - [快捷回覆按鈕 (Quick Reply)](#43-快捷回覆按鈕-quick-reply)
    - [彩券行 3.0 QR Code 投注單產製機制](#44-彩券行-30-qr-code-投注單產製機制)
    - [多玩家 Profile 隔離與 PIN 碼安全系統](#45-多玩家-profile-隔離與-pin-碼安全系統)
-5. [Streamlit 決策台與手機 PWA Web App](#5-streamlit-決策台與手機-pwa-web-app)
+5. [React 決策台與手機 Web App](#5-react-決策台與手機-web-app)
 6. [後端核心演算與風控大腦](#6-後端核心演算與風控大腦)
 7. [Windows 系統匣（Tray Manager）與常駐服務](#7-windows-系統匣tray-manager與常駐服務)
 8. [設定檔與資安邊界（重要：防洩漏規範）](#8-設定檔與資安邊界重要防洩漏規範)
@@ -34,7 +34,7 @@
 
 ---
 
-## 2. 系統總體拓撲架構圖
+## 2. 系統總體拓撲架構圖（目前架構）
 
 ```
                       ┌──────────────────────────────────────┐
@@ -43,19 +43,15 @@
                                          │
                  ┌───────────────────────┴───────────────────────┐
                  │                                               │
-        (LINE 訊息 / 語意指令)                                (手機 Safari / 電腦 Web)
+        (LINE 訊息 / Webhook)                         (手機 Safari / 電腦 Web)
                  │                                               │
-                 ▼                                               ▼
-     ┌────────────────────────┐                     ┌────────────────────────┐
-     │ Cloudflare QuickTunnel │                     │ ngrok 永久固定專屬網域 │
-     │ (由本機開機 API 自動註冊)│                     │ (Dev Domain 永不失效)  │
-     └───────────┬────────────┘                     └───────────┬────────────┘
-                 │ (HTTPS)                                      │ (HTTPS)
-                 ▼                                              ▼
-   [本機 Port 8001: FastAPI Webhook]              [本機 Port 8501: Streamlit 決策台]
-                 │                                              │
-                 ├───────────────────────┬──────────────────────┤
-                 │                       │                      │
+                 └─────────────────────┬─────────────────────────┘
+                                       │ HTTPS：同一固定 ngrok 網域
+                                       ▼
+                        [單一 FastAPI + React 服務 :8000]
+                                       │
+                 ┌─────────────────────┼──────────────────────┐
+                 │                     │                      │
                  ▼                       ▼                      ▼
         ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐
         │  LineNotifier   │     │   Signal Hub    │    │ WeeklyWalletMgr │
@@ -79,31 +75,26 @@
 
 ---
 
-## 3. 網路端口與隧道通訊規範（三大專案隔離機制）
+## 3. 網路端口與隧道通訊規範
 
-> [!CAUTION]
-> **接手 Agent 必讀之本機網路規範（嚴禁觸犯）**：
-> 1. 本機另有獨立專案 `ig_tracking (inkscope)`，固定佔用 **Port 8000** 並透過 Tailscale Funnel 提供外部服務。**任何情況下絕對不可佔用 Port 8000，且絕對不可修改 `tailscale serve` 或 `tailscale funnel`！**
-> 2. 本專案一律使用 **Port 8001**（LINE Webhook）與 **Port 8501**（Streamlit 決策台）。
+> 桌面網頁、手機網頁和 LINE Webhook 共用本專案的 Port `8000`。啟動器會核對 API build ID 後才建立隧道，避免把網址接到舊服務或其他佔用中的程序。
 
 ### 端口與通道對照表
 
 | 服務項目 | 本地監聽端口 | 對外公網通道方案 | 網址特性 | 設定依賴 |
 | :--- | :--- | :--- | :--- | :--- |
-| **Streamlit 決策台** | `http://127.0.0.1:8501` | **ngrok 官方客戶端** | **永久固定 Dev Domain**<br>(`https://fifty-saddlebag-immortal.ngrok-free.dev`) | `config/ngrok_config.yaml`<br>`%LOCALAPPDATA%\ngrok\ngrok.yml` |
-| **LINE Bot Webhook** | `http://127.0.0.1:8001` | **Cloudflare Quick Tunnel** | 每次開機自動取得臨時網址，**程式啟動時透過 LINE API 自動註冊更新** | `cloudflared.exe`<br>`config/line_notifier.yaml` |
+| **React 網頁 + FastAPI / LINE Webhook** | `http://127.0.0.1:8000` | **ngrok 官方客戶端**（Cloudflare 備援） | 固定網址由設定檔提供；Webhook 為同網域 `/callback` | `config/ngrok_config.yaml`、`config/line_notifier.yaml` |
 | **系統匣單實例鎖** | `127.0.0.1:28501` | 僅限本地 Loopback | 防止雙擊重複啟動程式進程 | `scripts/tray_manager.py` |
-| *(外部專案 inkscope)* | *127.0.0.1:8000* | *Tailscale Funnel* | *獨立專案專用，本專案嚴禁碰觸* | *無關* |
 
 ---
 
 ## 4. LINE Bot 官方帳號機器人全功能詳解
 
 ### 4.1 互動架構與 Webhook 同步
-- **進入點**：`scripts/line_webhook_server.py`（FastAPI 驅動）
+- **進入點**：`/callback` route in `server/api.py`（FastAPI 驅動）
 - **核心控制類**：`core/line_notifier.py`（`LineNotifier`）
 - **0 成本原則**：所有回覆訊息一律使用 LINE Webhook 提供之 `replyToken` 呼叫 `https://api.line.me/v2/bot/message/reply`，**完全不消耗任何官方帳號付費 Push 訊息額度（終身免費回覆）**。
-- **自動註冊機制**：當執行 `scripts/serve_line_bot.py` 時，程式會取得 Cloudflare 產生的安全 HTTPS 網址，並透過 `PUT https://api.line.me/v2/bot/channel/webhook/endpoint` 直接向 LINE 官方伺服器登記，使用者與開發者皆**完全無須手動至後台複製貼上 Webhook**。
+- **自動註冊機制**：系統匣管理器確認目前 build 的 API 已在 Port `8000` 回應後，才建立 ngrok 通道，並透過 LINE API 更新 `/callback` Webhook。
 
 ---
 
@@ -157,15 +148,18 @@
 - **資料庫路徑**：`data/sportslottery.db`（SQLite，由 `core/profile_manager.py` 嚴密控制）
 - **核心設計**：
   - 每個玩家擁有獨立的：`weekly_play_cap`（預設 NT$200）、`pin_code`（預設 `0000`）、獨立錢包流水帳本與下注記錄。
+  - **加鹽安全儲存 (Salted PBKDF2)**：自 v2.3.0 起，PIN 碼使用 16 位元組隨機 Salt 與 100,000 次 PBKDF2-HMAC-SHA256 雜湊儲存，資料庫無明文 PIN 碼；舊帳號於讀取與登入時自動無縫遷移。
+  - **伺服器端 Session 授權**：登入成功後簽發 32 位元組加密隨機 Session Token（7 天有效），前端所有錢包查詢、存提款、注單建立、結算與資料修改皆強制檢驗擁有者身分。
   - 支援 LINE User ID 雙向綁定：同一台伺服器可供家庭成員、好友群共用，彼此帳目完全分離。
   - 防暴搜防護：PIN 碼必須為 4 位純數字字串。
 
 ---
 
-## 5. Streamlit 決策台與手機 PWA Web App
+## 5. React 決策台與手機 Web App
 
-- **本機位址**：`http://localhost:8501`（或 `http://127.0.0.1:8501`）
-- **公網永久位址**：`https://fifty-saddlebag-immortal.ngrok-free.dev`（由 ngrok 守護進程掛載）
+- **本機位址**：`http://localhost:8000`（桌面與區網手機共用）
+- **手機公網位址**：系統匣顯示／複製的目前運行中 ngrok HTTPS URL。
+- **Webhook 位址**：同一個公網網域加上 `/callback`；啟動器會在確認新版 API 回應後才建立通道及更新 LINE 設定。
 
 ### 5.1 四大核心功能頁面
 1. **🏠 ①「今日可玩」—— 賽季雷達 (Season Radar)**：
@@ -183,7 +177,7 @@
 
 ### 5.2 手機 iPhone Safari「加入主畫面」(PWA 體驗)
 - 靜態圖示與 Manifest：已配置於 `static/manifest.json` 與 `static/pwa_icons/`。
-- **免 Error 1016 原理**：過去使用 Cloudflare 臨時快速通道，每當電腦重開機網址就會更換，導致手機加入主畫面之圖示失效（報 Error 1016）。現已全面改用 **ngrok 官方永久 Dev Domain**，無論伺服器重開機多少次，網址始終固定為 `https://fifty-saddlebag-immortal.ngrok-free.dev`，手機 App 圖示永遠可用。
+- **固定網址**：網域由本機 `config/ngrok_config.yaml` 設定。網址固定不代表電腦服務一定在線；系統匣只會發布通過目前 build 驗證的運行網址。
 
 ---
 
@@ -224,10 +218,10 @@
 
 ### 系統匣功能清單（右下角綠色小狗圖示）
 - **狀態顯示**：🟢 服務正常運行中 (LINE + Web) / ⚠️ 服務異常
-- **🌐 開啟決策台 (電腦瀏覽器)**：直接呼叫預設瀏覽器開啟 `http://localhost:8501`。
-- **📱 複製手機公網網址 (HTTPS)**：將 `https://fifty-saddlebag-immortal.ngrok-free.dev` 複製至剪貼簿，並彈出通知。
+- **🌐 開啟決策台 (電腦瀏覽器)**：開啟 `http://localhost:8000`。
+- **📱 複製手機公網網址 (HTTPS)**：複製已確認在線的 HTTPS 網址；尚未連線時不會複製設定檔裡的舊網域。
 - **💬 複製 LINE Webhook 網址**：複製即時 LINE Webhook 連結。
-- **🔄 重新啟動服務**：一鍵無痛重啟後端 Webhook 與 Streamlit 服務進程。
+- **🔄 重新啟動服務**：一鍵重啟共用 API、LINE Webhook 與公網通道。
 - **❌ 停止並退出服務 (Quit)**：安全結束所有背景進程並釋放端口。
 
 ---
@@ -249,7 +243,7 @@
 | `config/line_notifier.yaml` | LINE Channel Token 與通知設定 | ❌ **已 Git 忽略** | 🚨 極高（LINE 機器人金鑰） |
 | `data/sportslottery.db` | 玩家帳號、4位PIN碼、下注紀錄 SQLite | ❌ **已 Git 忽略** | ⚠️ 高（使用者資產資料） |
 | `data/line_bot_runtime.json` | 執行期暫存之動態網址與 PID 紀錄 | ❌ 臨時資料 | 🟢 本機暫存 |
-| `data/*.log` | 服務日誌（`bot_service.log`, `streamlit_service.log`, `tray_manager.log`） | ❌ **已 Git 忽略** | 🟢 本機診斷 |
+| `data/*.log` | 服務日誌（`tray_runtime.log`, `ngrok.log` 等） | ❌ **已 Git 忽略** | 🟢 本機診斷 |
 
 ---
 
@@ -257,31 +251,31 @@
 
 若未來接手的 Agent 收到使用者的問題回報，請依照以下標準作業流程 (SOP) 進行排查：
 
-### 情況 A：使用者回報「手機點開網址顯示 502 Bad Gateway」
-1. **原因**：ngrok 守護程序在跑，但 Streamlit 尚未就緒或被意外終止。
+### 情況 A：手機公網網址顯示舊版或 502
+1. **檢查**：新版本 `/api/health` 必須回傳 `app_build: 2.3.0-dev-react`；啟動器不會在舊服務佔用 Port `8000` 時繼續建立新隧道。
 2. **診斷指令**（PowerShell）：
    ```powershell
-   Get-NetTCPConnection -LocalPort 8501 -ErrorAction SilentlyContinue
+   Invoke-RestMethod http://127.0.0.1:8000/api/health | Select-Object status, app_build
    ```
 3. **解決方案**：
-   - 查看 `data/streamlit_service.log` 末端報錯。
-   - 確保 Streamlit 啟動參數包含 `--server.headless true` 且 `stdin=subprocess.DEVNULL`。
+   - 確認 `app_build` 是 `2.3.0-dev-react`，再到系統匣重啟服務。
+   - 查看 `data/tray_runtime.log`；若 API build 驗證失敗，先停止佔用 Port `8000` 的舊程式。
    - 在系統匣圖示點選「🔄 重新啟動服務」。
 
 ### 情況 B：使用者回報「ngrok 提示 The endpoint is already online」
 1. **原因**：之前的 ngrok 進程異常殘留，佔用了免費方案唯一的 Dev Domain。
 2. **解決方案**：
    - 執行 `taskkill /F /IM ngrok.exe` 清理殘留進程。
-   - 重啟 `scripts/serve_line_bot.py`，該指令已內建自動清理 orphan ngrok 進程邏輯。
+   - 從系統匣重啟統一服務管理器；`start_line_bot.bat` 已改為啟動相同管理器，不能再另開獨立隧道。
 
 ### 情況 C：LINE 機器人沒有回覆
-1. **檢查 Webhook 服務與端口 8001**：
+1. **檢查 Webhook 服務與端口 8000**：
    ```powershell
-   Get-NetTCPConnection -LocalPort 8001 -ErrorAction SilentlyContinue
+   Invoke-RestMethod http://127.0.0.1:8000/api/health | Select-Object status, app_build
    ```
-2. **檢查 Cloudflare 通道與日誌**：
-   - 查看 `data/bot_service.log`。
-   - 若遇到 Cloudflare 429 / 1015 速率限制，通常等待 5 分鐘重試即可恢復。
+2. **檢查公網通道與日誌**：
+   - 查看 `data/tray_runtime.log` 和 `data/ngrok.log`。
+   - 若 ngrok 通道失效，先用系統匣重新啟動服務，再確認 runtime 檔有 `app_build`、`tunnel_url` 與目前 PID。
 3. **檢查 LINE Channel 狀態**：
    - 確認 `config/line_notifier.yaml` 的 `channel_access_token` 是否有效。
    - 確認 LINE 官方後台（manager.line.biz）之「回應模式」設為 **Bot**，且「自動回應訊息」為 **停用**。
@@ -291,16 +285,18 @@
 ```powershell
 python -c "
 import urllib.request, json
-# 1. 檢查本機 Streamlit
+# 1. 檢查新版 API 和建置識別
 try:
-    code = urllib.request.urlopen('http://127.0.0.1:8501').getcode()
-    print('✅ Streamlit 本地正常 (HTTP', code, ')')
+    response = urllib.request.urlopen('http://127.0.0.1:8000/api/health')
+    data = json.loads(response.read().decode('utf-8'))
+    print('✅ API:', data.get('app_build'), '(HTTP', response.status, ')')
 except Exception as e:
-    print('❌ Streamlit 本地異常:', e)
+    print('❌ 新版 API 本地異常:', e)
 
 # 2. 檢查本機 LINE Webhook
 try:
-    code = urllib.request.urlopen('http://127.0.0.1:8001/').getcode()
+    req = urllib.request.Request('http://127.0.0.1:8000/callback', data=b'{"events":[]}', headers={'Content-Type':'application/json'}, method='POST')
+    code = urllib.request.urlopen(req).getcode()
     print('✅ LINE Webhook 本地正常 (HTTP', code, ')')
 except Exception as e:
     print('❌ LINE Webhook 本地異常:', e)
@@ -309,7 +305,7 @@ except Exception as e:
 try:
     with open('data/line_bot_runtime.json', 'r', encoding='utf-8') as f:
         data = json.load(f)
-    print('✅ 運行狀態檔已加載，公網網址:', data.get('streamlit_url'))
+    print('✅ 運行狀態檔已加載，公網網址:', data.get('tunnel_url'), 'build:', data.get('app_build'))
 except Exception as e:
     print('❌ 運行狀態檔異常:', e)
 "
