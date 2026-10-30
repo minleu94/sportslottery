@@ -12,6 +12,12 @@ import math
 import re
 import sqlite3
 import uuid
+import hashlib
+import math
+import re
+import secrets
+import sqlite3
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +30,7 @@ DEFAULT_PROFILE_ID = "default"
 DEFAULT_PROFILE_NAME = "主帳號"
 DEFAULT_WEEKLY_CAP = 200.0
 DEFAULT_PIN_CODE = "0000"
+PBKDF2_PREFIX = "pbkdf2:sha256:100000:"
 
 
 def get_now_iso() -> str:
@@ -35,6 +42,37 @@ def validate_pin_code(pin: str) -> str:
     if not re.fullmatch(r"\d{4}", pin_str):
         raise ValueError("PIN 碼必須為 4 位純數字（例如：0000、1234）。")
     return pin_str
+
+
+def hash_pin_code(pin: str) -> str:
+    """Hash a 4-digit PIN code using PBKDF2-HMAC-SHA256 with a cryptographically random 16-byte salt."""
+    valid_pin = validate_pin_code(pin)
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", valid_pin.encode("utf-8"), salt, 100000)
+    return f"{PBKDF2_PREFIX}{salt.hex()}:{dk.hex()}"
+
+
+def verify_pin_code(pin: str, stored_val: str) -> bool:
+    """Verify PIN against stored PBKDF2 salt/hash or legacy plaintext PIN."""
+    pin_str = str(pin).strip()
+    stored_str = str(stored_val or "").strip()
+    if not pin_str or not stored_str:
+        return False
+
+    if stored_str.startswith(PBKDF2_PREFIX):
+        try:
+            parts = stored_str.split(":")
+            # format: pbkdf2 : sha256 : 100000 : <salt_hex> : <dk_hex>
+            iterations = int(parts[2])
+            salt = bytes.fromhex(parts[3])
+            expected_dk = bytes.fromhex(parts[4])
+            actual_dk = hashlib.pbkdf2_hmac("sha256", pin_str.encode("utf-8"), salt, iterations)
+            return secrets.compare_digest(actual_dk, expected_dk)
+        except Exception:
+            return False
+
+    # Legacy plaintext 4-digit PIN comparison (constant-time)
+    return secrets.compare_digest(stored_str, pin_str)
 
 
 class ProfileManager:
@@ -104,8 +142,18 @@ class ProfileManager:
                 conn.execute(
                     """INSERT INTO profiles (id, name, weekly_play_cap, pin_code, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?)""",
-                    (DEFAULT_PROFILE_ID, DEFAULT_PROFILE_NAME, DEFAULT_WEEKLY_CAP, DEFAULT_PIN_CODE, now, now),
+                    (DEFAULT_PROFILE_ID, DEFAULT_PROFILE_NAME, DEFAULT_WEEKLY_CAP, hash_pin_code(DEFAULT_PIN_CODE), now, now),
                 )
+
+            # Migration: Auto-migrate any legacy plaintext PINs to salted PBKDF2 hashes
+            rows = conn.execute("SELECT id, pin_code FROM profiles").fetchall()
+            for r in rows:
+                raw_pin = str(r["pin_code"] or "").strip()
+                if raw_pin and not raw_pin.startswith(PBKDF2_PREFIX):
+                    try:
+                        conn.execute("UPDATE profiles SET pin_code = ? WHERE id = ?", (hash_pin_code(raw_pin), r["id"]))
+                    except Exception:
+                        pass
 
     def list_profiles(self) -> List[Dict[str, Any]]:
         with self._transaction() as conn:
@@ -170,9 +218,15 @@ class ProfileManager:
         profile = self.get_profile(ident) or self.get_profile_by_name(ident)
         if not profile:
             return False, None, f"找不到玩家「{ident}」。"
-        valid_pin = str(profile.get("pin_code", DEFAULT_PIN_CODE)).strip()
-        if str(pin_code).strip() != valid_pin:
+        stored_pin = str(profile.get("pin_code", DEFAULT_PIN_CODE)).strip()
+        if not verify_pin_code(pin_code, stored_pin):
             return False, None, "PIN 碼不正確，請重新輸入（預設為 0000）。"
+        if not stored_pin.startswith(PBKDF2_PREFIX):
+            try:
+                with self._transaction() as conn:
+                    conn.execute("UPDATE profiles SET pin_code = ? WHERE id = ?", (hash_pin_code(pin_code), profile["id"]))
+            except Exception:
+                pass
         return True, profile, "驗證成功。"
 
     def get_or_default(self, profile_id: Optional[str] = None) -> Dict[str, Any]:
@@ -187,7 +241,7 @@ class ProfileManager:
             "id": DEFAULT_PROFILE_ID,
             "name": DEFAULT_PROFILE_NAME,
             "weekly_play_cap": DEFAULT_WEEKLY_CAP,
-            "pin_code": DEFAULT_PIN_CODE,
+            "pin_code": hash_pin_code(DEFAULT_PIN_CODE),
             "created_at": get_now_iso(),
             "updated_at": get_now_iso(),
         }
@@ -196,7 +250,15 @@ class ProfileManager:
         profile = self.get_profile(profile_id)
         if not profile:
             return False
-        return str(profile.get("pin_code", "")).strip() == str(pin_code).strip()
+        stored_pin = str(profile.get("pin_code", "")).strip()
+        is_valid = verify_pin_code(pin_code, stored_pin)
+        if is_valid and not stored_pin.startswith(PBKDF2_PREFIX):
+            try:
+                with self._transaction() as conn:
+                    conn.execute("UPDATE profiles SET pin_code = ? WHERE id = ?", (hash_pin_code(pin_code), profile_id))
+            except Exception:
+                pass
+        return is_valid
 
     def create_profile(
         self,
@@ -215,6 +277,7 @@ class ProfileManager:
             raise ValueError("每週預算必須為大於 0 的正數。")
         cap = round(cap, 2)
         valid_pin = validate_pin_code(pin_code)
+        hashed_pin = hash_pin_code(valid_pin)
 
         profile_id = f"p_{uuid.uuid4().hex[:8]}"
         now = get_now_iso()
@@ -228,14 +291,14 @@ class ProfileManager:
             conn.execute(
                 """INSERT INTO profiles (id, name, weekly_play_cap, pin_code, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)""",
-                (profile_id, name_str, cap, valid_pin, now, now),
+                (profile_id, name_str, cap, hashed_pin, now, now),
             )
 
         return {
             "id": profile_id,
             "name": name_str,
             "weekly_play_cap": cap,
-            "pin_code": valid_pin,
+            "pin_code": hashed_pin,
             "created_at": now,
             "updated_at": now,
         }
@@ -275,7 +338,7 @@ class ProfileManager:
 
         target_pin = profile["pin_code"]
         if new_pin_code is not None:
-            target_pin = validate_pin_code(new_pin_code)
+            target_pin = hash_pin_code(new_pin_code)
 
         now = get_now_iso()
         with self._transaction() as conn:

@@ -96,6 +96,7 @@ class TicketRecorder:
     @staticmethod
     def _ticket_dict(row: sqlite3.Row) -> Dict[str, Any]:
         ticket = dict(row)
+        ticket["ticket_id"] = ticket.get("id", "")
         try:
             ticket["legs"] = json.loads(ticket.get("legs_json", "[]"))
         except (TypeError, json.JSONDecodeError):
@@ -133,8 +134,8 @@ class TicketRecorder:
             raise ValueError("總賠率必須是大於 1.0 的有限數值。")
         if not legs:
             raise ValueError("注單必須包含至少 1 個賽事關卡。")
-        if entry_mode not in ("manual", "recommendation"):
-            raise ValueError("entry_mode 僅支援 manual 或 recommendation。")
+        if entry_mode not in ("manual", "recommendation", "frontend_api", "api"):
+            raise ValueError("entry_mode 僅支援 manual, recommendation 或 frontend_api。")
         if idempotency_key is not None:
             idempotency_key = str(idempotency_key).strip()
             if not idempotency_key:

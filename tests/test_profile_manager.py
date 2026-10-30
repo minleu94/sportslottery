@@ -4,7 +4,7 @@
 import pytest
 import sqlite3
 
-from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
+from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID, PBKDF2_PREFIX, verify_pin_code
 from core.wallet import WeeklyWalletManager
 from core.ticket_recorder import TicketRecorder
 
@@ -17,7 +17,8 @@ def test_default_profile_initialization(tmp_path):
     assert profiles[0]["id"] == DEFAULT_PROFILE_ID
     assert profiles[0]["name"] == "主帳號"
     assert profiles[0]["weekly_play_cap"] == 200.0
-    assert profiles[0]["pin_code"] == "0000"
+    assert pm.verify_pin(DEFAULT_PROFILE_ID, "0000") is True
+    assert profiles[0]["pin_code"].startswith(PBKDF2_PREFIX)
 
 
 def test_create_new_profile_and_pin_validation(tmp_path):
@@ -36,7 +37,8 @@ def test_create_new_profile_and_pin_validation(tmp_path):
     p2 = pm.create_profile(name="小明", weekly_play_cap=500.0, pin_code="8888")
     assert p2["name"] == "小明"
     assert p2["weekly_play_cap"] == 500.0
-    assert p2["pin_code"] == "8888"
+    assert pm.verify_pin(p2["id"], "8888") is True
+    assert p2["pin_code"].startswith(PBKDF2_PREFIX)
 
     # Duplicate name rejection
     with pytest.raises(ValueError, match="已存在名為「小明」的玩家 Profile"):
@@ -60,7 +62,8 @@ def test_update_profile_pin_protection(tmp_path):
     updated = pm.update_profile(pid, current_pin="1234", new_name="倫哥", new_weekly_play_cap=600.0, new_pin_code="5678")
     assert updated["name"] == "倫哥"
     assert updated["weekly_play_cap"] == 600.0
-    assert updated["pin_code"] == "5678"
+    assert pm.verify_pin(pid, "5678") is True
+    assert updated["pin_code"].startswith(PBKDF2_PREFIX)
 
     # Old PIN cannot be used anymore
     assert pm.verify_pin(pid, "1234") is False
@@ -159,8 +162,8 @@ def test_line_user_binding_and_change_pin(tmp_path):
 
     # Change PIN
     updated = pm.change_pin(p["id"], current_pin="8888", new_pin="9999")
-    assert updated["pin_code"] == "9999"
     assert pm.verify_pin(p["id"], "9999") is True
+    assert updated["pin_code"].startswith(PBKDF2_PREFIX)
 
     # Unbind
     pm.unbind_line_user(p["id"], current_pin="9999")

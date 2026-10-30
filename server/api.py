@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Body, Request, BackgroundTasks, Header, Response
+from fastapi import FastAPI, HTTPException, Query, Body, Request, BackgroundTasks, Header, Response, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -50,6 +50,12 @@ from core.ticket_recorder import TicketRecorder
 from core.wallet import WeeklyWalletManager
 from integrations.common.models import TaiwanLeg
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
+from server.auth import (
+    session_manager,
+    require_authenticated_session,
+    verify_profile_ownership,
+    get_current_session_optional,
+)
 
 app = FastAPI(
     title="Taiwan Sports Lottery API",
@@ -353,14 +359,22 @@ def search_parlays(req: ParlaySearchRequest):
 
 
 @app.get("/api/wallet/status")
-def get_wallet_status(profile_id: str = Query(DEFAULT_PROFILE_ID)):
+def get_wallet_status(
+    profile_id: str = Query(DEFAULT_PROFILE_ID),
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(profile_id, session)
     wallet = get_wallet(profile_id=profile_id)
     status = wallet.get_status()
     return status
 
 
 @app.post("/api/wallet/deposit")
-def wallet_deposit(req: DepositRequest):
+def wallet_deposit(
+    req: DepositRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(req.profile_id, session)
     wallet = get_wallet(profile_id=req.profile_id)
     try:
         res = wallet.deposit_external(amount=req.amount, notes=req.notes)
@@ -370,7 +384,11 @@ def wallet_deposit(req: DepositRequest):
 
 
 @app.post("/api/wallet/withdraw")
-def wallet_withdraw(req: WithdrawRequest):
+def wallet_withdraw(
+    req: WithdrawRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(req.profile_id, session)
     wallet = get_wallet(profile_id=req.profile_id)
     try:
         res = wallet.withdraw_from_prize_pool(amount=req.amount)
@@ -380,7 +398,12 @@ def wallet_withdraw(req: WithdrawRequest):
 
 
 @app.get("/api/wallet/ledger")
-def get_wallet_ledger(profile_id: str = Query(DEFAULT_PROFILE_ID), limit: int = 50):
+def get_wallet_ledger(
+    profile_id: str = Query(DEFAULT_PROFILE_ID),
+    limit: int = 50,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(profile_id, session)
     wallet = get_wallet(profile_id=profile_id)
     history = wallet.get_ledger_history(limit=limit)
     return {"ledger": history}
@@ -391,14 +414,20 @@ def list_tickets(
     profile_id: str = Query(DEFAULT_PROFILE_ID),
     status: Optional[str] = Query(None, description="PENDING, WON, LOST, VOID"),
     limit: int = Query(50, ge=1, le=200),
+    session: Dict[str, Any] = Depends(require_authenticated_session),
 ):
+    verify_profile_ownership(profile_id, session)
     recorder = get_recorder(profile_id=profile_id)
     tickets = recorder.list_tickets(status_filter=status, limit=limit, profile_id=profile_id)
     return {"tickets": tickets}
 
 
 @app.post("/api/tickets/place")
-def place_ticket(req: PlaceTicketRequest):
+def place_ticket(
+    req: PlaceTicketRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(req.profile_id, session)
     recorder = get_recorder(profile_id=req.profile_id)
     _, _, _, _, _, snapshot_logger, _, _ = get_services()
     
@@ -443,13 +472,22 @@ def place_ticket(req: PlaceTicketRequest):
 
 
 @app.post("/api/tickets/settle")
-def settle_ticket(req: SettleTicketRequest):
+def settle_ticket(
+    req: SettleTicketRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
     _, _, _, _, _, _, _, _ = get_services()
-    # Find ticket to get profile_id
+    # Look up ticket's actual owner from tickets table
     ticket_recorder = TicketRecorder()
-    tickets = ticket_recorder.list_tickets(limit=100)
-    target = next((t for t in tickets if t["ticket_id"] == req.ticket_id), None)
-    profile_id = target.get("profile_id", DEFAULT_PROFILE_ID) if target else DEFAULT_PROFILE_ID
+    conn = ticket_recorder._get_connection()
+    try:
+        row = conn.execute("SELECT profile_id FROM tickets WHERE id = ?", (req.ticket_id,)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"找不到注單 ID: {req.ticket_id}")
+    profile_id = str(row["profile_id"] or DEFAULT_PROFILE_ID).strip()
+    verify_profile_ownership(profile_id, session)
     
     recorder = get_recorder(profile_id=profile_id)
     is_won = (req.result.upper() == "WON")
@@ -492,9 +530,27 @@ def profile_login(req: ProfileLoginByNameRequest):
     success, profile, msg = profile_mgr.verify_login(req.identifier, req.pin_code)
     if not success or not profile:
         raise HTTPException(status_code=401, detail=msg or "登入失敗，PIN 碼或帳號錯誤。")
+    token = session_manager.create_session(profile)
     p_dict = dict(profile)
     p_dict.pop("pin_code", None)
-    return {"success": True, "profile": p_dict, "message": msg}
+    return {"success": True, "token": token, "profile": p_dict, "message": msg}
+
+
+@app.post("/api/profiles/logout")
+def profile_logout(session: Dict[str, Any] = Depends(require_authenticated_session)):
+    session_manager.revoke_session(session.get("token"))
+    return {"success": True, "message": "已成功登出。"}
+
+
+@app.get("/api/auth/me")
+def get_auth_me(session: Dict[str, Any] = Depends(require_authenticated_session)):
+    _, _, _, _, profile_mgr, _, _, _ = get_services()
+    profile = profile_mgr.get_profile(session.get("profile_id"))
+    if not profile:
+        raise HTTPException(status_code=404, detail="找不到目前登入者的 Profile。")
+    p_dict = dict(profile)
+    p_dict.pop("pin_code", None)
+    return {"success": True, "profile": p_dict, "session": session}
 
 
 @app.post("/api/profiles/register")
@@ -506,9 +562,10 @@ def profile_register(req: ProfileRegisterRequest):
             weekly_play_cap=req.weekly_play_cap,
             pin_code=req.pin_code,
         )
+        token = session_manager.create_session(new_prof)
         p_dict = dict(new_prof)
         p_dict.pop("pin_code", None)
-        return {"success": True, "profile": p_dict}
+        return {"success": True, "token": token, "profile": p_dict}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -520,35 +577,45 @@ def verify_profile_pin(req: ProfileLoginRequest):
     if not is_valid:
         raise HTTPException(status_code=401, detail="PIN 碼錯誤。")
     profile = profile_mgr.get_profile(req.profile_id)
+    token = session_manager.create_session(profile)
     p_dict = dict(profile)
     p_dict.pop("pin_code", None)
-    return {"success": True, "profile": p_dict}
+    return {"success": True, "token": token, "profile": p_dict}
 
 
 @app.post("/api/profiles/update")
-def update_profile(req: ProfileUpdateRequest):
+def update_profile(
+    req: ProfileUpdateRequest,
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    verify_profile_ownership(req.profile_id, session)
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     is_valid = profile_mgr.verify_pin(profile_id=req.profile_id, pin_code=req.current_pin)
     if not is_valid:
         raise HTTPException(status_code=401, detail="目前 PIN 碼驗證失敗。")
     
-    kwargs: Dict[str, Any] = {}
-    if req.name is not None:
-        kwargs["name"] = req.name
-    if req.weekly_play_cap is not None:
-        kwargs["weekly_play_cap"] = req.weekly_play_cap
-    if req.new_pin is not None:
-        kwargs["pin_code"] = req.new_pin
-        
-    profile_mgr.update_profile(profile_id=req.profile_id, **kwargs)
-    updated = profile_mgr.get_profile(req.profile_id)
-    p_dict = dict(updated)
-    p_dict.pop("pin_code", None)
-    return {"success": True, "profile": p_dict}
+    try:
+        updated = profile_mgr.update_profile(
+            profile_id=req.profile_id,
+            current_pin=req.current_pin,
+            new_name=req.name,
+            new_weekly_play_cap=req.weekly_play_cap,
+            new_pin_code=req.new_pin,
+        )
+        p_dict = dict(updated)
+        p_dict.pop("pin_code", None)
+        return {"success": True, "profile": p_dict}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/admin/players_overview")
-def get_admin_players_overview(admin_profile_id: str = Query("default")):
+def get_admin_players_overview(
+    admin_profile_id: str = Query("default"),
+    session: Dict[str, Any] = Depends(require_authenticated_session),
+):
+    if not session.get("is_admin") and session.get("profile_id") != "default":
+        raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可檢視全體玩家風控總覽。")
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     all_profs = profile_mgr.list_profiles()
     overview = []
@@ -712,14 +779,22 @@ def process_line_events(events: list[Dict[str, Any]]) -> None:
 async def line_webhook_callback(
     request: Request,
     background_tasks: BackgroundTasks,
-    x_line_signature: Optional[str] = Header(None),
+    x_line_signature: Optional[str] = Header(None, alias="X-Line-Signature"),
 ):
     """Webhook callback endpoint for LINE Messaging API."""
     body_bytes = await request.body()
-    secret = _line_notifier.config.get("channel_secret")
+    secret = str(_line_notifier.config.get("channel_secret") or "").strip()
     if secret:
         if not x_line_signature or not verify_line_signature(body_bytes, x_line_signature, secret):
             raise HTTPException(status_code=400, detail="Invalid signature")
+    else:
+        # Strict security: if channel_secret is not configured, reject external public requests
+        client_host = request.client.host if request.client else ""
+        if client_host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="LINE Channel Secret 尚未於 config/line_notifier.yaml 設定，為防止未授權請求偽造，拒絕公網存取。",
+            )
 
     try:
         data = await request.json()

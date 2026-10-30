@@ -36,18 +36,22 @@ function MainLayout() {
   async function initApp() {
     setLoading(true)
     try {
-      const savedAuthId = localStorage.getItem("auth_profile_id")
-      const pRes = await api.getProfiles()
-      const profiles = pRes.profiles || []
-
-      if (savedAuthId) {
-        const found = profiles.find((p) => p.id === savedAuthId)
-        if (found) {
-          setCurrentProfile(found)
-          const wRes = await api.getWalletStatus(found.id)
-          setWalletStatus(wRes)
-          setLoading(false)
-          return
+      const savedToken = api.getAuthToken()
+      if (savedToken) {
+        try {
+          const meRes = await api.getAuthMe()
+          if (meRes.success && meRes.profile) {
+            setCurrentProfile(meRes.profile)
+            localStorage.setItem("auth_profile_id", meRes.profile.id)
+            const wRes = await api.getWalletStatus(meRes.profile.id)
+            setWalletStatus(wRes)
+            setLoading(false)
+            return
+          }
+        } catch (authErr) {
+          console.warn("Session token expired or invalid:", authErr)
+          api.setAuthToken(null)
+          localStorage.removeItem("auth_profile_id")
         }
       }
 
@@ -99,8 +103,8 @@ function MainLayout() {
     refreshWallet(profile.id)
   }
 
-  function handleLogout() {
-    localStorage.removeItem("auth_profile_id")
+  async function handleLogout() {
+    await api.logout()
     setCurrentProfile(null)
     setWalletStatus(null)
   }

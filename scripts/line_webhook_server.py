@@ -46,8 +46,8 @@ app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="stat
 
 def verify_signature(body_bytes: bytes, signature: str, secret: str) -> bool:
     """Validate X-Line-Signature against channel secret."""
-    if not secret:
-        return True
+    if not secret or not signature:
+        return False
     expected = hmac.new(secret.encode("utf-8"), body_bytes, hashlib.sha256).digest()
     import base64
     expected_b64 = base64.b64encode(expected).decode("utf-8")
