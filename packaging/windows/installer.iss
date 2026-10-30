@@ -2,7 +2,9 @@
 ; Requires Inno Setup 6.x (freely available at https://jrsoftware.org/isdl.php)
 
 #define MyAppName "台灣運彩瘋狗流決策系統"
-#define MyAppVersion "2.1.0"
+#ifndef MyAppVersion
+#define MyAppVersion "2.2.0"
+#endif
 #define MyAppPublisher "SportsLottery Research Team"
 #define MyAppExeName "Sportslottery.exe"
 #define MyAppIcon "..\..\app_icon.ico"
@@ -26,7 +28,7 @@ PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
 
 [Languages]
-Name: "chinesetraditional"; MessagesFile: "compiler:Languages\ChineseTraditional.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"

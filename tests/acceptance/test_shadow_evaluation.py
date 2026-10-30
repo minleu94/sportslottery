@@ -27,6 +27,7 @@ from core.settlement_engine import SettlementEngine
 from core.shadow_parlay_logger import MULTIPLIER_TIERS, ShadowParlayLogger
 from core.shadow_portfolio import ShadowPortfolioManager
 from core.snapshot_logger import PredictionSnapshotLogger, compute_prediction_payload_hash
+from core.odds_watcher import OddsWatcher
 from core.strategy_version import GOVERNANCE_RULES, STRATEGY_VERSION, get_strategy_metadata
 from core.wallet import WeeklyWalletManager
 from integrations.common.models import PredictionSignal, TaiwanLeg
@@ -202,6 +203,7 @@ def test_settlement_engine_immutable_settlement():
 
 def _test_settlement_engine_immutable_settlement(snap_file):
     snap_logger = PredictionSnapshotLogger(log_path=snap_file)
+    isolated_data_dir = Path(snap_file).parent
 
     leg = TaiwanLeg(
         event_id="202",
@@ -229,7 +231,15 @@ def _test_settlement_engine_immutable_settlement(snap_file):
     snap = snap_logger.log_snapshot(leg)
     sid = snap["snapshot_id"]
 
-    settler = SettlementEngine(snapshot_logger=snap_logger)
+    settler = SettlementEngine(
+        snapshot_logger=snap_logger,
+        parlay_logger=ShadowParlayLogger(log_path=isolated_data_dir / "parlays.jsonl"),
+        shadow_portfolio=ShadowPortfolioManager(
+            db_path=isolated_data_dir / "shadow_portfolio.sqlite",
+            snapshot_path=isolated_data_dir / "shadow_snapshots.jsonl",
+        ),
+        odds_watcher=OddsWatcher(history_path=isolated_data_dir / "odds_history.jsonl"),
+    )
 
     # Outcome evaluation: Away 5, Home 3 -> Away wins
     eval_win = settler.evaluate_leg_outcome(

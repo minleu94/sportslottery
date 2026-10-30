@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """LINE Bot All-in-One Runner: FastAPI Webhook Server + Cloudflare Tunnel.
 
-Starts the local webhook server on port 8000, establishes a secure public
+Starts the local webhook server on port 8001, establishes a secure public
 HTTPS tunnel using Cloudflare Tunnel (`cloudflared`), and displays the exact
 Webhook URL to configure in the LINE Developers Console.
 """
@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import threading
@@ -31,7 +32,64 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 CONFIG_FILE = ROOT_DIR / "config" / "line_notifier.yaml"
+NGROK_CONFIG_FILE = ROOT_DIR / "config" / "ngrok_config.yaml"
 STATUS_FILE = ROOT_DIR / "data" / "line_bot_runtime.json"
+
+
+def wait_for_local_port(port: int, timeout: float = 10.0) -> bool:
+    """Return once a local service accepts TCP connections on the requested port."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.4):
+                return True
+        except OSError:
+            time.sleep(0.2)
+    return False
+
+
+def load_ngrok_config() -> Dict[str, str]:
+    """Read domain and authtoken from config/ngrok_config.yaml if present."""
+    if NGROK_CONFIG_FILE.exists():
+        try:
+            with open(NGROK_CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+                return {k: str(v).strip() for k, v in data.items() if v is not None}
+        except Exception:
+            pass
+    return {}
+
+
+def launch_ngrok_tunnel(domain: str, authtoken: str = "", port: int = 8501) -> tuple[Optional[subprocess.Popen], Optional[str]]:
+    """Launch official ngrok tunnel with user's permanent static dev domain."""
+    clean_domain = domain.replace("https://", "").replace("http://", "").rstrip("/")
+    if authtoken and not authtoken.startswith("填寫"):
+        try:
+            subprocess.run(["ngrok", "config", "add-authtoken", authtoken], capture_output=True, check=True)
+        except Exception as exc:
+            print(f"  ⚠️ 設定 ngrok authtoken 提示: {exc}")
+
+    ngrok_cmd = ["ngrok", "http", f"http://127.0.0.1:{port}", f"--url=https://{clean_domain}"]
+    create_flag = 0x08000000 if sys.platform == "win32" else 0
+    ngrok_log = open(ROOT_DIR / "data" / "ngrok.log", "a", encoding="utf-8")
+    try:
+        proc = subprocess.Popen(
+            ngrok_cmd,
+            stdout=ngrok_log,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            creationflags=create_flag,
+        )
+        time.sleep(1.5)
+        if proc.poll() is not None:
+            print("  ⚠️ ngrok 啟動後退出，請檢查 data/ngrok.log")
+            return None, None
+
+        url = f"https://{clean_domain}"
+        return proc, url
+    except Exception as exc:
+        print(f"  ⚠️ 啟動 ngrok 通道失敗: {exc}")
+        return None, None
 
 CLOUDFLARED_PATHS = [
     r"C:\Program Files (x86)\cloudflared\cloudflared.exe",
@@ -94,7 +152,7 @@ def find_cloudflared() -> str:
     return ""
 
 
-def run_fastapi_server(port: int = 8000):
+def run_fastapi_server(port: int = 8001):
     """Run uvicorn server in a separate thread."""
     import uvicorn
     from scripts.line_webhook_server import app
@@ -104,10 +162,11 @@ def run_fastapi_server(port: int = 8000):
 def launch_cloudflared_tunnel(
     cloudflared_exe: str,
     port: int,
-    timeout: float = 15.0,
+    timeout: float = 30.0,
 ) -> tuple[Optional[subprocess.Popen], Optional[str]]:
     """Start cloudflared tunnel for the specified local port and return (process, public_https_url)."""
     cmd = [cloudflared_exe, "tunnel", "--url", f"http://127.0.0.1:{port}"]
+    create_flag = 0x08000000 if sys.platform == "win32" else 0
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -116,6 +175,7 @@ def launch_cloudflared_tunnel(
         bufsize=1,
         encoding="utf-8",
         errors="replace",
+        creationflags=create_flag,
     )
     pattern = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
     tunnel_url = None
@@ -140,8 +200,9 @@ def launch_cloudflared_tunnel(
 
 
 def main():
-    port = 8000
+    port = 8001
     st_port = 8501
+    router_port = 8502
     cloudflared_exe = find_cloudflared()
     token = load_token()
 
@@ -152,44 +213,63 @@ def main():
     # 1. Start FastAPI server in background thread
     server_thread = threading.Thread(target=run_fastapi_server, args=(port,), daemon=True)
     server_thread.start()
-    time.sleep(1.0)
+    if not wait_for_local_port(port):
+        raise RuntimeError(f"LINE webhook did not start listening on 127.0.0.1:{port}")
     print(f"  ✅ Webhook 本地服務已啟動: http://127.0.0.1:{port}")
 
-    if not cloudflared_exe:
-        print("  ⚠️ 未找到 cloudflared.exe，請手動使用 ngrok 或其他工具轉發 http://127.0.0.1:8000")
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print("\n  🛑 LINE Bot 服務已停止。")
-        return
+    from scripts.public_router import run_public_router
+    router_thread = threading.Thread(target=run_public_router, args=(router_port,), daemon=True)
+    router_thread.start()
+    if not wait_for_local_port(router_port):
+        raise RuntimeError(f"Shared URL router did not start listening on 127.0.0.1:{router_port}")
+    print(f"  ✅ 共用網址路由器已啟動: http://127.0.0.1:{router_port}")
 
-    # 2. Launch cloudflared tunnels for webhook (8000) and Streamlit (8501)
-    print("  ⏳ 正在建立 Cloudflare 臨時公開安全通道 (免費免登入)...")
-    webhook_proc, tunnel_url = launch_cloudflared_tunnel(cloudflared_exe, port=port)
-    st_proc, streamlit_url = launch_cloudflared_tunnel(cloudflared_exe, port=st_port)
+    # 2. Expose one local router. It sends /callback to FastAPI and all other
+    # paths, including Streamlit's websocket, to Streamlit.
+    ngrok_cfg = load_ngrok_config()
+    ngrok_domain = ngrok_cfg.get("domain", "")
+    ngrok_token = ngrok_cfg.get("authtoken", "")
+    ngrok_enabled = ngrok_cfg.get("enabled", "true").lower() not in {"false", "0", "no", "off"}
 
-    if tunnel_url:
-        webhook_url = f"{tunnel_url}/callback"
+    st_proc = None
+    streamlit_url = None
 
-        # Record runtime status to disk
-        STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(STATUS_FILE, "w", encoding="utf-8") as f:
-            json.dump({
-                "pid": os.getpid(),
-                "started_at": time.time(),
-                "tunnel_url": tunnel_url,
-                "webhook_url": webhook_url,
-                "streamlit_url": streamlit_url,
-                "port": port,
-                "streamlit_port": st_port,
-            }, f, indent=2)
+    if ngrok_enabled and ngrok_domain and not ngrok_domain.startswith("填寫"):
+        print(f"  🚀 正在連線 ngrok 永久固定專屬網址: {ngrok_domain}...")
+        st_proc, streamlit_url = launch_ngrok_tunnel(ngrok_domain, authtoken=ngrok_token, port=router_port)
+        if streamlit_url:
+            print(f"  ✅ ngrok 永久固定網址已就緒: {streamlit_url}")
 
+    if not streamlit_url:
+        if cloudflared_exe:
+            print("  ⏳ 正在建立 Cloudflare 臨時共用通道 (手機網頁與 LINE Bot)...")
+            st_proc, streamlit_url = launch_cloudflared_tunnel(cloudflared_exe, port=router_port)
+        else:
+            print("  ⚠️ 找不到可用的公開通道：請設定 ngrok 固定網址或安裝 cloudflared")
+
+    tunnel_url = streamlit_url
+    webhook_url = f"{streamlit_url.rstrip('/')}/callback" if streamlit_url else None
+
+    # Record runtime status to disk
+    STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(STATUS_FILE, "w", encoding="utf-8") as f:
+        json.dump({
+            "pid": os.getpid(),
+            "started_at": time.time(),
+            "tunnel_url": tunnel_url,
+            "webhook_url": webhook_url,
+            "streamlit_url": streamlit_url,
+            "port": port,
+            "streamlit_port": st_port,
+            "router_port": router_port,
+        }, f, indent=2)
+
+    if webhook_url:
         # 3. Automatically update LINE webhook endpoint via API!
         reg_res = register_line_webhook(webhook_url, token)
 
         print("======================================================================")
-        print("  🎉 LINE Bot 對外通道已成功連線！")
+        print("  🎉 共用公網通道已啟動。")
         print("======================================================================")
         print(f"  🌐 LINE Webhook 公開網址：{webhook_url}")
         if streamlit_url:
@@ -201,7 +281,9 @@ def main():
             test_info = reg_res.get("test_payload") or {}
             print(f"  🔍 連通性驗證結果：{test_info.get('reason', 'OK')} (HTTP {test_info.get('statusCode', 200)})")
         else:
-            print(f"  ⚠️ 自動註冊 Webhook 略過或失敗：{reg_res.get('error', reg_res.get('reason'))}")
+            status = reg_res.get("status_code")
+            status_text = f"HTTP {status}: " if status else ""
+            print(f"  ⚠️ 自動註冊 Webhook 略過或失敗：{status_text}{reg_res.get('error', reg_res.get('reason'))}")
 
         print("----------------------------------------------------------------------")
         print("  📌 最後一步：請至 [LINE 官方帳號管理後台] 關閉罐頭訊息（僅需確認一次）：")
@@ -220,15 +302,13 @@ def main():
         print("======================================================================")
         print("  (背景服務正常運行中，按 Ctrl+C 可結束)")
     else:
-        print("  ❌ 未能自動取得 Cloudflare Tunnel 網址，請檢查網路連線。")
+        print("  ❌ 沒有取得可用的公網網址；LINE webhook 與手機公網頁面都無法連線。")
 
     try:
-        if webhook_proc:
-            webhook_proc.wait()
+        while True:
+            time.sleep(2.0)
     except KeyboardInterrupt:
         print("\n  🛑 正在關閉 LINE Bot 服務...")
-        if webhook_proc:
-            webhook_proc.terminate()
         if st_proc:
             st_proc.terminate()
         if STATUS_FILE.exists():

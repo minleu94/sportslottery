@@ -1,0 +1,6 @@
+# ngrok 永久固定網址設定檔
+# 請不要將此檔案上傳至任何公開地方
+# 填寫完成後將此檔案另存為 config/ngrok_config.yaml
+
+authtoken: "填寫您的 ngrok Authtoken"
+domain: "填寫您的 dev domain，例如 xxxx-xxxx.ngrok-free.app"

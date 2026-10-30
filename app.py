@@ -247,7 +247,6 @@ if "main_segmented_nav" not in st.session_state or st.session_state["main_segmen
 active_tab = st.segmented_control(
     "主導航選單",
     options=NAV_OPTIONS,
-    default=st.session_state["main_segmented_nav"],
     selection_mode="single",
     required=True,
     label_visibility="collapsed",

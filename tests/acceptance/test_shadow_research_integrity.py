@@ -286,9 +286,8 @@ def test_unknown_expert_timestamp_excluded_from_strict_forward_metrics(tmp_path)
 
 def test_settlement_conflict_is_unresolved():
     """Verify that conflicting provider scores trigger conflict status."""
-    settler = SettlementEngine()
     # Provider A (MLB API): 5:3; Provider B (ESPN): 5:4 -> CONFLICT!
-    is_conflict = settler.check_provider_conflict(
+    is_conflict = SettlementEngine.check_provider_conflict(
         provider_a_result=(5, 3),
         provider_b_result=(5, 4),
     )

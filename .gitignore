@@ -46,3 +46,20 @@ $RECYCLE.BIN/
 graphify-out/cache/
 static/qr/
 
+
+*.exe
+config/ngrok_config.yaml
+
+config/line_notifier.yaml
+
+
+# Frontend dependencies & cache
+frontend/node_modules/
+frontend/dist/
+frontend/.tmp/
+
+*.bak
+*.exe.bak
+graphify-out/memory/
+graphify-out/reflections/
+graphify-out/.graphify_learning.json

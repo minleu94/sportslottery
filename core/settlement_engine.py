@@ -432,8 +432,8 @@ class SettlementEngine:
             closing_odds_source=closing_odds_source,
         )
 
+    @staticmethod
     def check_provider_conflict(
-        self,
         provider_a_result: Tuple[int, int],
         provider_b_result: Optional[Tuple[int, int]],
     ) -> bool:

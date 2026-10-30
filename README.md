@@ -24,8 +24,21 @@ python -m pip install -r requirements-lock.txt
 
 主頁「記錄已購買注單」只更新本機帳本。搜尋、畫面與記錄都使用同一資料核對：盤口須在 15 分鐘內、尚未開賽、時間含時區、玩法與盤線完整。同一提交重試只扣一次；人工歷史補記另行標示。
 
-### 方式一：Windows 雙擊 `sportslottery.exe`（推薦，免開 PowerShell）
-直接雙擊專案目錄下的 **`sportslottery.exe`**（或桌面上的 **`sportslottery`** 捷徑），系統將自動啟動並在瀏覽器開啟決策台 (`http://localhost:8501`)。
+### 📘 完整功能手冊與 Agent 移交指南 (必讀)
+> 🚨 **給接手 Agent 與開發者**：本專案已建立最詳盡的架構、LINE Bot 全功能對照表、網絡拓撲與故障排查指南，請直接參閱：  
+> 👉 **[docs/AGENT_HANDOFF_AND_LINE_BOT_MANUAL.md](docs/AGENT_HANDOFF_AND_LINE_BOT_MANUAL.md)**
+
+---
+
+### 方式一：Windows 桌面／常駐系統匣啟動（最推薦，免黑視窗、附 LINE Bot 與公網）
+- 直接雙擊桌面或開始功能表中的 **「台灣運彩瘋狗流」** 捷徑（或專案目錄下的 `start_tray.vbs`）。
+- 系統將在背景同時啟動：
+  1. **Streamlit 決策台**（本地 `http://localhost:8501` + ngrok 永久公網 `https://fifty-saddlebag-immortal.ngrok-free.dev`）
+  2. **LINE Bot 互動 Webhook**（Port 8001，自動向 LINE API 註冊更新 Webhook）
+- 螢幕右下角系統匣將常駐綠色小狗圖示，右鍵即可快速開啟網頁、複製公網網址或重啟服務。
+
+### 方式二：Windows 雙擊 `sportslottery.exe` (獨立單機模式)
+直接雙擊專案目錄下的 **`sportslottery.exe`**，系統將自動啟動並在瀏覽器開啟決策台 (`http://localhost:8501`)。
 
 ### 方式二：雙擊批次檔
 雙擊專案目錄下的 **`run_app.bat`**。

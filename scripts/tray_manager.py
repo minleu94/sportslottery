@@ -10,6 +10,7 @@ copying public HTTPS URLs to clipboard, service restart, and clean exit.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import socket
@@ -17,9 +18,23 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
+import urllib.error
+import urllib.request
 import webbrowser
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+# Setup file logger
+LOG_DIR = Path(__file__).resolve().parent.parent / "data"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    filename=str(LOG_DIR / "tray_manager.log"),
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    encoding="utf-8",
+)
+logger = logging.getLogger("tray_manager")
 
 from PIL import Image
 import pystray
@@ -37,6 +52,16 @@ STATUS_FILE = ROOT_DIR / "data" / "line_bot_runtime.json"
 ICON_PATH = ROOT_DIR / "app_icon.ico"
 LOCK_PORT = 28501  # Socket port used to ensure single instance
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+
+
+def show_native_popup(msg: str, title: str = "台灣運彩 瘋狗流", is_error: bool = False):
+    """Display native Windows message box popup."""
+    try:
+        import ctypes
+        icon_flag = 0x10 if is_error else 0x40  # MB_ICONERROR or MB_ICONINFORMATION
+        ctypes.windll.user32.MessageBoxW(0, msg, title, icon_flag)
+    except Exception:
+        pass
 
 
 def copy_to_clipboard(text: str) -> bool:
@@ -85,7 +110,41 @@ class AppTrayManager:
         self.icon: Optional[Icon] = None
         self._lock_sock: Optional[socket.socket] = None
         self.is_running: bool = False
+        self._monitor_enabled: bool = True
         self._status_text: str = "⏳ 服務啟動中..."
+        self._restart_lock = threading.Lock()
+
+    @staticmethod
+    def _http_ok(url: str) -> bool:
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": "sportslottery-tray/1.0"})
+            with urllib.request.urlopen(request, timeout=1.5) as response:
+                return response.status == 200
+        except (OSError, urllib.error.URLError):
+            return False
+
+    def _wait_for_services(self, timeout: float = 45.0) -> tuple[bool, str]:
+        """Wait until local endpoints and the public URL are ready."""
+        deadline = time.monotonic() + timeout
+        checks = (
+            ("LINE webhook", "http://127.0.0.1:8001/"),
+            ("Streamlit", "http://127.0.0.1:8501/_stcore/health"),
+            ("URL router", "http://127.0.0.1:8502/_stcore/health"),
+        )
+        while time.monotonic() < deadline:
+            for name, proc in (("LINE", self.proc_bot), ("Web", self.proc_st)):
+                if proc is None or proc.poll() is not None:
+                    return False, f"{name} service process exited during startup"
+            local_ready = all(self._http_ok(url) for _, url in checks)
+            runtime_info = get_runtime_info()
+            public_ready = bool(runtime_info.get("streamlit_url") and runtime_info.get("webhook_url"))
+            if local_ready and public_ready:
+                return True, ""
+            time.sleep(0.5)
+        pending = [name for name, url in checks if not self._http_ok(url)]
+        if not (get_runtime_info().get("streamlit_url") and get_runtime_info().get("webhook_url")):
+            pending.append("public tunnel")
+        return False, "Timed out waiting for: " + ", ".join(pending)
 
     def acquire_single_instance(self) -> bool:
         """Prevent multiple instances of tray manager using a loopback socket."""
@@ -112,44 +171,82 @@ class AppTrayManager:
         draw.polygon([(20, 42), (32, 18), (44, 42)], fill=(255, 255, 255))
         return img
 
-    def start_services(self) -> None:
-        """Launch bot runner and streamlit server without console windows."""
+    def start_services(self, *, open_browser: bool = True) -> bool:
+        """Launch services and report ready only after all local endpoints respond."""
         python_exe = sys.executable
+        if python_exe.lower().endswith("pythonw.exe"):
+            py_normal = python_exe[:-5] + ".exe"
+            if os.path.exists(py_normal):
+                python_exe = py_normal
+        logger.info("Using python executable: %s", python_exe)
 
-        # 1. Start LINE Bot runner (includes FastAPI on 8000 + cloudflared tunnels)
-        bot_cmd = [python_exe, "scripts/serve_line_bot.py"]
-        self.proc_bot = subprocess.Popen(
-            bot_cmd,
-            cwd=str(ROOT_DIR),
-            creationflags=CREATE_NO_WINDOW,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        self.is_running = False
+        self._status_text = "⏳ 服務啟動中..."
+        try:
+            if STATUS_FILE.exists():
+                STATUS_FILE.unlink(missing_ok=True)
+            bot_cmd = [python_exe, "-u", "scripts/serve_line_bot.py"]
+            with open(LOG_DIR / "bot_service.log", "a", encoding="utf-8") as bot_log:
+                self.proc_bot = subprocess.Popen(
+                    bot_cmd,
+                    cwd=str(ROOT_DIR),
+                    creationflags=CREATE_NO_WINDOW,
+                    stdin=subprocess.DEVNULL,
+                    stdout=bot_log,
+                    stderr=subprocess.STDOUT,
+                )
 
-        # 2. Start Streamlit web server on port 8501
-        st_cmd = [
-            python_exe,
-            "-m",
-            "streamlit",
-            "run",
-            "app.py",
-            "--server.address",
-            "0.0.0.0",
-            "--server.port",
-            "8501",
-            "--browser.gatherUsageStats",
-            "false",
-        ]
-        self.proc_st = subprocess.Popen(
-            st_cmd,
-            cwd=str(ROOT_DIR),
-            creationflags=CREATE_NO_WINDOW,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+            st_cmd = [
+                python_exe,
+                "-m",
+                "streamlit",
+                "run",
+                "app.py",
+                "--server.address",
+                "0.0.0.0",
+                "--server.port",
+                "8501",
+                "--browser.gatherUsageStats",
+                "false",
+                "--server.headless",
+                "true",
+            ]
+            with open(LOG_DIR / "streamlit_service.log", "a", encoding="utf-8") as st_log:
+                self.proc_st = subprocess.Popen(
+                    st_cmd,
+                    cwd=str(ROOT_DIR),
+                    creationflags=CREATE_NO_WINDOW,
+                    stdin=subprocess.DEVNULL,
+                    stdout=st_log,
+                    stderr=subprocess.STDOUT,
+                )
+
+            ready, reason = self._wait_for_services()
+            if not ready:
+                raise RuntimeError(reason)
+        except Exception as exc:
+            logger.exception("Service startup failed: %s", exc)
+            kill_proc_tree(self.proc_bot)
+            kill_proc_tree(self.proc_st)
+            self.proc_bot = None
+            self.proc_st = None
+            self.is_running = False
+            self._status_text = f"⚠️ 服務啟動失敗：{exc}"
+            return False
 
         self.is_running = True
         self._status_text = "🟢 服務正常運行中 (LINE + Web)"
+
+        if open_browser:
+            def _auto_open_browser():
+                logger.info("Opening default web browser to http://localhost:8501")
+                try:
+                    webbrowser.open("http://localhost:8501")
+                except Exception as exc:
+                    logger.warning("Failed to open browser: %s", exc)
+
+            threading.Thread(target=_auto_open_browser, daemon=True).start()
+        return True
 
     def stop_services(self) -> None:
         """Terminate all background processes and tunnels."""
@@ -166,32 +263,46 @@ class AppTrayManager:
                 pass
 
     def restart_services(self) -> None:
-        """Restart all services."""
-        self._status_text = "🔄 服務重啟中..."
-        if self.icon:
-            self.icon.update_menu()
-        self.stop_services()
-        time.sleep(1.5)
-        self.start_services()
-        if self.icon:
-            self.icon.update_menu()
-            self.icon.notify("LINE 機器人與決策台服務已成功重新啟動！", "瘋狗流運彩")
+        """Restart only child services while keeping the tray process alive."""
+        if not self._restart_lock.acquire(blocking=False):
+            logger.info("Ignoring duplicate restart request; restart is already in progress.")
+            return
+        try:
+            logger.info("Restarting managed services from tray menu.")
+            self._status_text = "🔄 服務重啟中..."
+            if self.icon:
+                self.icon.update_menu()
+            self.stop_services()
+            time.sleep(1.0)
+            ready = self.start_services(open_browser=False)
+            if self.icon:
+                self.icon.update_menu()
+                if ready:
+                    self.icon.notify("LINE Bot、路由器與決策台已重新啟動。", "瘋狗流運彩")
+                else:
+                    self.icon.notify("服務重啟失敗，請查看 data\\tray_manager.log。", "瘋狗流運彩")
+        except Exception as exc:
+            logger.exception("Service restart failed: %s", exc)
+            self._status_text = f"⚠️ 服務重啟失敗：{exc}"
+            if self.icon:
+                self.icon.update_menu()
+                self.icon.notify(str(exc), "服務重啟失敗")
+        finally:
+            self._restart_lock.release()
 
     def open_web_browser(self) -> None:
         """Open local Streamlit web UI in default browser."""
         webbrowser.open("http://localhost:8501")
 
     def copy_public_url(self) -> None:
-        """Copy public Cloudflare HTTPS URL to clipboard."""
+        """Copy the active public HTTPS URL to the clipboard."""
         info = get_runtime_info()
         url = info.get("streamlit_url")
-        if url:
-            copy_to_clipboard(url)
+        if url and copy_to_clipboard(url):
             if self.icon:
-                self.icon.notify(f"已複製公網網址至剪貼簿：\n{url}\n（可直接傳送給朋友）", "瘋狗流運彩")
-        else:
-            if self.icon:
-                self.icon.notify("公網通道尚未連線完成，請稍候 3 秒後再試。", "瘋狗流運彩")
+                self.icon.notify(f"已複製公網網址：\n{url}\n可在手機瀏覽器開啟。", "瘋狗流運彩")
+        elif self.icon:
+            self.icon.notify("目前沒有可用的公網網址，請確認服務與 ngrok 通道已啟動。", "瘋狗流運彩")
 
     def copy_webhook_url(self) -> None:
         """Copy LINE Webhook URL to clipboard."""
@@ -207,8 +318,10 @@ class AppTrayManager:
 
     def monitor_loop(self) -> None:
         """Background thread monitoring process health."""
-        while self.is_running:
+        while self._monitor_enabled:
             time.sleep(4.0)
+            if not self._monitor_enabled or not self.is_running:
+                continue
             b_alive = self.proc_bot and self.proc_bot.poll() is None
             s_alive = self.proc_st and self.proc_st.poll() is None
             if b_alive and s_alive:
@@ -222,6 +335,7 @@ class AppTrayManager:
 
     def on_quit(self, icon: Icon, item: Any) -> None:
         """Handle Quit menu item."""
+        self._monitor_enabled = False
         self.stop_services()
         if self._lock_sock:
             try:
@@ -243,11 +357,32 @@ class AppTrayManager:
             MenuItem("❌ 停止並退出服務 (Quit)", self.on_quit),
         )
 
+    def _on_icon_ready(self, icon: Icon) -> None:
+        """Called by pystray after native Windows HWND message loop starts."""
+        icon.visible = True
+        logger.info("Pystray message loop is ready and icon is set to VISIBLE.")
+        try:
+            time.sleep(0.5)
+            if self.is_running:
+                message = "瘋狗流服務已在系統匣啟動！\n右鍵點擊圖示可重啟服務或開啟決策台。"
+                title = "台灣運彩 瘋狗流"
+            else:
+                message = "服務沒有正常啟動。右鍵選「重新啟動服務」，或查看 data\\tray_manager.log。"
+                title = "瘋狗流服務啟動異常"
+            icon.notify(message, title)
+        except Exception as exc:
+            logger.warning("Notification error: %s", exc)
+
     def run(self) -> int:
         """Main entry point."""
+        logger.info("Starting AppTrayManager...")
         if not self.acquire_single_instance():
-            print("瘋狗流系統匣服務已經在運行中，請檢查右下角系統匣圖示。")
-            return 1
+            logger.info("Single instance lock held; directly opening web browser for user.")
+            try:
+                webbrowser.open("http://localhost:8501")
+            except Exception as exc:
+                logger.warning("Failed to open browser on duplicate launch: %s", exc)
+            return 0
 
         self.start_services()
 
@@ -264,23 +399,24 @@ class AppTrayManager:
             menu=self.build_menu(),
         )
 
+        logger.info("Running pystray icon loop...")
         try:
-            # Notify user on startup
-            time.sleep(1.0)
-            info = get_runtime_info()
-            url = info.get("streamlit_url", "http://localhost:8501")
-            self.icon.notify(
-                "瘋狗流服務已在系統匣啟動！\n右鍵點擊圖示可查看狀態、複製公網網址或停止服務。",
-                "台灣運彩 瘋狗流",
-            )
-        except Exception:
-            pass
+            self.icon.run(setup=self._on_icon_ready)
+        except Exception as exc:
+            logger.error("pystray run crashed: %s\n%s", exc, traceback.format_exc())
+            show_native_popup(f"系統匣圖示啟動失敗：{exc}", "瘋狗流錯誤", is_error=True)
+            self.stop_services()
+            return 1
 
-        # Blocks until icon.stop() is called
-        self.icon.run()
+        logger.info("pystray icon loop exited cleanly.")
         return 0
 
 
 if __name__ == "__main__":
-    app = AppTrayManager()
-    sys.exit(app.run())
+    try:
+        app = AppTrayManager()
+        sys.exit(app.run())
+    except Exception as exc:
+        logger.error("Top-level exception: %s\n%s", exc, traceback.format_exc())
+        show_native_popup(f"服務啟動異常：{exc}", "瘋狗流錯誤", is_error=True)
+        sys.exit(1)

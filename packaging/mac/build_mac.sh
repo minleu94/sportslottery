@@ -14,7 +14,10 @@ echo "  台灣運彩系統 - macOS 獨立安裝包構建工具"
 echo "=========================================================="
 
 APP_NAME="Sportslottery"
-VERSION="2.1.0"
+VERSION="${GITHUB_REF_NAME#v}"
+if [ -z "$VERSION" ] || [ "$VERSION" = "$GITHUB_REF_NAME" ]; then
+    VERSION="${1:-2.2.0}"
+fi
 DIST_DIR="$PROJECT_ROOT/dist"
 INSTALLER_DIR="$DIST_DIR/installer"
 

@@ -903,22 +903,23 @@ class LineNotifier:
         if not (m_bind or m_unbind or m_change_pin or m_switch or m_add or m_cap or is_profile_query):
             return None
 
+        # This help response is independent of profile data. Keep it available
+        # even when the configured SQLite storage is temporarily unreachable.
+        if any(k in cmd_lower for k in ["忘記密碼", "忘記pin", "忘記碼", "忘記"]):
+            return (
+                "💬 【忘記密碼 / PIN 碼】\n"
+                "===========================\n"
+                "忘記密碼請聯絡管理員 Archie！\n\n"
+                "💡 系統預設初始 PIN 碼為 0000。\n"
+                "若您先前已綁定 LINE 帳號，亦可直接傳送指令：\n"
+                "「改密碼 <舊PIN> <新4位數PIN>」"
+            )
+
         try:
             import urllib.parse
             from core.profile_manager import ProfileManager
             pm = ProfileManager()
             profs = pm.list_profiles()
-
-            # If user asks about forgotten password
-            if any(k in cmd_lower for k in ["忘記密碼", "忘記pin", "忘記碼", "忘記"]):
-                return (
-                    "💬 【忘記密碼 / PIN 碼】\n"
-                    "===========================\n"
-                    "忘記密碼請聯絡管理員 Archie！\n\n"
-                    "💡 系統預設初始 PIN 碼為 0000。\n"
-                    "若您先前已綁定 LINE 帳號，亦可直接傳送指令：\n"
-                    "「改密碼 <舊PIN> <新4位數PIN>」"
-                )
 
             # If this LINE user has bound a profile, prioritize that profile
             bound_profile = pm.get_profile_by_line_user_id(line_user_id) if line_user_id else None
@@ -1020,7 +1021,7 @@ class LineNotifier:
                 except Exception as exc:
                     return f"❌ 更新預算失敗：{exc}"
 
-            # Read live runtime status for Streamlit Public URL
+            # Permanent fixed public HTTPS URL via Tailscale Funnel
             runtime_file = Path(__file__).resolve().parent.parent / "data" / "line_bot_runtime.json"
             streamlit_url = None
             if runtime_file.exists():

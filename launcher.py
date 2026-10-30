@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Launcher for Taiwan Sports Lottery System.
+"""Modern Launcher for Taiwan Sports Lottery System.
 
 Compiles into 'sportslottery.exe'.
-Automates environment setup, suppresses first-run prompts, waits for HTTP 200,
-and opens the user's browser seamlessly.
+Launches the modern FastAPI + React (shadcn/ui + Tailwind) application on port 8000,
+monitors server readiness, and opens the default browser automatically.
+Fallback to port 8001..8010 if occupied.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import atexit
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -28,58 +30,32 @@ def set_console_title(title: str):
             pass
 
 
-def ensure_streamlit_credentials(project_dir: Path):
-    """Ensure ~/.streamlit/credentials.toml and project/.streamlit/credentials.toml exist to prevent email prompt."""
-    content = "[general]\nemail = ''\n"
-    # User home
-    try:
-        home_st = Path.home() / ".streamlit"
-        home_st.mkdir(parents=True, exist_ok=True)
-        creds_file = home_st / "credentials.toml"
-        if not creds_file.exists():
-            creds_file.write_text(content, encoding="utf-8")
-    except Exception:
-        pass
-
-    # Project directory
-    try:
-        proj_st = project_dir / ".streamlit"
-        proj_st.mkdir(parents=True, exist_ok=True)
-        proj_creds = proj_st / "credentials.toml"
-        if not proj_creds.exists():
-            proj_creds.write_text(content, encoding="utf-8")
-
-        proj_cfg = proj_st / "config.toml"
-        if not proj_cfg.exists():
-            proj_cfg.write_text(
-                "[server]\nport = 8501\nheadless = true\n\n[browser]\ngatherUsageStats = false\n",
-                encoding="utf-8",
-            )
-    except Exception:
-        pass
-
-
 def find_project_dir() -> Path:
-    # If running as compiled exe, sys.executable is the exe path
+    # 1. If running as compiled exe, sys.executable is the exe path
     exe_dir = Path(sys.executable).resolve().parent
-    if (exe_dir / "app.py").exists():
+    if (exe_dir / "server" / "api.py").exists():
         return exe_dir
-    # If running as script
+    # 2. If running as script
     script_dir = Path(__file__).resolve().parent
-    if (script_dir / "app.py").exists():
+    if (script_dir / "server" / "api.py").exists():
         return script_dir
+    # 3. Environment variable
     configured = os.environ.get("SPORTSLOTTERY_WORKSPACE")
-    if configured and (Path(configured) / "app.py").is_file():
+    if configured and (Path(configured) / "server" / "api.py").is_file():
         return Path(configured).expanduser().resolve()
-    raise FileNotFoundError("找不到 app.py。請使用 sportslottery --workspace 工作目錄，或從專案目錄啟動。")
+    # 4. Fallback check current directory
+    cwd = Path.cwd().resolve()
+    if (cwd / "server" / "api.py").exists():
+        return cwd
+    raise FileNotFoundError("找不到 server/api.py。請確認專案路徑正確。")
 
 
 def find_python_executable() -> str:
+    # Always prioritize the official Python install on host machine
     candidates = [
         r"C:\Program Files\Python311\python.exe",
         shutil.which("python"),
         shutil.which("python3"),
-        sys.executable if "python" in Path(sys.executable).name.lower() else None,
         os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python311\python.exe"),
         os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python312\python.exe"),
     ]
@@ -90,9 +66,8 @@ def find_python_executable() -> str:
 
 
 def is_server_alive(url: str) -> bool:
-    """Check if the Streamlit server is already running and healthy."""
     try:
-        req = urllib.request.Request(f"{url}/_stcore/health", headers={"User-Agent": "Mozilla/5.0"})
+        req = urllib.request.Request(f"{url}/api/health", headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=1.0) as resp:
             return resp.status == 200
     except Exception:
@@ -104,9 +79,7 @@ def is_server_alive(url: str) -> bool:
             return False
 
 
-def find_available_port(start_port: int = 8501) -> int:
-    """Find an unoccupied TCP port starting from start_port."""
-    import socket
+def find_available_port(start_port: int = 8000) -> int:
     for p in range(start_port, start_port + 20):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             if s.connect_ex(('127.0.0.1', p)) != 0:
@@ -119,17 +92,13 @@ def wait_and_open_browser(url: str, timeout: float = 30.0):
     start_time = time.time()
     opened = False
     while time.time() - start_time < timeout:
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=1.0) as resp:
-                if resp.status == 200:
-                    time.sleep(0.5)
-                    webbrowser.open(url)
-                    opened = True
-                    print(f"\n🚀 決策台已成功就緒！已為您自動開啟瀏覽器 ({url})")
-                    break
-        except Exception:
-            time.sleep(0.5)
+        if is_server_alive(url):
+            time.sleep(0.3)
+            webbrowser.open(url)
+            opened = True
+            print(f"\n🚀 運彩決策台已成功就緒！已為您自動開啟瀏覽器 ({url})\n")
+            break
+        time.sleep(0.5)
 
     if not opened:
         print(f"\n⚠️ 決策台啟動耗時較久，請手動在瀏覽器開啟：{url}")
@@ -137,7 +106,6 @@ def wait_and_open_browser(url: str, timeout: float = 30.0):
 
 def main():
     import webbrowser
-    # Ensure UTF-8 output
     if sys.platform == "win32":
         try:
             sys.stdout.reconfigure(encoding="utf-8")
@@ -145,22 +113,18 @@ def main():
         except Exception:
             pass
 
-    set_console_title("Sports Lottery System")
+    set_console_title("台灣運彩「瘋狗流」高倍串關決策台 (Modern Edition)")
 
     project_dir = find_project_dir()
-    app_path = project_dir / "app.py"
     python_bin = find_python_executable()
 
-    default_url = "http://localhost:8501"
+    default_url = "http://127.0.0.1:8000"
 
-    # Pre-configure credentials before starting anything
-    ensure_streamlit_credentials(project_dir)
-
-    # 1. Check if an instance is already running on port 8501
+    # 1. Check if an instance is already running
     if is_server_alive(default_url):
         print(rf"""
 ======================================================================
-  🐕 台灣運彩「瘋狗流」10~500倍高期望值串關系統
+  🐕 台灣運彩「瘋狗流」決策系統 - Modern Edition (v2.0)
 ======================================================================
 - 專案目錄 : {project_dir}
 - 狀態     : 運彩決策台已在背景運行中！
@@ -179,38 +143,33 @@ def main():
             print("\n系統已停止。祝您投注愉快！")
         return
 
-    # 2. Select available port (default 8501, or fallback 8502, 8503...)
-    port = find_available_port(8501)
-    url = f"http://localhost:{port}"
+    # 2. Select available port (default 8000, or fallback 8001, 8002...)
+    port = find_available_port(8000)
+    url = f"http://127.0.0.1:{port}"
 
     banner = rf"""
 ======================================================================
-  🐕 台灣運彩「瘋狗流」10~500倍高期望值串關系統
-  賽季雷達 · Signal Hub 情報串關 · 每週 NT$ 200 嚴格風控
+  🐕 台灣運彩「瘋狗流」10~500倍高期望值串關系統 (Modern Edition)
+  React + TypeScript + Tailwind CSS + shadcn/ui + FastAPI
 ======================================================================
 - 專案目錄 : {project_dir}
 - Python   : {python_bin}
 - 決策台   : {url}
 ======================================================================
-正在啟動運彩決策引擎，請稍候...
+正在啟動現代化決策引擎與 API 服務，請稍候...
 """
     print(banner)
 
-    if not app_path.exists():
-        print(f"❌ 找不到主程式檔案：{app_path}")
-        print("請確認此程式與專案檔案位於同一目錄中。")
-        input("\n按 Enter 鍵關閉...")
-        return
-
+    # Command to run uvicorn
     cmd = [
         python_bin,
         "-m",
-        "streamlit",
-        "run",
-        str(app_path),
-        f"--server.port={port}",
-        "--server.headless=true",
-        "--browser.gatherUsageStats=false",
+        "uvicorn",
+        "server.api:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
     ]
 
     proc = None
@@ -235,16 +194,15 @@ def main():
 
         atexit.register(cleanup)
 
-        # Background thread to wait for HTTP 200 before opening browser
+        # Background thread to poll health and open browser
         browser_thread = threading.Thread(target=wait_and_open_browser, args=(url,), daemon=True)
         browser_thread.start()
 
         print("【系統提醒】")
-        print("1. 服務啟動後將自動彈出瀏覽器。")
-        print("2. 本系統每週嚴格風控 NT$ 200，贏錢自動鎖入獲利池。")
+        print("1. 服務啟動後將自動開啟預設瀏覽器（Edge / Chrome / Brave）。")
+        print("2. 本系統每週嚴格風控 NT$ 200，贏錢全數自動轉入保留池。")
         print("3. 若要關閉系統，直接關閉此黑色視窗或按下 Ctrl+C 即可。\n")
 
-        # Keep alive until user closes window
         ret_code = proc.wait()
         if ret_code != 0:
             abnormal_exit = True
