@@ -89,7 +89,7 @@ def find_python_executable(gui: bool = False) -> str:
 def copy_to_clipboard(text: str) -> bool:
     """Copy text string to Windows clipboard using clip.exe."""
     try:
-        subprocess.run(["clip.exe"], input=text.encode("utf-16"), check=True)
+        subprocess.run(["clip.exe"], input=text.encode("utf-16"), check=True, creationflags=CREATE_NO_WINDOW)
         return True
     except Exception:
         return False
@@ -113,7 +113,7 @@ def kill_proc_tree(proc: Optional[subprocess.Popen]) -> None:
     pid = proc.pid
     try:
         if sys.platform == "win32":
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, creationflags=CREATE_NO_WINDOW)
         else:
             proc.kill()
     except Exception:
@@ -203,6 +203,8 @@ class AppTrayManager:
             "0.0.0.0",
             "--server.port",
             "8501",
+            "--server.headless",
+            "true",
             "--browser.gatherUsageStats",
             "false",
         ]

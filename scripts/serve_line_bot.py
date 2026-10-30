@@ -32,6 +32,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 CONFIG_FILE = ROOT_DIR / "config" / "line_notifier.yaml"
 STATUS_FILE = ROOT_DIR / "data" / "line_bot_runtime.json"
+CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 CLOUDFLARED_PATHS = [
     r"C:\Program Files (x86)\cloudflared\cloudflared.exe",
@@ -106,7 +107,7 @@ def launch_cloudflared_tunnel(
     port: int,
     timeout: float = 15.0,
 ) -> tuple[Optional[subprocess.Popen], Optional[str]]:
-    """Start cloudflared tunnel for the specified local port and return (process, public_https_url)."""
+    """Start cloudflared tunnel for the specified local port without showing console windows."""
     cmd = [cloudflared_exe, "tunnel", "--url", f"http://127.0.0.1:{port}"]
     proc = subprocess.Popen(
         cmd,
@@ -116,6 +117,7 @@ def launch_cloudflared_tunnel(
         bufsize=1,
         encoding="utf-8",
         errors="replace",
+        creationflags=CREATE_NO_WINDOW,
     )
     pattern = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
     tunnel_url = None
