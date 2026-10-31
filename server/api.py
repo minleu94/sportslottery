@@ -353,10 +353,63 @@ def get_market_benchmark_comparison(
         leg_enriched = signal_hub.evaluate_taiwan_leg(leg)
         matched_cand, record = aligner.align_leg_with_candidates(leg_enriched, int_odds)
         if matched_cand and record.status.value == "MATCHED":
-            fair_prob = (leg_enriched.signal_evidence or {}).get("market_fair_probability")
-            if not fair_prob:
-                fair_prob = round((1.0 / matched_cand.decimal_odds) * 0.98, 4) if matched_cand.decimal_odds > 1.0 else 0.5
-            ev = (fair_prob * leg.taiwan_odds) - 1.0
+            # Strict de-vigging: NEVER use fixed multipliers (like 0.98)!
+            # A fair probability and EV can ONLY be computed if verifiable counterpart odds exist.
+            fair_prob = None
+            ev = None
+            ev_pct = None
+            is_pos_ev = False
+            ev_status = "NO_COUNTERPART_ODDS"
+            counterpart_odds = None
+
+            # 1. Search for counterpart quote from int_odds for the exact same event and bookmaker
+            for other in int_odds:
+                if (
+                    other.event_id == matched_cand.event_id
+                    and other.market_type == matched_cand.market_type
+                    and other.source_id == matched_cand.source_id
+                    and other.selection != matched_cand.selection
+                ):
+                    if matched_cand.market_type == "SPREAD":
+                        if other.line is not None and matched_cand.line is not None:
+                            if math.isclose(other.line, -matched_cand.line, abs_tol=0.01):
+                                counterpart_odds = other.decimal_odds
+                                break
+                    elif matched_cand.market_type == "TOTAL":
+                        if other.line is not None and matched_cand.line is not None:
+                            if math.isclose(other.line, matched_cand.line, abs_tol=0.01):
+                                counterpart_odds = other.decimal_odds
+                                break
+                    else:  # MONEYLINE
+                        counterpart_odds = other.decimal_odds
+                        break
+
+            # 2. De-vig if valid counterpart exists
+            if counterpart_odds is not None and counterpart_odds > 1.0 and matched_cand.decimal_odds > 1.0:
+                q1 = 1.0 / matched_cand.decimal_odds
+                q2 = 1.0 / counterpart_odds
+                total_q = q1 + q2
+                if total_q > 0:
+                    fair_prob = round(q1 / total_q, 4)
+                    ev = (fair_prob * leg.taiwan_odds) - 1.0
+                    ev_pct = round(ev * 100.0, 1)
+                    if matched_cand.is_synthetic:
+                        # Synthetic data MUST NOT be labeled as verified positive EV!
+                        is_pos_ev = False
+                        ev_status = "SYNTHETIC_DATA_DISPLAY_ONLY"
+                    else:
+                        is_pos_ev = ev >= 0.02
+                        ev_status = "VERIFIED_DEVIGGED"
+            else:
+                # Check if signal hub already computed devigged probability with complete market outcomes
+                evidence_fair_p = (leg_enriched.signal_evidence or {}).get("market_fair_probability")
+                if evidence_fair_p is not None and 0 < evidence_fair_p < 1:
+                    fair_prob = round(evidence_fair_p, 4)
+                    ev = (fair_prob * leg.taiwan_odds) - 1.0
+                    ev_pct = round(ev * 100.0, 1)
+                    is_pos_ev = (not matched_cand.is_synthetic) and (ev >= 0.02)
+                    ev_status = "VERIFIED_FROM_COMPLETE_MARKET" if not matched_cand.is_synthetic else "SYNTHETIC_DATA_DISPLAY_ONLY"
+
             matched_results.append({
                 "taiwan_event_id": leg.event_id,
                 "league": leg.league,
@@ -369,9 +422,12 @@ def get_market_benchmark_comparison(
                 "taiwan_odds": leg.taiwan_odds,
                 "international_book": matched_cand.source_id,
                 "international_odds": matched_cand.decimal_odds,
-                "fair_probability": round(fair_prob, 4),
-                "theoretical_ev_pct": round(ev * 100.0, 1),
-                "is_positive_ev": ev >= 0.02,
+                "counterpart_odds": counterpart_odds,
+                "fair_probability": fair_prob,
+                "theoretical_ev": round(ev, 4) if ev is not None else None,
+                "theoretical_ev_pct": ev_pct,
+                "is_positive_ev": is_pos_ev,
+                "ev_status": ev_status,
                 "alignment_status": record.status.value,
                 "observed_at_utc": matched_cand.observed_at_utc,
                 "is_synthetic": matched_cand.is_synthetic,
@@ -500,23 +556,25 @@ def search_parlays(
                 ld["display_league"] = clean_league_name(ld.get("league"))
                 sig = ld.get("signal_evidence") or {}
                 t_odds = float(ld.get("taiwan_odds") or ld.get("odds") or 1.0)
+                is_synth = bool(sig.get("is_market_synthetic") or sig.get("is_synthetic"))
                 prob = float(sig.get("consensus_probability") or sig.get("sharp_fair_probability") or sig.get("market_fair_probability") or (1.0 / t_odds if t_odds > 0 else 0.5))
                 leg_ev = sig.get("sharp_expected_value_pct")
-                if leg_ev is None:
+                if leg_ev is None and not is_synth:
                     leg_ev = sig.get("expected_value_pct")
-                if leg_ev is None and prob and t_odds:
-                    leg_ev = round(((prob * t_odds) - 1.0) * 100.0, 1)
 
-                ld["expected_value_pct"] = leg_ev
+                ld["is_market_synthetic"] = is_synth
+                ld["expected_value_pct"] = None if is_synth else leg_ev
                 ld["consensus_probability"] = prob
                 ld["market_implied_pct"] = sig.get("market_implied_pct", round((1.0 / t_odds) * 100.0, 1) if t_odds > 0 else 0.0)
                 ld["agreement_badge"] = sig.get("agreement_badge", "")
-                ld["is_positive_ev"] = bool(leg_ev and leg_ev > 0)
-                ld["is_sharp_value_bet"] = bool(sig.get("is_sharp_value_bet", False) or (leg_ev and leg_ev >= 5.0))
+                ld["is_positive_ev"] = bool(not is_synth and leg_ev and leg_ev > 0)
+                ld["is_sharp_value_bet"] = bool(not is_synth and (sig.get("is_sharp_value_bet", False) or (leg_ev and leg_ev >= 5.0)))
                 ld["crowd_desc"] = sig.get("crowd_desc", "")
                 ld["line_movement_label"] = (sig.get("line_movement") or {}).get("text_label", "")
                 clean_legs.append(ld)
             p_copy["legs"] = clean_legs
+            if any(l.get("is_market_synthetic") for l in clean_legs):
+                p_copy["is_positive_ev"] = False
             formatted.append(p_copy)
         return formatted
 

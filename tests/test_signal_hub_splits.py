@@ -137,3 +137,59 @@ def test_crowd_sentiment_alone_cannot_reach_high_agreement():
     result_leg = hub.synthesize_signals_for_leg(leg, [crowd_sig])
     # Crowd alone must be LOW or INSUFFICIENT, definitely not HIGH
     assert result_leg.evidence_quality != "HIGH"
+
+
+def test_synthetic_signals_strictly_isolated():
+    hub = SignalHub(splits_client=MagicMock(get_betting_splits=lambda l: []))
+    leg = TaiwanLeg(
+        event_id="203",
+        sport="baseball",
+        league="MLB",
+        home_team="道奇",
+        away_team="教士",
+        market="不讓分",
+        selection="道奇勝",
+        side="主",
+        taiwan_odds=1.75,
+    )
+    synth_sharp = PredictionSignal(
+        source_id="the_odds_api_syn",
+        source_name="The Odds API (Synthetic)",
+        source_type="SYNTHETIC_FIXTURE",
+        source_category="SHARP_MARKET_BENCHMARK",
+        independence_group="SHARP_CONSENSUS",
+        event_id=leg.event_id,
+        market=leg.market,
+        selection=leg.selection,
+        score=15.0,
+        freshness_status="LIVE",
+        metadata={"is_synthetic": True, "is_value_bet": True, "expected_value_pct": 12.5},
+    )
+    synth_split = PredictionSignal(
+        source_id="vsin_syn",
+        source_name="VSiN (Synthetic)",
+        source_type="BETTING_SPLITS",
+        source_category="MONEY_VOLUME_SPLITS",
+        independence_group="PUBLIC_BETTING_SPLITS",
+        event_id=leg.event_id,
+        market=leg.market,
+        selection=leg.selection,
+        score=75.0,
+        freshness_status="LIVE",
+        metadata={"is_synthetic": True, "money_percentage": 75.0, "bet_percentage": 40.0, "sample_size": 5000},
+    )
+
+    result_leg = hub.synthesize_signals_for_leg(leg, [synth_sharp, synth_split])
+    ev = result_leg.signal_evidence
+
+    # Synthetic signals MUST NOT enter supporting groups or families
+    assert "SHARP_CONSENSUS" not in ev.get("supporting_groups", [])
+    assert "PUBLIC_BETTING_SPLITS" not in ev.get("supporting_groups", [])
+    assert "SHARP_BENCHMARK" not in ev.get("source_families", [])
+    assert "BETTING_SPLITS" not in ev.get("source_families", [])
+    assert ev.get("independent_support_count") == 0
+    assert ev.get("is_market_synthetic") is True
+    assert ev.get("is_splits_synthetic") is True
+    assert ev.get("is_sharp_value_bet") is False
+    assert ev.get("is_sharp_money_divergence") is False
+    assert ev.get("sharp_expected_value_pct") is None

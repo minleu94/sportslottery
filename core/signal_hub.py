@@ -217,9 +217,15 @@ class SignalHub:
             grp = s.independence_group or "UNKNOWN_GROUP"
             cat = s.source_category or s.source_type
             group_rule = self.weights_config.get("independence_groups", {}).get(grp, {})
+            meta = s.metadata or {}
+            is_synth = bool(meta.get("is_synthetic", False)) or (s.source_type == "SYNTHETIC_FIXTURE")
 
             # Market odds is baseline only, NEVER counts as a supporting vote!
             if grp == "TAIWAN_MARKET" or cat == "BETTING_MARKET" or group_rule.get("is_baseline") or group_rule.get("max_votes") == 0:
+                continue
+
+            # SYNTHETIC DATA IS STRICTLY ISOLATED FROM OFFICIAL RECOMMENDATION QUALIFICATION!
+            if is_synth:
                 continue
 
             all_evaluated_groups.add(grp)
@@ -427,6 +433,9 @@ class SignalHub:
         expert_metadata = expert_signal.metadata if expert_signal else {}
         sharp_metadata = sharp_signal.metadata if sharp_signal else {}
         splits_metadata = splits_signal.metadata if splits_signal else {}
+        is_sharp_synth = bool(sharp_metadata.get("is_synthetic", False))
+        is_splits_synth = bool(splits_metadata.get("is_synthetic", False))
+
         crowd_ratio = crowd_metadata.get("ratio", original_evidence.get("crowd_ratio", original_evidence.get("consensus_ratio")))
         if crowd_ratio is None and crowd_signal and crowd_signal.score is not None:
             crowd_ratio = crowd_signal.score / 100.0
@@ -443,6 +452,9 @@ class SignalHub:
             except Exception as exc:
                 logger.debug("Line movement analysis skipped: %s", exc)
 
+        is_sharp_money_divergence = bool((not is_splits_synth) and splits_divergence and splits_divergence >= 15.0)
+        is_sharp_val = bool((not is_sharp_synth) and sharp_metadata.get("is_value_bet", False))
+
         evidence_summary: Dict[str, Any] = {
             **original_evidence,
             "taiwan_odds": odds,
@@ -452,7 +464,9 @@ class SignalHub:
             "splits_divergence_pp": splits_divergence,
             "splits_sample_size": splits_metadata.get("sample_size"),
             "splits_reporting_book": splits_metadata.get("reporting_bookmaker"),
-            "is_sharp_money_divergence": bool(splits_divergence and splits_divergence >= 15.0),
+            "is_sharp_money_divergence": is_sharp_money_divergence,
+            "is_market_synthetic": is_sharp_synth,
+            "is_splits_synthetic": is_splits_synth,
             "signal_classification_breakdown": {
                 "crowd_sentiment": {
                     "source": "Playsport 社群選票",
@@ -473,15 +487,19 @@ class SignalHub:
                     "sample_size": splits_metadata.get("sample_size"),
                     "reporting_book": splits_metadata.get("reporting_bookmaker"),
                     "classification": "BETTING_SPLITS",
-                    "role": "國際投注傾向（籌碼分佈非勝率）",
+                    "is_synthetic": is_splits_synth,
+                    "role": "合成測試資料 (不計入正式推薦)" if is_splits_synth else "國際投注傾向（籌碼分佈非勝率）",
                 },
                 "market_benchmark": {
-                    "fair_probability": sharp_metadata.get("sharp_fair_probability"),
-                    "expected_value_pct": sharp_metadata.get("expected_value_pct"),
+                    "fair_probability": None if is_sharp_synth else sharp_metadata.get("sharp_fair_probability"),
+                    "synthetic_fair_probability": sharp_metadata.get("sharp_fair_probability") if is_sharp_synth else None,
+                    "expected_value_pct": None if is_sharp_synth else sharp_metadata.get("expected_value_pct"),
+                    "synthetic_expected_value_pct": sharp_metadata.get("expected_value_pct") if is_sharp_synth else None,
                     "sharp_book": sharp_metadata.get("sharp_book"),
-                    "is_value_bet": sharp_metadata.get("is_value_bet", False),
+                    "is_value_bet": is_sharp_val,
                     "classification": "MARKET_BENCHMARK",
-                    "role": "國際市場公允定價（去水公允機率）",
+                    "is_synthetic": is_sharp_synth,
+                    "role": "合成測試資料 (不計入正式推薦)" if is_sharp_synth else "國際市場公允定價（去水公允機率）",
                 },
                 "statistical_models": {
                     "candidate_count": len(model_signals),
@@ -493,11 +511,11 @@ class SignalHub:
             "market_implied_pct": round(market_implied * 100.0, 1),
             "market_implied_probability": round(market_implied, 3),
             "market_fair_probability": edge_eval.market_fair_probability,
-            "sharp_fair_probability": sharp_metadata.get("sharp_fair_probability"),
-            "sharp_expected_value_pct": sharp_metadata.get("expected_value_pct"),
-            "is_sharp_value_bet": sharp_metadata.get("is_value_bet", False),
-            "sharp_value_grade": sharp_metadata.get("value_grade", "NONE"),
-            "sharp_edge_pp": sharp_metadata.get("edge_pp"),
+            "sharp_fair_probability": None if is_sharp_synth else sharp_metadata.get("sharp_fair_probability"),
+            "sharp_expected_value_pct": None if is_sharp_synth else sharp_metadata.get("expected_value_pct"),
+            "is_sharp_value_bet": is_sharp_val,
+            "sharp_value_grade": "SYNTHETIC_TEST" if is_sharp_synth else sharp_metadata.get("value_grade", "NONE"),
+            "sharp_edge_pp": None if is_sharp_synth else sharp_metadata.get("edge_pp"),
             "sharp_book": sharp_metadata.get("sharp_book"),
             "model_probability": edge_eval.consensus_probability if edge_eval.model_probability_raw is not None else None,
             "model_probability_raw": edge_eval.model_probability_raw,

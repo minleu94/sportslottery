@@ -101,11 +101,20 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                     <div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">國際去水公允</div>
                       <div className="font-bold text-slate-800 dark:text-slate-200">
-                        {ev.sharp_fair_probability ? `${(ev.sharp_fair_probability * 100).toFixed(1)}%` : (ev.market_fair_probability ? `${(ev.market_fair_probability * 100).toFixed(1)}%` : "未對齊")}
-                        {ev.sharp_expected_value_pct !== undefined && ev.sharp_expected_value_pct !== null && (
-                          <span className={`text-[10px] ml-1 font-mono font-semibold ${ev.sharp_expected_value_pct > 0 ? "text-emerald-500" : "text-slate-400"}`}>
-                            ({ev.sharp_expected_value_pct > 0 ? "+" : ""}{ev.sharp_expected_value_pct.toFixed(1)}% EV)
-                          </span>
+                        {ev.is_market_synthetic ? (
+                          <div>
+                            <span className="text-slate-500">{ev.sharp_fair_probability ? `${(ev.sharp_fair_probability * 100).toFixed(1)}%` : "未對齊"}</span>
+                            <span className="text-[10px] text-slate-400 ml-1 font-mono">(模擬測試)</span>
+                          </div>
+                        ) : (
+                          <>
+                            {ev.sharp_fair_probability ? `${(ev.sharp_fair_probability * 100).toFixed(1)}%` : (ev.market_fair_probability ? `${(ev.market_fair_probability * 100).toFixed(1)}%` : "未對齊")}
+                            {ev.sharp_expected_value_pct !== undefined && ev.sharp_expected_value_pct !== null && (
+                              <span className={`text-[10px] ml-1 font-mono font-semibold ${ev.sharp_expected_value_pct > 0 ? "text-emerald-500" : "text-slate-400"}`}>
+                                ({ev.sharp_expected_value_pct > 0 ? "+" : ""}{ev.sharp_expected_value_pct.toFixed(1)}% EV)
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -120,7 +129,11 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                         {ev.money_percentage !== undefined && ev.money_percentage !== null ? (
                           <span>
                             {ev.money_percentage.toFixed(0)}% / {ev.bet_percentage?.toFixed(0)}%
-                            {ev.is_sharp_money_divergence && <span className="text-[10px] text-amber-500 ml-1">⚡分歧</span>}
+                            {ev.is_splits_synthetic ? (
+                              <span className="text-[10px] text-slate-400 ml-1 font-mono">(模擬樣本)</span>
+                            ) : (
+                              ev.is_sharp_money_divergence && <span className="text-[10px] text-amber-500 ml-1">⚡分歧</span>
+                            )}
                           </span>
                         ) : (
                           <span className="text-slate-400">研究待採集</span>

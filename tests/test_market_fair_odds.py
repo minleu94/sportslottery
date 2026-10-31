@@ -71,9 +71,13 @@ def test_market_fair_odds_fail_closed():
     engine = MarketFairOddsEngine()
 
     # Invalid taiwan odds <= 1.0
-    res1 = engine.calculate_fair_odds(taiwan_odds=0.95, benchmark_quotes=[BookmakerQuote("Pin", 1.90)])
+    res1 = engine.calculate_fair_odds(taiwan_odds=0.95, benchmark_quotes=[BookmakerQuote("Pin", 1.90, opposing_odds=1.90)])
     assert res1 is None
 
     # Empty quotes
     res2 = engine.calculate_fair_odds(taiwan_odds=1.80, benchmark_quotes=[])
     assert res2 is None
+
+    # Missing counterpart/opposing odds MUST fail closed rather than use fixed 0.98 multiplier
+    res3 = engine.calculate_fair_odds(taiwan_odds=1.80, benchmark_quotes=[BookmakerQuote("Pin", 1.90, opposing_odds=None)])
+    assert res3 is None

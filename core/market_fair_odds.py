@@ -151,10 +151,7 @@ class MarketFairOddsEngine:
                             sum_q = q1 + q2
                             fair_p = q1 / sum_q
                             vig = sum_q - 1.0
-                elif bq.odds > 1.0:
-                    # Single quote fallback (sharp book standard 2% vig assumption)
-                    fair_p = (1.0 / bq.odds) * 1.02
-                    vig = 0.02
+                # When opposing odds are absent, fair probability cannot be fabricated with fixed multipliers!
 
             if fair_p is not None and 0.0 < fair_p < 1.0:
                 valid_probs.append(fair_p)
