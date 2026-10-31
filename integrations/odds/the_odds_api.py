@@ -316,6 +316,9 @@ class TheOddsApiClient:
             ev_id = f"syn_{league.lower()}_{idx+1}"
 
             # Moneyline
+            is_soccer = league in {"EPL", "SOCCER", "LALIGA", "西甲", "英超"}
+            home_ml_odds = round(1.0 / (0.45 * 1.03), 2) if is_soccer else round(1.0 / (0.55 * 1.02), 2)
+            away_ml_odds = round(1.0 / (0.27 * 1.03), 2) if is_soccer else round(1.0 / (0.45 * 1.02), 2)
             fixtures.append(
                 MarketOddsSnapshot(
                     source_id="the_odds_api:pinnacle_synthetic",
@@ -327,7 +330,7 @@ class TheOddsApiClient:
                     start_time_utc=now_utc,
                     market_type="MONEYLINE",
                     selection="home",
-                    decimal_odds=round(1.0 / (0.55 * 1.02), 2),
+                    decimal_odds=home_ml_odds,
                     observed_at_utc=now_utc,
                     retrieved_at_utc=now_utc,
                     freshness_status=MarketFreshnessStatus.LIVE.value,
@@ -336,6 +339,27 @@ class TheOddsApiClient:
                     is_synthetic=True,
                 )
             )
+            if is_soccer:
+                fixtures.append(
+                    MarketOddsSnapshot(
+                        source_id="the_odds_api:pinnacle_synthetic",
+                        source_type="SYNTHETIC_FIXTURE",
+                        event_id=ev_id,
+                        league=league,
+                        home_team=home,
+                        away_team=away,
+                        start_time_utc=now_utc,
+                        market_type="MONEYLINE",
+                        selection="draw",
+                        decimal_odds=round(1.0 / (0.28 * 1.03), 2),
+                        observed_at_utc=now_utc,
+                        retrieved_at_utc=now_utc,
+                        freshness_status=MarketFreshnessStatus.LIVE.value,
+                        evidence_url="synthetic://fixture/the_odds_api",
+                        source_license="TEST_FIXTURE_NO_KEY",
+                        is_synthetic=True,
+                    )
+                )
             fixtures.append(
                 MarketOddsSnapshot(
                     source_id="the_odds_api:pinnacle_synthetic",
@@ -347,7 +371,7 @@ class TheOddsApiClient:
                     start_time_utc=now_utc,
                     market_type="MONEYLINE",
                     selection="away",
-                    decimal_odds=round(1.0 / (0.45 * 1.02), 2),
+                    decimal_odds=away_ml_odds,
                     observed_at_utc=now_utc,
                     retrieved_at_utc=now_utc,
                     freshness_status=MarketFreshnessStatus.LIVE.value,

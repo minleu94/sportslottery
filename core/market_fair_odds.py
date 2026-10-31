@@ -32,6 +32,7 @@ class BookmakerQuote:
     odds: float
     opposing_odds: Optional[float] = None
     draw_odds: Optional[float] = None
+    is_three_way: bool = False
     fair_probability: Optional[float] = None
     vig: Optional[float] = None
 
@@ -135,23 +136,43 @@ class MarketFairOddsEngine:
 
             # Compute de-vigged probability if not pre-computed
             if fair_p is None:
-                if bq.opposing_odds is not None and bq.opposing_odds > 1.0:
-                    if bq.draw_odds is not None and bq.draw_odds > 1.0:
-                        # 3-way
-                        q1, q2, q3 = 1.0 / bq.odds, 1.0 / bq.draw_odds, 1.0 / bq.opposing_odds
+                if bq.is_three_way:
+                    # Strict 3-way market devigging (e.g. soccer 1X2):
+                    # ALL THREE OUTCOMES (selection, opposing, draw) MUST BE PRESENT AND > 1.0!
+                    # NEVER treat 2 outcomes of a 3-way market as a complete 2-way market!
+                    if (
+                        bq.odds > 1.0
+                        and bq.opposing_odds is not None
+                        and bq.opposing_odds > 1.0
+                        and bq.draw_odds is not None
+                        and bq.draw_odds > 1.0
+                    ):
+                        q1 = 1.0 / bq.odds
+                        q2 = 1.0 / bq.opposing_odds
+                        q3 = 1.0 / bq.draw_odds
                         sum_q = q1 + q2 + q3
-                        fair_p = q1 / sum_q
-                        vig = sum_q - 1.0
+                        if sum_q > 0:
+                            fair_p = q1 / sum_q
+                            vig = sum_q - 1.0
                     else:
-                        # 2-way
+                        fair_p = None
+                        vig = None
+                else:
+                    # 2-way market devigging (spread, total, 2-way moneyline):
+                    # BOTH SIDES MUST BE PRESENT AND > 1.0!
+                    if bq.odds > 1.0 and bq.opposing_odds is not None and bq.opposing_odds > 1.0:
                         if method == "SHIN_POWER":
                             fair_p, _, vig = devig_two_way_power(bq.odds, bq.opposing_odds)
                         else:
-                            q1, q2 = 1.0 / bq.odds, 1.0 / bq.opposing_odds
+                            q1 = 1.0 / bq.odds
+                            q2 = 1.0 / bq.opposing_odds
                             sum_q = q1 + q2
-                            fair_p = q1 / sum_q
-                            vig = sum_q - 1.0
-                # When opposing odds are absent, fair probability cannot be fabricated with fixed multipliers!
+                            if sum_q > 0:
+                                fair_p = q1 / sum_q
+                                vig = sum_q - 1.0
+                    else:
+                        fair_p = None
+                        vig = None
 
             if fair_p is not None and 0.0 < fair_p < 1.0:
                 valid_probs.append(fair_p)

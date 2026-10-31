@@ -636,7 +636,7 @@ export const RadarView: React.FC = () => {
                                 </Badge>
                               )}
                               {evidence.is_market_synthetic && (
-                                <Badge variant="slate" className="text-[10px] flex items-center gap-1">
+                                <Badge variant="secondary" className="text-[10px] flex items-center gap-1 text-slate-400">
                                   🌐 模擬數據
                                 </Badge>
                               )}
