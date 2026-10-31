@@ -291,3 +291,28 @@ def test_line_notifier_handle_forgot_password():
     assert "Archie" in res
     assert "忘記密碼" in res
 
+
+def test_line_notifier_format_parlay_leg_market_intel():
+    """Verify LINE Bot leg formatting includes international market benchmark & splits when available."""
+    notifier = LineNotifier()
+    leg = {
+        "event_id": "101",
+        "sport": "baseball",
+        "league": "MLB",
+        "away_team": "教士",
+        "home_team": "道奇",
+        "market": "不讓分",
+        "selection": "道奇勝",
+        "taiwan_odds": 1.75,
+        "signal_evidence": {
+            "sharp_fair_probability": 0.62,
+            "sharp_expected_value_pct": 8.5,
+            "money_percentage": 75.0,
+            "bet_percentage": 50.0,
+        },
+    }
+    rendered = notifier.format_parlay_leg(leg, idx=1)
+    assert "🌐 國際公允勝率: 62.0% (+EV +8.5%)" in rendered
+    assert "💰 國際籌碼傾向: 資金 75% / 票數 50% (⚡資金顯著分歧)" in rendered
+
+

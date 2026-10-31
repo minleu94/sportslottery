@@ -1,0 +1,13 @@
+# The Odds API Configuration
+enabled: true
+api_key: ""  # Leave empty or set ODDS_API_KEY environment variable
+base_url: "https://api.the-odds-api.com/v4"
+monthly_quota: 500
+cache_ttl_seconds: 900  # 15 minutes
+regions: "us,eu"
+markets: "h2h,spreads,totals"
+preferred_books:
+  - pinnacle
+  - draftkings
+  - fanduel
+  - betfair_ex_eu

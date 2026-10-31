@@ -657,10 +657,27 @@ class LineNotifier:
         else:
             market_str = f"【{clean_selection}】({odds:.2f}x)"
 
+        # 5. International Market Benchmark & Splits Note
+        market_intel_notes = []
+        evidence = leg.get("signal_evidence") or {}
+        sharp_p = evidence.get("sharp_fair_probability")
+        sharp_ev = evidence.get("sharp_expected_value_pct")
+        if sharp_p:
+            ev_str = f" (+EV {sharp_ev:+.1f}%)" if sharp_ev is not None and sharp_ev > 0 else ""
+            market_intel_notes.append(f"   🌐 國際公允勝率: {sharp_p * 100:.1f}%{ev_str}")
+
+        money_p = evidence.get("money_percentage")
+        bet_p = evidence.get("bet_percentage")
+        if money_p is not None and bet_p is not None:
+            div_note = " (⚡資金顯著分歧)" if (money_p - bet_p) >= 15.0 else ""
+            market_intel_notes.append(f"   💰 國際籌碼傾向: 資金 {money_p:.0f}% / 票數 {bet_p:.0f}%{div_note}")
+
+        extra_text = ("\n" + "\n".join(market_intel_notes)) if market_intel_notes else ""
+
         return (
             f"{idx}. {icon} [{league_name}]\n"
             f"   {matchup}{time_str}\n"
-            f"   🎯 {market_str}"
+            f"   🎯 {market_str}{extra_text}"
         )
 
     @staticmethod

@@ -3,7 +3,7 @@ import { motion } from "framer-motion"
 import { api } from "@/services/api"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Skeleton } from "@/components/ui/Skeleton"
-import { BarChart2, Users, Brain } from "lucide-react"
+import { BarChart2, Users, Brain, Globe, ShieldAlert } from "lucide-react"
 
 export const ResearchView: React.FC = () => {
   const [data, setData] = useState<any>(null)
@@ -138,6 +138,59 @@ export const ResearchView: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Global Market Intelligence & Forward Acceptance Gate */}
+      <Card className="border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
+        <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/80">
+          <CardTitle className="text-base flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Globe className="w-5 h-5 text-sky-500" />
+              <span>國際市場情報基準比較與影子前瞻閘門 (Phase 4 Market Benchmark)</span>
+            </div>
+            <span className="text-xs font-mono font-semibold bg-sky-500/10 text-sky-500 px-2.5 py-1 rounded-full">
+              SHADOW LOGGING ACTIVE
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-4">
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            系統嚴格遵守 Phase 4 前瞻驗證承諾：任何新接入之國際市場資料或預測訊號在累積滿 30 筆真實結算樣本前，強制以<strong>影子模式 (Shadow Mode)</strong> 運作，
+            不允許未經考驗的模型單方面調高下注推薦信心。
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 space-y-1">
+              <div className="text-xs font-bold text-slate-500">基準 1：台彩隱含基線</div>
+              <div className="text-lg font-black text-slate-800 dark:text-slate-200 font-mono">
+                Naive Market Baseline
+              </div>
+              <p className="text-[11px] text-slate-400">
+                高抽水 (10~15%)，作為零假設基準 (Baseline Only)。
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-1">
+              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">基準 2：國際 Sharp 尖銳公允</div>
+              <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                Pinnacle / Consensus
+              </div>
+              <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80">
+                去抽水無水公允勝率，量化正期望值 (+EV) 的真實指針。
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-sky-500/30 bg-sky-500/5 space-y-1">
+              <div className="text-xs font-bold text-sky-600 dark:text-sky-400">策略 3：影子驗證模型族</div>
+              <div className="text-lg font-black text-sky-600 dark:text-sky-400 font-mono">
+                Model Acceptance Gate
+              </div>
+              <p className="text-[11px] text-sky-700/80 dark:text-sky-400/80">
+                嚴格排查開賽後資料洩漏，未達標前不授予決策推薦資格。
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </motion.div>
   )
 }

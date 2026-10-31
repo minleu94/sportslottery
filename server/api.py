@@ -47,6 +47,9 @@ from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
 from core.scraper import ALLIANCE_MAP
 from core.season_radar import SeasonRadar
 from core.shadow_portfolio import ShadowPortfolioManager
+from core.forward_evaluation_engine import ForwardEvaluationEngine
+from core.market_aligner import MarketAligner
+from core.market_fair_odds import MarketFairOddsEngine
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger
 from core.strategy_version import get_strategy_metadata
@@ -54,7 +57,9 @@ from core.ticket_recorder import TicketRecorder
 from core.wallet import WeeklyWalletManager
 from core.betting_service import BettingService
 from integrations.common.models import TaiwanLeg
+from integrations.odds.betting_splits_client import BettingSplitsClient
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
+from integrations.odds.the_odds_api import TheOddsApiClient
 from server.auth import (
     session_manager,
     require_any_authenticated_session,
@@ -311,6 +316,110 @@ def get_radar(
         "source_status": source_status,
         "as_of": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@app.get("/api/market/status")
+def get_market_intelligence_status():
+    """Retrieve operational capabilities, API quota, and data freshness across market intelligence sources."""
+    odds_client = TheOddsApiClient()
+    return {
+        "status": "HEALTHY",
+        "the_odds_api": odds_client.get_source_status(),
+        "splits_source": "action_network / vsin (Tickets% vs Money%)",
+        "alignment_engine": "MarketAligner (Bi-directional, threshold-enforced)",
+        "fair_odds_engine": "MarketFairOddsEngine (De-vigged multiplicative / power)",
+        "forward_evaluation": "ForwardEvaluationEngine (Pre-match, Leak-free, Shadow Mode)",
+        "as_of_utc": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/api/market/benchmark")
+def get_market_benchmark_comparison(
+    league: str = Query("MLB", description="League identifier (e.g. MLB, NBA, SOCCER)"),
+    force_refresh: bool = False,
+):
+    """Retrieve precision aligned international market benchmark odds, de-vigged fair probabilities, and theoretical EV."""
+    odds_client = TheOddsApiClient()
+    odds_adapter, signal_hub, _, _, _, _, _, _ = get_services()
+    raw_legs = odds_adapter.get_taiwan_legs([league], force_refresh=force_refresh)
+    int_odds = odds_client.fetch_market_odds(league, force_refresh=force_refresh)
+    aligner = MarketAligner()
+
+    matched_results = []
+    unmatched_count = 0
+    stale_count = 0
+
+    for leg in raw_legs:
+        leg_enriched = signal_hub.evaluate_taiwan_leg(leg)
+        matched_cand, record = aligner.align_leg_with_candidates(leg_enriched, int_odds)
+        if matched_cand and record.status.value == "MATCHED":
+            fair_prob = (leg_enriched.signal_evidence or {}).get("market_fair_probability")
+            if not fair_prob:
+                fair_prob = round((1.0 / matched_cand.decimal_odds) * 0.98, 4) if matched_cand.decimal_odds > 1.0 else 0.5
+            ev = (fair_prob * leg.taiwan_odds) - 1.0
+            matched_results.append({
+                "taiwan_event_id": leg.event_id,
+                "league": leg.league,
+                "home_team": leg.home_team,
+                "away_team": leg.away_team,
+                "market": leg.market,
+                "selection": leg.selection,
+                "side": leg.side,
+                "line": leg.line,
+                "taiwan_odds": leg.taiwan_odds,
+                "international_book": matched_cand.source_id,
+                "international_odds": matched_cand.decimal_odds,
+                "fair_probability": round(fair_prob, 4),
+                "theoretical_ev_pct": round(ev * 100.0, 1),
+                "is_positive_ev": ev >= 0.02,
+                "alignment_status": record.status.value,
+                "observed_at_utc": matched_cand.observed_at_utc,
+                "is_synthetic": matched_cand.is_synthetic,
+            })
+        elif record.status.value == "STALE":
+            stale_count += 1
+        else:
+            unmatched_count += 1
+
+    return {
+        "league": league,
+        "total_taiwan_legs": len(raw_legs),
+        "matched_count": len(matched_results),
+        "unmatched_count": unmatched_count,
+        "stale_count": stale_count,
+        "benchmarks": matched_results,
+        "as_of_utc": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/api/market/splits")
+def get_market_betting_splits(
+    league: str = Query("MLB", description="League identifier (e.g. MLB, NBA)"),
+):
+    """Retrieve public betting splits (Tickets % vs Money handle %) with strictly preserved nulls."""
+    splits_client = BettingSplitsClient()
+    splits = splits_client.get_betting_splits(league)
+    return {
+        "league": league,
+        "splits_count": len(splits),
+        "splits": [s.to_dict() for s in splits],
+        "as_of_utc": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/api/market/evaluation")
+def get_forward_evaluation_report(
+    scope: str = Query("GLOBAL", description="Evaluation scope or league"),
+):
+    """Retrieve chronological 3-way benchmark comparison (Taiwan Base vs Sharp Benchmark vs Model)."""
+    engine = ForwardEvaluationEngine()
+    snapshots: List[Dict[str, Any]] = []
+    try:
+        snapshots = PredictionSnapshotLogger().get_all_snapshots()[-100:]
+    except Exception as exc:
+        logger.warning("Error reading snapshots for evaluation: %s", exc)
+    report = engine.evaluate_cohort(snapshots, scope_name=scope)
+    return report.to_dict()
 
 
 @app.get("/api/legs")

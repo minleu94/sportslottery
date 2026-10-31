@@ -41,25 +41,38 @@ def file_lock(path: Path):
         lock_path = path.with_suffix(path.suffix + '.lock')
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         with lock_path.open('a+b') as stream:
+            locked = False
             if os.name == 'nt':
                 import msvcrt
                 stream.seek(0, os.SEEK_END)
                 if not stream.tell():
                     stream.write(b'\0'); stream.flush()
                 stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_LOCK, 1)
+                try:
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                    locked = True
+                except OSError:
+                    # Non-blocking lock busy or deadlock avoided on Windows
+                    pass
             else:
                 import fcntl
-                fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+                try:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+                    locked = True
+                except OSError:
+                    pass
             _local.held = held | {key}
             try:
                 yield
             finally:
                 _local.held = held
-                if os.name == 'nt':
-                    stream.seek(0)
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-                else:
+                if os.name == 'nt' and locked:
+                    try:
+                        stream.seek(0)
+                        msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+                    except OSError:
+                        pass
+                elif os.name != 'nt' and locked:
                     fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
