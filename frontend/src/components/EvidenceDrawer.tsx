@@ -34,27 +34,27 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
     >
       <div className="space-y-5">
         {/* Summary Card */}
-        <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-          <div className="text-xs font-semibold text-slate-400">總賠率與期望值</div>
+        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2">
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">總賠率與期望值</div>
           <div className="flex items-center justify-between">
-            <span className="text-2xl font-black text-amber-400 font-mono">
+            <span className="text-2xl font-black text-amber-500 dark:text-amber-400 font-mono">
               {parlay.total_odds.toFixed(2)} 倍
             </span>
             {parlay.expected_value !== undefined && parlay.expected_value !== null && (
-              <span className={`text-sm font-bold ${parlay.expected_value > 0 ? "text-emerald-400" : "text-slate-400"}`}>
+              <span className={`text-sm font-bold ${parlay.expected_value > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>
                 EV: {parlay.expected_value > 0 ? "+" : ""}{(parlay.expected_value * 100).toFixed(1)}%
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             本組合嚴格排除同場賽事衝突，賠率以台灣運彩最新官方開盤為準。
           </p>
         </div>
 
         {/* Legs Detailed Evidence */}
         <div className="space-y-4">
-          <h4 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-400" />
+          <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
             各關詳細訊號解析 (共 {parlay.legs.length} 關)
           </h4>
 
@@ -66,28 +66,28 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
             return (
               <div
                 key={`${leg.event_id}-${leg.selection}-${index}`}
-                className="p-4 rounded-xl border border-slate-800 bg-slate-950/50 space-y-3"
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 space-y-3"
               >
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 rounded">
                     第 {index + 1} 關 · {cleanLeagueName(leg.league || leg.sport)}
                   </span>
-                  <span className="text-amber-400 font-mono font-bold text-sm">
+                  <span className="text-amber-600 dark:text-amber-400 font-mono font-bold text-sm">
                     {leg.taiwan_odds?.toFixed(2)}x
                   </span>
                 </div>
 
-                <div className="font-semibold text-slate-100 text-sm">
+                <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
                   {leg.away_team} vs {leg.home_team}
                 </div>
 
-                <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between">
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
                   <div>
-                    <span className="text-xs text-slate-400">{leg.market}</span>
-                    <div className="font-bold text-emerald-400 text-sm">{leg.selection}</div>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{leg.market}</span>
+                    <div className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">{leg.selection}</div>
                   </div>
                   {leg.line && (
-                    <span className="text-xs text-slate-300 font-mono bg-slate-800 px-2 py-1 rounded">
+                    <span className="text-xs text-slate-600 dark:text-slate-300 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
                       盤口基準: {leg.line}
                     </span>
                   )}
@@ -96,23 +96,23 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                 {/* Evidence badges & indicators */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   {/* Crowd consensus */}
-                  <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800/80 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-sky-400 shrink-0" />
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
+                    <Users className="w-4 h-4 text-sky-500 dark:text-sky-400 shrink-0" />
                     <div>
-                      <div className="text-[11px] text-slate-400">大眾社群投票</div>
-                      <div className="font-bold text-slate-200">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">大眾社群投票</div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200">
                         {consensus !== null ? `${consensus}%` : "未開放"}
-                        {votes ? <span className="text-[10px] text-slate-400 ml-1">({votes}票)</span> : null}
+                        {votes ? <span className="text-[10px] text-slate-400 dark:text-slate-400 ml-1">({votes}票)</span> : null}
                       </div>
                     </div>
                   </div>
 
                   {/* Signal Quality */}
-                  <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800/80 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
+                    <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
                     <div>
-                      <div className="text-[11px] text-slate-400">情報品質等級</div>
-                      <div className="font-bold text-emerald-300">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">情報品質等級</div>
+                      <div className="font-bold text-emerald-600 dark:text-emerald-300">
                         {leg.evidence_quality || "STANDARD"}
                       </div>
                     </div>
@@ -121,8 +121,8 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
 
                 {/* Signals breakdown if any */}
                 {leg.signals && leg.signals.length > 0 && (
-                  <div className="pt-2 border-t border-slate-800/60 space-y-1">
-                    <div className="text-[11px] font-semibold text-slate-400">觸發信號：</div>
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800/60 space-y-1">
+                    <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">觸發信號：</div>
                     <div className="flex flex-wrap gap-1.5">
                       {leg.signals.map((sig: any, sIdx: number) => (
                         <Badge key={sIdx} variant="secondary" className="text-[10px]">

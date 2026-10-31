@@ -52,25 +52,27 @@ export const Sheet: React.FC<SheetProps> = ({
       {/* Drawer content */}
       <div
         className={cn(
-          "fixed z-50 flex flex-col bg-slate-900 border-slate-800 text-slate-100 shadow-2xl overflow-hidden",
+          "fixed z-50 flex flex-col bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl overflow-hidden transition-colors",
           sideAnimations[side],
           className
         )}
       >
-        <div className="flex items-center justify-between border-b border-slate-800 p-5 bg-slate-950/60">
-          <div>
-            {title && <h2 className="text-lg font-semibold text-slate-100">{title}</h2>}
-            {description && <p className="text-sm text-slate-400 mt-0.5">{description}</p>}
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 py-3.5 sm:p-5 bg-slate-50/90 dark:bg-slate-950/80 shrink-0">
+          <div className="pr-3 flex-1 min-w-0">
+            {title && <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate">{title}</h2>}
+            {description && <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 truncate">{description}</p>}
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+            className="rounded-lg p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            title="關閉 (Esc)"
+            aria-label="關閉"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:p-5 space-y-4">
           {children}
         </div>
       </div>

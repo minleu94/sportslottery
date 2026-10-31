@@ -62,8 +62,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   }
 
   return (
-    <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur sticky top-0 z-40 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur md:sticky md:top-0 z-40 transition-colors">
+      <div className="max-w-7xl mx-auto px-4 py-2.5 md:py-3 flex flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-3">
         {/* Logo & Profile */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -79,12 +79,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="text-2xl select-none">🐕</span>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-black text-lg text-slate-900 dark:text-slate-100 tracking-tight">
+                <h1 className="font-black text-base sm:text-lg text-slate-900 dark:text-slate-100 tracking-tight">
                   台灣運彩 <span className="text-emerald-500 dark:text-emerald-400">瘋狗流</span> 決策台
                 </h1>
                 <Badge variant="green" className="text-[10px] px-1.5 py-0 font-mono">v2.3.0 Dev</Badge>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
                 10~500倍 串關決策 · 週額度風控 · 玩家【{currentProfile?.name || "主帳號"}】
               </p>
             </div>
@@ -109,9 +109,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Navigation Segments & Control Suite */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          <div className="flex bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200 dark:border-slate-800/80">
+        {/* Navigation Segments & Control Suite - Sticky on Mobile */}
+        <div className="sticky top-0 z-30 -mx-4 px-4 py-2 bg-white/95 dark:bg-slate-950/95 backdrop-blur border-t md:border-t-0 border-b border-slate-200/80 dark:border-slate-800/80 md:static md:p-0 md:bg-transparent md:dark:bg-transparent md:border-none flex items-center gap-2 overflow-x-auto scrollbar-none shadow-sm md:shadow-none">
+          <div className="flex bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200 dark:border-slate-800/80 shrink-0">
             {tabs.map((tab) => {
               const active = activeTab === tab.id
               return (
