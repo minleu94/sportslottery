@@ -27,6 +27,7 @@ from core.model_acceptance import acceptance_matches_signal
 from integrations.common.models import PredictionSignal, TaiwanLeg
 from integrations.experts.playsport_crowd import PlaysportCrowdAdapter
 from integrations.experts.playsport_expert import PlaysportExpertAdapter
+from integrations.odds.betting_splits_client import BettingSplitsClient
 from integrations.odds.sharp_benchmark_odds import SharpBenchmarkOddsAdapter
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class SignalHub:
         edge_engine: Optional[EdgeEngine] = None,
         sharp_adapter: Optional[SharpBenchmarkOddsAdapter] = None,
         line_movement_tracker: Optional[LineMovementTracker] = None,
+        splits_client: Optional[BettingSplitsClient] = None,
         config_path: Optional[Path] = None,
     ):
         self.expert_adapter = expert_adapter or PlaysportExpertAdapter()
@@ -57,6 +59,7 @@ class SignalHub:
         self.model_registry = model_registry or ModelRegistry()
         self.sharp_adapter = sharp_adapter or SharpBenchmarkOddsAdapter()
         self.line_movement_tracker = line_movement_tracker or LineMovementTracker()
+        self.splits_client = splits_client or BettingSplitsClient()
         self.config_path = config_path or CONFIG_PATH
         self.weights_config = self._load_weights_config()
         self.edge_engine = edge_engine or EdgeEngine(source_weights=self.weights_config.get("source_weights", {}))
@@ -137,6 +140,58 @@ class SignalHub:
                 signals.append(sharp_sig)
         except Exception as exc:
             logger.debug("Sharp benchmark evaluation skipped: %s", exc)
+
+        # 6. Public Betting Splits (Tickets % vs Money Handle %)
+        try:
+            if hasattr(self, "splits_client") and self.splits_client:
+                splits = self.splits_client.get_betting_splits(leg.league)
+                for sp in splits:
+                    is_side_match = False
+                    if leg.market in {"讓分", "讓球"} and sp.market_type == "SPREAD":
+                        if leg.side == "主" and sp.selection == "home":
+                            is_side_match = True
+                        elif leg.side == "客" and sp.selection == "away":
+                            is_side_match = True
+                    elif leg.market in {"大小", "大小分"} and sp.market_type == "TOTAL":
+                        if leg.side in {"大", "大分"} and sp.selection == "over":
+                            is_side_match = True
+                        elif leg.side in {"小", "小分"} and sp.selection == "under":
+                            is_side_match = True
+                    elif leg.market in {"不讓分", "獨贏"} and sp.market_type == "MONEYLINE":
+                        if leg.side == "主" and sp.selection == "home":
+                            is_side_match = True
+                        elif leg.side == "客" and sp.selection == "away":
+                            is_side_match = True
+
+                    if is_side_match:
+                        meta = {
+                            "bet_percentage": sp.bet_percentage,
+                            "money_percentage": sp.money_percentage,
+                            "sample_size": sp.sample_size,
+                            "reporting_bookmaker": sp.reporting_bookmaker,
+                            "reporting_scope": sp.reporting_scope,
+                            "is_synthetic": sp.is_synthetic,
+                        }
+                        splits_sig = PredictionSignal(
+                            source_id=sp.source_id,
+                            source_name=f"Public Betting Splits ({sp.reporting_bookmaker})",
+                            source_type="BETTING_SPLITS",
+                            source_category="MONEY_VOLUME_SPLITS",
+                            independence_group="PUBLIC_BETTING_SPLITS",
+                            event_id=leg.event_id,
+                            market=leg.market,
+                            selection=leg.selection,
+                            probability=None,
+                            score=sp.money_percentage,
+                            confidence="MED" if (sp.sample_size or 0) >= 1000 else "LOW",
+                            data_as_of=sp.observed_at_utc,
+                            freshness_status=sp.freshness_status,
+                            metadata=meta,
+                        )
+                        signals.append(splits_sig)
+                        break
+        except Exception as exc:
+            logger.debug("Betting splits retrieval skipped: %s", exc)
 
         result = self.synthesize_signals_for_leg(leg, signals)
         if hasattr(self, "_leg_eval_cache"):
@@ -235,11 +290,22 @@ class SignalHub:
                     supporting_families.setdefault("STATISTICAL_MODEL", []).append(s)
 
             # Sharp Market Benchmark (+EV Quantitative Value Bet Signal)
-            elif cat in ["SHARP_MARKET_BENCHMARK", "SHARP_BENCHMARK"] or grp == "SHARP_CONSENSUS":
+            elif cat in ["SHARP_MARKET_BENCHMARK", "SHARP_BENCHMARK", "MARKET_BENCHMARK"] or grp == "SHARP_CONSENSUS":
                 is_val = (s.metadata or {}).get("is_value_bet", False)
                 if s.freshness_status in {"LIVE", "FRESH"} and is_val:
                     supporting_groups.setdefault("SHARP_CONSENSUS", []).append(s)
                     supporting_families.setdefault("SHARP_BENCHMARK", []).append(s)
+
+            # Public Betting Splits (Participation & Capital Tendency)
+            elif cat in ["BET_COUNT_SPLITS", "MONEY_VOLUME_SPLITS", "PUBLIC_BETTING_SPLITS"] or grp == "PUBLIC_BETTING_SPLITS":
+                rule = self.weights_config.get("source_weights", {}).get("MONEY_VOLUME_SPLITS", {})
+                min_samp = rule.get("min_sample_size", 1000)
+                meta = s.metadata or {}
+                sample = meta.get("sample_size") or 0
+                money_pct = meta.get("money_percentage")
+                if s.freshness_status in {"LIVE", "FRESH"} and money_pct is not None and money_pct >= 60.0 and sample >= min_samp:
+                    supporting_groups.setdefault("PUBLIC_BETTING_SPLITS", []).append(s)
+                    supporting_families.setdefault("BETTING_SPLITS", []).append(s)
 
         # Fundamental data support (e.g. verified pitchers)
         has_pitchers = bool(leg.away_pitcher and leg.home_pitcher)
@@ -353,15 +419,21 @@ class SignalHub:
             })
 
         # Preserve observed source fields; missing crowd data stays unknown.
-        crowd_signal = next((s for s in signals if s.source_type == "CROWD" or s.source_category == "CROWD_CONSENSUS"), None)
-        expert_signal = next((s for s in signals if s.source_type == "EXPERT" or s.source_category == "VERIFIED_EXPERT"), None)
-        sharp_signal = next((s for s in signals if s.source_type == "SHARP_BENCHMARK" or s.source_category == "SHARP_MARKET_BENCHMARK"), None)
+        crowd_signal = next((s for s in signals if s.source_type == "CROWD" or s.source_category in ["CROWD_CONSENSUS", "CROWD_SENTIMENT"]), None)
+        expert_signal = next((s for s in signals if s.source_type == "EXPERT" or s.source_category in ["VERIFIED_EXPERT", "EXPERT_PICKS"]), None)
+        sharp_signal = next((s for s in signals if s.source_type == "SHARP_BENCHMARK" or s.source_category in ["SHARP_MARKET_BENCHMARK", "MARKET_BENCHMARK"]), None)
+        splits_signal = next((s for s in signals if s.source_type == "BETTING_SPLITS" or s.source_category in ["BET_COUNT_SPLITS", "MONEY_VOLUME_SPLITS", "PUBLIC_BETTING_SPLITS"]), None)
         crowd_metadata = crowd_signal.metadata if crowd_signal else {}
         expert_metadata = expert_signal.metadata if expert_signal else {}
         sharp_metadata = sharp_signal.metadata if sharp_signal else {}
+        splits_metadata = splits_signal.metadata if splits_signal else {}
         crowd_ratio = crowd_metadata.get("ratio", original_evidence.get("crowd_ratio", original_evidence.get("consensus_ratio")))
         if crowd_ratio is None and crowd_signal and crowd_signal.score is not None:
             crowd_ratio = crowd_signal.score / 100.0
+
+        bet_pct = splits_metadata.get("bet_percentage")
+        money_pct = splits_metadata.get("money_percentage")
+        splits_divergence = round(money_pct - bet_pct, 1) if (money_pct is not None and bet_pct is not None) else None
 
         # Line Movement & Steam/Trap Tracking
         line_movement = None
@@ -375,6 +447,49 @@ class SignalHub:
             **original_evidence,
             "taiwan_odds": odds,
             "line_movement": line_movement,
+            "bet_percentage": bet_pct,
+            "money_percentage": money_pct,
+            "splits_divergence_pp": splits_divergence,
+            "splits_sample_size": splits_metadata.get("sample_size"),
+            "splits_reporting_book": splits_metadata.get("reporting_bookmaker"),
+            "is_sharp_money_divergence": bool(splits_divergence and splits_divergence >= 15.0),
+            "signal_classification_breakdown": {
+                "crowd_sentiment": {
+                    "source": "Playsport 社群選票",
+                    "ratio_pct": round(crowd_ratio * 100.0, 1) if crowd_ratio is not None else None,
+                    "vote_count": crowd_metadata.get("vote_count"),
+                    "classification": "CROWD_SENTIMENT",
+                    "role": "社群情緒指標（非真實勝率）",
+                },
+                "expert_picks": {
+                    "source": "Playsport 認證達人",
+                    "agreeing_count": expert_metadata.get("agreeing_count", 0),
+                    "classification": "EXPERT_PICKS",
+                    "role": "達人主推意見（歷史勝率非本場勝率）",
+                },
+                "betting_splits": {
+                    "bet_percentage": bet_pct,
+                    "money_percentage": money_pct,
+                    "sample_size": splits_metadata.get("sample_size"),
+                    "reporting_book": splits_metadata.get("reporting_bookmaker"),
+                    "classification": "BETTING_SPLITS",
+                    "role": "國際投注傾向（籌碼分佈非勝率）",
+                },
+                "market_benchmark": {
+                    "fair_probability": sharp_metadata.get("sharp_fair_probability"),
+                    "expected_value_pct": sharp_metadata.get("expected_value_pct"),
+                    "sharp_book": sharp_metadata.get("sharp_book"),
+                    "is_value_bet": sharp_metadata.get("is_value_bet", False),
+                    "classification": "MARKET_BENCHMARK",
+                    "role": "國際市場公允定價（去水公允機率）",
+                },
+                "statistical_models": {
+                    "candidate_count": len(model_signals),
+                    "accepted_champion": ((champion.metadata or {}).get("model_id", champion.source_id) if champion else None),
+                    "classification": "STATISTICAL_MODEL",
+                    "role": "獨立統計數據模型預測",
+                },
+            },
             "market_implied_pct": round(market_implied * 100.0, 1),
             "market_implied_probability": round(market_implied, 3),
             "market_fair_probability": edge_eval.market_fair_probability,

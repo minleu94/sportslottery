@@ -230,6 +230,57 @@ class CorrelationGuard:
     assess_parlay = evaluate_parlay
 
 
+def check_source_independence(signals: List[Any]) -> Dict[str, Any]:
+    """Verify source independence and deduplicate syndicated or identical upstream data feeds.
+
+    Prevents SignalHub from treating multiple web portals syndicating the same
+    underlying bookmaker betting splits (e.g., Action Network & VSiN both citing DraftKings)
+    or multiple model aliases as independent confirmatory evidence.
+    """
+    seen_groups: Dict[str, Any] = {}
+    seen_upstream_reporters: Dict[str, str] = {}
+    independent_signals: List[Any] = []
+    excluded_duplicates: List[Dict[str, Any]] = []
+
+    for s in signals:
+        src_id = getattr(s, "source_id", "unknown")
+        group = getattr(s, "independence_group", None) or getattr(s, "source_category", "UNKNOWN")
+        metadata = getattr(s, "metadata", {}) or {}
+        reporter = metadata.get("reporting_bookmaker") or metadata.get("underlying_source")
+
+        # 1. Check if same reporting bookmaker/origin is already claimed in this market
+        if reporter and reporter in seen_upstream_reporters:
+            prior_src = seen_upstream_reporters[reporter]
+            excluded_duplicates.append({
+                "source_id": src_id,
+                "reason": f"Syndicated upstream feed: both cite '{reporter}' (already represented by {prior_src})",
+                "reporter": reporter,
+            })
+            continue
+
+        # 2. Check if independence group already has a representative
+        if group in seen_groups and group not in {"UNKNOWN", "MODEL"}:
+            excluded_duplicates.append({
+                "source_id": src_id,
+                "reason": f"Shared independence group '{group}' with {seen_groups[group]}",
+                "group": group,
+            })
+            continue
+
+        seen_groups[group] = src_id
+        if reporter:
+            seen_upstream_reporters[reporter] = src_id
+        independent_signals.append(s)
+
+    return {
+        "total_signals_evaluated": len(signals),
+        "independent_count": len(independent_signals),
+        "excluded_count": len(excluded_duplicates),
+        "independent_signals": independent_signals,
+        "excluded_duplicates": excluded_duplicates,
+    }
+
+
 def empirical_error_correlation(rows: list[dict[str, Any]], *,
                                 min_paired_events: int = 100) -> dict[str, Any]:
     """Describe paired binary forecast-error correlations from scored events.

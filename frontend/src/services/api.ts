@@ -744,5 +744,37 @@ export const api = {
 
   },
 
+  async getMarketStatus() {
+    const res = await fetch(`${BASE_URL}/market/status`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error("取得國際市場情報狀態失敗")
+    return res.json()
+  },
+
+  async getMarketBenchmarks(league = "MLB", forceRefresh = false) {
+    const res = await fetch(`${BASE_URL}/market/benchmark?league=${encodeURIComponent(league)}&force_refresh=${forceRefresh}`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error("取得國際市場賠率對齊失敗")
+    return res.json()
+  },
+
+  async getMarketSplits(league = "MLB") {
+    const res = await fetch(`${BASE_URL}/market/splits?league=${encodeURIComponent(league)}`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error("取得國際投注傾向失敗")
+    return res.json()
+  },
+
+  async getMarketEvaluation(scope = "GLOBAL") {
+    const res = await fetch(`${BASE_URL}/market/evaluation?scope=${encodeURIComponent(scope)}`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error("取得前瞻模型評估報告失敗")
+    return res.json()
+  },
+
 }
 

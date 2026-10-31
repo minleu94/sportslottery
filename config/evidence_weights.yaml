@@ -1,5 +1,6 @@
 # Evidence Weight and Agreement Configuration
 # Governs multi-source signal aggregation, independence group deduplication, and quality scoring.
+# Phase 4 Upgrade: Explicit separation between crowd sentiment, splits, sharp benchmark, and models.
 
 source_weights:
   VERIFIED_EXPERT:
@@ -7,6 +8,12 @@ source_weights:
     min_confidence: "MED"
     min_sample_size: 10
     description: "公開會員推牌與本場、玩法、盤線一致且在開賽前觀測；歷史績效不是本場勝率。"
+
+  EXPERT_PICKS:
+    base_weight: 1.00
+    min_confidence: "MED"
+    min_sample_size: 10
+    description: "認證專家主推意見 (別名)"
 
   EXTERNAL_OPEN_SOURCE_ENGINE:
     base_weight: 0.85
@@ -33,11 +40,42 @@ source_weights:
     min_edge_pp: 0.0
     description: "本機統計降級模型 (如基於 ESPN 賽季總數據之畢氏定理或基礎 Poisson)"
 
+  STATISTICAL_MODEL:
+    base_weight: 0.75
+    min_edge_pp: 0.0
+    description: "獨立統計數據模型預測"
+
+  SHARP_MARKET_BENCHMARK:
+    base_weight: 1.10
+    min_confidence: "MED"
+    description: "國際尖銳博彩定價公允值 (+EV 價值量化引擎)"
+
+  MARKET_BENCHMARK:
+    base_weight: 1.10
+    min_confidence: "MED"
+    description: "國際尖銳博彩定價公允值 (別名)"
+
+  BET_COUNT_SPLITS:
+    base_weight: 0.20
+    min_sample_size: 1000
+    description: "國際投注張數參與傾向 (Tickets %，非勝率)"
+
+  MONEY_VOLUME_SPLITS:
+    base_weight: 0.30
+    min_sample_size: 1000
+    description: "國際投注資金把數分佈 (Handle %，非真實機率)"
+
   CROWD_CONSENSUS:
     base_weight: 0.35
     min_sample_size: 20
     min_support_pct: 55.0
     description: "玩運彩大眾彩迷投票熱度 (若超過 55% 視為支援)"
+
+  CROWD_SENTIMENT:
+    base_weight: 0.35
+    min_sample_size: 20
+    min_support_pct: 55.0
+    description: "社群彩迷投票情緒 (別名)"
 
   BETTING_MARKET:
     base_weight: 0.00
@@ -57,6 +95,16 @@ independence_groups:
 
   PLAYSPORT_CROWD:
     name: "玩運彩彩迷社群選票"
+    is_baseline: false
+    max_votes: 1
+
+  PUBLIC_BETTING_SPLITS:
+    name: "國際公共投注比例 (Tickets/Money)"
+    is_baseline: false
+    max_votes: 1
+
+  SHARP_CONSENSUS:
+    name: "國際 Sharp 市場定價基準"
     is_baseline: false
     max_votes: 1
 
@@ -98,5 +146,4 @@ agreement_rules:
     description: "僅有 1 個非市場獨立來源群組（如單純大眾選票或單一降級模型）"
 
   INSUFFICIENT_SIGNAL:
-    min_independent_groups: 0
-    description: "0 個非市場獨立來源支援（僅有盤口賠率自身）"
+    description: "無任何符合最低門檻之獨立非市場來源支援"

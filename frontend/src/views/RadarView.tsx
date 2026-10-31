@@ -505,6 +505,16 @@ export const RadarView: React.FC = () => {
                                       +EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
                                     </span>
                                   )}
+                                  {ev.sharp_fair_probability && (
+                                    <span className="ml-1 text-[10px] font-semibold text-sky-500 bg-sky-500/10 px-1 py-0.5 rounded font-mono">
+                                      🌐去水{(ev.sharp_fair_probability * 100).toFixed(0)}%
+                                    </span>
+                                  )}
+                                  {ev.is_sharp_money_divergence && (
+                                    <span className="ml-1 text-[10px] font-bold text-amber-500 bg-amber-500/10 px-1 py-0.5 rounded">
+                                      ⚡籌碼分歧
+                                    </span>
+                                  )}
                                   {lm.is_steam && (
                                     <span className="ml-1 text-[10px] font-bold text-emerald-400">📉跳水</span>
                                   )}
@@ -629,6 +639,16 @@ export const RadarView: React.FC = () => {
                               {lm.is_trap_warning && (
                                 <Badge variant="yellow" className="text-[10px] flex items-center gap-1">
                                   ⚠️ 升水誘盤防禦
+                                </Badge>
+                              )}
+                              {evidence.sharp_fair_probability && (
+                                <Badge variant="blue" className="text-[10px] flex items-center gap-1 font-mono">
+                                  🌐 去水 {(evidence.sharp_fair_probability * 100).toFixed(0)}%
+                                </Badge>
+                              )}
+                              {evidence.is_sharp_money_divergence && (
+                                <Badge variant="amber" className="text-[10px] flex items-center gap-1">
+                                  ⚡ 籌碼分歧
                                 </Badge>
                               )}
                             </div>

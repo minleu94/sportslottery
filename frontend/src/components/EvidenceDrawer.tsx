@@ -3,7 +3,7 @@ import { Sheet } from "@/components/ui/Sheet"
 import { Badge } from "@/components/ui/Badge"
 import type { ParlayRecommendation, Leg } from "@/types"
 import { cleanLeagueName } from "@/lib/utils"
-import { ShieldCheck, Users, TrendingUp, Sparkles, AlertTriangle } from "lucide-react"
+import { ShieldCheck, Users, TrendingUp, Sparkles, AlertTriangle, Globe, Coins } from "lucide-react"
 
 interface EvidenceDrawerProps {
   open: boolean
@@ -95,6 +95,40 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
 
                 {/* Evidence badges & indicators */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
+                  {/* Market Fair Benchmark */}
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
+                    <Globe className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">國際去水公允</div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200">
+                        {ev.sharp_fair_probability ? `${(ev.sharp_fair_probability * 100).toFixed(1)}%` : (ev.market_fair_probability ? `${(ev.market_fair_probability * 100).toFixed(1)}%` : "未對齊")}
+                        {ev.sharp_expected_value_pct !== undefined && ev.sharp_expected_value_pct !== null && (
+                          <span className={`text-[10px] ml-1 font-mono font-semibold ${ev.sharp_expected_value_pct > 0 ? "text-emerald-500" : "text-slate-400"}`}>
+                            ({ev.sharp_expected_value_pct > 0 ? "+" : ""}{ev.sharp_expected_value_pct.toFixed(1)}% EV)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Betting Splits */}
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
+                    <Coins className="w-4 h-4 text-amber-500 shrink-0" />
+                    <div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">國際籌碼(資金/票數)</div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200">
+                        {ev.money_percentage !== undefined && ev.money_percentage !== null ? (
+                          <span>
+                            {ev.money_percentage.toFixed(0)}% / {ev.bet_percentage?.toFixed(0)}%
+                            {ev.is_sharp_money_divergence && <span className="text-[10px] text-amber-500 ml-1">⚡分歧</span>}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">研究待採集</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Crowd consensus */}
                   <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
                     <Users className="w-4 h-4 text-sky-500 dark:text-sky-400 shrink-0" />
