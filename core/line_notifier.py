@@ -660,17 +660,29 @@ class LineNotifier:
         # 5. International Market Benchmark & Splits Note
         market_intel_notes = []
         evidence = leg.get("signal_evidence") or {}
+        is_market_synth = bool(evidence.get("is_market_synthetic") or evidence.get("is_synthetic"))
+        is_splits_synth = bool(evidence.get("is_splits_synthetic"))
+
         sharp_p = evidence.get("sharp_fair_probability")
         sharp_ev = evidence.get("sharp_expected_value_pct")
-        if sharp_p:
-            ev_str = f" (+EV {sharp_ev:+.1f}%)" if sharp_ev is not None and sharp_ev > 0 else ""
+
+        if is_market_synth:
+            # Synthetic fixtures must NEVER be presented as verified +EV in recommendations
+            synth_p = evidence.get("synthetic_fair_probability")
+            if synth_p:
+                market_intel_notes.append(f"   🌐 國際參考盤口: 模擬樣本 {synth_p * 100:.1f}% (測試展示，非真實優勢)")
+        elif sharp_p and sharp_ev is not None:
+            ev_str = f" (+EV {sharp_ev:+.1f}%)" if sharp_ev > 0 else f" ({sharp_ev:+.1f}%)"
             market_intel_notes.append(f"   🌐 國際公允勝率: {sharp_p * 100:.1f}%{ev_str}")
 
         money_p = evidence.get("money_percentage")
         bet_p = evidence.get("bet_percentage")
         if money_p is not None and bet_p is not None:
-            div_note = " (⚡資金顯著分歧)" if (money_p - bet_p) >= 15.0 else ""
-            market_intel_notes.append(f"   💰 國際籌碼傾向: 資金 {money_p:.0f}% / 票數 {bet_p:.0f}%{div_note}")
+            if is_splits_synth:
+                market_intel_notes.append(f"   💰 國際籌碼傾向: 資金 {money_p:.0f}% / 票數 {bet_p:.0f}% (模擬數據)")
+            else:
+                div_note = " (⚡資金顯著分歧)" if (money_p - bet_p) >= 15.0 else ""
+                market_intel_notes.append(f"   💰 國際籌碼傾向: 資金 {money_p:.0f}% / 票數 {bet_p:.0f}%{div_note}")
 
         extra_text = ("\n" + "\n".join(market_intel_notes)) if market_intel_notes else ""
 

@@ -586,14 +586,15 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                         {(() => {
                           const evVal = parlay.parlay_ev_pct ?? (parlay.expected_value ? parlay.expected_value * 100 : null)
                           if (evVal === null || evVal === undefined) return null
-                          const isPos = evVal > 0
+                          const parlayHasSynth = parlay.legs?.some((l: any) => l.is_market_synthetic || (l.signal_evidence || {}).is_market_synthetic)
+                          const isPos = !parlayHasSynth && evVal > 0
                           return (
                             <div
                               className={`text-xs font-bold tabular-nums font-mono flex items-center justify-end gap-1 ${
                                 isPos ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"
                               }`}
                             >
-                              <span>{isPos ? "⚡ +EV" : "EV"}</span>
+                              <span>{isPos ? "⚡ +EV" : (parlayHasSynth ? "EV (模擬)" : "EV")}</span>
                               <span>{isPos ? `+${evVal.toFixed(1)}%` : `${evVal.toFixed(1)}%`}</span>
                             </div>
                           )
@@ -604,9 +605,10 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                     {/* Legs list inside parlay (with cleanLeagueName applied & leg-level EV displayed!) */}
                     <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800/80">
                       {parlay.legs.map((leg, lIdx) => {
+                        const isSynth = Boolean(leg.is_market_synthetic || (leg.signal_evidence || {}).is_market_synthetic)
                         const legEv = leg.expected_value_pct ?? (leg.expected_value ? leg.expected_value * 100 : null)
                         const legProb = leg.consensus_probability ? (leg.consensus_probability * 100).toFixed(0) : null
-                        const isPos = Boolean(leg.is_positive_ev || (legEv !== null && legEv > 0))
+                        const isPos = Boolean(!isSynth && (leg.is_positive_ev || (legEv !== null && legEv > 0)))
 
                         return (
                           <div
@@ -635,7 +637,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                                         : "bg-slate-200 dark:bg-slate-800 text-slate-500"
                                     }`}
                                   >
-                                    {isPos ? `⚡ +EV +${legEv.toFixed(1)}%` : `EV ${legEv.toFixed(1)}%`}
+                                    {isPos ? `⚡ +EV +${legEv.toFixed(1)}%` : (isSynth ? `EV ${legEv.toFixed(1)}% (模擬)` : `EV ${legEv.toFixed(1)}%`)}
                                   </span>
                                 )}
 

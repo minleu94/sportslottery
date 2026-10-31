@@ -35,6 +35,23 @@ def test_get_market_benchmark():
     assert "total_taiwan_legs" in data
     assert "benchmarks" in data
     assert "as_of_utc" in data
+    for bm in data.get("benchmarks", []):
+        # Synthetic benchmarks must NEVER be flagged as reliable positive EV
+        if bm.get("is_synthetic"):
+            assert bm.get("is_positive_ev") is False
+            assert bm.get("ev_status") == "SYNTHETIC_DATA_DISPLAY_ONLY"
+            # Verify no fake 0.98 multiplier was used: if counterpart odds missing, fair_probability is None
+            if bm.get("matched_international_odds") is not None and bm.get("counterpart_odds") is None:
+                assert bm.get("fair_probability") is None
+                assert bm.get("theoretical_ev") is None
+
+
+def test_market_benchmark_counterpart_missing_fail_closed():
+    # Calling benchmark on an isolated or unaligned market returns fail-closed EV
+    resp = client.get("/api/market/benchmark?league=UNKNOWN_LEAGUE")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["benchmarks"] == []
 
 
 def test_get_market_splits():

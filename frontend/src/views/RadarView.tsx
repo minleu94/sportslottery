@@ -500,17 +500,22 @@ export const RadarView: React.FC = () => {
                                 <td className="p-2.5 font-sans">
                                   <span className="text-[11px] text-slate-400 mr-1">[{leg.market}]</span>
                                   <strong className="text-emerald-600 dark:text-emerald-400">{leg.selection}</strong>
-                                  {isPositiveEv && (
+                                  {!ev.is_market_synthetic && isPositiveEv && (
                                     <span className="ml-1.5 text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1 py-0.5 rounded font-mono">
                                       +EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
                                     </span>
                                   )}
-                                  {ev.sharp_fair_probability && (
+                                  {!ev.is_market_synthetic && ev.sharp_fair_probability && (
                                     <span className="ml-1 text-[10px] font-semibold text-sky-500 bg-sky-500/10 px-1 py-0.5 rounded font-mono">
                                       🌐去水{(ev.sharp_fair_probability * 100).toFixed(0)}%
                                     </span>
                                   )}
-                                  {ev.is_sharp_money_divergence && (
+                                  {ev.is_market_synthetic && (
+                                    <span className="ml-1 text-[10px] text-slate-400 bg-slate-200/50 dark:bg-slate-800 px-1 py-0.5 rounded font-mono">
+                                      🌐模擬數據
+                                    </span>
+                                  )}
+                                  {!ev.is_splits_synthetic && ev.is_sharp_money_divergence && (
                                     <span className="ml-1 text-[10px] font-bold text-amber-500 bg-amber-500/10 px-1 py-0.5 rounded">
                                       ⚡籌碼分歧
                                     </span>
@@ -624,10 +629,15 @@ export const RadarView: React.FC = () => {
 
                             {/* Signals & Indicators */}
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {typeof legEv === "number" && legEv > 0 && (
+                              {typeof legEv === "number" && legEv > 0 && !evidence.is_market_synthetic && (
                                 <Badge variant="green" className="text-[10px] flex items-center gap-1">
                                   <Flame className="w-3 h-3" />
                                   +EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
+                                </Badge>
+                              )}
+                              {evidence.is_market_synthetic && (
+                                <Badge variant="slate" className="text-[10px] flex items-center gap-1">
+                                  🌐 模擬數據
                                 </Badge>
                               )}
                               {lm.is_steam && (
@@ -641,12 +651,12 @@ export const RadarView: React.FC = () => {
                                   ⚠️ 升水誘盤防禦
                                 </Badge>
                               )}
-                              {evidence.sharp_fair_probability && (
+                              {evidence.sharp_fair_probability && !evidence.is_market_synthetic && (
                                 <Badge variant="blue" className="text-[10px] flex items-center gap-1 font-mono">
                                   🌐 去水 {(evidence.sharp_fair_probability * 100).toFixed(0)}%
                                 </Badge>
                               )}
-                              {evidence.is_sharp_money_divergence && (
+                              {evidence.is_sharp_money_divergence && !evidence.is_splits_synthetic && (
                                 <Badge variant="amber" className="text-[10px] flex items-center gap-1">
                                   ⚡ 籌碼分歧
                                 </Badge>

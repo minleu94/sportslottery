@@ -546,7 +546,7 @@ def test_ticket_4_state_odds_and_clv():
         res2 = recorder.place_ticket(
             stake=50.0,
             total_odds=15.0,
-            legs=[{"event_id": "E3", "odds": 15.0, "league": "MLB"}],
+            legs=[{"event_id": "E3", "selection": "主隊", "odds": 15.0, "league": "MLB"}],
             recommendation_odds=15.0,
             placed_odds=15.0,
         )
