@@ -40,6 +40,9 @@ class LineNotifier:
         self.session = session or requests.Session()
         self.config = self.load_config()
         self.last_recommended_parlay: Optional[Dict[str, Any]] = None
+        self.last_parlay_candidates: List[Dict[str, Any]] = []
+        self.last_candidate_index: int = 0
+        self.last_search_context: Dict[str, Any] = {}
 
     def load_config(self) -> Dict[str, Any]:
         """Load LINE Bot settings from YAML config or environment variables."""
@@ -234,15 +237,78 @@ class LineNotifier:
 
     @staticmethod
     def default_quick_replies() -> List[Dict[str, str]]:
-        """Standard quick reply shortcuts displayed above keyboard in LINE chat."""
+        """Standard main menu shortcuts displayed above keyboard in LINE chat."""
+        return [
+            {"label": "🎯 智慧串關", "text": "智慧串關"},
+            {"label": "🛡️ 穩健保底", "text": "高勝率保底"},
+            {"label": "☀️ 今日賽事", "text": "今日開盤"},
+            {"label": "💰 資產戰績", "text": "查戰績"},
+            {"label": "🛠️ 工具箱/QR", "text": "功能表"},
+            {"label": "👤 個人設定", "text": "個人設定"},
+        ]
+
+    @staticmethod
+    def parlay_quick_replies(has_next: bool = True) -> List[Dict[str, str]]:
+        """Contextual actions displayed immediately after a parlay recommendation."""
+        replies = [
+            {"label": "📱 產生此單 QR 碼", "text": "QR"},
+        ]
+        if has_next:
+            replies.append({"label": "🎲 換一組推薦", "text": "換一組"})
+        replies.extend([
+            {"label": "🎯 找20倍", "text": "20倍"},
+            {"label": "🔥 找50倍", "text": "50倍"},
+            {"label": "🛡️ 穩健保底", "text": "高勝率保底"},
+            {"label": "🏠 回主選單", "text": "功能表"},
+        ])
+        return replies
+
+    @staticmethod
+    def multiplier_menu_quick_replies() -> List[Dict[str, str]]:
+        """Sub-tier options when user asks for multiplier parlay menu."""
+        return [
+            {"label": "🛡️ 穩健 2.5倍", "text": "高勝率保底"},
+            {"label": "🔥 瘋狗 10倍", "text": "10倍"},
+            {"label": "🎯 經典 20倍", "text": "20倍"},
+            {"label": "💥 狂暴 50倍", "text": "50倍"},
+            {"label": "🚀 登月 100倍", "text": "100倍"},
+            {"label": "⚽ 足球 20倍", "text": "足球 20倍"},
+            {"label": "🏀 NBA 15倍", "text": "NBA 15倍"},
+            {"label": "🏠 回主選單", "text": "功能表"},
+        ]
+
+    @staticmethod
+    def radar_menu_quick_replies() -> List[Dict[str, str]]:
+        """Sub-tier options when user inspects daily radar or sports."""
+        return [
+            {"label": "⚽ 足球 20倍", "text": "足球 20倍"},
+            {"label": "🏀 NBA 15倍", "text": "NBA 15倍"},
+            {"label": "🎯 瘋狗 20倍", "text": "20倍"},
+            {"label": "🛡️ 穩健保底", "text": "高勝率保底"},
+            {"label": "🏠 回主選單", "text": "功能表"},
+        ]
+
+    @staticmethod
+    def wallet_menu_quick_replies() -> List[Dict[str, str]]:
+        """Sub-tier options when user inspects wallet / finance."""
+        return [
+            {"label": "🛡️ 聽牌對沖計算", "text": "對沖"},
+            {"label": "💰 重新整理戰績", "text": "查戰績"},
+            {"label": "👤 玩家登入/設定", "text": "個人設定"},
+            {"label": "🎯 智慧串關", "text": "智慧串關"},
+            {"label": "🏠 回主選單", "text": "功能表"},
+        ]
+
+    @staticmethod
+    def tools_menu_quick_replies() -> List[Dict[str, str]]:
+        """Sub-tier options for tools / kiosk slip / hedging."""
         return [
             {"label": "📱 產生投注 QR 碼", "text": "QR"},
-            {"label": "🎯 找20倍串關", "text": "20倍"},
-            {"label": "🔥 找50倍高賠", "text": "50倍"},
+            {"label": "🛡️ 聽牌對沖計算", "text": "對沖"},
             {"label": "💰 查戰績錢包", "text": "查戰績"},
-            {"label": "👤 玩家登入/設定", "text": "個人設定"},
-            {"label": "☀️ 今日開盤", "text": "今日開盤"},
-            {"label": "🛡️ 聽牌對沖", "text": "對沖"},
+            {"label": "👤 個人設定/PIN", "text": "個人設定"},
+            {"label": "🎯 找20倍串關", "text": "20倍"},
+            {"label": "🏠 回主選單", "text": "功能表"},
         ]
 
     def test_connection(self, user_id: Optional[str] = None) -> Dict[str, Any]:
@@ -601,26 +667,21 @@ class LineNotifier:
     def get_menu_text() -> str:
         """Full interactive menu formatted for mobile LINE chat."""
         return (
-            "🐕 【瘋狗流 LINE 助手指令說明 · 功能表】\n"
+            "🐕 【瘋狗流 LINE 助手指令說明 · 功能表 / 工具箱】\n"
             "===========================\n"
-            "您可以直接傳送以下指令（或點選下方快捷按鈕）：\n\n"
-            "🎯 【智慧串關推薦】\n"
-            "• 輸入「20倍」、「30倍」、「50倍」或任何數字\n"
-            "  ➔ AI 即時從今日各聯賽盤口中，演算最高勝率、正期望值 (+EV) 的串關組合！\n\n"
-            "💰 【資產與戰績管理】\n"
-            "• 輸入「查戰績」、「錢包」或「餘額」\n"
-            "  ➔ 即時查詢本週可玩額度 (NT$200/週)、已下注金額與保留儲備池！\n\n"
-            "☀️ 【即時開盤雷達】\n"
-            "• 輸入「今日開盤」或「雷達」\n"
-            "  ➔ 查詢今日有開盤之聯賽與可玩場次簡報！\n\n"
+            "您可以直接點選下方快捷膠囊，或傳送以下指令：\n\n"
+            "📱 【彩券行免劃單 QR 碼】\n"
+            "• 點選「📱 產生投注 QR 碼」或輸入「QR」\n"
+            "  ➔ 即時生成台彩 3.0 機台掃描條碼，實體彩券行 1 秒出票！\n\n"
             "🛡️ 【聽牌對沖與鎖利】\n"
-            "• 輸入「對沖」或「聽牌」\n"
-            "  ➔ 檢查手頭未結算注單，若只剩最後一關，即時計算 100% 鎖利或 0 虧損保本對沖計畫！\n\n"
-            "📱 【彩券行 QR Code 投注單】\n"
-            "• 輸入「QR」或點選下方快捷按鈕\n"
-            "  ➔ 即時生成台彩 3.0 機台掃描條碼，實體彩券行 1 秒免劃單快速出票！\n\n"
-            "📋 【重新呼叫選單】\n"
-            "• 輸入「功能表」、「選單」或「說明」\n"
+            "• 點選「🛡️ 聽牌對沖」或輸入「對沖」\n"
+            "  ➔ 若手上注單只剩最後一關，即時計算 100% 鎖利或 0 虧損保本計畫！\n\n"
+            "💰 【資金與戰績管理】\n"
+            "• 點選「💰 查戰績錢包」或輸入「查戰績」\n"
+            "  ➔ 查看本週 NT$200 風控錢包餘額、保留儲備池與歷史獲利！\n\n"
+            "👤 【玩家設定與 PIN 碼】\n"
+            "• 點選「👤 個人設定」或輸入「改密碼 0000 1234」\n"
+            "  ➔ 綁定 LINE 專屬錢包或修改 PIN 密碼！\n"
             "===========================\n"
             "💡 提示：點擊下方快捷按鈕即可一鍵送出！"
         )
@@ -662,6 +723,10 @@ class LineNotifier:
         # 1.1 Banker Mode / High Win Rate (保底/穩健)
         if any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker"]):
             return self._search_parlay_for_bot(2.5, parlay_engine, available_legs)
+
+        # 1.15 Next Combo / Alternative Parlay (換一組推薦)
+        if any(k in cmd for k in ["換一組", "另一組", "換一張", "下一組", "換", "next", "reroll", "再一組"]):
+            return self._get_next_parlay_candidate(parlay_engine, available_legs)
 
         # 1.2 Profile & Personal Settings (Interactive in-LINE + Public HTTPS Web Link)
         profile_reply = self._handle_profile_commands(user_text, line_user_id=line_user_id)
@@ -737,11 +802,21 @@ class LineNotifier:
         wallet_mgr: Optional[Any] = None,
         line_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Process inbound text command and return dict with 'text' and optional 'image_url'."""
+        """Process inbound text command and return dict with 'text', 'image_url', and contextual 'quick_replies'."""
         cmd = user_text.strip().lower()
-        if any(cmd == q or q in cmd for q in ["qr", "產qr", "條碼", "投注單", "qrcode", "出票", "劃單"]):
-            return self._handle_qr_request(parlay_engine, available_legs)
 
+        # 1. QR Code Request
+        if any(cmd == q or q in cmd for q in ["qr", "產qr", "條碼", "投注單", "qrcode", "出票", "劃單"]):
+            qr_res = self._handle_qr_request(parlay_engine, available_legs)
+            qr_res["quick_replies"] = [
+                {"label": "🎲 換一組推薦", "text": "換一組"},
+                {"label": "🎯 找20倍", "text": "20倍"},
+                {"label": "🛡️ 穩健保底", "text": "高勝率保底"},
+                {"label": "🏠 回主選單", "text": "功能表"},
+            ]
+            return qr_res
+
+        # 2. Main Text Command Processing
         text_reply = self.handle_user_message(
             user_text,
             parlay_engine=parlay_engine,
@@ -749,7 +824,38 @@ class LineNotifier:
             wallet_mgr=wallet_mgr,
             line_user_id=line_user_id,
         )
-        return {"text": text_reply, "image_url": None}
+
+        # 3. Contextual Quick Reply Routing
+        quick_replies = self.default_quick_replies()
+
+        # A. Multiplier Menu requested
+        if any(cmd == k or k in cmd for k in ["智慧串關", "選倍率", "串關"]):
+            quick_replies = self.multiplier_menu_quick_replies()
+
+        # B. Parlay Search or Next Candidate triggered
+        elif any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker", "換一組", "另一組", "換", "next", "reroll"]) or (
+            ("倍" in cmd or "x" in cmd or cmd.isdigit() or "串" in cmd) and re.search(r"\d", cmd)
+        ):
+            has_next = len(self.last_parlay_candidates) > 1
+            quick_replies = self.parlay_quick_replies(has_next=has_next)
+
+        # C. Season Radar requested
+        elif any(k in cmd for k in ["雷達", "開盤", "今天", "賽程", "賽事"]):
+            quick_replies = self.radar_menu_quick_replies()
+
+        # D. Wallet / Performance requested
+        elif any(k in cmd for k in ["戰績", "錢包", "餘額", "本金", "獲利", "本週"]):
+            quick_replies = self.wallet_menu_quick_replies()
+
+        # E. Menu / Tools requested
+        elif any(cmd == t for t in ["功能表", "選單", "menu", "help", "說明", "指令", "你好", "您好", "哈囉", "hello", "hi", "嗨", "開始", "start", "安安", "?", "？", "怎麼用", "功能指南"]):
+            quick_replies = self.tools_menu_quick_replies()
+
+        return {
+            "text": text_reply,
+            "image_url": None,
+            "quick_replies": quick_replies,
+        }
 
     def _handle_qr_request(
         self,
@@ -776,6 +882,46 @@ class LineNotifier:
             "image_url": None,
         }
 
+    def _get_next_parlay_candidate(
+        self,
+        parlay_engine: Optional[Any] = None,
+        available_legs: Optional[List[Any]] = None,
+    ) -> str:
+        """Cycle to the next parlay candidate for the last searched target."""
+        if not self.last_parlay_candidates:
+            target = self.last_search_context.get("target_mult", 20.0)
+            sport = self.last_search_context.get("sport_filter")
+            return self._search_parlay_for_bot(target, parlay_engine, available_legs, sport_filter=sport)
+
+        self.last_candidate_index = (self.last_candidate_index + 1) % len(self.last_parlay_candidates)
+        next_combo = self.last_parlay_candidates[self.last_candidate_index]
+        self.last_recommended_parlay = next_combo
+
+        total_odds = float(next_combo.get("total_odds", 1.0))
+        joint_prob = float(next_combo.get("joint_probability", 0.0)) * 100
+        ev_pct = float(next_combo.get("parlay_ev_pct", 0.0))
+        legs = next_combo.get("legs", [])
+
+        from core.kelly import calculate_kelly_stake
+        kelly_res = calculate_kelly_stake(
+            win_probability=max(0.01, min(0.99, joint_prob / 100.0)),
+            decimal_odds=total_odds,
+            bankroll=200.0,
+        )
+        recommended_stake = kelly_res.get("quarter_kelly_stake", 10.0)
+
+        lines = [
+            f"🎲 【替換推薦 · 第 {self.last_candidate_index + 1}/{len(self.last_parlay_candidates)} 組 · 總賠率 {total_odds}x】",
+            f"⚖️ 估算勝率：{joint_prob:.1f}% | 期望值 EV：{ev_pct:+.1f}%",
+            f"💵 建議注碼：NT$ {recommended_stake:.0f} (1/4 凱利風控)",
+            "---------------------------",
+        ]
+        for idx, l in enumerate(legs, start=1):
+            lines.append(self.format_parlay_leg(l, idx))
+        lines.append("---------------------------")
+        lines.append("📲 點擊下方【📱 產生此單 QR 碼】立即生成條碼，或點【🎲 換一組推薦】瀏覽更多！")
+        return "\n".join(lines)
+
     def _search_parlay_for_bot(
         self,
         target_mult: float,
@@ -785,6 +931,7 @@ class LineNotifier:
     ) -> str:
         """Execute parlay combo search and format betting recommendation with Kelly sizing."""
         try:
+            self.last_search_context = {"target_mult": target_mult, "sport_filter": sport_filter}
             if not parlay_engine:
                 from core.signal_hub import SignalHub
                 from core.parlay_engine import ParlayEngine
@@ -831,6 +978,8 @@ class LineNotifier:
                 top_combos.extend(combos)
 
             if top_combos:
+                self.last_parlay_candidates = top_combos
+                self.last_candidate_index = 0
                 best = top_combos[0]
                 self.last_recommended_parlay = best
                 total_odds = float(best.get("total_odds", target_mult))
@@ -850,8 +999,9 @@ class LineNotifier:
                 lines = []
                 if sport_note:
                     lines.append(sport_note.strip())
+                cand_info = f" (共 {len(top_combos)} 組候選)" if len(top_combos) > 1 else ""
                 lines.extend([
-                    f"🎯 【{best.get('parlay_name', '精選串關')} · 總賠率 {total_odds}x】",
+                    f"🎯 【{best.get('parlay_name', '精選串關')} · 總賠率 {total_odds}x{cand_info}】",
                     f"⚖️ 估算勝率：{joint_prob:.1f}% | 期望值 EV：{ev_pct:+.1f}%",
                     f"💵 建議注碼：NT$ {recommended_stake:.0f} (1/4 凱利風控)",
                     "---------------------------",
@@ -859,10 +1009,12 @@ class LineNotifier:
                 for idx, l in enumerate(legs, start=1):
                     lines.append(self.format_parlay_leg(l, idx))
                 lines.append("---------------------------")
-                lines.append("📲 點擊下方【📱 產生投注 QR 碼】或傳送「QR」，即可獲得實體彩券行掃描條碼！")
+                lines.append("📲 點擊下方【📱 產生此單 QR 碼】立即生成條碼，或點【🎲 換一組推薦】瀏覽更多！")
                 lines.append("祝您場場過關，財庫滿載！🐕")
                 return "\n".join(lines)
             else:
+                self.last_parlay_candidates = []
+                self.last_candidate_index = 0
                 return (
                     f"🔍 已為您精算 {target_mult:.1f} 倍組合。\n"
                     "目前盤口中暫無完全符合 +EV 與風控標準之理想組合，建議微調倍率（如「10倍」或「30倍」）重新嘗試！"

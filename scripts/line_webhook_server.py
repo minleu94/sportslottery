@@ -131,13 +131,14 @@ def process_events(events: list[Dict[str, Any]]) -> None:
                     full_res = notifier.handle_user_message_full(user_text, line_user_id=user_id)
                     reply_text = full_res.get("text", "")
                     image_url = full_res.get("image_url")
+                    quick_replies = full_res.get("quick_replies") or notifier.default_quick_replies()
 
                     # Send reply with quick reply shortcut pills and optional image
                     if reply_token:
                         notifier.reply_message(
                             reply_token=reply_token,
                             text=reply_text,
-                            quick_replies=notifier.default_quick_replies(),
+                            quick_replies=quick_replies,
                             image_url=image_url,
                         )
 

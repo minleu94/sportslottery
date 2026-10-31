@@ -1142,11 +1142,12 @@ def process_line_events(events: list[Dict[str, Any]]) -> None:
                     full_res = _line_notifier.handle_user_message_full(user_text, line_user_id=user_id)
                     reply_text = full_res.get("text", "")
                     image_url = full_res.get("image_url")
+                    quick_replies = full_res.get("quick_replies") or _line_notifier.default_quick_replies()
                     if reply_token:
                         _line_notifier.reply_message(
                             reply_token=reply_token,
                             text=reply_text,
-                            quick_replies=_line_notifier.default_quick_replies(),
+                            quick_replies=quick_replies,
                             image_url=image_url,
                         )
 
