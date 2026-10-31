@@ -353,62 +353,162 @@ def get_market_benchmark_comparison(
         leg_enriched = signal_hub.evaluate_taiwan_leg(leg)
         matched_cand, record = aligner.align_leg_with_candidates(leg_enriched, int_odds)
         if matched_cand and record.status.value == "MATCHED":
-            # Strict de-vigging: NEVER use fixed multipliers (like 0.98)!
-            # A fair probability and EV can ONLY be computed if verifiable counterpart odds exist.
+            # Strict devigging using MarketFairOddsEngine:
+            # 1. NBA, MLB, NFL 2-way markets require complete both sides.
+            # 2. Soccer 1X2 3-way markets require home, away, AND draw. Never treat 2 outcomes as a 2-way market!
+            # 3. Missing counterparts, mismatched lines, or stale data Fail-Closed (EV = None).
             fair_prob = None
             ev = None
             ev_pct = None
             is_pos_ev = False
             ev_status = "NO_COUNTERPART_ODDS"
             counterpart_odds = None
+            draw_odds = None
+            can_devig = False
 
-            # 1. Search for counterpart quote from int_odds for the exact same event and bookmaker
-            for other in int_odds:
+            is_three_way = (
+                leg.sport == "soccer"
+                or leg.league in {"EPL", "SOCCER", "LALIGA", "西甲", "英超", "CHAMPS_LEAGUE", "MLS", "WORLD_CUP"}
+                or any(
+                    o.event_id == matched_cand.event_id
+                    and o.source_id == matched_cand.source_id
+                    and o.market_type == "MONEYLINE"
+                    and o.selection == "draw"
+                    for o in int_odds
+                )
+            ) and matched_cand.market_type == "MONEYLINE"
+
+            same_market_quotes = [
+                o for o in int_odds
                 if (
-                    other.event_id == matched_cand.event_id
-                    and other.market_type == matched_cand.market_type
-                    and other.source_id == matched_cand.source_id
-                    and other.selection != matched_cand.selection
-                ):
-                    if matched_cand.market_type == "SPREAD":
-                        if other.line is not None and matched_cand.line is not None:
-                            if math.isclose(other.line, -matched_cand.line, abs_tol=0.01):
-                                counterpart_odds = other.decimal_odds
-                                break
-                    elif matched_cand.market_type == "TOTAL":
-                        if other.line is not None and matched_cand.line is not None:
-                            if math.isclose(other.line, matched_cand.line, abs_tol=0.01):
-                                counterpart_odds = other.decimal_odds
-                                break
-                    else:  # MONEYLINE
+                    o.event_id == matched_cand.event_id
+                    and o.source_id == matched_cand.source_id
+                    and o.market_type == matched_cand.market_type
+                    and o.freshness_status not in {"STALE", "EXPIRED"}
+                )
+            ]
+
+            if is_three_way:
+                # 3-way 1X2 market (e.g. Soccer):
+                # Must find home, away, AND draw from the exact same bookmaker and event!
+                # NEVER treat 2 outcomes of a 3-way market as a 2-way market!
+                home_q = next((o for o in same_market_quotes if o.selection == "home" and o.decimal_odds > 1.0), None)
+                away_q = next((o for o in same_market_quotes if o.selection == "away" and o.decimal_odds > 1.0), None)
+                draw_q = next((o for o in same_market_quotes if o.selection == "draw" and o.decimal_odds > 1.0), None)
+
+                if home_q and away_q and draw_q:
+                    can_devig = True
+                    draw_odds = draw_q.decimal_odds
+                    if matched_cand.selection == "home":
+                        counterpart_odds = away_q.decimal_odds
+                    elif matched_cand.selection == "away":
+                        counterpart_odds = home_q.decimal_odds
+                    else:  # draw
+                        counterpart_odds = home_q.decimal_odds
+                        draw_odds = away_q.decimal_odds
+                else:
+                    can_devig = False
+                    ev_status = "INCOMPLETE_THREE_WAY_MARKET"
+            elif matched_cand.market_type == "SPREAD":
+                # 2-way handicap: opposite handicap line required
+                for other in same_market_quotes:
+                    if (
+                        other.selection != matched_cand.selection
+                        and other.line is not None
+                        and matched_cand.line is not None
+                        and other.decimal_odds > 1.0
+                        and math.isclose(other.line, -matched_cand.line, abs_tol=0.01)
+                    ):
                         counterpart_odds = other.decimal_odds
+                        can_devig = True
+                        break
+            elif matched_cand.market_type == "TOTAL":
+                # 2-way total: identical threshold line required
+                for other in same_market_quotes:
+                    if (
+                        other.selection != matched_cand.selection
+                        and other.line is not None
+                        and matched_cand.line is not None
+                        and other.decimal_odds > 1.0
+                        and math.isclose(other.line, matched_cand.line, abs_tol=0.01)
+                    ):
+                        counterpart_odds = other.decimal_odds
+                        can_devig = True
+                        break
+            else:
+                # 2-way MONEYLINE (MLB, NBA, NFL):
+                for other in same_market_quotes:
+                    if (
+                        other.selection != matched_cand.selection
+                        and other.selection in {"home", "away"}
+                        and other.decimal_odds > 1.0
+                    ):
+                        counterpart_odds = other.decimal_odds
+                        can_devig = True
                         break
 
-            # 2. De-vig if valid counterpart exists
-            if counterpart_odds is not None and counterpart_odds > 1.0 and matched_cand.decimal_odds > 1.0:
-                q1 = 1.0 / matched_cand.decimal_odds
-                q2 = 1.0 / counterpart_odds
-                total_q = q1 + q2
-                if total_q > 0:
-                    fair_prob = round(q1 / total_q, 4)
-                    ev = (fair_prob * leg.taiwan_odds) - 1.0
-                    ev_pct = round(ev * 100.0, 1)
+            # De-vig using MarketFairOddsEngine
+            if can_devig and counterpart_odds is not None and matched_cand.decimal_odds > 1.0:
+                fair_engine = MarketFairOddsEngine()
+                bq = BookmakerQuote(
+                    book_name=matched_cand.source_id,
+                    odds=matched_cand.decimal_odds,
+                    opposing_odds=counterpart_odds,
+                    draw_odds=draw_odds,
+                    is_three_way=is_three_way,
+                )
+                fair_res = fair_engine.calculate_fair_odds(leg.taiwan_odds, [bq])
+                if fair_res is not None:
+                    fair_prob = round(fair_res.market_fair_prob, 4)
+                    ev = round(fair_res.theoretical_ev, 4)
+                    ev_pct = round(fair_res.theoretical_ev_pct, 1)
                     if matched_cand.is_synthetic:
-                        # Synthetic data MUST NOT be labeled as verified positive EV!
                         is_pos_ev = False
                         ev_status = "SYNTHETIC_DATA_DISPLAY_ONLY"
                     else:
-                        is_pos_ev = ev >= 0.02
+                        is_pos_ev = fair_res.is_value_bet
                         ev_status = "VERIFIED_DEVIGGED"
             else:
-                # Check if signal hub already computed devigged probability with complete market outcomes
-                evidence_fair_p = (leg_enriched.signal_evidence or {}).get("market_fair_probability")
-                if evidence_fair_p is not None and 0 < evidence_fair_p < 1:
+                # Task 3: Check fallback evidence from signal hub with strict completeness & provenance gates
+                evidence = leg_enriched.signal_evidence or {}
+                evidence_fair_p = evidence.get("market_fair_probability")
+                fair_method = evidence.get("market_fair_method")
+                is_complete = bool(evidence.get("market_complete"))
+                is_evidence_synth = bool(
+                    evidence.get("is_market_synthetic") or evidence.get("is_synthetic") or matched_cand.is_synthetic
+                )
+
+                # Strict provenance gate: Must come from COMPLETE_MARKET_PROPORTIONAL or verified 2-way
+                # Never use BREAKEVEN_BASELINE_NOT_DEVIGGED as fair probability!
+                can_use_evidence = (
+                    evidence_fair_p is not None
+                    and 0.0 < evidence_fair_p < 1.0
+                    and is_complete
+                    and (
+                        (is_three_way and fair_method == "COMPLETE_MARKET_PROPORTIONAL")
+                        or (not is_three_way and fair_method in {"COMPLETE_MARKET_PROPORTIONAL", "TWO_WAY_PROPORTIONAL"})
+                    )
+                )
+
+                if can_use_evidence:
                     fair_prob = round(evidence_fair_p, 4)
-                    ev = (fair_prob * leg.taiwan_odds) - 1.0
-                    ev_pct = round(ev * 100.0, 1)
-                    is_pos_ev = (not matched_cand.is_synthetic) and (ev >= 0.02)
-                    ev_status = "VERIFIED_FROM_COMPLETE_MARKET" if not matched_cand.is_synthetic else "SYNTHETIC_DATA_DISPLAY_ONLY"
+                    ev_calc = (fair_prob * leg.taiwan_odds) - 1.0
+                    ev = round(ev_calc, 4)
+                    ev_pct = round(ev_calc * 100.0, 1)
+                    if is_evidence_synth:
+                        is_pos_ev = False
+                        ev_status = "SYNTHETIC_DATA_DISPLAY_ONLY"
+                    else:
+                        is_pos_ev = ev_calc >= 0.02
+                        ev_status = "VERIFIED_FROM_COMPLETE_MARKET"
+                else:
+                    # Fail-Closed: No verified counterpart odds or complete market
+                    fair_prob = None
+                    ev = None
+                    ev_pct = None
+                    is_pos_ev = False
+                    if not is_three_way and ev_status != "INCOMPLETE_THREE_WAY_MARKET":
+                        ev_status = "NO_COUNTERPART_ODDS"
 
             matched_results.append({
                 "taiwan_event_id": leg.event_id,
@@ -423,8 +523,10 @@ def get_market_benchmark_comparison(
                 "international_book": matched_cand.source_id,
                 "international_odds": matched_cand.decimal_odds,
                 "counterpart_odds": counterpart_odds,
+                "draw_odds": draw_odds if is_three_way else None,
+                "is_three_way": is_three_way,
                 "fair_probability": fair_prob,
-                "theoretical_ev": round(ev, 4) if ev is not None else None,
+                "theoretical_ev": ev,
                 "theoretical_ev_pct": ev_pct,
                 "is_positive_ev": is_pos_ev,
                 "ev_status": ev_status,

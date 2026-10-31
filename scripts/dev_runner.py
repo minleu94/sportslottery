@@ -81,6 +81,24 @@ def build_frontend() -> bool:
         print("  - [Notice] 未找到 vite.js，直接沿用現有編譯版本。")
         return True
 
+    tsc_script = ROOT_DIR / "frontend" / "node_modules" / "typescript" / "bin" / "tsc"
+    if tsc_script.exists():
+        try:
+            tsc_res = subprocess.run(
+                [node_exe, str(tsc_script), "-b"],
+                cwd=str(ROOT_DIR / "frontend"),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=20.0,
+            )
+            if tsc_res.returncode != 0:
+                print("  - [Error] TypeScript 編譯錯誤：\n" + (tsc_res.stdout or tsc_res.stderr).strip())
+                return False
+        except Exception as exc:
+            print(f"  - [Warning] TypeScript 檢查執行異常 ({exc})")
+
     try:
         res = subprocess.run(
             [node_exe, str(vite_script), "build"],

@@ -586,7 +586,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                         {(() => {
                           const evVal = parlay.parlay_ev_pct ?? (parlay.expected_value ? parlay.expected_value * 100 : null)
                           if (evVal === null || evVal === undefined) return null
-                          const parlayHasSynth = parlay.legs?.some((l: any) => l.is_market_synthetic || (l.signal_evidence || {}).is_market_synthetic)
+                          const parlayHasSynth = parlay.legs?.some((l) => l.is_market_synthetic || (l.signal_evidence || {}).is_market_synthetic)
                           const isPos = !parlayHasSynth && evVal > 0
                           return (
                             <div

@@ -54,6 +54,26 @@ def test_market_benchmark_counterpart_missing_fail_closed():
     assert data["benchmarks"] == []
 
 
+def test_market_benchmark_soccer_three_way_fail_closed():
+    # Test soccer benchmark endpoint: verify 3-way handling
+    resp = client.get("/api/market/benchmark?league=EPL")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["league"] == "EPL"
+    for bm in data.get("benchmarks", []):
+        if bm.get("market") in {"不讓分", "獨贏"} and bm.get("is_three_way"):
+            # In 3-way market, if draw_odds or counterpart_odds is missing, EV must be None
+            if bm.get("draw_odds") is None or bm.get("counterpart_odds") is None:
+                assert bm.get("fair_probability") is None
+                assert bm.get("theoretical_ev") is None
+                assert bm.get("is_positive_ev") is False
+                assert bm.get("ev_status") in {"INCOMPLETE_THREE_WAY_MARKET", "NO_COUNTERPART_ODDS", "UNVERIFIED_MARKET_EVIDENCE"}
+        # If synthetic, positive EV is strictly prohibited
+        if bm.get("is_synthetic"):
+            assert bm.get("is_positive_ev") is False
+            assert bm.get("ev_status") == "SYNTHETIC_DATA_DISPLAY_ONLY"
+
+
 def test_get_market_splits():
     resp = client.get("/api/market/splits?league=MLB")
     assert resp.status_code == 200

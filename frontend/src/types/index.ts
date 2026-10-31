@@ -34,6 +34,8 @@ export interface Leg {
   edge?: number | null
   market_probability?: number | null
   model_probability_calibrated?: number | null
+  is_market_synthetic?: boolean
+  is_splits_synthetic?: boolean
 }
 
 export interface ParlayRecommendation {

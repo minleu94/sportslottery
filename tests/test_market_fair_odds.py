@@ -81,3 +81,44 @@ def test_market_fair_odds_fail_closed():
     # Missing counterpart/opposing odds MUST fail closed rather than use fixed 0.98 multiplier
     res3 = engine.calculate_fair_odds(taiwan_odds=1.80, benchmark_quotes=[BookmakerQuote("Pin", 1.90, opposing_odds=None)])
     assert res3 is None
+
+
+def test_market_fair_odds_three_way_complete_and_incomplete():
+    engine = MarketFairOddsEngine()
+
+    # 1. Complete 3-way soccer market: Home 2.10, Draw 3.40, Away 3.50
+    q_home = BookmakerQuote(
+        book_name="Pinnacle",
+        odds=2.10,
+        opposing_odds=3.50,
+        draw_odds=3.40,
+        is_three_way=True,
+    )
+    res_complete = engine.calculate_fair_odds(taiwan_odds=2.25, benchmark_quotes=[q_home])
+    assert res_complete is not None
+    # 1/2.10 = 0.4762, 1/3.50 = 0.2857, 1/3.40 = 0.2941, sum = 1.0560
+    # fair_p = 0.4762 / 1.0560 = ~0.4509
+    assert 0.44 < res_complete.market_fair_prob < 0.46
+    assert res_complete.theoretical_ev == pytest.approx((res_complete.market_fair_prob * 2.25) - 1.0, abs=1e-4)
+
+    # 2. Incomplete 3-way market: Draw odds missing. MUST NOT fall back to 2-way devigging!
+    q_missing_draw = BookmakerQuote(
+        book_name="Pinnacle",
+        odds=2.10,
+        opposing_odds=3.50,
+        draw_odds=None,
+        is_three_way=True,
+    )
+    res_incomplete = engine.calculate_fair_odds(taiwan_odds=2.25, benchmark_quotes=[q_missing_draw])
+    assert res_incomplete is None
+
+    # 3. Incomplete 3-way market: Opposing odds missing.
+    q_missing_away = BookmakerQuote(
+        book_name="Pinnacle",
+        odds=2.10,
+        opposing_odds=None,
+        draw_odds=3.40,
+        is_three_way=True,
+    )
+    res_incomplete_away = engine.calculate_fair_odds(taiwan_odds=2.25, benchmark_quotes=[q_missing_away])
+    assert res_incomplete_away is None
