@@ -1,13 +1,34 @@
 import React, { useState, useEffect } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { api } from "@/services/api"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
+import { Button } from "@/components/ui/Button"
+import { Badge } from "@/components/ui/Badge"
 import { Skeleton } from "@/components/ui/Skeleton"
-import { BarChart2, Users, Brain, Globe, ShieldAlert } from "lucide-react"
+import {
+  BarChart2,
+  Users,
+  Brain,
+  Globe,
+  Key,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  Database,
+  Activity,
+  ExternalLink,
+  ShieldCheck,
+} from "lucide-react"
 
 export const ResearchView: React.FC = () => {
   const [data, setData] = useState<any>(null)
+  const [marketSummary, setMarketSummary] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [apiKeyInput, setApiKeyInput] = useState("")
+  const [showKeyForm, setShowKeyForm] = useState(false)
+  const [submittingKey, setSubmittingKey] = useState(false)
+  const [runningCycle, setRunningCycle] = useState(false)
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   useEffect(() => {
     loadAnalytics()
@@ -16,12 +37,60 @@ export const ResearchView: React.FC = () => {
   async function loadAnalytics() {
     setLoading(true)
     try {
-      const res = await api.getResearchAnalytics()
-      setData(res)
+      const [resAnalytics, resMarket] = await Promise.all([
+        api.getResearchAnalytics().catch(() => null),
+        api.getMarketResearchSummary().catch(() => null),
+      ])
+      setData(resAnalytics)
+      setMarketSummary(resMarket)
     } catch (err: any) {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleSaveKey(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKeyInput.trim()) return
+    setSubmittingKey(true)
+    setFeedbackMsg(null)
+    try {
+      await api.updateMarketApiKey(apiKeyInput.trim())
+      setFeedbackMsg({
+        type: "success",
+        text: "✓ API Key 成功儲存至本機安全設定 (config/odds_api.local.yaml，嚴格隔離不進 Git)！",
+      })
+      setApiKeyInput("")
+      setShowKeyForm(false)
+      const updated = await api.getMarketResearchSummary()
+      setMarketSummary(updated)
+    } catch (err: any) {
+      setFeedbackMsg({ type: "error", text: err.message || "儲存金鑰失敗" })
+    } finally {
+      setSubmittingKey(false)
+    }
+  }
+
+  async function handleTriggerCycle() {
+    setRunningCycle(true)
+    setFeedbackMsg(null)
+    try {
+      await api.triggerMarketPipelineCycle()
+      setFeedbackMsg({
+        type: "success",
+        text: "✓ 前瞻驗證週期已執行完成，已同步盤口、校驗不可篡改快照並更新驗證指標！",
+      })
+      const [resAnalytics, resMarket] = await Promise.all([
+        api.getResearchAnalytics().catch(() => null),
+        api.getMarketResearchSummary().catch(() => null),
+      ])
+      setData(resAnalytics)
+      setMarketSummary(resMarket)
+    } catch (err: any) {
+      setFeedbackMsg({ type: "error", text: err.message || "執行週期失敗" })
+    } finally {
+      setRunningCycle(false)
     }
   }
 
@@ -38,6 +107,11 @@ export const ResearchView: React.FC = () => {
   }
 
   const portfolio = data?.shadow_portfolio || {}
+  const theOdds = marketSummary?.the_odds_api || {}
+  const snaps = marketSummary?.snapshots || {}
+  const fwd = marketSummary?.forward_evaluation || {}
+  const opMode = marketSummary?.live_status || theOdds?.operating_mode || "SYNTHETIC_FIXTURE"
+  const sampleSize = fwd?.sample_size || 0
 
   return (
     <motion.div
@@ -56,12 +130,209 @@ export const ResearchView: React.FC = () => {
         </p>
       </div>
 
+      {/* Phase 4.5: Global Market Intelligence & Continuous Forward Pipeline Banner */}
+      <Card className="border-sky-500/30 dark:border-sky-500/20 bg-gradient-to-br from-white/90 via-sky-50/20 to-slate-50/60 dark:from-slate-900/90 dark:via-sky-950/20 dark:to-slate-950/60 backdrop-blur shadow-sm">
+        <CardHeader className="pb-3 border-b border-slate-200/80 dark:border-slate-800/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="w-5 h-5 text-sky-500" />
+              <span>國際即時市場情報與前瞻驗證閉環 (Phase 4.5 Continuous Validation)</span>
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {opMode === "LIVE_API" ? (
+                <Badge variant="green" className="gap-1.5 py-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  LIVE (真實國際市場連線)
+                </Badge>
+              ) : opMode === "QUOTA_SAFETY_PAUSE" ? (
+                <Badge variant="amber" className="gap-1.5 py-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  配額防護暫停 (剩餘 &le; 5 次)
+                </Badge>
+              ) : opMode === "QUOTA_EXHAUSTED" ? (
+                <Badge variant="red" className="gap-1.5 py-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  本月 API 配額已耗盡
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="gap-1.5 py-1 text-slate-400">
+                  SYNTHETIC (合成展示模式)
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-4">
+          {/* Operational Metrics Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* 1. Market Live Status */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 space-y-1">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>國際盤口來源</span>
+                <Activity className="w-3.5 h-3.5 text-sky-500" />
+              </div>
+              <div className="text-base font-black text-slate-800 dark:text-slate-200 font-mono">
+                The Odds API
+              </div>
+              <div className="text-[11px] text-slate-400 truncate">
+                {theOdds?.last_live_fetch_utc
+                  ? `最近抓取: ${new Date(theOdds.last_live_fetch_utc).toLocaleTimeString()}`
+                  : theOdds?.has_api_key
+                  ? "已設定 Key (等待排程)"
+                  : "尚未配置 Key (降級合成)"}
+              </div>
+            </div>
+
+            {/* 2. Quota Usage Tracker */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 space-y-1">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>本月免費配額</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+              </div>
+              <div className="text-base font-black text-slate-800 dark:text-slate-200 font-mono">
+                {theOdds?.requests_used_this_month || 0} / {theOdds?.monthly_quota || 500}
+              </div>
+              <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold truncate">
+                剩餘估算: {theOdds?.requests_remaining_est ?? 500} 次 (防護值 5)
+              </div>
+            </div>
+
+            {/* 3. Snapshots Accumulation */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 space-y-1">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>歷史快照 / 已結算</span>
+                <Database className="w-3.5 h-3.5 text-purple-500" />
+              </div>
+              <div className="text-base font-black text-slate-800 dark:text-slate-200 font-mono">
+                {snaps?.total_count || data?.total_snapshots || 0} / {snaps?.settled_count || 0}
+              </div>
+              <div className="text-[11px] text-slate-400 truncate">
+                前瞻有效: {snaps?.forward_eligible_count || 0} (開賽前密封)
+              </div>
+            </div>
+
+            {/* 4. Forward Gate Status */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 space-y-1">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>Forward 樣本量 (N)</span>
+                <span className="text-[11px] font-mono font-bold text-sky-500">門檻: 30</span>
+              </div>
+              <div className="text-base font-black text-slate-800 dark:text-slate-200 font-mono">
+                {sampleSize} / 30
+              </div>
+              <div className="text-[11px] truncate">
+                {sampleSize < 30 ? (
+                  <span className="text-amber-500 font-semibold">影子模式 (尚未達標)</span>
+                ) : (
+                  <span className="text-emerald-500 font-semibold">已通過驗證閘門</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Feedback message banner */}
+          <AnimatePresence>
+            {feedbackMsg && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className={`p-3 rounded-lg text-xs flex items-center gap-2 ${
+                  feedbackMsg.type === "success"
+                    ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                    : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+                }`}
+              >
+                {feedbackMsg.type === "success" ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                )}
+                <span>{feedbackMsg.text}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Action buttons & Collapsible API key form */}
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowKeyForm(!showKeyForm)}
+              className="gap-1.5 text-xs"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-500" />
+              {theOdds?.has_api_key ? "更新 The Odds API 金鑰" : "設定 The Odds API 金鑰"}
+            </Button>
+
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleTriggerCycle}
+              disabled={runningCycle}
+              className="gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${runningCycle ? "animate-spin" : ""}`} />
+              {runningCycle ? "前瞻週期執行中..." : "立即執行前瞻同步週期"}
+            </Button>
+
+            <a
+              href="https://the-odds-api.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-sky-500 hover:text-sky-400 hover:underline ml-auto"
+            >
+              <span>免費取得 API Key (500次/月)</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
+          {/* Collapsible Key Form */}
+          <AnimatePresence>
+            {showKeyForm && (
+              <motion.form
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                onSubmit={handleSaveKey}
+                className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/70 p-4 space-y-3 overflow-hidden"
+              >
+                <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Key className="w-4 h-4 text-amber-500" />
+                  配置 The Odds API 金鑰 (本機安全儲存)
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  金鑰將儲存於本機 <code>config/odds_api.local.yaml</code>（已列入 <code>.gitignore</code>，絕不會提交至 Git），或您亦可直接於專案根目錄 <code>.env</code> 設定 <code>THE_ODDS_API_KEY</code>。
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="貼上您的 The Odds API Key (例如: a1b2c3d4e5...)"
+                    className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={submittingKey || !apiKeyInput.trim()}
+                    className="text-xs bg-emerald-600 hover:bg-emerald-500"
+                  >
+                    {submittingKey ? "儲存中..." : "確認儲存"}
+                  </Button>
+                </div>
+              </motion.form>
+            )}
+          </AnimatePresence>
+        </CardContent>
+      </Card>
+
       {/* Snapshot Stats Header Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
           <div className="text-xs text-slate-500 dark:text-slate-400">歷史盤口快照總數</div>
           <div className="text-2xl font-black tabular-nums text-emerald-600 dark:text-emerald-400 font-mono mt-1">
-            {data?.total_snapshots?.toLocaleString() || 0}
+            {(snaps?.total_count || data?.total_snapshots || 0).toLocaleString()}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">獨立觀測樣本</div>
         </div>
@@ -87,7 +358,7 @@ export const ResearchView: React.FC = () => {
         <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
           <div className="text-xs text-slate-500 dark:text-slate-400">前瞻族群追蹤</div>
           <div className="text-2xl font-black tabular-nums text-purple-600 dark:text-purple-400 font-mono mt-1">
-            {data?.cohort?.resolved_count || 0}
+            {snaps?.settled_count || data?.cohort?.resolved_count || 0}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">已結算校準樣本</div>
         </div>
@@ -145,10 +416,10 @@ export const ResearchView: React.FC = () => {
           <CardTitle className="text-base flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Globe className="w-5 h-5 text-sky-500" />
-              <span>國際市場情報基準比較與影子前瞻閘門 (Phase 4 Market Benchmark)</span>
+              <span>三向基準比較與影子前瞻閘門 (Three-Way Benchmark & Acceptance Gate)</span>
             </div>
             <span className="text-xs font-mono font-semibold bg-sky-500/10 text-sky-500 px-2.5 py-1 rounded-full">
-              SHADOW LOGGING ACTIVE
+              {sampleSize >= 30 ? "ACCEPTANCE GATE ACTIVE" : "SHADOW LOGGING ACTIVE"}
             </span>
           </CardTitle>
         </CardHeader>

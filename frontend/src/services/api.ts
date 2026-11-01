@@ -776,5 +776,38 @@ export const api = {
     return res.json()
   },
 
+  async getMarketResearchSummary() {
+    const res = await fetch(`${BASE_URL}/market/research-summary`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error("取得市場情報與前瞻驗證摘要失敗")
+    return res.json()
+  },
+
+  async updateMarketApiKey(the_odds_api_key: string) {
+    const res = await fetch(`${BASE_URL}/market/config`, {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ the_odds_api_key }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "儲存 The Odds API 金鑰失敗")
+    }
+    return res.json()
+  },
+
+  async triggerMarketPipelineCycle(leagues?: string, forceRefresh = false) {
+    const url = leagues
+      ? `${BASE_URL}/market/pipeline/cycle?leagues=${encodeURIComponent(leagues)}&force_refresh=${forceRefresh}`
+      : `${BASE_URL}/market/pipeline/cycle?force_refresh=${forceRefresh}`
+    const res = await fetch(url, {
+      method: "POST",
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error("執行前瞻市場驗證週期失敗")
+    return res.json()
+  },
+
 }
 

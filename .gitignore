@@ -51,6 +51,9 @@ static/qr/
 config/ngrok_config.yaml
 
 config/line_notifier.yaml
+config/*.local.yaml
+config/*.local.json
+config/odds_api.local.yaml
 
 
 # Frontend dependencies & cache

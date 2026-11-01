@@ -30,41 +30,94 @@ from integrations.odds.market_models import (
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "odds_api.yaml"
+LOCAL_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "odds_api.local.yaml"
+ENV_FILE_PATH = Path(__file__).resolve().parents[2] / ".env"
 CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "cache" / "the_odds_api_cache.json"
+QUOTA_SAFETY_MARGIN = 5
 
 SPORT_KEY_MAP = {
     "MLB": "baseball_mlb",
+    "BASEBALL": "baseball_mlb",
     "NBA": "basketball_nba",
+    "BASKETBALL": "basketball_nba",
     "NFL": "americanfootball_nfl",
+    "FOOTBALL": "americanfootball_nfl",
     "EPL": "soccer_epl",
     "英超": "soccer_epl",
     "西甲": "soccer_spain_la_liga",
     "LALIGA": "soccer_spain_la_liga",
     "SOCCER": "soccer_epl",
+    "歐冠": "soccer_uefa_champs_league",
+    "CHAMPIONS_LEAGUE": "soccer_uefa_champs_league",
+    "德甲": "soccer_germany_bundesliga",
+    "BUNDESLIGA": "soccer_germany_bundesliga",
+    "義甲": "soccer_italy_serie_a",
+    "SERIE_A": "soccer_italy_serie_a",
 }
 
 
+def _parse_env_file(path: Path) -> Dict[str, str]:
+    """Parse key=value pairs from a local .env file without external dependencies."""
+    if not path.is_file():
+        return {}
+    res = {}
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, v = line.split("=", 1)
+                raw_v = v.strip()
+                if (raw_v.startswith('"') and raw_v.endswith('"')) or (raw_v.startswith("'") and raw_v.endswith("'")):
+                    raw_v = raw_v[1:-1].strip()
+                res[k.strip()] = raw_v
+    except Exception:
+        pass
+    return res
+
+
+def save_local_api_key(api_key: str, dest_path: Optional[Path] = None) -> bool:
+    """Save API key into gitignored config/odds_api.local.yaml without modifying Git."""
+    dest = dest_path or LOCAL_CONFIG_PATH
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    current: Dict[str, Any] = {}
+    if dest.is_file():
+        try:
+            current = yaml.safe_load(dest.read_text(encoding="utf-8")) or {}
+        except Exception:
+            current = {}
+    current["api_key"] = api_key.strip()
+    dest.write_text(yaml.safe_dump(current, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return True
+
+
 class TheOddsApiClient:
-    """Client for The Odds API with robust quota tracking and caching."""
+    """Client for The Odds API with robust quota tracking, caching, and safe fallback."""
 
     def __init__(
         self,
         config_path: Optional[Path] = None,
+        local_config_path: Optional[Path] = None,
+        env_file_path: Optional[Path] = None,
         cache_path: Optional[Path] = None,
         api_key: Optional[str] = None,
     ):
         self.config_path = config_path or CONFIG_PATH
+        self.local_config_path = local_config_path or LOCAL_CONFIG_PATH
+        self.env_file_path = env_file_path or ENV_FILE_PATH
         self.cache_path = cache_path or CACHE_PATH
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         self.config = self._load_config()
 
-        # Key preference: Explicit argument > Environment variable > Config file
-        self.api_key = (
-            api_key
-            or os.environ.get("ODDS_API_KEY")
-            or self.config.get("api_key")
-            or ""
-        ).strip()
+        # Key preference:
+        # 1. Explicit argument
+        # 2. THE_ODDS_API_KEY environment variable (Primary)
+        # 3. ODDS_API_KEY environment variable (Backward Compatibility)
+        # 4. .env file in project root (THE_ODDS_API_KEY then ODDS_API_KEY)
+        # 5. config/odds_api.local.yaml (Gitignored local override)
+        # 6. config/odds_api.yaml (Base config file)
+        self.api_key, self.key_source = self._resolve_api_key(api_key)
 
         self.base_url = self.config.get("base_url", "https://api.the-odds-api.com/v4")
         self.monthly_quota = int(self.config.get("monthly_quota", 500))
@@ -75,14 +128,41 @@ class TheOddsApiClient:
 
         self._cache_data: Dict[str, Any] = self._load_cache()
 
-    def _load_config(self) -> Dict[str, Any]:
-        if not self.config_path.exists():
+    def _resolve_api_key(self, explicit_arg: Optional[str] = None) -> Tuple[str, str]:
+        if explicit_arg and explicit_arg.strip():
+            return explicit_arg.strip(), "EXPLICIT_ARG"
+        if os.environ.get("THE_ODDS_API_KEY"):
+            return os.environ["THE_ODDS_API_KEY"].strip(), "ENV_THE_ODDS_API_KEY"
+        if os.environ.get("ODDS_API_KEY"):
+            return os.environ["ODDS_API_KEY"].strip(), "ENV_ODDS_API_KEY"
+        dotenv_vars = _parse_env_file(self.env_file_path)
+        if dotenv_vars.get("THE_ODDS_API_KEY"):
+            return dotenv_vars["THE_ODDS_API_KEY"].strip(), "DOTENV"
+        if dotenv_vars.get("ODDS_API_KEY"):
+            return dotenv_vars["ODDS_API_KEY"].strip(), "DOTENV"
+        local_cfg = self._load_yaml(self.local_config_path)
+        if local_cfg.get("api_key"):
+            return str(local_cfg["api_key"]).strip(), "LOCAL_CONFIG"
+        base_cfg = self._load_yaml(self.config_path)
+        if base_cfg.get("api_key"):
+            return str(base_cfg["api_key"]).strip(), "BASE_CONFIG"
+        return "", "UNCONFIGURED"
+
+    def _load_yaml(self, path: Path) -> Dict[str, Any]:
+        if not path.is_file():
             return {}
         try:
-            return yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
+            return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except Exception as exc:
-            logger.warning("Failed to load odds_api.yaml: %s", exc)
+            logger.warning("Failed to load %s: %s", path, exc)
             return {}
+
+    def _load_config(self) -> Dict[str, Any]:
+        merged = self._load_yaml(self.config_path)
+        local_override = self._load_yaml(self.local_config_path)
+        if local_override:
+            merged.update(local_override)
+        return merged
 
     def _load_cache(self) -> Dict[str, Any]:
         if not self.cache_path.exists():
@@ -98,21 +178,43 @@ class TheOddsApiClient:
         except Exception as exc:
             logger.warning("Failed to save odds api cache: %s", exc)
 
+    def save_api_key(self, api_key: str) -> bool:
+        """Save API key locally to config/odds_api.local.yaml."""
+        ok = save_local_api_key(api_key, self.local_config_path)
+        if ok:
+            self.api_key = api_key.strip()
+            self.key_source = "LOCAL_CONFIG"
+        return ok
+
     def get_source_status(self) -> Dict[str, Any]:
         """Return operational capabilities and quota metrics."""
         month_key = datetime.now(timezone.utc).strftime("%Y-%m")
         month_usage = self._cache_data.get("usage", {}).get(month_key, 0)
         has_key = bool(self.api_key)
+        official_rem = self._cache_data.get("requests_remaining_official")
+        remaining_est = official_rem if official_rem is not None else max(0, self.monthly_quota - month_usage)
+
+        if not has_key:
+            mode = "SYNTHETIC_FIXTURE"
+        elif remaining_est <= 0 or month_usage >= self.monthly_quota:
+            mode = "QUOTA_EXHAUSTED"
+        elif remaining_est <= QUOTA_SAFETY_MARGIN:
+            mode = "QUOTA_SAFETY_PAUSE"
+        else:
+            mode = "LIVE_API"
 
         return {
             "source_id": "the_odds_api",
             "is_configured": has_key,
             "has_api_key": has_key,
+            "key_source": self.key_source,
             "monthly_quota": self.monthly_quota,
             "requests_used_this_month": month_usage,
-            "requests_remaining_est": max(0, self.monthly_quota - month_usage),
+            "requests_remaining_est": remaining_est,
+            "official_remaining": official_rem,
             "cache_ttl_seconds": self.cache_ttl,
-            "operating_mode": "LIVE_API" if has_key and month_usage < self.monthly_quota else "SYNTHETIC_FIXTURE",
+            "operating_mode": mode,
+            "last_live_fetch_utc": self._cache_data.get("last_live_fetch_utc"),
             "supported_sports": list(SPORT_KEY_MAP.keys()),
         }
 
@@ -143,11 +245,16 @@ class TheOddsApiClient:
                 logger.debug("Returning cached odds for %s (age %.1fs)", sport_key, now_ts - fetched_at)
                 return [MarketOddsSnapshot(**item) for item in cached_entry.get("snapshots", [])]
 
-        # Check Quota
+        # Check Quota & Safety Pause
         month_key = datetime.now(timezone.utc).strftime("%Y-%m")
         used = self._cache_data.setdefault("usage", {}).get(month_key, 0)
-        if used >= self.monthly_quota:
-            logger.warning("Monthly quota exhausted for The Odds API (%d/%d); falling back to synthetic", used, self.monthly_quota)
+        official_rem = self._cache_data.get("requests_remaining_official")
+        remaining = official_rem if official_rem is not None else max(0, self.monthly_quota - used)
+        if used >= self.monthly_quota or remaining <= QUOTA_SAFETY_MARGIN:
+            logger.warning(
+                "Monthly quota protection triggered for The Odds API (%d/%d used, %d remaining); falling back to synthetic",
+                used, self.monthly_quota, remaining
+            )
             return self._generate_synthetic_fixtures(league_norm)
 
         # Call live API
@@ -165,8 +272,24 @@ class TheOddsApiClient:
                 raw_bytes = resp.read()
                 data = json.loads(raw_bytes.decode("utf-8"))
 
-                # Increment usage
-                self._cache_data["usage"][month_key] = used + 1
+                # Track usage from official response headers when available
+                h_used = resp.headers.get("x-requests-used")
+                h_remaining = resp.headers.get("x-requests-remaining")
+                if h_used is not None:
+                    try:
+                        self._cache_data["usage"][month_key] = int(h_used)
+                    except ValueError:
+                        self._cache_data["usage"][month_key] = used + 1
+                else:
+                    self._cache_data["usage"][month_key] = used + 1
+
+                if h_remaining is not None:
+                    try:
+                        self._cache_data["requests_remaining_official"] = int(h_remaining)
+                    except ValueError:
+                        pass
+
+                self._cache_data["last_live_fetch_utc"] = datetime.now(timezone.utc).isoformat()
 
                 snapshots = self._parse_api_payload(data, league_norm)
 
