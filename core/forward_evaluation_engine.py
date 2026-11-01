@@ -167,10 +167,22 @@ class ForwardEvaluationEngine:
         # Step 1: Filter for valid pre-match settlements (strictly preventing post-match leakage)
         clean_rows = []
         for r in cohort:
-            pred_time = r.get("prediction_timestamp")
-            event_start = r.get("event_start")
+            pred_time = r.get("prediction_timestamp") or r.get("snapshot_timestamp") or r.get("logged_at_utc")
+            event_start = r.get("event_start") or r.get("start_time_utc")
+            
+            # Resolve outcome (supports 0/1 or boolean actual_outcome or settlement_status)
             outcome = r.get("outcome")
+            if outcome is None:
+                if r.get("actual_outcome") is True or r.get("settlement_status") == "WON":
+                    outcome = 1
+                elif r.get("actual_outcome") is False or r.get("settlement_status") == "LOST":
+                    outcome = 0
+
             odds = r.get("taiwan_odds") or r.get("decimal_odds")
+            try:
+                odds = float(odds) if odds is not None else None
+            except (ValueError, TypeError):
+                odds = None
 
             if outcome not in {0, 1} or not odds or odds <= 1.0:
                 continue
@@ -178,15 +190,26 @@ class ForwardEvaluationEngine:
             # Pre-match leak prevention: Prediction MUST occur strictly prior to match start
             if pred_time and event_start:
                 try:
-                    pt = datetime.fromisoformat(pred_time.replace("Z", "+00:00"))
-                    es = datetime.fromisoformat(event_start.replace("Z", "+00:00"))
+                    pt = datetime.fromisoformat(str(pred_time).replace("Z", "+00:00"))
+                    es = datetime.fromisoformat(str(event_start).replace("Z", "+00:00"))
                     if pt >= es:
                         # Leak detected; omit from evaluation
                         continue
                 except Exception:
                     pass
 
-            clean_rows.append(r)
+            row_copy = dict(r)
+            row_copy["outcome"] = outcome
+            row_copy["taiwan_odds"] = odds
+            # Normalize probabilities if available
+            if "sharp_fair_prob" not in row_copy and "market_fair_probability" in row_copy:
+                row_copy["sharp_fair_prob"] = row_copy["market_fair_probability"]
+            if "model_prob" not in row_copy and "model_probability" in row_copy:
+                row_copy["model_prob"] = row_copy["model_probability"]
+            if "clv_pct" not in row_copy and "odds_clv_ratio" in row_copy and row_copy["odds_clv_ratio"] is not None:
+                row_copy["clv_pct"] = round(row_copy["odds_clv_ratio"] * 100.0, 2)
+
+            clean_rows.append(row_copy)
 
         n = len(clean_rows)
         if n < MIN_FORWARD_EVALUATION_SAMPLE:
@@ -239,7 +262,7 @@ class ForwardEvaluationEngine:
         )
 
         # Evaluate International Sharp Benchmark
-        sharp_probs = [r.get("sharp_fair_prob", 1.0 / r["taiwan_odds"]) for r in clean_rows]
+        sharp_probs = [(r.get("sharp_fair_prob") if r.get("sharp_fair_prob") is not None else (1.0 / r["taiwan_odds"])) for r in clean_rows]
         sharp_brier = compute_brier_score(sharp_probs, tw_outcomes)
         sharp_logloss = compute_log_loss(sharp_probs, tw_outcomes)
         sharp_clv_list = [r.get("clv_pct", 0.0) for r in clean_rows]
@@ -258,12 +281,12 @@ class ForwardEvaluationEngine:
         )
 
         # Evaluate Active Model Strategy
-        model_probs = [r.get("model_prob", tw_probs[idx]) for idx, r in enumerate(clean_rows)]
+        model_probs = [(r.get("model_prob") if r.get("model_prob") is not None else tw_probs[idx]) for idx, r in enumerate(clean_rows)]
         # Bet placed only when expected value > 0
         model_pnl = []
         model_bets = 0
-        for r in clean_rows:
-            mod_p = r.get("model_prob", 0.5)
+        for idx, r in enumerate(clean_rows):
+            mod_p = r.get("model_prob") if r.get("model_prob") is not None else tw_probs[idx]
             ev = (mod_p * r["taiwan_odds"]) - 1.0
             if ev > 0.02:  # Placed bet
                 model_bets += 1

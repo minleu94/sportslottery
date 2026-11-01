@@ -238,6 +238,10 @@ class AdminDeletePlayerRequest(BaseModel):
     admin_pin: Optional[str] = None
 
 
+class MarketKeyConfigRequest(BaseModel):
+    the_odds_api_key: str = Field(..., min_length=1, max_length=128, description="API Key for The Odds API")
+
+
 class AdminResetPinRequest(BaseModel):
     profile_id: str
     new_pin: str = "0000"
@@ -331,6 +335,49 @@ def get_market_intelligence_status():
         "forward_evaluation": "ForwardEvaluationEngine (Pre-match, Leak-free, Shadow Mode)",
         "as_of_utc": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@app.get("/api/market/research-summary")
+def get_market_research_summary():
+    """Retrieve unified Phase 4.5 operational and prospective verification summary."""
+    from core.market_forward_pipeline import MarketForwardPipeline
+    pipeline = MarketForwardPipeline()
+    return pipeline.get_research_status_summary()
+
+
+@app.post("/api/market/config")
+def update_market_api_key(
+    req: MarketKeyConfigRequest,
+    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+):
+    """Save The Odds API key securely into gitignored config/odds_api.local.yaml without modifying Git."""
+    key = req.the_odds_api_key.strip()
+    if not re.match(r"^[a-zA-Z0-9_-]+$", key):
+        raise HTTPException(status_code=400, detail="Invalid API key format. Alphanumeric characters only.")
+
+    odds_client = TheOddsApiClient()
+    success = odds_client.save_api_key(key)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save local API key.")
+
+    return {
+        "status": "SUCCESS",
+        "message": "The Odds API key saved securely into local configuration.",
+        "the_odds_api": odds_client.get_source_status(),
+    }
+
+
+@app.post("/api/market/pipeline/cycle")
+def trigger_market_pipeline_cycle(
+    leagues: Optional[str] = Query(None, description="Comma-separated leagues (e.g. MLB,NBA)"),
+    force_refresh: bool = False,
+    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+):
+    """Run an automated prospective validation cycle across live odds and snapshots."""
+    from core.market_forward_pipeline import MarketForwardPipeline
+    pipeline = MarketForwardPipeline()
+    league_list = [l.strip().upper() for l in leagues.split(",")] if leagues else None
+    return pipeline.run_full_cycle(leagues=league_list, force_refresh=force_refresh)
 
 
 @app.get("/api/market/benchmark")

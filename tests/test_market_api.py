@@ -8,6 +8,7 @@ Milestone 6 Verification:
 - Tests /api/market/evaluation returns three-way forward evaluation report
 """
 
+from pathlib import Path
 from fastapi.testclient import TestClient
 import pytest
 
@@ -98,3 +99,63 @@ def test_get_market_evaluation():
     assert "active_model_strategy" in data
     assert "champion_source" in data
     assert "shadow_mode_recommendation" in data
+
+
+def test_get_market_research_summary():
+    resp = client.get("/api/market/research-summary")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "live_status" in data
+    assert "the_odds_api" in data
+    assert "snapshots" in data
+    assert "forward_evaluation" in data
+    assert "total_count" in data["snapshots"]
+    assert "sample_size" in data["forward_evaluation"]
+
+
+def test_post_market_config():
+    local_cfg = Path("config/odds_api.local.yaml")
+    try:
+        # Test valid key update
+        resp = client.post("/api/market/config", json={"the_odds_api_key": "test_key_api_12345"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "SUCCESS"
+        assert data["the_odds_api"]["has_api_key"] is True
+        assert data["the_odds_api"]["key_source"] == "LOCAL_CONFIG"
+
+        # Test invalid key rejection (e.g. invalid symbols / injection attempt)
+        bad_resp = client.post("/api/market/config", json={"the_odds_api_key": "bad; key!@#$"})
+        assert bad_resp.status_code == 400
+    finally:
+        local_cfg.unlink(missing_ok=True)
+
+
+def test_post_market_pipeline_cycle():
+    from unittest.mock import patch
+    from integrations.common.models import TaiwanLeg
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    mock_leg = TaiwanLeg(
+        sport="baseball",
+        league="MLB",
+        event_id="test_mock_1",
+        home_team="Los Angeles Dodgers",
+        away_team="San Diego Padres",
+        market="moneyline",
+        selection="home",
+        taiwan_odds=1.85,
+        odds_status="LIVE",
+        odds_scraped_at=now.isoformat(),
+        start_time_utc=(now + timedelta(hours=3)).isoformat(),
+    )
+    with patch("core.market_forward_pipeline.PlaysportOddsAdapter.get_taiwan_legs", return_value=[mock_leg]):
+        resp = client.post("/api/market/pipeline/cycle?leagues=MLB")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["cycle_status"] == "SUCCESS"
+        assert "snapshot_cycle" in data
+        assert "evaluation_summary" in data
+
+
