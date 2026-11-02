@@ -94,11 +94,31 @@ class LineNotifier:
         user_id = str(self.config.get("user_id") or "").strip()
         return bool(self.config.get("enabled", False) and token and user_id)
 
+    @staticmethod
+    def is_slow_parlay_search_request(user_text: str) -> bool:
+        """Return whether this command triggers a parlay search instead of a quick menu reply."""
+        cmd = user_text.strip().lower()
+        if not cmd:
+            return False
+        if any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker"]):
+            return True
+        if any(k in cmd for k in ["換一組", "另一組", "換一張", "下一組", "換", "next", "reroll", "再一組"]):
+            return True
+        mult_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:倍|x|X)?", cmd)
+        if not mult_match or not ("倍" in cmd or "x" in cmd or cmd.isdigit() or "串" in cmd):
+            return False
+        try:
+            target_mult = float(mult_match.group(1))
+        except ValueError:
+            return False
+        return 1.5 <= target_mult <= 1000
+
     def send_push_message(
         self,
         text: str,
         user_id: Optional[str] = None,
         image_url: Optional[str] = None,
+        quick_replies: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         """Send a push message (text and optional image) to the configured LINE User ID or Group ID."""
         token = str(self.config.get("channel_access_token") or "").strip()
@@ -124,10 +144,25 @@ class LineNotifier:
                 "originalContentUrl": image_url,
                 "previewImageUrl": image_url,
             })
-        messages_list.append({
+        msg_obj: Dict[str, Any] = {
             "type": "text",
             "text": text,
-        })
+        }
+        if quick_replies:
+            msg_obj["quickReply"] = {
+                "items": [
+                    {
+                        "type": "action",
+                        "action": {
+                            "type": "message",
+                            "label": item.get("label", item.get("text", ""))[:20],
+                            "text": item.get("text", "")[:300],
+                        },
+                    }
+                    for item in quick_replies[:13]
+                ]
+            }
+        messages_list.append(msg_obj)
 
         payload = {
             "to": target,

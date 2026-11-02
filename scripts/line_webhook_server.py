@@ -110,6 +110,8 @@ async def callback(
 def process_events(events: list[Dict[str, Any]]) -> None:
     """Process accepted LINE events outside the webhook response path."""
     for ev in events:
+        early_reply = None
+        user_id = None
         try:
             ev_type = ev.get("type")
             reply_token = ev.get("replyToken")
@@ -125,6 +127,12 @@ def process_events(events: list[Dict[str, Any]]) -> None:
                 msg = ev.get("message", {})
                 if msg.get("type") == "text":
                     user_text = str(msg.get("text", "")).strip()
+                    early_reply = None
+                    if reply_token and user_id and notifier.is_slow_parlay_search_request(user_text):
+                        early_reply = notifier.reply_message(
+                            reply_token=reply_token,
+                            text="🐕 收到，正在搜尋串關組合，完成後會接著傳送結果。",
+                        )
                     logger.info("Inbound user message from %s: %s", (user_id or "unknown")[:6], user_text)
 
                     # Process command via LineNotifier with LINE user ID for profile binding & isolation
@@ -134,7 +142,16 @@ def process_events(events: list[Dict[str, Any]]) -> None:
                     quick_replies = full_res.get("quick_replies") or notifier.default_quick_replies()
 
                     # Send reply with quick reply shortcut pills and optional image
-                    if reply_token:
+                    if early_reply and early_reply.get("success"):
+                        result = notifier.send_push_message(
+                            text=reply_text,
+                            user_id=user_id,
+                            image_url=image_url,
+                            quick_replies=quick_replies,
+                        )
+                        if not result.get("success"):
+                            logger.warning("LINE parlay result push failed for user %s: %s", user_id[:8], result.get("error"))
+                    elif reply_token:
                         notifier.reply_message(
                             reply_token=reply_token,
                             text=reply_text,
@@ -161,6 +178,12 @@ def process_events(events: list[Dict[str, Any]]) -> None:
                         quick_replies=notifier.default_quick_replies(),
                     )
         except Exception:
+            if early_reply and early_reply.get("success") and user_id:
+                notifier.send_push_message(
+                    text="⚠️ 串關搜尋暫時發生問題，請稍後再試。",
+                    user_id=user_id,
+                    quick_replies=notifier.default_quick_replies(),
+                )
             logger.exception("Failed to process LINE webhook event type=%r", ev.get("type"))
 
 
