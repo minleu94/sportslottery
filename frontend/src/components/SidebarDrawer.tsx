@@ -107,8 +107,14 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                     </span>
                   </div>
 
-                  <div className="font-semibold text-base text-slate-900 dark:text-slate-100 tracking-tight">
-                    {currentProfile.name}
+                  <div className="font-semibold text-base text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-1.5">
+                    {isAdmin && <span className="text-amber-500 text-sm" title="系統最高管理員">👑</span>}
+                    <span>{currentProfile.name}</span>
+                    {isAdmin && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400">
+                        管理員
+                      </span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800 text-xs">

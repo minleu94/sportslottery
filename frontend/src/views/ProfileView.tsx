@@ -267,12 +267,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
       </div>
 
       {isAdmin && (
-        <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500">
+        <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 shrink-0">
               <Crown className="w-4 h-4" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
                 👑 系統最高管理員 (Archie) · 特權已啟用
               </div>
@@ -281,7 +281,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
               </div>
             </div>
           </div>
-          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40">
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 shrink-0 self-start sm:self-auto">
             👑 ADMIN ACTIVE
           </span>
         </div>
@@ -301,10 +301,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-1.5 pb-2">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-1.5 pb-2 overflow-x-auto scrollbar-none">
         <button
           onClick={() => setActiveTab("edit")}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
             activeTab === "edit"
               ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
               : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
@@ -320,7 +320,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
               setActiveTab("admin_overview")
               loadAdminPlayers()
             }}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
               activeTab === "admin_overview"
                 ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 shadow-xs"
                 : "text-amber-600/80 dark:text-amber-400/80 hover:text-amber-700 dark:hover:text-amber-300"
@@ -333,7 +333,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
 
         <button
           onClick={() => setActiveTab("create")}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
             activeTab === "create"
               ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
               : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
@@ -508,8 +508,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
             <div className="p-8 text-center text-slate-500">載入全體玩家數據中...</div>
           ) : (
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 overflow-hidden shadow">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto scrollbar-none">
+                <table className="w-full text-left text-xs min-w-[720px]">
                   <thead className="bg-slate-100 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-mono">
                     <tr>
                       <th className="p-3">玩家名稱</th>

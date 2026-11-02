@@ -83,7 +83,7 @@ export const WalletBanner: React.FC<WalletBannerProps> = ({ wallet, loading }) =
             <ArrowDownCircle className="w-3.5 h-3.5 text-slate-400" /> 本週外部補金
           </span>
         </div>
-        <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100 tracking-tight">
+        <div className="text-xl sm:text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100 tracking-tight truncate">
           NT$ {wallet.weekly_external_deposited} / {extTotal}
         </div>
         <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">

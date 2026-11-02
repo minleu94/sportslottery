@@ -87,7 +87,7 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
       return
     }
     if (!pinCode.trim()) {
-      setError("請輸入 4 位數 PIN 碼。")
+      setError(isSelectedAdmin ? "請輸入管理員密碼（8 位純數字，首次預設為 0000）。" : "請輸入 4 位數 PIN 碼。")
       return
     }
 
@@ -204,10 +204,17 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
       if (res.token) {
         api.setAuthToken(res.token)
       }
-      setSuccessMsg(isChangeAdmin ? "🎉 管理員 8 位密碼變更成功！請以此新密碼登入。" : "PIN 碼變更成功！請以此新 PIN 碼登入。")
+      setSuccessMsg(isChangeAdmin ? "🎉 管理員 8 位密碼變更成功！正在為您自動登入..." : "🎉 PIN 碼變更成功！正在為您自動登入...")
       setOldPin("")
       setNewPin("")
       setNewPinConfirm("")
+      if (res.profile) {
+        localStorage.setItem("auth_profile_id", res.profile.id)
+        setTimeout(() => {
+          onLoginSuccess(res.profile)
+        }, 500)
+        return
+      }
       setActiveTab("login")
     } catch (err: any) {
       setError(err.message || "變更密碼失敗。")
@@ -319,7 +326,7 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
                       >
                         {profiles.map((p) => (
                           <option key={p.id} value={p.name}>
-                            👤 {p.name} (每週上限 NT$ {p.weekly_play_cap})
+                            {p.name === "Archie" || p.id === "default" ? "👑" : "👤"} {p.name} {p.name === "Archie" || p.id === "default" ? "(系統管理員)" : `(每週上限 NT$ ${p.weekly_play_cap})`}
                           </option>
                         ))}
                       </select>

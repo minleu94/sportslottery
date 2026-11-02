@@ -153,10 +153,11 @@ def get_services():
         _signal_hub = SignalHub()
         _parlay_engine = ParlayEngine(signal_hub=_signal_hub)
         _season_radar = SeasonRadar()
-        _profile_mgr = ProfileManager()
         _snapshot_logger = PredictionSnapshotLogger()
         _metrics_engine = PerformanceMetricsEngine()
         _shadow_portfolio = ShadowPortfolioManager()
+    if _profile_mgr is None:
+        _profile_mgr = ProfileManager()
     return (
         _odds_adapter,
         _signal_hub,

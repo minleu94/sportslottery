@@ -140,7 +140,7 @@ function MainLayout() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4 space-y-4 relative z-10">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-4 relative z-10">
         {/* Wallet Risk Governance Banner */}
         <WalletBanner wallet={walletStatus} loading={loading} />
 
