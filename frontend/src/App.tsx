@@ -60,7 +60,7 @@ function MainLayout() {
   }
 
   useEffect(() => {
-    document.title = "台灣運彩 · 瘋狗流決策台 (v2.3.0)"
+    document.title = "🐕 瘋狗運彩 (MadDog Sports) - 智慧賠率與串關風控系統 (v2.3.0)"
     const initTimer = window.setTimeout(() => void initApp(), 0)
     return () => window.clearTimeout(initTimer)
   }, [])
@@ -189,7 +189,7 @@ function MainLayout() {
 
       {/* Footer */}
       <footer className="border-t border-slate-200/80 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 py-6 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1 relative z-10">
-        <p>台灣運彩「瘋狗流」高倍串關決策輔助系統 · v2.3.0</p>
+        <p>🐕 台灣運彩「瘋狗流」10~500倍 高倍串關決策輔助平台 · v2.3.0</p>
         <p className="text-[11px] text-slate-400 dark:text-slate-500">
           理性投注，保護個人生活與資金。未成年人不得購買或兌領運動彩券。
         </p>
