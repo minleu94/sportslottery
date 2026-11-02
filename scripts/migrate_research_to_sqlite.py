@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from core.research_paths import research_paths
 from core.research_sqlite import migrate_jsonl_ledgers
+from core.research_pipeline import ResearchPipeline
 
 
 def main() -> int:
@@ -29,26 +30,34 @@ def main() -> int:
         print(f"  {source}: {size / (1024**3):.2f} GiB")
     print(f"SQLite destination: {destination}")
     print("Original JSONL files will remain untouched as backups.")
-    runs_dir = paths["root"] / "runs"
-    recent_runs = sorted(runs_dir.glob("*/run.json"), key=lambda item: item.stat().st_mtime, reverse=True)
-    if recent_runs:
-        try:
-            latest = json.loads(recent_runs[0].read_text(encoding="utf-8"))
-            if latest.get("status") == "RUNNING":
-                print(
-                    f"Migration paused: background run {latest.get('run_id')} is still running. "
-                    "Wait for it to finish, then rerun this command."
-                )
-                return 2
-        except (OSError, ValueError):
-            pass
     if not args.yes:
         answer = input("Stop the app before migration, then continue? [y/N] ").strip().lower()
         if answer != "y":
             print("Migration cancelled.")
             return 1
 
-    result = migrate_jsonl_ledgers(directory, destination)
+    # Hold the pipeline's own lock for the entire import. A RUNNING marker can
+    # outlive a crashed process, so the lock (not run.json) is authoritative.
+    pipeline = ResearchPipeline()
+    try:
+        with pipeline._Lock(paths["root"] / "locks" / "pipeline.lock"):
+            runs_dir = paths["root"] / "runs"
+            recent_runs = sorted(runs_dir.glob("*/run.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+            if recent_runs:
+                try:
+                    latest = json.loads(recent_runs[0].read_text(encoding="utf-8"))
+                    if latest.get("status") == "RUNNING":
+                        print(
+                            f"Found stale RUNNING marker for {latest.get('run_id')}; "
+                            "the pipeline lock is free. Importing committed ledger rows; "
+                            "the interrupted run remains resumable."
+                        )
+                except (OSError, ValueError):
+                    pass
+            result = migrate_jsonl_ledgers(directory, destination)
+    except RuntimeError as exc:
+        print(f"Migration paused: {exc}")
+        return 2
     print(f"Migration complete: {result}")
     print("Restart the app; research reads and writes will then use SQLite automatically.")
     return 0
