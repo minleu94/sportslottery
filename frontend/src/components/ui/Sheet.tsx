@@ -67,19 +67,19 @@ export const Sheet: React.FC<SheetProps> = ({
         )}
       >
         <div
-          className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 py-3.5 sm:p-5 bg-slate-50/90 dark:bg-slate-950/80 shrink-0"
+          className="relative flex min-h-[4.5rem] items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 py-3.5 pr-24 sm:p-5 sm:pr-24 bg-slate-50/90 dark:bg-slate-950/80 shrink-0"
           style={{
             paddingTop: "max(0.875rem, env(safe-area-inset-top))",
-            paddingRight: "max(1rem, env(safe-area-inset-right))",
           }}
         >
           <div className="pr-3 flex-1 min-w-0">
-            {title && <h2 className="min-w-0 text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate">{title}</h2>}
+            {title && <div role="heading" aria-level={2} className="min-w-0 text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate">{title}</div>}
             {description && <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 truncate">{description}</p>}
           </div>
           <button
             onClick={onClose}
-            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-slate-700 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white cursor-pointer"
+            className="absolute right-4 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-slate-700 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white cursor-pointer"
+            style={{ right: "max(1rem, env(safe-area-inset-right))" }}
             title="關閉 (Esc)"
             aria-label="關閉"
           >
