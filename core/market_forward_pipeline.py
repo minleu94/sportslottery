@@ -70,6 +70,7 @@ def _alignment_summary_from_scheduler_status(scheduler_status: Optional[Dict[str
         "complete_market_benchmark_count": latest_cycle.get("complete_market_benchmark_count", 0),
         "sharp_qualified_count": latest_cycle.get("sharp_qualified_count", 0),
         "ev_count": latest_cycle.get("ev_count", 0),
+        "candidate_rejection_counts": latest_cycle.get("candidate_rejection_counts", {}),
         "rejection_counts": latest_cycle.get("alignment_rejection_counts", {}),
         "rejection_examples": latest_cycle.get("alignment_rejection_examples", {}),
         "query_diagnostics": latest_cycle.get("query_diagnostics", {}),
@@ -675,77 +676,79 @@ class MarketForwardPipeline:
                 diag["estimated_credits"] += estimated_cost
                 diag["actual_credits"] += query_actual_credits
 
-        total_legs_processed = total_matched = total_unmatched = total_snapshots_logged = 0
+        total_legs_processed = sum(len(rows) for rows in raw_by_league.values())
+        total_matched = total_snapshots_logged = 0
+        total_unmatched = max(0, total_legs_processed - len(candidate_records))
         real_market_quote_count = synthetic_market_quote_count = 0
         real_matched_count = synthetic_matched_count = 0
         complete_market_benchmark_count = sharp_qualified_count = ev_count = 0
         qualified_pending_candidate_count = 0
+        candidate_rejection_counts: Counter[str] = Counter()
+        for diagnostics in league_query_diagnostics.values():
+            candidate_rejection_counts.update(diagnostics.get("skip_reason_counts", {}))
         alignment_rejection_counts: Counter[str] = Counter()
         alignment_rejection_examples: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for query_key, quotes in quotes_by_sport_key.items():
             synthetic_market_quote_count += sum(1 for quote in quotes if quote.is_synthetic)
             real_market_quote_count += sum(1 for quote in quotes if not quote.is_synthetic)
 
-        for league, raw_legs in raw_by_league.items():
-            for leg in raw_legs:
-                total_legs_processed += 1
-                query_key = self._candidate_query_key(leg.league)
-                int_odds = quotes_by_sport_key.get(query_key or "", [])
-                cand, record = self.aligner.align_leg_with_candidates(leg, int_odds)
-                benchmark: Optional[MarketBenchmarkEvidence] = None
-                if cand and record.status == MarketAlignmentStatus.MATCHED:
-                    total_matched += 1
-                    if cand.is_synthetic:
-                        synthetic_matched_count += 1
-                    else:
-                        real_matched_count += 1
-                        try:
-                            benchmark = self._build_market_benchmark_evidence(
-                                leg, cand, int_odds, taiwan_odds=float(leg.taiwan_odds),
-                            )
-                        except Exception as exc:
-                            logger.warning("Market benchmark qualification failed for event %s: %s", leg.event_id, exc)
-                    if benchmark and benchmark.eligible:
-                        complete_market_benchmark_count += 1
-                        sharp_qualified_count += bool(benchmark.sharp_qualified_source_ids)
+        for _, leg, query_key, _api_market in candidate_records:
+            int_odds = quotes_by_sport_key.get(query_key, [])
+            cand, record = self.aligner.align_leg_with_candidates(leg, int_odds)
+            benchmark: Optional[MarketBenchmarkEvidence] = None
+            if cand and record.status == MarketAlignmentStatus.MATCHED:
+                total_matched += 1
+                if cand.is_synthetic:
+                    synthetic_matched_count += 1
                 else:
-                    total_unmatched += 1
-                    rejection_code = record.rejection_code or record.status.value
-                    alignment_rejection_counts[rejection_code] += 1
-                    if len(alignment_rejection_examples[rejection_code]) < 2:
-                        alignment_rejection_examples[rejection_code].append({
-                            "taiwan_event_id": record.taiwan_event_id,
-                            "taiwan_league": record.taiwan_league,
-                            "taiwan_market": record.taiwan_market,
-                            "taiwan_selection": record.taiwan_selection,
-                            "taiwan_line": record.taiwan_line,
-                            "international_event_id": record.international_event_id,
-                            "international_league": next((q.league for q in int_odds if q.event_id == record.international_event_id), None),
-                            "international_market_type": record.international_market_type,
-                            "international_line": record.international_line,
-                            "time_delta_seconds": record.time_delta_seconds,
-                            "reason": record.reason,
-                        })
-
+                    real_matched_count += 1
+                    try:
+                        benchmark = self._build_market_benchmark_evidence(
+                            leg, cand, int_odds, taiwan_odds=float(leg.taiwan_odds),
+                        )
+                    except Exception as exc:
+                        logger.warning("Market benchmark qualification failed for event %s: %s", leg.event_id, exc)
                 if benchmark and benchmark.eligible:
-                    enriched = self.signal_hub.evaluate_taiwan_leg(leg, market_benchmark=benchmark)
-                else:
-                    enriched = self.signal_hub.evaluate_taiwan_leg(leg)
-                if not enriched.odds_scraped_at:
-                    enriched.odds_scraped_at = (cand.observed_at_utc if cand else None) or datetime.now(timezone.utc).isoformat()
-                if enriched.expected_value is not None:
-                    ev_count += 1
-                try:
-                    snapshot = self.snapshot_logger.log_snapshot(enriched)
-                    total_snapshots_logged += 1
-                    if (
-                        benchmark and cand and record.status == MarketAlignmentStatus.MATCHED
-                        and not cand.is_synthetic and snapshot.get("forward_validation_eligible") is True
-                        and snapshot.get("settlement_status") == "PENDING"
-                    ):
-                        qualified_pending_candidate_count += 1
-                except Exception as exc:
-                    logger.debug("Snapshot logging skipped for leg %s: %s", enriched.event_id, exc)
+                    complete_market_benchmark_count += 1
+                    sharp_qualified_count += bool(benchmark.sharp_qualified_source_ids)
+            else:
+                total_unmatched += 1
+                rejection_code = record.rejection_code or record.status.value
+                alignment_rejection_counts[rejection_code] += 1
+                if len(alignment_rejection_examples[rejection_code]) < 2:
+                    alignment_rejection_examples[rejection_code].append({
+                        "taiwan_event_id": record.taiwan_event_id,
+                        "taiwan_league": record.taiwan_league,
+                        "taiwan_market": record.taiwan_market,
+                        "taiwan_selection": record.taiwan_selection,
+                        "taiwan_line": record.taiwan_line,
+                        "international_event_id": record.international_event_id,
+                        "international_league": next((q.league for q in int_odds if q.event_id == record.international_event_id), None),
+                        "international_market_type": record.international_market_type,
+                        "international_line": record.international_line,
+                        "time_delta_seconds": record.time_delta_seconds,
+                        "reason": record.reason,
+                    })
+
+            if benchmark and benchmark.eligible:
+                enriched = self.signal_hub.evaluate_taiwan_leg(leg, market_benchmark=benchmark)
+            else:
+                enriched = self.signal_hub.evaluate_taiwan_leg(leg)
+            if not enriched.odds_scraped_at:
+                enriched.odds_scraped_at = (cand.observed_at_utc if cand else None) or datetime.now(timezone.utc).isoformat()
+            if enriched.expected_value is not None:
+                ev_count += 1
+            try:
+                snapshot = self.snapshot_logger.log_snapshot(enriched)
+                total_snapshots_logged += 1
+                if (
+                    benchmark and cand and record.status == MarketAlignmentStatus.MATCHED
+                    and not cand.is_synthetic and snapshot.get("forward_validation_eligible") is True
+                    and snapshot.get("settlement_status") == "PENDING"
+                ):
+                    qualified_pending_candidate_count += 1
+            except Exception as exc:
+                logger.debug("Snapshot logging skipped for leg %s: %s", enriched.event_id, exc)
 
         final_status = self.odds_client.get_source_status()
         try:
@@ -778,6 +781,7 @@ class MarketForwardPipeline:
             "complete_market_benchmark_count": complete_market_benchmark_count,
             "sharp_qualified_count": sharp_qualified_count,
             "ev_count": ev_count,
+            "candidate_rejection_counts": dict(candidate_rejection_counts),
             "alignment_rejection_counts": dict(alignment_rejection_counts),
             "alignment_rejection_examples": dict(alignment_rejection_examples),
             "league_query_diagnostics": league_query_diagnostics,

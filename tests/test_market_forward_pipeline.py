@@ -203,6 +203,8 @@ def test_snapshot_cycle_returns_alignment_rejection_diagnostics(tmp_path: Path):
         selection="Home",
         side="主",
         taiwan_odds=1.9,
+        odds_status="LIVE",
+        odds_scraped_at=now.isoformat(),
         start_time_utc=(now + timedelta(hours=1)).isoformat(),
     )
     rejection = MarketAlignmentRecord(
@@ -259,6 +261,7 @@ def test_alignment_summary_does_not_conflate_live_source_with_zero_matches():
             "real_matched_count": 0,
             "taiwan_snapshots_logged": 580,
             "real_market_quote_count": 2622,
+            "candidate_rejection_counts": {"TAIWAN_ODDS_NOT_FRESH": 3},
             "alignment_rejection_counts": {"ERR_TEAM_NOT_FOUND": 205},
             "timestamp_utc": "2026-11-02T08:16:00Z",
         },
@@ -267,6 +270,7 @@ def test_alignment_summary_does_not_conflate_live_source_with_zero_matches():
     assert summary["status"] == "NO_REAL_QUOTES_MATCHED"
     assert summary["real_matched_count"] == 0
     assert summary["real_market_quote_count"] == 2622
+    assert summary["candidate_rejection_counts"] == {"TAIWAN_ODDS_NOT_FRESH": 3}
     assert summary["rejection_counts"] == {"ERR_TEAM_NOT_FOUND": 205}
 
 
@@ -387,6 +391,27 @@ def test_mixed_leagues_query_only_leagues_with_valid_candidates(tmp_path: Path):
     }
     assert result["league_query_diagnostics"]["MLB"]["estimated_credits"] == 0
     assert result["league_query_diagnostics"]["MLB"]["actual_credits"] == 0
+
+
+def test_mixed_valid_and_stale_candidates_only_analyze_valid_leg(tmp_path: Path):
+    valid = _valid_candidate(event_id="valid-tw")
+    stale = _valid_candidate(event_id="stale-tw")
+    stale.odds_status = "STALE_CACHE"
+    pipeline, odds_client = _candidate_gate_pipeline(tmp_path, {"NBA": [valid, stale]})
+    pipeline.aligner = MagicMock(wraps=MarketAligner())
+
+    result = pipeline.run_market_snapshot_cycle(leagues=["NBA"], automated=True)
+
+    odds_client.fetch_market_odds.assert_called_once_with(
+        "NBA", markets="h2h", force_refresh=False, automated=True
+    )
+    assert [call.args[0].event_id for call in pipeline.aligner.align_leg_with_candidates.call_args_list] == ["valid-tw"]
+    assert [call.args[0].event_id for call in pipeline.signal_hub.evaluate_taiwan_leg.call_args_list] == ["valid-tw"]
+    assert [call.args[0].event_id for call in pipeline.snapshot_logger.log_snapshot.call_args_list] == ["valid-tw"]
+    assert result["valid_candidate_count"] == 1
+    assert result["total_legs_processed"] == 2
+    assert result["total_unmatched"] == 2
+    assert result["candidate_rejection_counts"] == {"TAIWAN_ODDS_NOT_FRESH": 1}
 
 
 def test_pre_game_cutoff_and_payload_immutability(tmp_path: Path):

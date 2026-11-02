@@ -8,7 +8,7 @@ from core.forward_evaluation_engine import (
     ForwardEvaluationEngine,
     compute_brier_score,
     compute_log_loss,
-    compute_max_drawdown,
+    compute_max_drawdown_amount,
 )
 from core.snapshot_logger import compute_prediction_payload_hash
 
@@ -98,7 +98,28 @@ def test_brier_and_log_loss():
 
 
 def test_max_drawdown():
-    assert compute_max_drawdown([1.0, -1.0, -2.0, 1.0, -1.0]) == 3.0
+    assert compute_max_drawdown_amount([1.0, -1.0, -2.0, 1.0, -1.0]) == 3.0
+
+
+def test_drawdown_uses_net_profit_currency_amount_not_roi_percent():
+    identity = get_current_experiment_identity()
+    cohort = []
+    profits = [100.0, -50.0, -75.0] + [0.0] * 27
+    for i, profit in enumerate(profits):
+        row = _row(
+            f"drawdown_{i}", 1 if i % 2 == 0 else 0,
+            0.55,
+            **_accepted_model_provenance(identity),
+            actual_bet_placed=True,
+            actual_stake=100.0,
+            actual_net_profit=profit,
+        )
+        cohort.append(row)
+
+    report = ForwardEvaluationEngine().evaluate_cohort(cohort, scope_name="MLB_MONEYLINE")
+
+    assert report.taiwan_market_baseline.pnl_drawdown_amount == 125.0
+    assert not hasattr(report.taiwan_market_baseline, "max_drawdown_pct")
 
 
 def test_data_leakage_omitted():

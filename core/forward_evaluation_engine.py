@@ -46,7 +46,7 @@ class QuantitativeMetrics:
     settled_roi_pct: Optional[float]
     roi_ci_95: Optional[Tuple[float, float]]
     brier_ci_95: Optional[Tuple[float, float]]
-    max_drawdown_pct: Optional[float]
+    pnl_drawdown_amount: Optional[float]     # absolute currency units; not a percentage
     win_rate_pct: Optional[float]
     status: str                             # SAMPLE_AVAILABLE or INSUFFICIENT_EVIDENCE
     bet_count: int = 0
@@ -148,8 +148,8 @@ def compute_log_loss(probs: List[float], outcomes: List[int]) -> Optional[float]
     return sum(losses) / len(losses)
 
 
-def compute_max_drawdown(pnl_series: List[float]) -> float:
-    """Calculate maximum drawdown in percentage from sequential cumulative PnL."""
+def compute_max_drawdown_amount(pnl_series: List[float]) -> float:
+    """Return the largest absolute-currency fall from cumulative PnL high-water mark."""
     if not pnl_series:
         return 0.0
     cum = 0.0
@@ -495,6 +495,7 @@ class ForwardEvaluationEngine:
             actual_profit = 0.0
             actual_stake = 0.0
             actual_returns: List[float] = []
+            actual_net_profits: List[float] = []
             for row in rows:
                 if row.get("actual_bet_placed") is not True:
                     continue
@@ -506,6 +507,7 @@ class ForwardEvaluationEngine:
                     actual_stake += stake
                     actual_profit += profit
                     actual_returns.append(profit / stake * 100.0)
+                    actual_net_profits.append(profit)
                 except (TypeError, ValueError, OverflowError):
                     continue
             actual_roi = (actual_profit / actual_stake) * 100.0 if actual_stake else None
@@ -528,8 +530,8 @@ class ForwardEvaluationEngine:
                 settled_roi_pct=round(actual_roi, 2) if actual_roi is not None else None,
                 roi_ci_95=bootstrap_ci_mean(actual_returns),
                 brier_ci_95=bootstrap_ci_mean(losses),
-                max_drawdown_pct=round(compute_max_drawdown([value / 100.0 for value in actual_returns]) * 100.0, 1)
-                if actual_returns else None,
+                pnl_drawdown_amount=round(compute_max_drawdown_amount(actual_net_profits), 2)
+                if actual_net_profits else None,
                 win_rate_pct=round(sum(value > 0 for value in actual_returns) / len(actual_returns) * 100.0, 1)
                 if actual_returns else None,
                 status="SAMPLE_AVAILABLE" if sample_size else "INSUFFICIENT_EVIDENCE",
@@ -543,7 +545,7 @@ class ForwardEvaluationEngine:
             return QuantitativeMetrics(
                 sample_size=sample_size, brier_score=None, log_loss=None, clv_mean_pct=None,
                 settled_roi_pct=None, roi_ci_95=None, brier_ci_95=None,
-                max_drawdown_pct=None, win_rate_pct=None, status="INSUFFICIENT_EVIDENCE", bet_count=0,
+                pnl_drawdown_amount=None, win_rate_pct=None, status="INSUFFICIENT_EVIDENCE", bet_count=0,
                 simulated_roi_pct=None, simulated_roi_ci_95=None, simulated_bet_count=0,
             )
 

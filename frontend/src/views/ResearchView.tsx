@@ -169,8 +169,12 @@ export const ResearchView: React.FC = () => {
   const alignment = marketSummary?.alignment || {}
   const lastCycle = sched?.last_cycle_summary || {}
   const minSample = fwd?.minimum_sample_size || 30
-  const rejectionSummary = Object.entries(alignment?.rejection_counts || {})
-    .map(([reason, count]) => `${reason} ${count}`)
+  const rejectionSummary = [
+    ...Object.entries(alignment?.candidate_rejection_counts || {})
+      .map(([reason, count]) => `候選 ${reason} ${count}`),
+    ...Object.entries(alignment?.rejection_counts || {})
+      .map(([reason, count]) => `配對 ${reason} ${count}`),
+  ]
     .join(" · ")
 
   return (
@@ -187,6 +191,9 @@ export const ResearchView: React.FC = () => {
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
           追蹤前瞻快照、真實賽果回測、大眾共識與專家主推的校準表現
+        </p>
+        <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+          離線 fixture／CI 通過只驗證固定資料下的程式行為；不代表目前已配對真實盤口，也不代表模型預測優勢已驗證。
         </p>
       </div>
 
@@ -327,7 +334,7 @@ export const ResearchView: React.FC = () => {
                   : lastCycle.synthetic_market_quote_count > 0 ? "只有合成報價" : "未知／尚未執行"}
               </div>
               <div className="mt-1 text-[10px] text-slate-500">
-                Sharp 合格 {lastCycle.sharp_qualified_count ?? 0} · 最近扣點 {lastCycle.official_credits_consumed ?? "未取得官方記帳"}
+                符合指定 Sharp 來源規則 {lastCycle.sharp_qualified_count ?? 0} · 最近扣點 {lastCycle.official_credits_consumed ?? "未取得官方記帳"}
               </div>
             </div>
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
@@ -436,7 +443,7 @@ export const ResearchView: React.FC = () => {
                 <div className="text-slate-600 dark:text-slate-300">真實盤口 <strong className="font-mono">{sched.last_cycle_summary.real_market_quote_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">成功對齊 <strong className="font-mono">{sched.last_cycle_summary.real_matched_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">完整市場 <strong className="font-mono">{sched.last_cycle_summary.complete_market_benchmark_count ?? 0}</strong></div>
-                <div className="text-slate-600 dark:text-slate-300">Sharp 合格 <strong className="font-mono">{sched.last_cycle_summary.sharp_qualified_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">符合指定 Sharp 來源規則 <strong className="font-mono">{sched.last_cycle_summary.sharp_qualified_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">Synthetic <strong className="font-mono">{sched.last_cycle_summary.synthetic_market_quote_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">待結算合格候選 <strong className="font-mono">{sched.last_cycle_summary.qualified_pending_candidate_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">本次扣點 <strong className="font-mono">{sched.last_cycle_summary.credits_consumed ?? 0}</strong></div>
@@ -677,12 +684,12 @@ export const ResearchView: React.FC = () => {
             </div>
 
             <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-1">
-              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">基準 2：國際市場基準／合格 Sharp</div>
+              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">基準 2：國際市場基準／Sharp 來源規則</div>
               <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                一般國際市場與 Sharp 分開統計
+                一般國際市場與指定來源分開統計
               </div>
               <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80">
-                只有通過來源與時間條件的報價才列為 Sharp；它是比較基準，不代表真實勝率或保證正期望值。
+                Sharp 資格依設定的來源白名單與資料品質規則判定，並非已證明該來源在此聯賽／玩法具有市場領先性；只供比較，不代表真實勝率或正期望值。
               </p>
             </div>
 

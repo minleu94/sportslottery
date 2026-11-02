@@ -289,6 +289,7 @@ class MarketScheduler:
                 "complete_market_benchmark_count": snapshot_cycle.get("complete_market_benchmark_count", 0),
                 "sharp_qualified_count": snapshot_cycle.get("sharp_qualified_count", 0),
                 "ev_count": snapshot_cycle.get("ev_count", 0),
+                "candidate_rejection_counts": snapshot_cycle.get("candidate_rejection_counts", {}),
                 "alignment_rejection_counts": snapshot_cycle.get("alignment_rejection_counts", {}),
                 "alignment_rejection_examples": snapshot_cycle.get("alignment_rejection_examples", {}),
                 "query_diagnostics": snapshot_cycle.get("query_diagnostics", {}),
