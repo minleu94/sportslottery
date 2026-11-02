@@ -389,7 +389,7 @@ def get_market_scheduler_status():
 @app.post("/api/market/scheduler/config")
 def update_market_scheduler_config(
     req: MarketSchedulerConfigRequest,
-    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+    _session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
     """Update background scheduler settings (enable/disable or interval)."""
     scheduler = get_market_scheduler()
@@ -399,7 +399,7 @@ def update_market_scheduler_config(
 @app.post("/api/market/config")
 def update_market_api_key(
     req: MarketKeyConfigRequest,
-    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+    _session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
     """Save The Odds API key securely into gitignored config/odds_api.local.yaml without modifying Git."""
     key = req.the_odds_api_key.strip()
@@ -428,7 +428,7 @@ def update_market_api_key(
 @app.post("/api/market/the-odds/test-connection")
 def test_the_odds_api_connection(
     req: Optional[TheOddsTestConnectionRequest] = None,
-    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+    _session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
     """Zero-credit connection test verifying API key validity and fetching official quota headers."""
     odds_client = TheOddsApiClient()
@@ -462,7 +462,7 @@ def estimate_pipeline_cost(
 def trigger_market_pipeline_cycle(
     leagues: Optional[str] = Query(None, description="Comma-separated leagues (e.g. MLB,NBA)"),
     force_refresh: bool = False,
-    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+    _session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
     """Run an automated prospective validation cycle across live odds and snapshots."""
     scheduler = get_market_scheduler()
@@ -474,6 +474,7 @@ def trigger_market_pipeline_cycle(
 def get_market_benchmark_comparison(
     league: str = Query("MLB", description="League identifier (e.g. MLB, NBA, SOCCER)"),
     force_refresh: bool = False,
+    _session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
     """Retrieve precision aligned international market benchmark odds, de-vigged fair probabilities, and theoretical EV."""
     odds_client = TheOddsApiClient()
