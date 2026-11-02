@@ -187,16 +187,40 @@ class ForwardEvaluationEngine:
             if outcome not in {0, 1} or not odds or odds <= 1.0:
                 continue
 
+            # Synthetic exclusion: Synthetic/Fixture records can never be counted as real forward evaluation samples
+            ev = r.get("signal_evidence") or {}
+            is_syn = bool(
+                r.get("is_synthetic")
+                or r.get("is_market_synthetic")
+                or ev.get("is_market_synthetic")
+                or r.get("market_source") == "SYNTHETIC"
+            )
+            if is_syn:
+                continue
+
             # Pre-match leak prevention: Prediction MUST occur strictly prior to match start
-            if pred_time and event_start:
-                try:
-                    pt = datetime.fromisoformat(str(pred_time).replace("Z", "+00:00"))
-                    es = datetime.fromisoformat(str(event_start).replace("Z", "+00:00"))
-                    if pt >= es:
-                        # Leak detected; omit from evaluation
-                        continue
-                except Exception:
-                    pass
+            if not pred_time or not event_start:
+                continue
+            try:
+                pt = datetime.fromisoformat(str(pred_time).replace("Z", "+00:00"))
+                es = datetime.fromisoformat(str(event_start).replace("Z", "+00:00"))
+                if pt >= es:
+                    # Leak detected; omit from evaluation
+                    continue
+            except Exception:
+                continue
+
+            # Legacy baseline exclusion: Snapshots lacking independent model outputs AND lacking international sharp quotes
+            # are legacy pre-Phase 4 records and cannot be used to benchmark Phase 4 models.
+            has_model = (
+                r.get("model_probability") is not None or r.get("model_prob") is not None
+            ) and r.get("probability_status") != "MARKET_BASELINE_ONLY"
+
+            m_src = r.get("market_source") or ev.get("market_source")
+            has_sharp = bool(m_src and str(m_src).upper() not in ("SYNTHETIC", "MOCK", "PLAYSPORT_TAIWAN_ODDS"))
+
+            if not has_model and not has_sharp:
+                continue
 
             row_copy = dict(r)
             row_copy["outcome"] = outcome
@@ -237,8 +261,8 @@ class ForwardEvaluationEngine:
                 delta_brier_vs_sharp_benchmark=None,
                 champion_source="INTERNATIONAL_SHARP_BENCHMARK",
                 acceptance_gate_qualified=False,
-                status="INSUFFICIENT_EVIDENCE",
-                shadow_mode_recommendation="MAINTAIN_SHADOW_LOGGING_UNTIL_N_GTE_30",
+                status="SHADOW_MODE_ACCUMULATING",
+                shadow_mode_recommendation=f"MAINTAIN_SHADOW_LOGGING_UNTIL_N_GTE_30 ({n}/{MIN_FORWARD_EVALUATION_SAMPLE} ELIGIBLE FORWARD SAMPLES)",
             )
 
         # Evaluate Taiwan Market Baseline

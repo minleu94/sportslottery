@@ -4,7 +4,6 @@ import { api } from "@/services/api"
 import type { Profile } from "@/types"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { Badge } from "@/components/ui/Badge"
 import { Lock, User, KeyRound, UserPlus, ShieldCheck, AlertCircle, Eye, EyeOff } from "lucide-react"
 
 interface LoginGateProps {
@@ -218,37 +217,39 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 text-slate-100">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-100/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
         className="w-full max-w-md"
       >
-        {/* Hero Card */}
+        {/* Brand Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-4xl mb-3 shadow-lg shadow-emerald-500/10">
-            🐕
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-sm mb-3 shadow-xs">
+            MDS
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            台灣運彩 <span className="text-emerald-400">瘋狗流</span> 決策系統
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white flex items-center justify-center gap-2">
+            台灣運彩 <span className="text-emerald-600 dark:text-emerald-400 font-bold">瘋狗流</span> 決策系統
           </h1>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            <Badge variant="green" className="text-[10px] px-2 py-0.5 font-mono">v2.3.0 Dev</Badge>
-            <span className="text-xs text-slate-400">內部成員專用登入 · 多玩家獨立娛樂資金池</span>
+          <div className="flex items-center justify-center gap-2 mt-1.5">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
+              v2.3.0
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">成員專用登入 · 多玩家獨立娛樂資金池</span>
           </div>
         </div>
 
         {/* Auth Box */}
-        <Card className="border-slate-800 bg-slate-900/90 shadow-2xl backdrop-blur-xl overflow-hidden">
+        <Card className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
           {/* Tabs */}
-          <div className="grid grid-cols-3 border-b border-slate-800 text-center text-xs font-bold">
+          <div className="grid grid-cols-3 border-b border-slate-200 dark:border-slate-800 text-center text-xs font-medium">
             <button
               onClick={() => { setActiveTab("login"); setError(null); setSuccessMsg(null) }}
               className={`py-3 transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === "login"
-                  ? "border-b-2 border-emerald-500 text-emerald-400 bg-emerald-500/5"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "border-b-2 border-emerald-600 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
               <KeyRound className="w-3.5 h-3.5" />
@@ -258,8 +259,8 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
               onClick={() => { setActiveTab("register"); setError(null); setSuccessMsg(null) }}
               className={`py-3 transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === "register"
-                  ? "border-b-2 border-emerald-500 text-emerald-400 bg-emerald-500/5"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "border-b-2 border-emerald-600 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
               <UserPlus className="w-3.5 h-3.5" />
@@ -269,8 +270,8 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
               onClick={() => { setActiveTab("pin"); setError(null); setSuccessMsg(null) }}
               className={`py-3 transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === "pin"
-                  ? "border-b-2 border-emerald-500 text-emerald-400 bg-emerald-500/5"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "border-b-2 border-emerald-600 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -278,7 +279,7 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
             </button>
           </div>
 
-          <CardContent className="p-6">
+          <CardContent className="p-5 sm:p-6">
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }}

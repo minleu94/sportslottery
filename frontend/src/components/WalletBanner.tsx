@@ -11,9 +11,9 @@ interface WalletBannerProps {
 export const WalletBanner: React.FC<WalletBannerProps> = ({ wallet, loading }) => {
   if (loading || !wallet) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-3">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-24 rounded-xl bg-slate-200 dark:bg-slate-900/60 animate-pulse border border-slate-300 dark:border-slate-800" />
+          <div key={i} className="h-24 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800/80 animate-pulse" />
         ))}
       </div>
     )
@@ -24,49 +24,51 @@ export const WalletBanner: React.FC<WalletBannerProps> = ({ wallet, loading }) =
   const extTotal = wallet.weekly_external_deposited + wallet.external_deposit_remaining
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-3">
       {/* 1. 本週可用 */}
-      <div className="rounded-xl border border-sky-500/20 bg-gradient-to-br from-sky-500/10 dark:from-sky-950/40 to-white/80 dark:to-slate-900/80 backdrop-blur p-4 shadow-sm relative overflow-hidden group hover:border-sky-500/40 transition-colors">
-        <div className="flex items-center justify-between text-xs text-sky-600 dark:text-sky-400 font-medium mb-1">
-          <span className="flex items-center gap-1.5">
-            <Wallet className="w-3.5 h-3.5" /> ① 本週可用餘額
+      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Wallet className="w-3.5 h-3.5 text-slate-400" /> 本週可用餘額
+          </span>
+          <span className="text-[11px] text-slate-400 font-mono">
+            W{wallet.current_week.split("-W")[1]}
           </span>
         </div>
-        <div className="text-2xl font-black tabular-nums text-slate-900 dark:text-sky-100 tracking-tight">
+        <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100 tracking-tight">
           {formatNTD(wallet.weekly_wallet_balance)}
         </div>
-        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex justify-between">
-          <span className="tabular-nums">上限 {formatNTD(wallet.weekly_play_cap)}</span>
-          <span className="text-sky-600 dark:text-sky-400 font-medium">第 {wallet.current_week.split("-W")[1]} 週</span>
+        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex justify-between tabular-nums">
+          <span>每週上限 {formatNTD(wallet.weekly_play_cap)}</span>
         </div>
       </div>
 
       {/* 2. 本週已下注 */}
-      <div className="rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 dark:from-amber-950/40 to-white/80 dark:to-slate-900/80 backdrop-blur p-4 shadow-sm relative overflow-hidden group hover:border-amber-500/40 transition-colors">
-        <div className="flex items-center justify-between text-xs text-amber-600 dark:text-amber-400 font-medium mb-1">
-          <span className="flex items-center gap-1.5">
-            <Target className="w-3.5 h-3.5" /> ② 本週已下注
+      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Target className="w-3.5 h-3.5 text-slate-400" /> 本週已投注
           </span>
         </div>
-        <div className="text-2xl font-black tabular-nums text-slate-900 dark:text-amber-100 tracking-tight">
+        <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100 tracking-tight">
           {formatNTD(wallet.weekly_staked)}
         </div>
         <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
-          累計投注 {formatNTD(wallet.lifetime_staked)}
+          歷史累計 {formatNTD(wallet.lifetime_staked)}
         </div>
       </div>
 
       {/* 3. 保留儲備池 (獎金) */}
-      <div className="rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 dark:from-emerald-950/40 to-white/80 dark:to-slate-900/80 backdrop-blur p-4 shadow-sm relative overflow-hidden group hover:border-emerald-500/40 transition-colors">
-        <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-1">
-          <span className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5" /> ③ 獲利儲備池
+      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+          <span className="flex items-center gap-1.5 font-medium">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> 獲利儲備池
           </span>
-          <span className={`tabular-nums font-mono ${pnl >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500 font-bold"}`}>
+          <span className={`tabular-nums font-mono text-[11px] font-medium ${pnl >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>
             淨利 {pnlSign}{formatNTD(pnl)}
           </span>
         </div>
-        <div className="text-2xl font-black tabular-nums text-slate-900 dark:text-emerald-100 tracking-tight">
+        <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100 tracking-tight text-emerald-600 dark:text-emerald-400">
           {formatNTD(wallet.prize_pool)}
         </div>
         <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -75,13 +77,13 @@ export const WalletBanner: React.FC<WalletBannerProps> = ({ wallet, loading }) =
       </div>
 
       {/* 4. 本週外部補金 */}
-      <div className="rounded-xl border border-purple-500/20 bg-gradient-to-br from-purple-500/10 dark:from-purple-950/40 to-white/80 dark:to-slate-900/80 backdrop-blur p-4 shadow-sm relative overflow-hidden group hover:border-purple-500/40 transition-colors">
-        <div className="flex items-center justify-between text-xs text-purple-600 dark:text-purple-400 font-medium mb-1">
-          <span className="flex items-center gap-1.5">
-            <ArrowDownCircle className="w-3.5 h-3.5" /> ④ 本週外部補金
+      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+          <span className="flex items-center gap-1.5 font-medium">
+            <ArrowDownCircle className="w-3.5 h-3.5 text-slate-400" /> 本週外部補金
           </span>
         </div>
-        <div className="text-2xl font-black tabular-nums text-slate-900 dark:text-purple-100 tracking-tight">
+        <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100 tracking-tight">
           NT$ {wallet.weekly_external_deposited} / {extTotal}
         </div>
         <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">

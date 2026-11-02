@@ -14,22 +14,24 @@ export const StorageSettingsModal: React.FC<StorageSettingsModalProps> = ({ open
   const [loading, setLoading] = useState<boolean>(true)
 
   useEffect(() => {
+    let isMounted = true
     if (open) {
-      loadStorage()
+      setLoading(true)
+      api.getSystemStorageStatus()
+        .then((res) => {
+          if (isMounted) setData(res)
+        })
+        .catch((err) => {
+          console.error(err)
+        })
+        .finally(() => {
+          if (isMounted) setLoading(false)
+        })
+    }
+    return () => {
+      isMounted = false
     }
   }, [open])
-
-  async function loadStorage() {
-    setLoading(true)
-    try {
-      const res = await api.getSystemStorageStatus()
-      setData(res)
-    } catch (err: any) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const task = data?.scheduled_task || {}
   const stats = data?.stats || {}
@@ -39,65 +41,85 @@ export const StorageSettingsModal: React.FC<StorageSettingsModalProps> = ({ open
       open={open}
       onClose={onClose}
       title={
-        <div className="flex items-center gap-2 text-lg font-black text-white">
-          <Settings className="w-5 h-5 text-indigo-400" />
-          <span>⚙️ 系統設定與資料存放管理 (管理員專屬)</span>
+        <div className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-slate-100">
+          <Settings className="w-4 h-4 text-slate-400" />
+          <span>系統設定與資料存放管理</span>
         </div>
       }
       description="本機數據持久化目錄、磁碟佔用分析與 Windows 定時任務狀態"
       className="max-w-2xl max-h-[85vh] overflow-y-auto"
     >
-      <div className="space-y-4 text-xs pt-2">
+      <div className="space-y-4 text-xs pt-1">
         {loading ? (
           <div className="p-8 text-center text-slate-500">正在檢查系統存放路徑與排程狀態...</div>
         ) : (
           <>
             {/* Storage Root */}
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-sm text-white flex items-center gap-2">
-                  <HardDrive className="w-4 h-4 text-emerald-400" />
-                  本機資料儲存庫目錄 (Storage Root)
+                <span className="font-medium text-xs sm:text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <HardDrive className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  本機資料儲存庫目錄
                 </span>
-                <Badge variant="green" className="text-[10px]">在線掛載</Badge>
-              </div>
-              <div className="p-2.5 rounded bg-slate-900 border border-slate-800/80 font-mono text-emerald-300 text-[11px] break-all">
-                {data?.storage_root || "F:\\Min\\Python\\Project\\SportsLottery_Data"}
-              </div>
-              {stats && Object.keys(stats).length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-[11px] text-slate-400">
-                  <div>歷史快照：<b className="text-white">{stats.snapshot_count ?? "0"} 筆</b></div>
-                  <div>注單檔案：<b className="text-white">{stats.ticket_count ?? "0"} 筆</b></div>
-                  <div>模型權重：<b className="text-white">{stats.model_cache_size ?? "正常"}</b></div>
-                  <div>目錄容量：<b className="text-white">{stats.total_disk_usage ?? "正常"}</b></div>
-                </div>
-              )}
-            </div>
-
-            {/* Windows Task Scheduler */}
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-sm text-white flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-sky-400" />
-                  Windows 背景定時研究排程 (Task Scheduler)
-                </span>
-                <Badge variant={task.Enabled ? "green" : "secondary"} className="text-[10px]">
-                  {task.Enabled ? "🟢 啟用運行中" : "已停用"}
+                <Badge variant="secondary" className="font-mono text-[10px]">
+                  {data?.storage_root_type || "Junction Link"}
                 </Badge>
               </div>
-              <p className="text-slate-400">
-                系統排程定時自動蒐集盤口、大神勝率與進行前瞻研究管線回放評估。
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px] text-slate-300 pt-1">
-                <div>上次執行：<span className="text-slate-200">{task.LastRunTime || "無"}</span></div>
-                <div>下次排定：<span className="text-slate-200">{task.NextRunTime || "無"}</span></div>
+
+              <div className="font-mono text-[11px] p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 break-all select-all">
+                {data?.storage_root || "c:\\Projects\\PythonProjects\\sportslottery\\data"}
+              </div>
+
+              {data?.target_path && (
+                <div className="text-[11px] text-slate-500">
+                  實體指向目標：<span className="font-mono text-slate-700 dark:text-slate-300">{data.target_path}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800 text-[11px] font-mono">
+                <div>
+                  總檔案數：<span className="text-slate-700 dark:text-slate-300 tabular-nums">{stats?.total_files ?? 0} 個</span>
+                </div>
+                <div>
+                  磁碟大小：<span className="text-slate-700 dark:text-slate-300 tabular-nums">{stats?.total_size_mb ?? "0"} MB</span>
+                </div>
+                <div>
+                  權限狀態：<span className="text-emerald-600 dark:text-emerald-400 font-sans">正常可寫入</span>
+                </div>
               </div>
             </div>
 
-            {/* Security info */}
-            <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 flex items-center gap-2 text-[11px]">
-              <ShieldCheck className="w-4 h-4 shrink-0" />
-              <span>系統已開啟單一通訊埠 (Port 8000) 靜默守護進程，由系統匣托盤圖示原生監控。</span>
+            {/* Scheduled Task */}
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-xs sm:text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-slate-400" />
+                  Windows 排程任務 (台灣運彩每日快照)
+                </span>
+                <Badge variant={task?.exists ? "green" : "secondary"} className="text-[10px]">
+                  {task?.exists ? "已建立" : "未註冊"}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                <div>
+                  任務名稱：<span className="text-slate-700 dark:text-slate-300">{task?.task_name || "MadDog_Taiwan_Sports_Sync"}</span>
+                </div>
+                <div>
+                  執行週期：<span className="text-slate-700 dark:text-slate-300">{task?.schedule || "每日 09:00, 15:00"}</span>
+                </div>
+                <div>
+                  上次執行：<span className="text-slate-700 dark:text-slate-300">{task?.last_run_time || "未執行"}</span>
+                </div>
+                <div>
+                  上次結果：<span className="text-slate-700 dark:text-slate-300">{task?.last_result || "N/A"}</span>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[11px] flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span>排程確保每日開盤第一時間快照賠率與籌碼分歧數據。</span>
+              </div>
             </div>
           </>
         )}

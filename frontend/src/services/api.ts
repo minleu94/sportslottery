@@ -578,8 +578,7 @@ export const api = {
 
       })
 
-    } catch (e) {
-
+    } catch {
       // ignore
 
     } finally {
@@ -814,6 +813,30 @@ export const api = {
       headers: authHeaders(),
     })
     if (!res.ok) throw new Error("取得自動排程狀態失敗")
+    return res.json()
+  },
+
+  async testTheOddsConnection(fetchSample = false, sportLeague?: string) {
+    const res = await fetch(`${BASE_URL}/market/the-odds/test-connection`, {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ fetch_sample: fetchSample, sport_league: sportLeague }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "測試 The Odds API 連線失敗")
+    }
+    return res.json()
+  },
+
+  async estimatePipelineCost(leagues?: string, markets?: string) {
+    const params = new URLSearchParams()
+    if (leagues) params.append("leagues", leagues)
+    if (markets) params.append("markets", markets)
+    const res = await fetch(`${BASE_URL}/market/pipeline/estimate-cost?${params.toString()}`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error("估算排程配額失敗")
     return res.json()
   },
 

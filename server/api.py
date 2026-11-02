@@ -268,6 +268,11 @@ class MarketSchedulerConfigRequest(BaseModel):
     interval_seconds: Optional[int] = Field(None, ge=300, le=86400, description="Cadence interval in seconds (300~86400)")
 
 
+class TheOddsTestConnectionRequest(BaseModel):
+    fetch_sample: bool = False
+    sport_league: Optional[str] = None
+
+
 class AdminResetPinRequest(BaseModel):
     profile_id: str
     new_pin: str = "0000"
@@ -409,6 +414,39 @@ def update_market_api_key(
         "status": "SUCCESS",
         "message": "The Odds API key saved securely into local configuration.",
         "the_odds_api": odds_client.get_source_status(),
+    }
+
+
+@app.post("/api/market/the-odds/test-connection")
+def test_the_odds_api_connection(
+    req: Optional[TheOddsTestConnectionRequest] = None,
+    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+):
+    """Zero-credit connection test verifying API key validity and fetching official quota headers."""
+    odds_client = TheOddsApiClient()
+    fetch_sample = req.fetch_sample if req else False
+    sport = req.sport_league if req else None
+    res = odds_client.test_connection(fetch_sample=fetch_sample, sport_league=sport)
+    return res
+
+
+@app.get("/api/market/pipeline/estimate-cost")
+def estimate_pipeline_cost(
+    leagues: Optional[str] = Query(None, description="Comma-separated leagues (e.g. MLB,NBA)"),
+    markets: Optional[str] = Query(None, description="Comma-separated markets (e.g. h2h,spreads)"),
+):
+    """Estimate credits required for a market pipeline fetch cycle."""
+    target_leagues = [l.strip().upper() for l in leagues.split(",")] if leagues else ["NBA", "SOCCER"]
+    market_str = markets or "h2h"
+    market_count = len([m for m in market_str.split(",") if m.strip()])
+    league_count = len(target_leagues)
+    estimated_credits = league_count * market_count
+    return {
+        "target_leagues": target_leagues,
+        "markets": market_str,
+        "league_count": league_count,
+        "market_count": market_count,
+        "estimated_credits": estimated_credits,
     }
 
 

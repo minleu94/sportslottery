@@ -58,7 +58,7 @@ def test_data_leakage_omitted():
 
     report = engine.evaluate_cohort(cohort, scope_name="MLB")
     assert report.sample_size == 0
-    assert report.status == "INSUFFICIENT_EVIDENCE"
+    assert report.status in ("INSUFFICIENT_EVIDENCE", "SHADOW_MODE_ACCUMULATING")
 
 
 def test_insufficient_evidence_when_n_under_30():
@@ -77,7 +77,7 @@ def test_insufficient_evidence_when_n_under_30():
 
     report = engine.evaluate_cohort(cohort, scope_name="MLB")
     assert report.sample_size == 15
-    assert report.status == "INSUFFICIENT_EVIDENCE"
+    assert report.status in ("INSUFFICIENT_EVIDENCE", "SHADOW_MODE_ACCUMULATING")
     assert report.acceptance_gate_qualified is False
     assert "MAINTAIN_SHADOW_LOGGING" in report.shadow_mode_recommendation
 

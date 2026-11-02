@@ -33,7 +33,10 @@ CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "odds_api.yaml"
 LOCAL_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "odds_api.local.yaml"
 ENV_FILE_PATH = Path(__file__).resolve().parents[2] / ".env"
 CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "cache" / "the_odds_api_cache.json"
-QUOTA_SAFETY_MARGIN = 5
+MONTHLY_BUDGET_TOTAL = 500
+MANUAL_RESERVE_CREDITS = 50
+MAX_AUTOMATED_BUDGET_CREDITS = 450
+QUOTA_SAFETY_MARGIN = 50  # Enforce 50-credit reserve for manual research
 
 SPORT_KEY_MAP = {
     "MLB": "baseball_mlb",
@@ -124,13 +127,15 @@ class TheOddsApiClient:
         self.cache_ttl = int(self.config.get("cache_ttl_seconds", 900))
         self.regions = self.config.get("regions", "us,eu")
         self.markets = self.config.get("markets", "h2h,spreads,totals")
+        self.scheduled_markets = self.config.get("scheduled_markets", "h2h")
         self.preferred_books = self.config.get("preferred_books", ["pinnacle", "draftkings", "fanduel"])
 
         self._cache_data: Dict[str, Any] = self._load_cache()
 
     def _resolve_api_key(self, explicit_arg: Optional[str] = None) -> Tuple[str, str]:
-        if explicit_arg and explicit_arg.strip():
-            return explicit_arg.strip(), "EXPLICIT_ARG"
+        if explicit_arg is not None:
+            clean = explicit_arg.strip()
+            return clean, ("EXPLICIT_ARG" if clean else "UNCONFIGURED")
         if os.environ.get("THE_ODDS_API_KEY"):
             return os.environ["THE_ODDS_API_KEY"].strip(), "ENV_THE_ODDS_API_KEY"
         if os.environ.get("ODDS_API_KEY"):
@@ -186,41 +191,234 @@ class TheOddsApiClient:
             self.key_source = "LOCAL_CONFIG"
         return ok
 
-    def get_source_status(self) -> Dict[str, Any]:
-        """Return operational capabilities and quota metrics."""
+    def get_masked_api_key(self) -> str:
+        """Return safely masked API key for UI display (e.g. ***1a2b). Never exposes full key."""
+        if not self.api_key:
+            return ""
+        if len(self.api_key) >= 4:
+            return f"***{self.api_key[-4:]}"
+        return "***"
+
+    def get_official_remaining(self) -> int:
         month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+        month_usage = self._cache_data.get("usage", {}).get(month_key, 0)
+        official_rem = self._cache_data.get("requests_remaining_official")
+        return official_rem if official_rem is not None else max(0, self.monthly_quota - month_usage)
+
+    def test_connection(self, fetch_sample: bool = False, sport_league: str = "NBA") -> Dict[str, Any]:
+        """Verify API key and live connectivity.
+
+        Default (fetch_sample=False) calls /v4/sports which costs ZERO (0) credits.
+        If fetch_sample=True, queries 1 league with 'h2h' (costs 1 credit).
+        Never exposes the API key.
+        """
+        if not self.api_key:
+            return {
+                "success": False,
+                "status": "UNCONFIGURED",
+                "message": "尚未設定 The Odds API 金鑰。",
+                "credits_consumed": 0,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            }
+
+        t0 = time.time()
+        now_utc = datetime.now(timezone.utc)
+        month_key = now_utc.strftime("%Y-%m")
+
+        if not fetch_sample:
+            # Zero-credit validation endpoint: /v4/sports
+            url = f"{self.base_url}/sports/?apiKey={urllib.parse.quote(self.api_key)}"
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Sportslottery-Intelligence/4.5"})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    raw_bytes = resp.read()
+                    data = json.loads(raw_bytes.decode("utf-8"))
+                    h_used = resp.headers.get("x-requests-used")
+                    h_remaining = resp.headers.get("x-requests-remaining")
+
+                    if h_used is not None:
+                        try:
+                            self._cache_data.setdefault("usage", {})[month_key] = int(h_used)
+                        except ValueError:
+                            pass
+                    if h_remaining is not None:
+                        try:
+                            self._cache_data["requests_remaining_official"] = int(h_remaining)
+                        except ValueError:
+                            pass
+
+                    self._cache_data["last_successful_fetch_utc"] = now_utc.isoformat()
+                    self._cache_data["last_error"] = None
+                    self._save_cache()
+
+                    return {
+                        "success": True,
+                        "status": "LIVE_VERIFIED",
+                        "message": f"API 金鑰驗證成功！可存取 {len(data)} 項國際運動賽事 (本次健康診斷消耗 0 credits)。",
+                        "credits_consumed": 0,
+                        "official_remaining": self._cache_data.get("requests_remaining_official"),
+                        "official_used": self._cache_data.get("usage", {}).get(month_key, 0),
+                        "latency_ms": int((time.time() - t0) * 1000),
+                        "timestamp_utc": now_utc.isoformat(),
+                    }
+            except urllib.error.HTTPError as exc:
+                err_text = f"HTTP {exc.code} {exc.reason}"
+                try:
+                    err_body = exc.read().decode("utf-8")
+                    err_json = json.loads(err_body)
+                    if "message" in err_json:
+                        err_text = f"HTTP {exc.code}: {err_json['message']}"
+                except Exception:
+                    pass
+                self._cache_data["last_error"] = err_text
+                self._cache_data["last_error_utc"] = now_utc.isoformat()
+                self._save_cache()
+                return {
+                    "success": False,
+                    "status": "LIVE_ERROR",
+                    "error": err_text,
+                    "credits_consumed": 0,
+                    "timestamp_utc": now_utc.isoformat(),
+                }
+            except Exception as exc:
+                err_text = str(exc)
+                self._cache_data["last_error"] = err_text
+                self._cache_data["last_error_utc"] = now_utc.isoformat()
+                self._save_cache()
+                return {
+                    "success": False,
+                    "status": "LIVE_ERROR",
+                    "error": err_text,
+                    "credits_consumed": 0,
+                    "timestamp_utc": now_utc.isoformat(),
+                }
+        else:
+            # 1-credit sample fetch test
+            league_norm = sport_league.upper().strip()
+            sport_key = SPORT_KEY_MAP.get(league_norm, "basketball_nba")
+            params = {
+                "apiKey": self.api_key,
+                "regions": "us",
+                "markets": "h2h",
+                "oddsFormat": "decimal",
+            }
+            url = f"{self.base_url}/sports/{sport_key}/odds/?{urllib.parse.urlencode(params)}"
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Sportslottery-Intelligence/4.5"})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    raw_bytes = resp.read()
+                    data = json.loads(raw_bytes.decode("utf-8"))
+                    h_used = resp.headers.get("x-requests-used")
+                    h_remaining = resp.headers.get("x-requests-remaining")
+                    h_last = resp.headers.get("x-requests-last")
+
+                    credits_last = int(h_last) if h_last is not None else 1
+                    self._cache_data["requests_last_official"] = credits_last
+                    if h_used is not None:
+                        try:
+                            self._cache_data.setdefault("usage", {})[month_key] = int(h_used)
+                        except ValueError:
+                            pass
+                    if h_remaining is not None:
+                        try:
+                            self._cache_data["requests_remaining_official"] = int(h_remaining)
+                        except ValueError:
+                            pass
+
+                    self._cache_data["last_successful_fetch_utc"] = now_utc.isoformat()
+                    self._cache_data["last_error"] = None
+                    self._save_cache()
+
+                    return {
+                        "success": True,
+                        "status": "LIVE_VERIFIED",
+                        "message": f"成功獲取 {league_norm} 真實盤口 {len(data)} 場 (消耗 {credits_last} credit)。",
+                        "credits_consumed": credits_last,
+                        "official_remaining": self._cache_data.get("requests_remaining_official"),
+                        "official_used": self._cache_data.get("usage", {}).get(month_key, 0),
+                        "latency_ms": int((time.time() - t0) * 1000),
+                        "timestamp_utc": now_utc.isoformat(),
+                    }
+            except Exception as exc:
+                err_text = str(exc)
+                self._cache_data["last_error"] = err_text
+                self._cache_data["last_error_utc"] = now_utc.isoformat()
+                self._save_cache()
+                return {
+                    "success": False,
+                    "status": "LIVE_ERROR",
+                    "error": err_text,
+                    "credits_consumed": 0,
+                    "timestamp_utc": now_utc.isoformat(),
+                }
+
+    def get_source_status(self) -> Dict[str, Any]:
+        """Return operational capabilities and quota metrics with strict mode distinctions."""
+        now_utc = datetime.now(timezone.utc)
+        month_key = now_utc.strftime("%Y-%m")
         month_usage = self._cache_data.get("usage", {}).get(month_key, 0)
         has_key = bool(self.api_key)
         official_rem = self._cache_data.get("requests_remaining_official")
         remaining_est = official_rem if official_rem is not None else max(0, self.monthly_quota - month_usage)
+        has_successful_fetch = bool(self._cache_data.get("last_successful_fetch_utc"))
+        last_error = self._cache_data.get("last_error")
 
         if not has_key:
-            mode = "SYNTHETIC_FIXTURE"
+            mode = "UNCONFIGURED"
         elif remaining_est <= 0 or month_usage >= self.monthly_quota:
             mode = "QUOTA_EXHAUSTED"
-        elif remaining_est <= QUOTA_SAFETY_MARGIN:
+        elif remaining_est <= MANUAL_RESERVE_CREDITS:
             mode = "QUOTA_SAFETY_PAUSE"
+        elif has_successful_fetch:
+            mode = "LIVE_VERIFIED"
+        elif last_error:
+            mode = "LIVE_ERROR"
         else:
-            mode = "LIVE_API"
+            mode = "KEY_CONFIGURED_UNVERIFIED"
+
+        # Days remaining in current month
+        year = now_utc.year
+        month = now_utc.month
+        if month == 12:
+            next_month = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+        else:
+            next_month = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+        days_remaining = max(1, (next_month.date() - now_utc.date()).days)
+
+        schedulable_credits = max(0, remaining_est - MANUAL_RESERVE_CREDITS)
+        daily_schedulable_budget = round(schedulable_credits / days_remaining, 1)
 
         return {
             "source_id": "the_odds_api",
             "is_configured": has_key,
             "has_api_key": has_key,
+            "key_masked": self.get_masked_api_key(),
             "key_source": self.key_source,
             "monthly_quota": self.monthly_quota,
+            "monthly_budget": MONTHLY_BUDGET_TOTAL,
+            "manual_reserve_credits": MANUAL_RESERVE_CREDITS,
+            "automated_budget_credits": MAX_AUTOMATED_BUDGET_CREDITS,
             "requests_used_this_month": month_usage,
             "requests_remaining_est": remaining_est,
             "official_remaining": official_rem,
+            "requests_last_consumed": self._cache_data.get("requests_last_official", 0),
+            "days_remaining_in_month": days_remaining,
+            "daily_schedulable_budget": daily_schedulable_budget,
             "cache_ttl_seconds": self.cache_ttl,
             "operating_mode": mode,
+            "is_live_verified": has_successful_fetch,
+            "last_successful_fetch_utc": self._cache_data.get("last_successful_fetch_utc"),
             "last_live_fetch_utc": self._cache_data.get("last_live_fetch_utc"),
+            "last_error": last_error,
+            "last_error_utc": self._cache_data.get("last_error_utc"),
+            "last_query_summary": self._cache_data.get("last_query_summary"),
             "supported_sports": list(SPORT_KEY_MAP.keys()),
         }
 
     def fetch_market_odds(
         self,
         sport_league: str,
+        markets: Optional[str] = None,
         force_refresh: bool = False,
     ) -> List[MarketOddsSnapshot]:
         """Fetch market odds for a given sport league, or return synthetic fixtures if unconfigured."""
@@ -259,10 +457,11 @@ class TheOddsApiClient:
 
         # Call live API
         try:
+            target_markets = markets or self.scheduled_markets or "h2h"
             params = {
                 "apiKey": self.api_key,
                 "regions": self.regions,
-                "markets": self.markets,
+                "markets": target_markets,
                 "oddsFormat": "decimal",
                 "dateFormat": "iso",
             }
@@ -275,13 +474,18 @@ class TheOddsApiClient:
                 # Track usage from official response headers when available
                 h_used = resp.headers.get("x-requests-used")
                 h_remaining = resp.headers.get("x-requests-remaining")
+                h_last = resp.headers.get("x-requests-last")
+
+                credits_last = int(h_last) if h_last is not None else (target_markets.count(',') + 1)
+                self._cache_data["requests_last_official"] = credits_last
+
                 if h_used is not None:
                     try:
                         self._cache_data["usage"][month_key] = int(h_used)
                     except ValueError:
-                        self._cache_data["usage"][month_key] = used + 1
+                        self._cache_data["usage"][month_key] = used + credits_last
                 else:
-                    self._cache_data["usage"][month_key] = used + 1
+                    self._cache_data["usage"][month_key] = used + credits_last
 
                 if h_remaining is not None:
                     try:
@@ -289,7 +493,19 @@ class TheOddsApiClient:
                     except ValueError:
                         pass
 
-                self._cache_data["last_live_fetch_utc"] = datetime.now(timezone.utc).isoformat()
+                now_iso = datetime.now(timezone.utc).isoformat()
+                self._cache_data["last_live_fetch_utc"] = now_iso
+                self._cache_data["last_successful_fetch_utc"] = now_iso
+                self._cache_data["last_error"] = None
+                self._cache_data["last_query_summary"] = {
+                    "sport": sport_key,
+                    "league": league_norm,
+                    "markets": target_markets,
+                    "events_count": len(data),
+                    "snapshots_count": 0,
+                    "credits_consumed": credits_last,
+                    "is_synthetic": False,
+                }
 
                 snapshots = self._parse_api_payload(data, league_norm)
 
@@ -301,8 +517,26 @@ class TheOddsApiClient:
                 self._save_cache()
                 return snapshots
 
+        except urllib.error.HTTPError as exc:
+            err_text = f"HTTP {exc.code} {exc.reason}"
+            try:
+                err_body = exc.read().decode("utf-8")
+                err_json = json.loads(err_body)
+                if "message" in err_json:
+                    err_text = f"HTTP {exc.code}: {err_json['message']}"
+            except Exception:
+                pass
+            self._cache_data["last_error"] = err_text
+            self._cache_data["last_error_utc"] = datetime.now(timezone.utc).isoformat()
+            self._save_cache()
+            logger.warning("The Odds API HTTP error for %s: %s; using synthetic fixtures", sport_key, err_text)
+            return self._generate_synthetic_fixtures(league_norm)
         except Exception as exc:
-            logger.warning("Error fetching live odds from The Odds API for %s: %s; using synthetic fixtures", sport_key, exc)
+            err_text = str(exc)
+            self._cache_data["last_error"] = err_text
+            self._cache_data["last_error_utc"] = datetime.now(timezone.utc).isoformat()
+            self._save_cache()
+            logger.warning("Error fetching live odds from The Odds API for %s: %s; using synthetic fixtures", sport_key, err_text)
             return self._generate_synthetic_fixtures(league_norm)
 
     def _parse_api_payload(self, events: List[Dict[str, Any]], league: str) -> List[MarketOddsSnapshot]:

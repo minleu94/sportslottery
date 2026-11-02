@@ -66,3 +66,6 @@ frontend/.tmp/
 graphify-out/memory/
 graphify-out/reflections/
 graphify-out/.graphify_learning.json
+
+# Local Agent files
+.agent/

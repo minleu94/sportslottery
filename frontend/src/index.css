@@ -3,26 +3,30 @@
 @layer base {
   :root {
     --bg-main: #f8fafc;
-    --bg-surface: rgba(255, 255, 255, 0.85);
-    --border-color: rgba(226, 232, 240, 0.9);
+    --bg-surface: #ffffff;
+    --bg-raised: #f1f5f9;
+    --border-color: rgba(15, 23, 42, 0.08);
+    --border-subtle: rgba(15, 23, 42, 0.05);
     --text-primary: #0f172a;
     --text-secondary: #475569;
     --text-muted: #64748b;
-    --glow-primary: rgba(16, 185, 129, 0.08);
-    --glow-secondary: rgba(14, 165, 233, 0.06);
-    --card-hover: rgba(241, 245, 249, 0.8);
+    --accent: #059669;
+    --accent-subtle: rgba(5, 150, 105, 0.08);
+    --card-hover: #f8fafc;
   }
 
   html.dark {
-    --bg-main: #0b0f19;
-    --bg-surface: rgba(15, 23, 42, 0.75);
-    --border-color: rgba(30, 41, 59, 0.8);
-    --text-primary: #f8fafc;
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
-    --glow-primary: rgba(16, 185, 129, 0.12);
-    --glow-secondary: rgba(245, 158, 11, 0.08);
-    --card-hover: rgba(30, 41, 59, 0.7);
+    --bg-main: #0b0f17;
+    --bg-surface: #111726;
+    --bg-raised: #1a2234;
+    --border-color: rgba(240, 246, 252, 0.08);
+    --border-subtle: rgba(240, 246, 252, 0.04);
+    --text-primary: #f0f6fc;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent: #10b981;
+    --accent-subtle: rgba(16, 185, 129, 0.1);
+    --card-hover: #151d30;
   }
 }
 
@@ -35,54 +39,27 @@ body {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Ambient Technology Aurora Glows */
-body::before {
-  content: "";
-  position: fixed;
-  top: -20%;
-  left: -10%;
-  width: 60vw;
-  height: 60vh;
-  background: radial-gradient(circle, var(--glow-primary) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-  filter: blur(60px);
-}
-
-body::after {
-  content: "";
-  position: fixed;
-  bottom: -20%;
-  right: -10%;
-  width: 60vw;
-  height: 60vh;
-  background: radial-gradient(circle, var(--glow-secondary) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-  filter: blur(60px);
+  transition: background-color 0.18s cubic-bezier(0.22, 1, 0.36, 1), color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Tabular number utility for all financial/betting metrics */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
-/* Custom Scrollbars */
+/* Custom Sleek 4px Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
-  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+  background: rgba(148, 163, 184, 0.45);
 }

@@ -4,7 +4,6 @@ import { api } from "@/services/api"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
-import { Skeleton } from "@/components/ui/Skeleton"
 import {
   BarChart2,
   Users,
@@ -26,13 +25,14 @@ import {
 export const ResearchView: React.FC = () => {
   const [data, setData] = useState<any>(null)
   const [marketSummary, setMarketSummary] = useState<any>(null)
-  const [loadingMarket, setLoadingMarket] = useState(true)
-  const [loadingAnalytics, setLoadingAnalytics] = useState(true)
+  const [_loadingMarket, setLoadingMarket] = useState(true)
+  const [_loadingAnalytics, setLoadingAnalytics] = useState(true)
   const [apiKeyInput, setApiKeyInput] = useState("")
   const [showKeyForm, setShowKeyForm] = useState(false)
   const [submittingKey, setSubmittingKey] = useState(false)
   const [runningCycle, setRunningCycle] = useState(false)
   const [togglingScheduler, setTogglingScheduler] = useState(false)
+  const [testingConnection, setTestingConnection] = useState(false)
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   useEffect(() => {
@@ -74,6 +74,34 @@ export const ResearchView: React.FC = () => {
       setFeedbackMsg({ type: "error", text: err.message || "儲存金鑰失敗" })
     } finally {
       setSubmittingKey(false)
+    }
+  }
+
+  async function handleTestConnection() {
+    setTestingConnection(true)
+    setFeedbackMsg(null)
+    try {
+      const res = await api.testTheOddsConnection(false)
+      if (res.status === "SUCCESS") {
+        setFeedbackMsg({
+          type: "success",
+          text: `✓ 連線測試成功 (0 額度消耗)！官方剩餘: ${res.official_remaining ?? res.requests_remaining ?? "未知"} Credits，已使用: ${res.requests_used ?? 0} Credits，延遲: ${res.latency_ms ? `${res.latency_ms}ms` : "正常"} (模式: ${res.operating_mode})`,
+        })
+      } else {
+        setFeedbackMsg({
+          type: "error",
+          text: `✕ 連線測試未成功: ${res.error || "未知錯誤"} (狀態: ${res.status})`,
+        })
+      }
+      const updated = await api.getMarketResearchSummary().catch(() => null)
+      if (updated) setMarketSummary(updated)
+    } catch (err: any) {
+      setFeedbackMsg({
+        type: "error",
+        text: `✕ 連線測試失敗: ${err.message || String(err)}`,
+      })
+    } finally {
+      setTestingConnection(false)
     }
   }
 
@@ -131,47 +159,57 @@ export const ResearchView: React.FC = () => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
+      transition={{ duration: 0.18 }}
+      className="space-y-5"
     >
       <div>
-        <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <BarChart2 className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
-          影子前瞻評估與模型指標 (Shadow Forward Evaluation)
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 tracking-tight">
+          <BarChart2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          影子前瞻評估與模型指標
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
           追蹤前瞻快照、真實賽果回測、大眾共識與專家主推的校準表現
         </p>
       </div>
 
-      {/* Phase 4.5: Global Market Intelligence & Continuous Forward Pipeline Banner */}
-      <Card className="border-sky-500/30 dark:border-sky-500/20 bg-gradient-to-br from-white/90 via-sky-50/20 to-slate-50/60 dark:from-slate-900/90 dark:via-sky-950/20 dark:to-slate-950/60 backdrop-blur shadow-sm">
-        <CardHeader className="pb-3 border-b border-slate-200/80 dark:border-slate-800/80">
+      {/* Global Market Intelligence & Continuous Forward Pipeline Banner */}
+      <Card className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Globe className="w-5 h-5 text-sky-500" />
-              <span>國際即時市場情報與前瞻驗證閉環 (Phase 4.5 Continuous Validation)</span>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Globe className="w-4 h-4 text-slate-400" />
+              <span>國際即時市場情報與前瞻驗證閉環</span>
             </CardTitle>
             <div className="flex items-center gap-2">
-              {opMode === "LIVE_API" ? (
-                <Badge variant="green" className="gap-1.5 py-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  LIVE (真實國際市場連線)
+              {opMode === "LIVE_VERIFIED" || opMode === "LIVE_API" ? (
+                <Badge variant="green" className="gap-1.5 py-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                  LIVE (真實國際市場已驗證)
+                </Badge>
+              ) : opMode === "KEY_CONFIGURED_UNVERIFIED" ? (
+                <Badge variant="blue" className="gap-1.5 py-0.5">
+                  <Key className="w-3.5 h-3.5 text-slate-400" />
+                  KEY CONFIGURED (已配置金鑰，待驗證)
                 </Badge>
               ) : opMode === "QUOTA_SAFETY_PAUSE" ? (
-                <Badge variant="amber" className="gap-1.5 py-1">
+                <Badge variant="amber" className="gap-1.5 py-0.5">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  配額防護暫停 (剩餘 &le; 5 次)
+                  配額防護暫停 (保留手動 50 Credits)
                 </Badge>
               ) : opMode === "QUOTA_EXHAUSTED" ? (
-                <Badge variant="red" className="gap-1.5 py-1">
+                <Badge variant="red" className="gap-1.5 py-0.5">
                   <AlertTriangle className="w-3.5 h-3.5" />
                   本月 API 配額已耗盡
                 </Badge>
+              ) : opMode === "LIVE_ERROR" ? (
+                <Badge variant="red" className="gap-1.5 py-0.5">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  API 連線異常 (降級展示)
+                </Badge>
               ) : (
-                <Badge variant="secondary" className="gap-1.5 py-1 text-slate-400">
+                <Badge variant="secondary" className="gap-1.5 py-0.5 text-slate-400">
                   SYNTHETIC (合成展示模式)
                 </Badge>
               )}
@@ -182,66 +220,76 @@ export const ResearchView: React.FC = () => {
           {/* Operational Metrics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {/* 1. Market Live Status */}
-            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 space-y-1">
+            <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <span>國際盤口來源</span>
-                <Activity className="w-3.5 h-3.5 text-sky-500" />
+                <Activity className="w-3.5 h-3.5 text-slate-400" />
               </div>
-              <div className="text-base font-black text-slate-800 dark:text-slate-200 font-mono">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono">
                 The Odds API
               </div>
               <div className="text-[11px] text-slate-400 truncate">
-                {theOdds?.last_live_fetch_utc
-                  ? `最近抓取: ${new Date(theOdds.last_live_fetch_utc).toLocaleTimeString()}`
+                {theOdds?.key_masked ? `金鑰: ${theOdds.key_masked}` : "尚未配置 Key"}
+              </div>
+              <div className="text-[10px] text-slate-400 truncate">
+                {theOdds?.last_successful_fetch_utc
+                  ? `最近成功: ${new Date(theOdds.last_successful_fetch_utc).toLocaleTimeString()}`
                   : theOdds?.has_api_key
-                  ? "已設定 Key (等待排程)"
-                  : "尚未配置 Key (降級合成)"}
+                  ? "等待連線測試或首次排程"
+                  : "降級合成展示"}
               </div>
             </div>
 
             {/* 2. Quota Usage Tracker */}
-            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 space-y-1">
+            <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>本月免費配額</span>
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                <span>本月配額 (500/月)</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <div className="text-base font-black text-slate-800 dark:text-slate-200 font-mono">
-                {theOdds?.requests_used_this_month || 0} / {theOdds?.monthly_quota || 500}
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
+                {theOdds?.requests_used_this_month || 0} / {theOdds?.monthly_budget || theOdds?.monthly_quota || 500}
               </div>
-              <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold truncate">
-                剩餘估算: {theOdds?.requests_remaining_est ?? 500} 次 (防護值 5)
+              <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium truncate tabular-nums">
+                官方剩餘: {theOdds?.official_remaining ?? theOdds?.requests_remaining_est ?? 500} Credits
+              </div>
+              <div className="text-[10px] text-slate-400 truncate">
+                日排程預算: {theOdds?.daily_schedulable_budget || 0} (手動保留 50)
               </div>
             </div>
 
             {/* 3. Snapshots Accumulation */}
-            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 space-y-1">
+            <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <span>歷史快照 / 已結算</span>
-                <Database className="w-3.5 h-3.5 text-purple-500" />
+                <Database className="w-3.5 h-3.5 text-slate-400" />
               </div>
-              <div className="text-base font-black text-slate-800 dark:text-slate-200 font-mono">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
                 {snaps?.total_count || data?.total_snapshots || 0} / {snaps?.settled_count || 0}
               </div>
-              <div className="text-[11px] text-slate-400 truncate">
-                前瞻有效: {snaps?.forward_eligible_count || 0} (開賽前密封)
+              <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium truncate">
+                有效前瞻: {snaps?.forward_eligible_count || 0}
+              </div>
+              <div className="text-[10px] text-slate-400 truncate">
+                歷史基線封存: {snaps?.legacy_unverified_count || 0} 筆
               </div>
             </div>
 
             {/* 4. Forward Gate Status */}
-            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 space-y-1">
+            <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>Forward 樣本量 (N)</span>
-                <span className="text-[11px] font-mono font-bold text-sky-500">門檻: 30</span>
+                <span>前瞻驗證樣本 (N)</span>
+                <span className="text-[11px] font-mono font-medium text-slate-400">門檻 30</span>
               </div>
-              <div className="text-base font-black text-slate-800 dark:text-slate-200 font-mono">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
                 {sampleSize} / 30
               </div>
               <div className="text-[11px] truncate">
-                {sampleSize < 30 ? (
-                  <span className="text-amber-500 font-semibold">影子模式 (尚未達標)</span>
-                ) : (
-                  <span className="text-emerald-500 font-semibold">已通過驗證閘門</span>
-                )}
+                <span className="text-slate-600 dark:text-slate-400 font-medium">
+                  {fwd?.status === "SHADOW_MODE_ACCUMULATING" ? "影子累積中 (0/30)" : (fwd?.status || "影子累積中")}
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-400 truncate">
+                {fwd?.acceptance_gate_qualified ? "已通過驗證閘門" : "未達驗證門檻"}
               </div>
             </div>
           </div>
@@ -352,6 +400,17 @@ export const ResearchView: React.FC = () => {
 
           {/* Action buttons & Collapsible API key form */}
           <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestConnection}
+              disabled={testingConnection}
+              className="gap-1.5 text-xs border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+            >
+              <Activity className={`w-3.5 h-3.5 ${testingConnection ? "animate-spin" : ""}`} />
+              {testingConnection ? "連線測試中..." : "測試連線 (0 Credits)"}
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
