@@ -98,20 +98,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
   }
 
   async function handleSwitchProfile() {
-    if (!pinCode) {
-      setMessage({ type: "error", text: "請輸入 4 位數 PIN 碼（預設為 0000）" })
+    const isTargetAdmin = selectedProfileId === "default" || profiles.find((p) => p.id === selectedProfileId)?.name === "Archie"
+    if (!pinCode.trim()) {
+      setMessage({ type: "error", text: isTargetAdmin ? "請輸入 8 位管理員密碼（首次預設 0000）" : "請輸入 4 位數 PIN 碼（預設 0000）" })
       return
     }
     setLoading(true)
     setMessage(null)
 
     try {
-      const res = await api.verifyPin(selectedProfileId, pinCode)
+      const res = await api.verifyPin(selectedProfileId, pinCode.trim())
       onProfileChange(res.profile)
       setMessage({ type: "success", text: `已成功切換為【${res.profile.name}】身分！` })
       setPinCode("")
     } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "PIN 碼錯誤" })
+      setMessage({ type: "error", text: err.message || (isTargetAdmin ? "管理員密碼錯誤" : "PIN 碼錯誤") })
     } finally {
       setLoading(false)
     }
