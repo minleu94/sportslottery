@@ -235,9 +235,17 @@ class MarketForwardPipeline:
         odds_status = self.odds_client.get_source_status()
         report = self.evaluation_engine.evaluate_cohort(settled_snaps)
 
+        scheduler_status = None
+        try:
+            from core.market_scheduler import get_market_scheduler
+            scheduler_status = get_market_scheduler().get_status()
+        except Exception:
+            pass
+
         return {
             "live_status": odds_status.get("operating_mode", "SYNTHETIC_FIXTURE"),
             "the_odds_api": odds_status,
+            "scheduler": scheduler_status,
             "snapshots": {
                 "total_count": len(all_snaps),
                 "settled_count": len(settled_snaps),

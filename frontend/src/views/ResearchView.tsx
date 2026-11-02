@@ -18,6 +18,9 @@ import {
   Activity,
   ExternalLink,
   ShieldCheck,
+  Clock,
+  Play,
+  Pause,
 } from "lucide-react"
 
 export const ResearchView: React.FC = () => {
@@ -28,6 +31,7 @@ export const ResearchView: React.FC = () => {
   const [showKeyForm, setShowKeyForm] = useState(false)
   const [submittingKey, setSubmittingKey] = useState(false)
   const [runningCycle, setRunningCycle] = useState(false)
+  const [togglingScheduler, setTogglingScheduler] = useState(false)
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   useEffect(() => {
@@ -94,6 +98,28 @@ export const ResearchView: React.FC = () => {
     }
   }
 
+  async function handleToggleScheduler() {
+    const sched = marketSummary?.scheduler
+    const targetEnabled = !sched?.enabled
+    setTogglingScheduler(true)
+    setFeedbackMsg(null)
+    try {
+      await api.updateMarketSchedulerConfig({ enabled: targetEnabled })
+      setFeedbackMsg({
+        type: "success",
+        text: targetEnabled
+          ? "✓ 自動前瞻排程已啟動，將依照 API 配額動態調度背景更新！"
+          : "✓ 自動前瞻排程已暫停，轉為僅手動觸發模式。",
+      })
+      const updated = await api.getMarketResearchSummary()
+      setMarketSummary(updated)
+    } catch (err: any) {
+      setFeedbackMsg({ type: "error", text: err.message || "更新排程設定失敗" })
+    } finally {
+      setTogglingScheduler(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -112,6 +138,7 @@ export const ResearchView: React.FC = () => {
   const fwd = marketSummary?.forward_evaluation || {}
   const opMode = marketSummary?.live_status || theOdds?.operating_mode || "SYNTHETIC_FIXTURE"
   const sampleSize = fwd?.sample_size || 0
+  const sched = marketSummary?.scheduler || {}
 
   return (
     <motion.div
@@ -226,6 +253,87 @@ export const ResearchView: React.FC = () => {
                 ) : (
                   <span className="text-emerald-500 font-semibold">已通過驗證閘門</span>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* Automated In-Service Scheduler Bar */}
+          <div className="p-3.5 rounded-xl border border-sky-500/20 bg-sky-50/40 dark:bg-sky-950/20 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center flex-wrap gap-2">
+                <Clock className="w-4 h-4 text-sky-500" />
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  背景定時前瞻排程 (In-Service Scheduler)
+                </span>
+                {sched?.enabled ? (
+                  <Badge variant="green" className="text-[10px] py-0.5">
+                    ● 運行中 ({sched?.interval_seconds ? `${Math.round(sched.interval_seconds / 3600)}h 動態間隔` : "4h"})
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-[10px] py-0.5 text-slate-400">
+                    ○ 已手動暫停
+                  </Badge>
+                )}
+                {sched?.is_executing && (
+                  <Badge variant="amber" className="text-[10px] py-0.5 animate-pulse">
+                    執行中...
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleToggleScheduler}
+                  disabled={togglingScheduler}
+                  className="h-7 text-xs px-2.5 gap-1"
+                >
+                  {sched?.enabled ? (
+                    <>
+                      <Pause className="w-3 h-3 text-amber-500" />
+                      <span>暫停排程</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3 h-3 text-emerald-500" />
+                      <span>啟用排程</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1 border-t border-sky-500/10">
+              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                <span className="text-slate-400">最近執行:</span>
+                <span className="font-mono font-medium">
+                  {sched?.last_run_utc ? new Date(sched.last_run_utc).toLocaleTimeString() : "尚未執行"}
+                </span>
+                {sched?.last_status === "SUCCESS" && (
+                  <span className="text-emerald-500 font-bold text-[10px]">(成功)</span>
+                )}
+                {sched?.last_status === "FAILED" && (
+                  <span className="text-rose-500 font-bold text-[10px]">(失敗)</span>
+                )}
+                {sched?.last_status === "SKIPPED_CONCURRENT" && (
+                  <span className="text-amber-500 font-bold text-[10px]">(防重疊跳過)</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                <span className="text-slate-400">下次預計:</span>
+                <span className="font-mono font-medium text-sky-600 dark:text-sky-400">
+                  {sched?.enabled && sched?.next_run_utc
+                    ? new Date(sched.next_run_utc).toLocaleTimeString()
+                    : "排程暫停中"}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                <span className="text-slate-400">累計循環:</span>
+                <span className="font-mono">
+                  {sched?.stats?.successful_runs || 0} 成功 / {sched?.stats?.total_runs || 0} 總次
+                </span>
               </div>
             </div>
           </div>
