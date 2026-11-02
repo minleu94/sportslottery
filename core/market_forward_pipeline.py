@@ -21,11 +21,12 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from core.forward_evaluation_engine import ForwardEvaluationEngine, StrategyComparisonReport
 from core.market_aligner import MarketAligner
 from core.market_fair_odds import MarketFairOddsEngine
+from core.persistence import iter_jsonl
 from core.settlement_engine import SettlementEngine
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger
@@ -183,13 +184,14 @@ class MarketForwardPipeline:
     def run_settlement_cycle(self, now: Optional[datetime] = None) -> Dict[str, Any]:
         """Scan unsettled historical predictions and settle completed matches."""
         current_time = now or datetime.now(timezone.utc)
-        snapshots = self.snapshot_logger.get_all_snapshots()
-        unsettled = [s for s in snapshots if not s.get("is_settled")]
-
+        unsettled_checked = 0
         settled_count = 0
         deferred_count = 0
 
-        for snap in unsettled:
+        for snap in iter_jsonl(self.snapshot_logger.log_path):
+            if snap.get("is_settled"):
+                continue
+            unsettled_checked += 1
             # Check if match has elapsed
             event_start_str = snap.get("event_start") or snap.get("start_time_utc")
             if not event_start_str:
@@ -207,7 +209,7 @@ class MarketForwardPipeline:
                 continue
 
         return {
-            "unsettled_checked": len(unsettled),
+            "unsettled_checked": unsettled_checked,
             "settled_count": settled_count,
             "deferred_count": deferred_count,
             "timestamp_utc": current_time.isoformat(),
@@ -215,7 +217,7 @@ class MarketForwardPipeline:
 
     def audit_snapshots(
         self,
-        snapshots: Optional[List[Dict[str, Any]]] = None,
+        snapshots: Optional[Iterable[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Perform non-destructive classification and integrity audit of historical snapshots.
 
@@ -232,9 +234,9 @@ class MarketForwardPipeline:
         - excluded_breakdown: summary of exclusions
         - eligible_samples: list of records passed to forward evaluation engine
         """
-        records = snapshots if snapshots is not None else self.snapshot_logger.get_all_snapshots()
+        records = snapshots if snapshots is not None else iter_jsonl(self.snapshot_logger.log_path)
 
-        total = len(records)
+        total = 0
         settled_count = 0
         unsettled_count = 0
         pre_match_verified_count = 0
@@ -247,6 +249,7 @@ class MarketForwardPipeline:
         eligible_samples: List[Dict[str, Any]] = []
 
         for r in records:
+            total += 1
             # 1. Settlement status
             is_settled = (
                 bool(r.get("is_settled"))
@@ -355,7 +358,7 @@ class MarketForwardPipeline:
         scope: str = "GLOBAL",
     ) -> StrategyComparisonReport:
         """Run 3-way evaluation on all verified eligible forward snapshots and persist summary."""
-        audit = self.audit_snapshots()
+        audit = self.audit_snapshots(iter_jsonl(self.snapshot_logger.log_path))
         report = self.evaluation_engine.evaluate_cohort(audit["eligible_samples"], scope_name=scope)
 
         # Persist summary JSON
@@ -422,7 +425,7 @@ class MarketForwardPipeline:
                 cached_blocks = _summary_cache_payload
 
         if cached_blocks is None:
-            all_snaps = self.snapshot_logger.get_all_snapshots()
+            all_snaps = iter_jsonl(self.snapshot_logger.log_path)
             audit = self.audit_snapshots(all_snaps)
             report = self.evaluation_engine.evaluate_cohort(audit["eligible_samples"])
             cached_blocks = {

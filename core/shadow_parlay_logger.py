@@ -21,6 +21,8 @@ import hashlib
 import json
 import logging
 import math
+import os
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,7 +32,7 @@ from core.strategy_version import STRATEGY_VERSION, get_strategy_metadata
 from core.experiment_identity import build_experiment_identity
 from core.parlay_validation import freeze_candidate
 from core.research_paths import research_paths
-from core.persistence import append_jsonl, atomic_write_bytes, file_lock, read_jsonl
+from core.persistence import append_jsonl, clear_jsonl_cache, file_lock, iter_jsonl, read_jsonl
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +126,7 @@ class ShadowParlayLogger:
         experiment_identity = build_experiment_identity(self._strategy_metadata)
         existing_by_tier = {}
         if run_window_id:
-            for existing in self.get_all_parlay_snapshots():
+            for existing in iter_jsonl(self.log_path):
                 existing_identity = existing.get("experiment_identity") or (existing.get("strategy_metadata") or {}).get("experiment_identity")
                 if (existing.get("run_window_id") == run_window_id
                         and existing_identity == experiment_identity):
@@ -209,107 +211,113 @@ class ShadowParlayLogger:
         return read_jsonl(self.log_path)
 
     def settle_parlay_candidate_with_taiwan_rules(self, *args, **kwargs):
+        candidate_id = kwargs.get("candidate_id") or (args[0] if args else None)
+        if candidate_id is None:
+            raise TypeError("candidate_id is required")
+        statuses = kwargs.get("leg_statuses", args[1] if len(args) > 1 else None)
+        stake = kwargs.get("virtual_stake", args[2] if len(args) > 2 else 10.0)
+        snapshots = kwargs.get("leg_result_snapshots", args[3] if len(args) > 3 else None)
+        result = self.settle_parlay_candidates_with_taiwan_rules({
+            str(candidate_id): {
+                "leg_statuses": statuses,
+                "virtual_stake": stake,
+                "leg_result_snapshots": snapshots,
+            }
+        })
+        return result.get(str(candidate_id))
+
+    def settle_parlay_candidates_with_taiwan_rules(
+        self, settlements: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """Settle many candidates with one streaming ledger rewrite."""
+        if not settlements or not self.log_path.exists():
+            return {}
+
         with file_lock(self.log_path):
-            return self._settle_parlay_candidate_unlocked(*args, **kwargs)
+            fd, temp_name = tempfile.mkstemp(prefix=".atomic-", suffix=".tmp", dir=self.log_path.parent)
+            settled: Dict[str, Dict[str, Any]] = {}
+            changed = False
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as output, self.log_path.open("r", encoding="utf-8") as source:
+                    for line in source:
+                        if not line.strip():
+                            continue
+                        data = json.loads(line)
+                        for candidate in data.get("candidates", []):
+                            candidate_id = str(candidate.get("candidate_id") or "")
+                            request = settlements.get(candidate_id)
+                            if not request:
+                                continue
+                            if candidate.get("settled"):
+                                settled[candidate_id] = candidate
+                                continue
 
-    def _settle_parlay_candidate_unlocked(
-        self,
-        candidate_id: str,
-        leg_statuses: List[Tuple[str, float]],  # List of (status, original_odds)
-        virtual_stake: float = 10.0,
-        leg_result_snapshots: Optional[List[Dict[str, Any]]] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Settle a parlay candidate applying Taiwan Lottery VOID rules.
+                            leg_statuses = request.get("leg_statuses") or []
+                            virtual_stake = request.get("virtual_stake", 10.0)
+                            leg_result_snapshots = request.get("leg_result_snapshots") or []
+                            if len(leg_statuses) != len(candidate.get("legs", [])):
+                                raise ValueError("Each ticket leg must have exactly one settlement result.")
+                            if not isinstance(virtual_stake, (int, float)) or not math.isfinite(virtual_stake) or virtual_stake <= 0:
+                                raise ValueError("Virtual stake must be finite and positive.")
+                            for leg, (_, original_odds) in zip(candidate["legs"], leg_statuses):
+                                if not math.isfinite(float(original_odds)) or float(original_odds) <= 1:
+                                    raise ValueError("Settlement requires finite original odds greater than one.")
+                                if leg.get("taiwan_odds") is not None and not math.isclose(
+                                    float(leg["taiwan_odds"]), float(original_odds), abs_tol=1e-9
+                                ):
+                                    raise ValueError("Settlement odds differ from the immutable ticket odds.")
 
-        If a leg is VOID or PUSH, that leg's multiplier becomes 1.0.
-        If all non-void legs WON -> WON (payout = stake * recalculated_odds).
-        If any leg is LOST -> LOST (payout = 0.0).
-        If ALL legs are VOID/PUSH -> PUSH/VOID (payout = stake).
-        """
-        if not self.log_path.exists():
-            return None
+                            recalculated_odds = 1.0
+                            any_lost = False
+                            all_void = True
+                            has_win = False
+                            has_pending = False
+                            for status, original_odds in leg_statuses:
+                                if status == "LOST":
+                                    any_lost = True
+                                    all_void = False
+                                elif status in {"VOID", "PUSH"}:
+                                    pass
+                                elif status == "WON":
+                                    recalculated_odds *= original_odds
+                                    all_void = False
+                                    has_win = True
+                                else:
+                                    has_pending = True
+                            recalculated_odds = round(recalculated_odds, 4)
 
-        lines = self.log_path.read_text(encoding="utf-8").splitlines()
-        updated_lines = []
-        settled_candidate = None
+                            if has_pending:
+                                status, won, payout = "PENDING", None, 0.0
+                            elif any_lost:
+                                status, won, payout = "LOST", False, 0.0
+                            elif all_void:
+                                status, won, payout = "VOID", None, virtual_stake
+                            elif has_win:
+                                status, won, payout = "WON", True, round(virtual_stake * recalculated_odds, 2)
+                            else:
+                                status, won, payout = "PENDING", None, 0.0
 
-        for line in lines:
-            if not line.strip():
-                continue
-            data = json.loads(line)
-            for c in data.get("candidates", []):
-                if c.get("candidate_id") == candidate_id:
-                    if c.get("settled"):
-                        settled_candidate = c
-                        continue
-                    if len(leg_statuses) != len(c.get("legs", [])):
-                        raise ValueError("Each ticket leg must have exactly one settlement result.")
-                    if not isinstance(virtual_stake, (int, float)) or not math.isfinite(virtual_stake) or virtual_stake <= 0:
-                        raise ValueError("Virtual stake must be finite and positive.")
-                    for leg, (_, original_odds) in zip(c["legs"], leg_statuses):
-                        if not math.isfinite(float(original_odds)) or float(original_odds) <= 1:
-                            raise ValueError("Settlement requires finite original odds greater than one.")
-                        if leg.get("taiwan_odds") is not None and not math.isclose(
-                                float(leg["taiwan_odds"]), float(original_odds), abs_tol=1e-9):
-                            raise ValueError("Settlement odds differ from the immutable ticket odds.")
-                    # Calculate Taiwan rule multiplier
-                    recalc_odds = 1.0
-                    any_lost = False
-                    all_void = True
-                    has_win = False
-                    has_pending = False
+                            candidate["settled"] = status != "PENDING"
+                            candidate["settlement_status"] = status
+                            candidate["won"] = won
+                            candidate["recalculated_total_odds"] = recalculated_odds
+                            candidate["actual_payout"] = payout
+                            candidate["leg_settlement_statuses"] = list(leg_statuses)
+                            candidate["leg_result_snapshots"] = leg_result_snapshots
+                            candidate["profit_loss"] = round(payout - virtual_stake, 2) if status != "PENDING" else 0.0
+                            candidate["settled_at"] = datetime.now(timezone.utc).isoformat()
+                            settled[candidate_id] = candidate
+                            changed = True
+                        output.write(json.dumps(data, ensure_ascii=False) + "\n")
+                    output.flush()
+                    os.fsync(output.fileno())
 
-                    for status, orig_odds in leg_statuses:
-                        if status == "LOST":
-                            any_lost = True
-                            all_void = False
-                        elif status in ["VOID", "PUSH"]:
-                            # Taiwan rule: void leg odds becomes 1.0!
-                            recalc_odds *= 1.0
-                        elif status == "WON":
-                            recalc_odds *= orig_odds
-                            all_void = False
-                            has_win = True
-                        else:
-                            has_pending = True
-
-                    recalc_odds = round(recalc_odds, 4)
-
-                    if has_pending:
-                        final_status = "PENDING"
-                        won = None
-                        payout = 0.0
-                    elif any_lost:
-                        final_status = "LOST"
-                        won = False
-                        payout = 0.0
-                    elif all_void:
-                        final_status = "VOID"
-                        won = None
-                        payout = virtual_stake
-                    elif has_win:
-                        final_status = "WON"
-                        won = True
-                        payout = round(virtual_stake * recalc_odds, 2)
-                    else:
-                        final_status = "PENDING"
-                        won = None
-                        payout = 0.0
-
-                    c["settled"] = (final_status != "PENDING")
-                    c["settlement_status"] = final_status
-                    c["won"] = won
-                    c["recalculated_total_odds"] = recalc_odds
-                    c["actual_payout"] = payout
-                    c["leg_settlement_statuses"] = list(leg_statuses)
-                    c["leg_result_snapshots"] = leg_result_snapshots or []
-                    c["profit_loss"] = round(payout - virtual_stake, 2) if final_status != "PENDING" else 0.0
-                    c["settled_at"] = datetime.now(timezone.utc).isoformat()
-                    settled_candidate = c
-
-            updated_lines.append(json.dumps(data, ensure_ascii=False))
-
-        if settled_candidate:
-            atomic_write_bytes(self.log_path, ("\n".join(updated_lines) + "\n").encode("utf-8"))
-
-        return settled_candidate
+                if changed:
+                    os.replace(temp_name, self.log_path)
+                    clear_jsonl_cache(self.log_path)
+                return settled
+            finally:
+                try:
+                    Path(temp_name).unlink(missing_ok=True)
+                except OSError:
+                    pass

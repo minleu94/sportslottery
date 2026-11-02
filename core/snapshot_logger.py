@@ -33,7 +33,7 @@ from core.settlement.taiwan_rules import resolve_settlement_rule_id
 from core.strategy_version import STRATEGY_VERSION, get_strategy_metadata
 from core.research_paths import research_paths
 from core.experiment_identity import get_current_experiment_identity
-from core.persistence import read_jsonl, append_jsonl, atomic_write_bytes, file_lock
+from core.persistence import read_jsonl, iter_jsonl, append_jsonl, atomic_write_bytes, file_lock
 from integrations.common.models import TaiwanLeg
 
 logger = logging.getLogger(__name__)
@@ -172,7 +172,10 @@ class PredictionSnapshotLogger:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._strategy_metadata = get_strategy_metadata()
         self._experiment_identity = get_current_experiment_identity()
-        self._uniqueness_index: Dict[str, Dict[str, Any]] = {}
+        # Store byte offsets rather than full snapshot objects. Historical
+        # prediction rows can be large; indexing full records pinned the ledger
+        # in memory for the lifetime of the API process.
+        self._uniqueness_index: Dict[str, int] = {}
         self._uniqueness_index_signature: Optional[Tuple[int, int]] = None
         self._uniqueness_index_lock = threading.Lock()
 
@@ -479,10 +482,11 @@ class PredictionSnapshotLogger:
                 existing_record = self._find_existing_snapshot_by_key(uniqueness_key)
                 if existing_record:
                     return existing_record
+                record_offset = self.log_path.stat().st_size if self.log_path.exists() else 0
                 append_jsonl(self.log_path, record)
                 signature = self._snapshot_file_signature()
                 with self._uniqueness_index_lock:
-                    self._uniqueness_index[uniqueness_key] = record
+                    self._uniqueness_index[uniqueness_key] = record_offset
                     self._uniqueness_index_signature = signature
         except Exception as exc:
             raise OSError(f"Failed to persist prediction snapshot {snapshot_id}: {exc}") from exc
@@ -498,13 +502,28 @@ class PredictionSnapshotLogger:
         signature = self._snapshot_file_signature()
         with self._uniqueness_index_lock:
             if signature != self._uniqueness_index_signature:
-                self._uniqueness_index = {
-                    str(data["uniqueness_key"]): data
-                    for data in read_jsonl(self.log_path)
-                    if data.get("uniqueness_key")
-                }
+                index: Dict[str, int] = {}
+                if self.log_path.exists():
+                    with self.log_path.open("r", encoding="utf-8") as stream:
+                        while True:
+                            offset = stream.tell()
+                            line = stream.readline()
+                            if not line:
+                                break
+                            if not line.strip():
+                                continue
+                            data = json.loads(line)
+                            uniqueness_key_in_file = data.get("uniqueness_key")
+                            if uniqueness_key_in_file:
+                                index[str(uniqueness_key_in_file)] = offset
+                self._uniqueness_index = index
                 self._uniqueness_index_signature = self._snapshot_file_signature()
-            return self._uniqueness_index.get(uniqueness_key)
+            offset = self._uniqueness_index.get(uniqueness_key)
+            if offset is None:
+                return None
+            with self.log_path.open("r", encoding="utf-8") as stream:
+                stream.seek(offset)
+                return json.loads(stream.readline())
 
     def _snapshot_file_signature(self) -> Tuple[int, int]:
         try:

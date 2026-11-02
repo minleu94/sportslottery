@@ -6,14 +6,18 @@ import os
 import tempfile
 import threading
 import time
+from collections import OrderedDict
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 _locks: dict[str, threading.RLock] = {}
 _guard = threading.Lock()
 _local = threading.local()
 
-_jsonl_cache: dict[str, tuple[int, int, list[dict]]] = {}
+JSONL_CACHE_MAX_FILE_BYTES = 8 * 1024 * 1024
+JSONL_CACHE_MAX_FILES = 8
+_jsonl_cache: OrderedDict[str, tuple[int, int, list[dict]]] = OrderedDict()
 _cache_guard = threading.Lock()
 
 
@@ -125,6 +129,30 @@ def append_jsonl(path: Path, record: dict):
                 raise
 
 
+def _iter_jsonl_unlocked(resolved: Path) -> Iterator[dict]:
+    if not resolved.exists():
+        return
+    with resolved.open('r', encoding='utf-8') as stream:
+        for number, line in enumerate(stream, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+                if not isinstance(row, dict):
+                    raise ValueError('Expected JSON object')
+            except ValueError as exc:
+                raise ValueError(f'Invalid ledger record {resolved}:{number}: {exc}') from exc
+            yield row
+
+
+def iter_jsonl(path: Path) -> Iterator[dict]:
+    """Read a JSONL ledger one record at a time without retaining its contents."""
+    resolved = Path(path).resolve()
+    with file_lock(resolved):
+        yield from _iter_jsonl_unlocked(resolved)
+
+
 def read_jsonl(path: Path) -> list[dict]:
     resolved = Path(path).resolve()
     key = str(resolved)
@@ -137,26 +165,25 @@ def read_jsonl(path: Path) -> list[dict]:
         stat = resolved.stat()
         mtime_ns = stat.st_mtime_ns
         size = stat.st_size
-        with _cache_guard:
-            cached = _jsonl_cache.get(key)
-            if cached is not None and cached[0] == mtime_ns and cached[1] == size:
-                return list(cached[2])
+        cacheable = size <= JSONL_CACHE_MAX_FILE_BYTES
+        if cacheable:
+            with _cache_guard:
+                cached = _jsonl_cache.get(key)
+                if cached is not None and cached[0] == mtime_ns and cached[1] == size:
+                    _jsonl_cache.move_to_end(key)
+                    return list(cached[2])
+        else:
+            # Large ledgers must never remain pinned in process memory.
+            with _cache_guard:
+                _jsonl_cache.pop(key, None)
 
-        rows = []
-        with resolved.open('r', encoding='utf-8') as stream:
-            for number, line in enumerate(stream, 1):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                    if not isinstance(row, dict):
-                        raise ValueError('Expected JSON object')
-                except ValueError as exc:
-                    raise ValueError(f'Invalid ledger record {resolved}:{number}: {exc}') from exc
-                rows.append(row)
+        rows = list(_iter_jsonl_unlocked(resolved))
 
-        with _cache_guard:
-            _jsonl_cache[key] = (mtime_ns, size, rows)
+        if cacheable:
+            with _cache_guard:
+                _jsonl_cache[key] = (mtime_ns, size, rows)
+                _jsonl_cache.move_to_end(key)
+                while len(_jsonl_cache) > JSONL_CACHE_MAX_FILES:
+                    _jsonl_cache.popitem(last=False)
 
         return list(rows)

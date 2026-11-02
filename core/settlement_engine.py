@@ -32,6 +32,7 @@ from core.settlement.taiwan_rules import SettlementResult, TaiwanSettlementRules
 from core.shadow_parlay_logger import ShadowParlayLogger
 from core.shadow_portfolio import ShadowPortfolioManager
 from core.snapshot_logger import AuditFailureError, PredictionSnapshotLogger
+from core.persistence import iter_jsonl
 from core.identity.team_alias import GLOBAL_TEAM_REGISTRY
 from core.bet_validation import parse_aware_time
 from integrations.results import CPBLResultProvider, ESPNResultProvider, OfficialAsianBaseballProvider
@@ -447,9 +448,9 @@ class SettlementEngine:
         all_snaps = self.snapshot_logger.get_all_snapshots()
 
         settled_candidates_count = 0
-        all_parlays = self.parlay_logger.get_all_parlay_snapshots()
+        candidate_settlements: Dict[str, Dict[str, Any]] = {}
 
-        for p_snap in all_parlays:
+        for p_snap in iter_jsonl(self.parlay_logger.log_path):
             for cand in p_snap.get("candidates", []):
                 if cand.get("settled"):
                     continue
@@ -484,13 +485,16 @@ class SettlementEngine:
 
                 if all_resolved:
                     cid = cand.get("candidate_id")
-                    self.parlay_logger.settle_parlay_candidate_with_taiwan_rules(
-                        candidate_id=cid,
-                        leg_statuses=leg_eval_list,
-                        virtual_stake=10.0,
-                        leg_result_snapshots=leg_result_snapshots,
-                    )
-                    settled_candidates_count += 1
+                    if cid:
+                        candidate_settlements[str(cid)] = {
+                            "leg_statuses": leg_eval_list,
+                            "virtual_stake": 10.0,
+                            "leg_result_snapshots": leg_result_snapshots,
+                        }
+
+        if candidate_settlements:
+            settled = self.parlay_logger.settle_parlay_candidates_with_taiwan_rules(candidate_settlements)
+            settled_candidates_count = sum(1 for candidate in settled.values() if candidate.get("settled"))
 
         # Settle shadow tickets using identical Taiwan VOID rules
         settled_shadow_count = 0
