@@ -23,12 +23,25 @@ from core.market_scheduler import (
     compute_adaptive_interval_seconds,
     get_market_scheduler,
 )
+from core.profile_manager import DEFAULT_PROFILE_ID, ProfileManager
+from server.auth import session_manager
 from server.api import app
 
 
 @pytest.fixture
 def test_client():
-    return TestClient(app)
+    profile_manager = ProfileManager()
+    admin_profile = profile_manager.get_profile(DEFAULT_PROFILE_ID)
+    assert admin_profile is not None
+    admin_check = patch.object(ProfileManager, "is_default_admin_pin", return_value=False)
+    admin_check.start()
+    token = session_manager.create_session(admin_profile)
+    client = TestClient(app, headers={"Authorization": f"Bearer {token}"})
+    try:
+        yield client
+    finally:
+        session_manager.revoke_session(token)
+        admin_check.stop()
 
 
 def test_compute_adaptive_interval_seconds():
@@ -225,8 +238,21 @@ def test_scheduler_handles_pipeline_failure(tmp_path):
     assert not scheduler._is_executing  # Lock must be released
 
 
-def test_api_scheduler_endpoints(test_client):
+def test_api_scheduler_endpoints(test_client, tmp_path):
     """Verify REST API endpoints for scheduler status, config update, and cycle execution."""
+    mock_pipeline = MagicMock()
+    mock_pipeline.odds_client.get_source_status.return_value = {
+        "operating_mode": "SYNTHETIC_FIXTURE",
+        "requests_remaining_est": 500,
+    }
+    scheduler = MarketScheduler(pipeline=mock_pipeline, config_path=tmp_path / "scheduler_api.json")
+    with patch("server.api.get_market_scheduler", return_value=scheduler), patch(
+        "core.market_scheduler.get_market_scheduler", return_value=scheduler
+    ):
+        _assert_api_scheduler_endpoints(test_client, scheduler)
+
+
+def _assert_api_scheduler_endpoints(test_client, scheduler):
     # 1. GET /api/market/scheduler/status
     res = test_client.get("/api/market/scheduler/status")
     assert res.status_code == 200
@@ -255,9 +281,9 @@ def test_api_scheduler_endpoints(test_client):
 
     # 4. POST /api/market/pipeline/cycle delegates to scheduler
     with patch.object(
-        get_market_scheduler(),
+        scheduler,
         "run_cycle_now",
-        return_value={"status": "SUCCESS", "cycle_status": "SUCCESS"},
+        return_value={"status": "SUCCESS", "cycle_status": "NO_QUALIFIED_REAL_MARKET_DATA"},
     ):
         res_cycle = test_client.post("/api/market/pipeline/cycle")
         assert res_cycle.status_code == 200

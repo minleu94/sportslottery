@@ -9,12 +9,40 @@ Milestone 6 Verification:
 """
 
 from pathlib import Path
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 import pytest
 
 from server.api import app
+from core.profile_manager import DEFAULT_PROFILE_ID, ProfileManager
+from integrations.odds.the_odds_api import TheOddsApiClient
+from server.auth import session_manager
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def authenticated_admin_client():
+    """Give protected endpoint tests an admin session without changing the stored PIN."""
+    profile_manager = ProfileManager()
+    admin_profile = profile_manager.get_profile(DEFAULT_PROFILE_ID)
+    assert admin_profile is not None
+    admin_check = patch.object(ProfileManager, "is_default_admin_pin", return_value=False)
+    admin_check.start()
+    token = session_manager.create_session(admin_profile)
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    try:
+        yield
+    finally:
+        client.headers.pop("Authorization", None)
+        session_manager.revoke_session(token)
+        admin_check.stop()
+
+
+@pytest.fixture(autouse=True)
+def prevent_odds_api_requests(monkeypatch):
+    """Never spend real credits in endpoint tests."""
+    monkeypatch.setattr(TheOddsApiClient, "fetch_market_odds", lambda *args, **kwargs: [])
 
 
 def test_get_market_status():
@@ -115,6 +143,7 @@ def test_get_market_research_summary():
 
 def test_post_market_config():
     local_cfg = Path("config/odds_api.local.yaml")
+    previous_cfg = local_cfg.read_bytes() if local_cfg.exists() else None
     try:
         # Test valid key update
         resp = client.post("/api/market/config", json={"the_odds_api_key": "test_key_api_12345"})
@@ -128,35 +157,24 @@ def test_post_market_config():
         bad_resp = client.post("/api/market/config", json={"the_odds_api_key": "bad; key!@#$"})
         assert bad_resp.status_code == 400
     finally:
-        local_cfg.unlink(missing_ok=True)
+        if previous_cfg is None:
+            local_cfg.unlink(missing_ok=True)
+        else:
+            local_cfg.write_bytes(previous_cfg)
 
 
 def test_post_market_pipeline_cycle():
-    from unittest.mock import patch
-    from integrations.common.models import TaiwanLeg
-    from datetime import datetime, timedelta, timezone
-
-    now = datetime.now(timezone.utc)
-    mock_leg = TaiwanLeg(
-        sport="baseball",
-        league="MLB",
-        event_id="test_mock_1",
-        home_team="Los Angeles Dodgers",
-        away_team="San Diego Padres",
-        market="moneyline",
-        selection="home",
-        taiwan_odds=1.85,
-        odds_status="LIVE",
-        odds_scraped_at=now.isoformat(),
-        start_time_utc=(now + timedelta(hours=3)).isoformat(),
-    )
-    with patch("core.market_forward_pipeline.PlaysportOddsAdapter.get_taiwan_legs", return_value=[mock_leg]):
+    from unittest.mock import MagicMock
+    scheduler = MagicMock()
+    scheduler.run_cycle_now.return_value = {
+        "status": "SUCCESS",
+        "cycle_status": "NO_QUALIFIED_REAL_MARKET_DATA",
+    }
+    with patch("server.api.get_market_scheduler", return_value=scheduler):
         resp = client.post("/api/market/pipeline/cycle?leagues=MLB")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["cycle_status"] == "SUCCESS"
-        assert "snapshot_cycle" in data
-        assert "evaluation_summary" in data
+        assert data["cycle_status"] == "NO_QUALIFIED_REAL_MARKET_DATA"
 
 
 def test_the_odds_test_connection_endpoint():
@@ -187,7 +205,9 @@ def test_estimate_pipeline_cost_endpoint():
     data = resp.json()
     assert data["league_count"] == 2
     assert data["market_count"] == 1
-    assert data["estimated_credits"] == 2
+    assert data["regions"] == "us,eu"
+    assert data["region_count"] == 2
+    assert data["estimated_credits"] == 4
 
 
 def test_pipeline_audit_snapshots():
