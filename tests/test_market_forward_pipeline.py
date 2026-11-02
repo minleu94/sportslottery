@@ -86,7 +86,7 @@ def test_market_forward_pipeline_snapshot_and_evaluation(tmp_path: Path):
     summary = pipeline.get_research_status_summary()
     assert summary["snapshots"]["total_count"] == len(all_snaps)
     assert summary["forward_evaluation"]["sample_size"] == 0  # None settled yet
-    assert summary["forward_evaluation"]["status"] == "INSUFFICIENT_EVIDENCE"
+    assert summary["forward_evaluation"]["status"] == "SHADOW_MODE_ACCUMULATING"
     assert "MAINTAIN_SHADOW_LOGGING" in summary["forward_evaluation"]["shadow_mode_recommendation"]
 
 
@@ -199,6 +199,12 @@ def test_forward_evaluation_gate_sample_threshold(tmp_path: Path):
             odds_status="LIVE",
             odds_scraped_at=now.isoformat(),
             start_time_utc=start_time,
+            signal_evidence={
+                "market_source": "THE_ODDS_API",
+                "sharp_fair_prob": 0.52,
+                "model_probability": 0.55,
+                "probability_status": "MODEL_ESTIMATE",
+            },
         )
         snap = snap_logger.log_snapshot(leg)
         snap_logger.settle_prediction(
@@ -211,7 +217,7 @@ def test_forward_evaluation_gate_sample_threshold(tmp_path: Path):
     snaps_10 = snap_logger.get_all_snapshots()
     report_10 = eval_engine.evaluate_cohort(snaps_10)
     assert report_10.sample_size == 10
-    assert report_10.status == "INSUFFICIENT_EVIDENCE"
+    assert report_10.status == "SHADOW_MODE_ACCUMULATING"
     assert report_10.acceptance_gate_qualified is False
     assert "MAINTAIN_SHADOW_LOGGING_UNTIL_N_GTE_30" in report_10.shadow_mode_recommendation
 
@@ -230,6 +236,12 @@ def test_forward_evaluation_gate_sample_threshold(tmp_path: Path):
             odds_status="LIVE",
             odds_scraped_at=now.isoformat(),
             start_time_utc=start_time,
+            signal_evidence={
+                "market_source": "THE_ODDS_API",
+                "sharp_fair_prob": 0.52,
+                "model_probability": 0.55,
+                "probability_status": "MODEL_ESTIMATE",
+            },
         )
         snap = snap_logger.log_snapshot(leg)
         snap_logger.settle_prediction(
