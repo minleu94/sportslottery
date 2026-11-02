@@ -266,6 +266,27 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
         </p>
       </div>
 
+      {isAdmin && (
+        <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500">
+              <Crown className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                👑 系統最高管理員 (Archie) · 特權已啟用
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                您享有管理員完整權限：全體玩家資金監察、預算限額調整、一鍵切換視角與特權重設密碼。
+              </div>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40">
+            👑 ADMIN ACTIVE
+          </span>
+        </div>
+      )}
+
       {message && (
         <div
           className={`p-3.5 rounded-xl text-xs flex items-center gap-2 ${
@@ -301,12 +322,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
             }}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
               activeTab === "admin_overview"
-                ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
-                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 shadow-xs"
+                : "text-amber-600/80 dark:text-amber-400/80 hover:text-amber-700 dark:hover:text-amber-300"
             }`}
           >
-            <Crown className="w-3.5 h-3.5 text-slate-400" />
-            <span>全體玩家總覽 (管理員)</span>
+            <Crown className="w-3.5 h-3.5 text-amber-500" />
+            <span>全體玩家總覽 (管理員特權)</span>
           </button>
         )}
 
@@ -344,26 +365,33 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
                 >
                   {profiles.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} (每週上限: {formatNTD(p.weekly_play_cap)})
+                      {p.name === "Archie" || p.id === "default" ? `👑 ${p.name} (管理員)` : p.name} (每週上限: {formatNTD(p.weekly_play_cap)})
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                  輸入 4 位數 PIN 碼 (預設: 0000)
-                </label>
-                <input
-                  type="password"
-                  maxLength={4}
-                  value={pinCode}
-                  onChange={(e) => setPinCode(e.target.value)}
-                  placeholder="••••"
-                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-center text-lg font-mono tracking-widest text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
+              {(() => {
+                const isSelectedSwitchAdmin = selectedProfileId === "default" || profiles.find((p) => p.id === selectedProfileId)?.name === "Archie"
+                return (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                      {isSelectedSwitchAdmin ? "輸入 8 位管理員密碼 (首次預設 0000)" : "輸入 4 位數 PIN 碼 (預設: 0000)"}
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={isSelectedSwitchAdmin ? 8 : 4}
+                      value={pinCode}
+                      onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder={isSelectedSwitchAdmin ? "••••••••" : "••••"}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-center text-lg font-mono tracking-widest text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                )
+              })()}
 
               <Button
                 variant="default"
