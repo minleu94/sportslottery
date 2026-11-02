@@ -1564,6 +1564,10 @@ def verify_line_signature(body_bytes: bytes, signature: str, secret: str) -> boo
 def process_line_events(events: list[Dict[str, Any]]) -> None:
     """Process accepted LINE events asynchronously outside the webhook response path."""
     for ev in events:
+        event_id = ev.get("webhookEventId")
+        if event_id and not _line_notifier.claim_webhook_event(str(event_id)):
+            logger.info("Ignoring duplicate LINE webhook event %s", str(event_id)[:10])
+            continue
         early_reply = None
         user_id = None
         ev_type = None

@@ -14,8 +14,13 @@ import json
 import logging
 import os
 import re
+import threading
+import time
+from collections import OrderedDict
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 from core.tunnel_runtime import load_active_runtime
 import requests
 import yaml
@@ -26,6 +31,23 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT_DIR / "config" / "line_notifier.yaml"
 LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
 LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply"
+LINE_SEARCH_STATE_TTL_SECONDS = 30 * 60
+LINE_SEARCH_STATE_MAX_USERS = 1000
+LINE_EVENT_DEDUPE_TTL_SECONDS = 24 * 60 * 60
+LINE_EVENT_DEDUPE_MAX_IDS = 20000
+
+
+@dataclass
+class _LineUserSearchState:
+    """Short-lived parlay conversation state isolated to one LINE user."""
+
+    last_recommended_parlay: Optional[Dict[str, Any]] = None
+    last_parlay_candidates: List[Dict[str, Any]] = field(default_factory=list)
+    last_candidate_index: int = 0
+    last_search_context: Dict[str, Any] = field(default_factory=dict)
+    lock: Any = field(default_factory=threading.RLock, repr=False)
+    last_accessed: float = field(default_factory=time.monotonic)
+    active_requests: int = 0
 
 
 class LineNotifier:
@@ -43,6 +65,80 @@ class LineNotifier:
         self.last_parlay_candidates: List[Dict[str, Any]] = []
         self.last_candidate_index: int = 0
         self.last_search_context: Dict[str, Any] = {}
+        self._user_search_states: OrderedDict[str, _LineUserSearchState] = OrderedDict()
+        self._user_search_states_lock = threading.Lock()
+        self._seen_webhook_events: OrderedDict[str, float] = OrderedDict()
+        self._seen_webhook_events_lock = threading.Lock()
+
+    def claim_webhook_event(self, event_id: Optional[str]) -> bool:
+        """Claim a LINE webhook event once to avoid duplicate work on redelivery."""
+        normalized_id = str(event_id or "").strip()
+        if not normalized_id:
+            return True
+
+        now = time.monotonic()
+        with self._seen_webhook_events_lock:
+            while self._seen_webhook_events:
+                oldest_id, seen_at = next(iter(self._seen_webhook_events.items()))
+                if now - seen_at < LINE_EVENT_DEDUPE_TTL_SECONDS:
+                    break
+                self._seen_webhook_events.pop(oldest_id, None)
+
+            if normalized_id in self._seen_webhook_events:
+                return False
+
+            self._seen_webhook_events[normalized_id] = now
+            while len(self._seen_webhook_events) > LINE_EVENT_DEDUPE_MAX_IDS:
+                self._seen_webhook_events.popitem(last=False)
+            return True
+
+    @contextmanager
+    def user_search_context(self, line_user_id: Optional[str]) -> Iterator[Any]:
+        """Lock and yield one user's search state; anonymous direct calls retain legacy state."""
+        user_id = str(line_user_id or "").strip()
+        if not user_id:
+            yield self
+            return
+
+        now = time.monotonic()
+        with self._user_search_states_lock:
+            self._prune_user_search_states(now)
+            state = self._user_search_states.get(user_id)
+            if state is None:
+                state = _LineUserSearchState()
+                self._user_search_states[user_id] = state
+            else:
+                self._user_search_states.move_to_end(user_id)
+            state.active_requests += 1
+            state.last_accessed = now
+
+        try:
+            with state.lock:
+                yield state
+        finally:
+            with self._user_search_states_lock:
+                state.active_requests = max(0, state.active_requests - 1)
+                state.last_accessed = time.monotonic()
+                self._user_search_states.move_to_end(user_id)
+                self._prune_user_search_states(state.last_accessed)
+
+    def _prune_user_search_states(self, now: float) -> None:
+        expired = [
+            user_id
+            for user_id, state in self._user_search_states.items()
+            if state.active_requests == 0 and now - state.last_accessed >= LINE_SEARCH_STATE_TTL_SECONDS
+        ]
+        for user_id in expired:
+            self._user_search_states.pop(user_id, None)
+
+        while len(self._user_search_states) > LINE_SEARCH_STATE_MAX_USERS:
+            removable = next(
+                (user_id for user_id, state in self._user_search_states.items() if state.active_requests == 0),
+                None,
+            )
+            if removable is None:
+                break
+            self._user_search_states.pop(removable, None)
 
     def load_config(self) -> Dict[str, Any]:
         """Load LINE Bot settings from YAML config or environment variables."""
@@ -757,9 +853,11 @@ class LineNotifier:
         available_legs: Optional[List[Any]] = None,
         wallet_mgr: Optional[Any] = None,
         line_user_id: Optional[str] = None,
+        search_state: Optional[Any] = None,
     ) -> str:
         """Process inbound text commands from LINE (e.g. '20倍', '功能表', '查戰績', '今日開盤', '對沖')."""
         import re
+        search_state = search_state or self
         cmd = user_text.strip().lower()
         if not cmd:
             return self.get_menu_text()
@@ -786,11 +884,11 @@ class LineNotifier:
 
         # 1.1 Banker Mode / High Win Rate (保底/穩健)
         if any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker"]):
-            return self._search_parlay_for_bot(2.5, parlay_engine, available_legs)
+            return self._search_parlay_for_bot(2.5, parlay_engine, available_legs, search_state=search_state)
 
         # 1.15 Next Combo / Alternative Parlay (換一組推薦)
         if any(k in cmd for k in ["換一組", "另一組", "換一張", "下一組", "換", "next", "reroll", "再一組"]):
-            return self._get_next_parlay_candidate(parlay_engine, available_legs)
+            return self._get_next_parlay_candidate(parlay_engine, available_legs, search_state=search_state)
 
         # 1.2 Profile & Personal Settings (Interactive in-LINE + Public HTTPS Web Link)
         profile_reply = self._handle_profile_commands(user_text, line_user_id=line_user_id)
@@ -826,7 +924,10 @@ class LineNotifier:
                     sport_filter = "basketball"
                 elif any(w in cmd for w in ["美足", "football", "nfl"]):
                     sport_filter = "football"
-                return self._search_parlay_for_bot(target_mult, parlay_engine, available_legs, sport_filter=sport_filter)
+                return self._search_parlay_for_bot(
+                    target_mult, parlay_engine, available_legs,
+                    sport_filter=sport_filter, search_state=search_state,
+                )
 
         # 3. Wallet & Staking Performance: e.g. "戰績", "錢包", "餘額", "本週"
         if any(k in cmd for k in ["戰績", "錢包", "餘額", "本金", "獲利", "本週"]):
@@ -842,7 +943,7 @@ class LineNotifier:
 
         # 6. QR Code Slip Generation: e.g. "qr", "產qr", "條碼", "投注單", "qrcode"
         if any(cmd == q or q in cmd for q in ["qr", "產qr", "條碼", "投注單", "qrcode", "出票", "劃單"]):
-            return self._handle_qr_request(parlay_engine, available_legs)["text"]
+            return self._handle_qr_request(parlay_engine, available_legs, search_state=search_state)["text"]
 
         # 7. Fallback to Menu with Prompt
         return (
@@ -867,11 +968,31 @@ class LineNotifier:
         line_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Process inbound text command and return dict with 'text', 'image_url', and contextual 'quick_replies'."""
+        with self.user_search_context(line_user_id) as search_state:
+            return self._handle_user_message_full(
+                user_text,
+                parlay_engine=parlay_engine,
+                available_legs=available_legs,
+                wallet_mgr=wallet_mgr,
+                line_user_id=line_user_id,
+                search_state=search_state,
+            )
+
+    def _handle_user_message_full(
+        self,
+        user_text: str,
+        parlay_engine: Optional[Any] = None,
+        available_legs: Optional[List[Any]] = None,
+        wallet_mgr: Optional[Any] = None,
+        line_user_id: Optional[str] = None,
+        search_state: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        search_state = search_state or self
         cmd = user_text.strip().lower()
 
         # 1. QR Code Request
         if any(cmd == q or q in cmd for q in ["qr", "產qr", "條碼", "投注單", "qrcode", "出票", "劃單"]):
-            qr_res = self._handle_qr_request(parlay_engine, available_legs)
+            qr_res = self._handle_qr_request(parlay_engine, available_legs, search_state=search_state)
             qr_res["quick_replies"] = [
                 {"label": "🎲 換一組推薦", "text": "換一組"},
                 {"label": "🎯 找20倍", "text": "20倍"},
@@ -887,6 +1008,7 @@ class LineNotifier:
             available_legs=available_legs,
             wallet_mgr=wallet_mgr,
             line_user_id=line_user_id,
+            search_state=search_state,
         )
 
         # 3. Contextual Quick Reply Routing
@@ -900,7 +1022,7 @@ class LineNotifier:
         elif any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker", "換一組", "另一組", "換", "next", "reroll"]) or (
             ("倍" in cmd or "x" in cmd or cmd.isdigit() or "串" in cmd) and re.search(r"\d", cmd)
         ):
-            has_next = len(self.last_parlay_candidates) > 1
+            has_next = len(search_state.last_parlay_candidates) > 1
             quick_replies = self.parlay_quick_replies(has_next=has_next)
 
         # C. Season Radar requested
@@ -925,13 +1047,15 @@ class LineNotifier:
         self,
         parlay_engine: Optional[Any] = None,
         available_legs: Optional[List[Any]] = None,
+        search_state: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Generate QR code for the last recommended parlay or find the best combo."""
-        combo = self.last_recommended_parlay
+        search_state = search_state or self
+        combo = search_state.last_recommended_parlay
         if not combo:
             # Trigger search to populate last_recommended_parlay if not yet present
-            self._search_parlay_for_bot(20.0, parlay_engine, available_legs)
-            combo = self.last_recommended_parlay
+            self._search_parlay_for_bot(20.0, parlay_engine, available_legs, search_state=search_state)
+            combo = search_state.last_recommended_parlay
 
         if combo and combo.get("legs"):
             return self._generate_qr_for_combo(combo, stake=100.0)
@@ -950,16 +1074,20 @@ class LineNotifier:
         self,
         parlay_engine: Optional[Any] = None,
         available_legs: Optional[List[Any]] = None,
+        search_state: Optional[Any] = None,
     ) -> str:
         """Cycle to the next parlay candidate for the last searched target."""
-        if not self.last_parlay_candidates:
-            target = self.last_search_context.get("target_mult", 20.0)
-            sport = self.last_search_context.get("sport_filter")
-            return self._search_parlay_for_bot(target, parlay_engine, available_legs, sport_filter=sport)
+        search_state = search_state or self
+        if not search_state.last_parlay_candidates:
+            target = search_state.last_search_context.get("target_mult", 20.0)
+            sport = search_state.last_search_context.get("sport_filter")
+            return self._search_parlay_for_bot(
+                target, parlay_engine, available_legs, sport_filter=sport, search_state=search_state,
+            )
 
-        self.last_candidate_index = (self.last_candidate_index + 1) % len(self.last_parlay_candidates)
-        next_combo = self.last_parlay_candidates[self.last_candidate_index]
-        self.last_recommended_parlay = next_combo
+        search_state.last_candidate_index = (search_state.last_candidate_index + 1) % len(search_state.last_parlay_candidates)
+        next_combo = search_state.last_parlay_candidates[search_state.last_candidate_index]
+        search_state.last_recommended_parlay = next_combo
 
         total_odds = float(next_combo.get("total_odds", 1.0))
         joint_prob = float(next_combo.get("joint_probability", 0.0)) * 100
@@ -975,7 +1103,7 @@ class LineNotifier:
         recommended_stake = kelly_res.get("quarter_kelly_stake", 10.0)
 
         lines = [
-            f"🎲 【替換推薦 · 第 {self.last_candidate_index + 1}/{len(self.last_parlay_candidates)} 組 · 總賠率 {total_odds}x】",
+            f"🎲 【替換推薦 · 第 {search_state.last_candidate_index + 1}/{len(search_state.last_parlay_candidates)} 組 · 總賠率 {total_odds}x】",
             f"⚖️ 估算勝率：{joint_prob:.1f}% | 期望值 EV：{ev_pct:+.1f}%",
             f"💵 建議注碼：NT$ {recommended_stake:.0f} (1/4 凱利風控)",
             "---------------------------",
@@ -992,10 +1120,12 @@ class LineNotifier:
         parlay_engine: Optional[Any] = None,
         available_legs: Optional[List[Any]] = None,
         sport_filter: Optional[str] = None,
+        search_state: Optional[Any] = None,
     ) -> str:
         """Execute parlay combo search and format betting recommendation with Kelly sizing."""
+        search_state = search_state or self
         try:
-            self.last_search_context = {"target_mult": target_mult, "sport_filter": sport_filter}
+            search_state.last_search_context = {"target_mult": target_mult, "sport_filter": sport_filter}
             if not parlay_engine:
                 from core.signal_hub import SignalHub
                 from core.parlay_engine import ParlayEngine
@@ -1009,6 +1139,9 @@ class LineNotifier:
                     available_legs = [parlay_engine.signal_hub.evaluate_taiwan_leg(leg) for leg in raw_legs]
 
             if not available_legs:
+                search_state.last_parlay_candidates = []
+                search_state.last_candidate_index = 0
+                search_state.last_recommended_parlay = None
                 return (
                     f"🎯 目標倍率：{target_mult:.1f} 倍\n"
                     "---------------------------\n"
@@ -1042,10 +1175,10 @@ class LineNotifier:
                 top_combos.extend(combos)
 
             if top_combos:
-                self.last_parlay_candidates = top_combos
-                self.last_candidate_index = 0
+                search_state.last_parlay_candidates = top_combos
+                search_state.last_candidate_index = 0
                 best = top_combos[0]
-                self.last_recommended_parlay = best
+                search_state.last_recommended_parlay = best
                 total_odds = float(best.get("total_odds", target_mult))
                 joint_prob = float(best.get("joint_probability", 0.0)) * 100
                 ev_pct = float(best.get("parlay_ev_pct", 0.0))
@@ -1077,13 +1210,17 @@ class LineNotifier:
                 lines.append("祝您場場過關，財庫滿載！🐕")
                 return "\n".join(lines)
             else:
-                self.last_parlay_candidates = []
-                self.last_candidate_index = 0
+                search_state.last_parlay_candidates = []
+                search_state.last_candidate_index = 0
+                search_state.last_recommended_parlay = None
                 return (
                     f"🔍 已為您精算 {target_mult:.1f} 倍組合。\n"
                     "目前盤口中暫無完全符合 +EV 與風控標準之理想組合，建議微調倍率（如「10倍」或「30倍」）重新嘗試！"
                 )
         except Exception as exc:
+            search_state.last_parlay_candidates = []
+            search_state.last_candidate_index = 0
+            search_state.last_recommended_parlay = None
             logger.error("Error in _search_parlay_for_bot: %s", exc)
             return f"搜尋組合時發生錯誤，請稍候重試：{exc}"
 
