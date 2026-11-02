@@ -723,11 +723,36 @@ class TheOddsApiClient:
             for bm in bookmakers:
                 book_key = bm.get("key", "").lower()
                 source_id = f"the_odds_api:{book_key}"
-                last_update = bm.get("last_update", retrieved_at)
 
                 for mkt in bm.get("markets", []):
                     mkt_key = mkt.get("key")
                     outcomes = mkt.get("outcomes", [])
+                    # The bookmaker-level last_update field is deprecated and
+                    # can be shared across markets with different quote ages.
+                    # Preserve the market timestamp and fail closed when it is
+                    # missing or timezone-free.
+                    observed_at_utc = None
+                    market_freshness = MarketFreshnessStatus.UNKNOWN.value
+                    raw_market_update = mkt.get("last_update")
+                    if raw_market_update:
+                        try:
+                            market_update_dt = datetime.fromisoformat(
+                                str(raw_market_update).replace("Z", "+00:00")
+                            )
+                            if market_update_dt.tzinfo is not None:
+                                market_update_dt = market_update_dt.astimezone(timezone.utc)
+                                observed_at_utc = market_update_dt.isoformat()
+                                age_seconds = (datetime.now(timezone.utc) - market_update_dt).total_seconds()
+                                if age_seconds < -300 or age_seconds > 900:
+                                    market_freshness = MarketFreshnessStatus.STALE.value
+                                elif age_seconds > 300:
+                                    market_freshness = MarketFreshnessStatus.AGING.value
+                                elif age_seconds > 120:
+                                    market_freshness = MarketFreshnessStatus.FRESH.value
+                                else:
+                                    market_freshness = MarketFreshnessStatus.LIVE.value
+                        except (TypeError, ValueError, OverflowError):
+                            pass
 
                     if mkt_key == "h2h":
                         market_type = "MONEYLINE"
@@ -748,9 +773,9 @@ class TheOddsApiClient:
                                     selection=selection,
                                     line=None,
                                     decimal_odds=price,
-                                    observed_at_utc=last_update,
+                                    observed_at_utc=observed_at_utc,
                                     retrieved_at_utc=retrieved_at,
-                                    freshness_status=MarketFreshnessStatus.LIVE.value,
+                                    freshness_status=market_freshness,
                                     evidence_url="https://the-odds-api.com",
                                     source_license="COMMERCIAL_OR_FREE_TIER",
                                     is_synthetic=False,
@@ -776,9 +801,9 @@ class TheOddsApiClient:
                                     selection=selection,
                                     line=point,
                                     decimal_odds=price,
-                                    observed_at_utc=last_update,
+                                    observed_at_utc=observed_at_utc,
                                     retrieved_at_utc=retrieved_at,
-                                    freshness_status=MarketFreshnessStatus.LIVE.value,
+                                    freshness_status=market_freshness,
                                     evidence_url="https://the-odds-api.com",
                                     source_license="COMMERCIAL_OR_FREE_TIER",
                                     is_synthetic=False,
@@ -804,9 +829,9 @@ class TheOddsApiClient:
                                     selection=selection,
                                     line=point,
                                     decimal_odds=price,
-                                    observed_at_utc=last_update,
+                                    observed_at_utc=observed_at_utc,
                                     retrieved_at_utc=retrieved_at,
-                                    freshness_status=MarketFreshnessStatus.LIVE.value,
+                                    freshness_status=market_freshness,
                                     evidence_url="https://the-odds-api.com",
                                     source_license="COMMERCIAL_OR_FREE_TIER",
                                     is_synthetic=False,

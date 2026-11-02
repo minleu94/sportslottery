@@ -199,6 +199,8 @@ class ForwardEvaluationEngine:
         # prevents repeated snapshots or multiple markets from inflating N.
         latest_by_event: Dict[str, Tuple[datetime, str, Dict[str, Any]]] = {}
         for raw in cohort:
+            if raw.get("forward_validation_eligible") is not True:
+                continue
             pred_time = aware_time(raw.get("prediction_timestamp") or raw.get("snapshot_timestamp") or raw.get("logged_at_utc"))
             event_start = aware_time(raw.get("event_start") or raw.get("start_time_utc"))
             if pred_time is None or event_start is None or pred_time >= event_start:

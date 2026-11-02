@@ -16,16 +16,14 @@ This module provides:
 
 from __future__ import annotations
 
-import json
 import logging
 import math
-import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from probability.devig import devig_multiplicative, devig_two_way, devig_three_way
+from core.bet_validation import parse_aware_time
 from integrations.common.models import PredictionSignal, TaiwanLeg
 
 logger = logging.getLogger(__name__)
@@ -98,11 +96,9 @@ class SharpBenchmarkOddsAdapter:
         opposing_odds: Optional[float] = None,
         draw_odds: Optional[float] = None,
     ) -> Optional[SharpComparisonResult]:
-        """Calculate sharp de-vigged fair probability and +EV for a given selection.
+        """Calculate a benchmark only from an explicitly sourced external quote.
 
-        If explicit sharp quotes are provided in cache or arguments, uses them.
-        Otherwise, if full opposing Taiwan market quotes are supplied, calculates
-        proportional devigged baseline with sharp benchmark calibration.
+        Taiwan opposing prices are intentionally not accepted as Sharp evidence.
         """
         if taiwan_odds <= 1.0:
             return None
@@ -111,41 +107,42 @@ class SharpBenchmarkOddsAdapter:
         cache_key = f"{sport}:{league}:{event_id}:{market}:{selection}"
         if cache_key in self._memory_cache:
             data = self._memory_cache[cache_key]
+            source_type = str(data.get("source_type") or "").upper()
+            if (
+                source_type not in {"BOOKMAKER", "EXCHANGE"}
+                or not data.get("source_id")
+                or not data.get("observed_at_utc")
+                or data.get("is_synthetic") is True
+            ):
+                return None
+            try:
+                sharp_probability = float(data.get("fair_prob"))
+                sharp_odds = float(data.get("sharp_odds"))
+                observed_at = parse_aware_time(data.get("observed_at_utc"))
+                if not (math.isfinite(sharp_probability) and 0.0 < sharp_probability < 1.0
+                        and math.isfinite(sharp_odds) and sharp_odds > 1.0):
+                    return None
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if observed_at is None:
+                return None
+            now = datetime.now(timezone.utc)
+            age_seconds = (now - observed_at).total_seconds()
+            if age_seconds > 900 or age_seconds < -300:
+                return None
             return self._build_comparison(
                 event_id=event_id, sport=sport, league=league, market=market,
                 selection=selection, taiwan_odds=taiwan_odds,
-                sharp_odds=data.get("sharp_odds", taiwan_odds),
-                sharp_fair_prob=data.get("fair_prob"),
-                sharp_book=data.get("book", "Pinnacle"),
+                sharp_odds=sharp_odds,
+                sharp_fair_prob=sharp_probability,
+                sharp_book=str(data.get("book") or data["source_id"]),
+                observed_at_utc=observed_at.isoformat(),
+                source_id=str(data["source_id"]),
             )
 
-        # De-vigging calculation
-        fair_prob: Optional[float] = None
-        sharp_odds_est: float = taiwan_odds
-
-        if opposing_odds is not None and opposing_odds > 1.0:
-            if draw_odds is not None and draw_odds > 1.0:
-                # 3-way soccer market
-                p_sel, p_draw, p_opp, vig = devig_three_way(taiwan_odds, draw_odds, opposing_odds)
-                fair_prob = p_sel
-                # Sharp books have ~2% vig instead of Taiwan's ~12% vig
-                # Sharp fair odds = 1 / fair_prob
-                sharp_odds_est = round(1.0 / fair_prob * 0.98, 2)
-            else:
-                # 2-way market
-                p_sel, p_opp, vig = devig_two_way(taiwan_odds, opposing_odds)
-                fair_prob = p_sel
-                sharp_odds_est = round(1.0 / fair_prob * 0.98, 2)
-
-        if fair_prob is None or fair_prob <= 0 or fair_prob >= 1.0:
-            return None
-
-        return self._build_comparison(
-            event_id=event_id, sport=sport, league=league, market=market,
-            selection=selection, taiwan_odds=taiwan_odds,
-            sharp_odds=sharp_odds_est, sharp_fair_prob=fair_prob,
-            sharp_book="Pinnacle/Devig_Fair",
-        )
+        # The previous Taiwan-price de-vig fallback was not independent market
+        # evidence and must never be labeled as a Sharp benchmark.
+        return None
 
     def _build_comparison(
         self,
@@ -158,6 +155,8 @@ class SharpBenchmarkOddsAdapter:
         sharp_odds: float,
         sharp_fair_prob: float,
         sharp_book: str = "Pinnacle",
+        observed_at_utc: Optional[str] = None,
+        source_id: Optional[str] = None,
     ) -> SharpComparisonResult:
         taiwan_implied = 1.0 / taiwan_odds
         edge_pp = (sharp_fair_prob - taiwan_implied) * 100.0
@@ -189,7 +188,8 @@ class SharpBenchmarkOddsAdapter:
             is_value_bet=ev >= 0.02,
             value_grade=grade,
             sharp_book=sharp_book,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=observed_at_utc or datetime.now(timezone.utc).isoformat(),
+            details={"source_id": source_id} if source_id else {},
         )
 
     def evaluate_leg(self, leg: TaiwanLeg) -> Optional[PredictionSignal]:
@@ -198,26 +198,6 @@ class SharpBenchmarkOddsAdapter:
         if odds <= 1.0:
             return None
 
-        evidence = leg.signal_evidence or {}
-        opposing_odds = None
-        draw_odds = None
-        market_outcome_odds = evidence.get("market_outcome_odds") or {}
-
-        if market_outcome_odds and isinstance(market_outcome_odds, dict):
-            # Check 2-way or 3-way
-            if leg.side == "主" and "客" in market_outcome_odds:
-                opposing_odds = float(market_outcome_odds["客"])
-                if "和" in market_outcome_odds:
-                    draw_odds = float(market_outcome_odds["和"])
-            elif leg.side == "客" and "主" in market_outcome_odds:
-                opposing_odds = float(market_outcome_odds["主"])
-                if "和" in market_outcome_odds:
-                    draw_odds = float(market_outcome_odds["和"])
-            elif leg.side == "大" and "小" in market_outcome_odds:
-                opposing_odds = float(market_outcome_odds["小"])
-            elif leg.side == "小" and "大" in market_outcome_odds:
-                opposing_odds = float(market_outcome_odds["大"])
-
         comp = self.get_sharp_fair_odds(
             sport=leg.sport,
             league=leg.league,
@@ -225,8 +205,6 @@ class SharpBenchmarkOddsAdapter:
             market=leg.market,
             selection=leg.selection,
             taiwan_odds=odds,
-            opposing_odds=opposing_odds,
-            draw_odds=draw_odds,
         )
 
         if not comp:
@@ -243,6 +221,12 @@ class SharpBenchmarkOddsAdapter:
         }
 
         confidence = "HIGH" if comp.is_value_bet else ("MED" if comp.value_grade == "FAIR_VALUE" else "LOW")
+        observed_at = parse_aware_time(comp.timestamp)
+        freshness = (
+            "AGING"
+            if observed_at and (datetime.now(timezone.utc) - observed_at).total_seconds() > 300
+            else "LIVE"
+        )
 
         return PredictionSignal(
             source_id="sharp_benchmark",
@@ -255,7 +239,7 @@ class SharpBenchmarkOddsAdapter:
             selection=leg.selection,
             probability=comp.sharp_fair_prob,
             confidence=confidence,
-            data_as_of=datetime.now(timezone.utc).isoformat(),
-            freshness_status="LIVE",
+            data_as_of=comp.timestamp,
+            freshness_status=freshness,
             metadata=metadata,
         )

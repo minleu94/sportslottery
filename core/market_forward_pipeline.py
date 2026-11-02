@@ -103,12 +103,26 @@ class MarketForwardPipeline:
             and quote.decimal_odds > 1.0
         ]
 
+        def timestamps_are_consistent(quotes: List[MarketOddsSnapshot]) -> bool:
+            observed = [parse_aware_time(quote.observed_at_utc) for quote in quotes]
+            if not observed or any(value is None for value in observed):
+                return False
+            quote_times = [value for value in observed if value is not None]
+            current = datetime.now(timezone.utc)
+            if any((current - value).total_seconds() > 900 or (value - current).total_seconds() > 300
+                   for value in quote_times):
+                return False
+            return (max(quote_times) - min(quote_times)).total_seconds() <= 120
+
         if is_three_way:
             by_selection = {quote.selection: quote for quote in same_market}
             if not {"home", "away", "draw"}.issubset(by_selection):
                 return None
             other_selections = [selection for selection in ("home", "away", "draw") if selection != primary.selection]
             if primary.selection not in by_selection or len(other_selections) != 2:
+                return None
+            complete_quote = [by_selection[selection] for selection in ("home", "away", "draw")]
+            if not timestamps_are_consistent(complete_quote):
                 return None
             return BookmakerQuote(
                 book_name=primary.source_id,
@@ -147,6 +161,8 @@ class MarketForwardPipeline:
             return None
 
         if opposing is None:
+            return None
+        if not timestamps_are_consistent([primary, opposing]):
             return None
         return BookmakerQuote(
             book_name=primary.source_id,
@@ -369,6 +385,7 @@ class MarketForwardPipeline:
         legacy_unverified_count = 0
         synthetic_fixture_count = 0
         invalid_odds_or_outcome_count = 0
+        ineligible_flag_count = 0
 
         eligible_samples: List[Dict[str, Any]] = []
 
@@ -444,10 +461,15 @@ class MarketForwardPipeline:
             if is_settled and (outcome not in (0, 1) or not odds_val or odds_val <= 1.0):
                 invalid_odds_or_outcome_count += 1
 
+            explicitly_eligible = r.get("forward_validation_eligible") is True
+            if not explicitly_eligible:
+                ineligible_flag_count += 1
+
             # Eligibility for Forward Evaluation:
             # Must be: settled, valid outcome/odds, strictly pre-match, non-synthetic, and have model or sharp benchmark
             if (
                 is_settled
+                and explicitly_eligible
                 and outcome in (0, 1)
                 and odds_val and odds_val > 1.0
                 and not is_syn
@@ -473,6 +495,7 @@ class MarketForwardPipeline:
                 "synthetic_fixture": synthetic_fixture_count,
                 "invalid_odds_or_outcome": invalid_odds_or_outcome_count,
                 "missing_timestamp": missing_timestamp_count,
+                "forward_validation_ineligible_or_missing": ineligible_flag_count,
             },
             "eligible_samples": eligible_samples,
         }

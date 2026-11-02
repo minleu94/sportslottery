@@ -54,7 +54,7 @@ class MarketOddsSnapshot:
     market_type: str                              # "MONEYLINE", "SPREAD", "TOTAL"
     selection: str                                # e.g. "home", "away", "over", "under", "draw"
     decimal_odds: float                           # Must be decimal odds >= 1.0
-    observed_at_utc: str                          # When the bookmaker published or reported the odds
+    observed_at_utc: Optional[str]                # Market-level quote time; null when provider omitted it
     retrieved_at_utc: str                         # When our system fetched the odds
     freshness_status: str                         # LIVE, FRESH, AGING, STALE, UNKNOWN
     line: Optional[float] = None                  # Spread handicap or total threshold (e.g. -1.5, 7.5)
