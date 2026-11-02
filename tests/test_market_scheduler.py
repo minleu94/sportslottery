@@ -49,6 +49,39 @@ def test_compute_adaptive_interval_seconds():
     # 4. Synthetic fixture mode -> 4h default (does not burn quota)
     assert compute_adaptive_interval_seconds({"operating_mode": "SYNTHETIC_FIXTURE", "requests_remaining_est": 500}) == 14400
 
+    # 5. Four leagues, two regions, one market each: use the observed 8-credit cycle cost.
+    assert compute_adaptive_interval_seconds(
+        {"operating_mode": "LIVE_API", "requests_remaining_est": 486},
+        active_leagues=["MLB", "NBA", "NFL", "SOCCER"],
+        markets_per_sport=1,
+        region_count=2,
+    ) == 86400
+
+
+def test_scheduler_status_estimates_regions_in_cycle_cost(tmp_path):
+    mock_pipeline = MagicMock()
+    mock_pipeline.odds_client.get_source_status.return_value = {
+        "operating_mode": "LIVE_VERIFIED",
+        "requests_remaining_est": 486,
+    }
+    mock_pipeline.odds_client.regions = "us,eu"
+    mock_pipeline.odds_client.scheduled_markets = "h2h"
+
+    scheduler = MarketScheduler(
+        pipeline=mock_pipeline,
+        config_path=tmp_path / "scheduler_cost.json",
+    )
+    status = scheduler.get_status()
+
+    assert status["credit_budget"]["next_cycle_estimated_cost"] == 8
+    assert status["credit_budget"]["estimated_cycle_markets"] == "h2h"
+    assert status["credit_budget"]["estimated_cycle_regions"] == "us,eu"
+
+    scheduler.last_cycle_summary = {"credits_consumed": 8, "qualified_pending_candidate_count": 0}
+    scheduler._save_config()
+    reloaded = MarketScheduler(pipeline=mock_pipeline, config_path=scheduler.config_path)
+    assert reloaded.get_status()["last_cycle_summary"] == scheduler.last_cycle_summary
+
 
 def test_scheduler_lifecycle_start_and_stop(tmp_path):
     """Verify scheduler worker thread starts and cleanly terminates via stop event."""

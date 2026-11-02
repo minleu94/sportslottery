@@ -33,7 +33,7 @@ export const ResearchView: React.FC = () => {
   const [runningCycle, setRunningCycle] = useState(false)
   const [togglingScheduler, setTogglingScheduler] = useState(false)
   const [testingConnection, setTestingConnection] = useState(false)
-  const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "warning" | "error"; text: string } | null>(null)
 
   useEffect(() => {
     loadAnalytics()
@@ -111,12 +111,17 @@ export const ResearchView: React.FC = () => {
     try {
       const result = await api.triggerMarketPipelineCycle()
       const durations = result?.cycle_result?.durations_ms
+      const cycle = result?.cycle_result?.snapshot_cycle || {}
       const timing = durations
         ? `（抓取/快照 ${(durations.snapshot_and_fetch / 1000).toFixed(1)} 秒、結算 ${(durations.settlement_scan / 1000).toFixed(1)} 秒、驗證 ${(durations.forward_evaluation / 1000).toFixed(1)} 秒；總計 ${(durations.total / 1000).toFixed(1)} 秒）`
         : ""
+      const hasQualifiedCandidates = (cycle.qualified_pending_candidate_count || 0) > 0
+      const cycleDetails = `台彩快照 ${cycle.taiwan_snapshots_logged || 0}、真實盤口 ${cycle.real_market_quote_count || 0}、成功對齊 ${cycle.real_matched_count || 0}、Synthetic ${cycle.synthetic_market_quote_count || 0}、待結算合格候選 ${cycle.qualified_pending_candidate_count || 0}、本次扣點 ${cycle.credits_consumed || 0}。`
       setFeedbackMsg({
-        type: "success",
-        text: `✓ 前瞻驗證週期已完成，已同步盤口、校驗快照並更新驗證指標！${timing}`,
+        type: hasQualifiedCandidates ? "success" : "warning",
+        text: hasQualifiedCandidates
+          ? `✓ 同步及評估作業完成，取得合格真實盤口候選。${cycleDetails}${timing}`
+          : `⚠ 同步及評估作業已執行完畢，但本輪沒有合格真實盤口，前瞻閉環尚未完成。${cycleDetails}${timing}`,
       })
       const [resAnalytics, resMarket] = await Promise.all([
         api.getResearchAnalytics().catch(() => null),
@@ -351,7 +356,7 @@ export const ResearchView: React.FC = () => {
                   {sched?.last_run_utc ? new Date(sched.last_run_utc).toLocaleTimeString() : "尚未執行"}
                 </span>
                 {sched?.last_status === "SUCCESS" && (
-                  <span className="text-emerald-500 font-bold text-[10px]">(成功)</span>
+                  <span className="text-slate-500 font-bold text-[10px]">(執行完成)</span>
                 )}
                 {sched?.last_status === "FAILED" && (
                   <span className="text-rose-500 font-bold text-[10px]">(失敗)</span>
@@ -377,6 +382,24 @@ export const ResearchView: React.FC = () => {
                 </span>
               </div>
             </div>
+            {sched?.last_cycle_summary && (
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-[11px] pt-2 border-t border-sky-500/10">
+                <div className="text-slate-600 dark:text-slate-300">台彩快照 <strong className="font-mono">{sched.last_cycle_summary.taiwan_snapshots_logged ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">真實盤口 <strong className="font-mono">{sched.last_cycle_summary.real_market_quote_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">成功對齊 <strong className="font-mono">{sched.last_cycle_summary.real_matched_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">Synthetic <strong className="font-mono">{sched.last_cycle_summary.synthetic_market_quote_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">待結算合格候選 <strong className="font-mono">{sched.last_cycle_summary.qualified_pending_candidate_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">本次扣點 <strong className="font-mono">{sched.last_cycle_summary.credits_consumed ?? 0}</strong></div>
+                <div className={`col-span-2 sm:col-span-5 font-medium ${sched.last_cycle_summary.closure_status === "QUALIFIED_REAL_MARKET_DATA" ? "text-emerald-500" : "text-amber-500"}`}>
+                  {sched.last_cycle_summary.closure_status === "QUALIFIED_REAL_MARKET_DATA"
+                    ? "最近一輪取得合格真實盤口候選"
+                    : "最近一輪同步作業已結束，但沒有合格真實盤口候選；前瞻閉環未完成"}
+                </div>
+                <div className="col-span-2 sm:col-span-5 text-[10px] text-slate-500 dark:text-slate-400">
+                  抓取範圍：{(sched.last_cycle_summary.target_leagues || []).join(", ") || "未知"} · 市場 {sched.last_cycle_summary.target_markets || "未知"} · 區域 {sched.last_cycle_summary.target_regions || "未知"}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Feedback message banner */}
@@ -389,11 +412,15 @@ export const ResearchView: React.FC = () => {
                 className={`p-3 rounded-lg text-xs flex items-center gap-2 ${
                   feedbackMsg.type === "success"
                     ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                    : feedbackMsg.type === "warning"
+                    ? "bg-amber-500/10 border border-amber-500/30 text-amber-400"
                     : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
                 }`}
               >
                 {feedbackMsg.type === "success" ? (
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
+                ) : feedbackMsg.type === "warning" ? (
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
                 ) : (
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                 )}

@@ -25,7 +25,16 @@ def test_market_forward_pipeline_snapshot_and_evaluation(tmp_path: Path):
 
     snap_logger = PredictionSnapshotLogger(log_path=snap_path)
     eval_engine = ForwardEvaluationEngine()
-    odds_client = TheOddsApiClient(cache_path=cache_path)
+    odds_fixture_client = TheOddsApiClient(cache_path=cache_path)
+    odds_client = MagicMock()
+    odds_client.get_source_status.return_value = {
+        "requests_used_this_month": 0,
+        "requests_remaining_est": 500,
+        "operating_mode": "SYNTHETIC_FIXTURE",
+    }
+    odds_client.scheduled_markets = "h2h"
+    odds_client.regions = "us,eu"
+    odds_client.fetch_market_odds.return_value = odds_fixture_client._generate_synthetic_fixtures("MLB")
 
     now = datetime.now(timezone.utc)
     mock_legs = [
@@ -64,14 +73,18 @@ def test_market_forward_pipeline_snapshot_and_evaluation(tmp_path: Path):
         odds_adapter=mock_odds_adapter,
         odds_client=odds_client,
         snapshot_logger=snap_logger,
+        settlement_engine=MagicMock(),
         evaluation_engine=eval_engine,
         summary_path=summary_path,
     )
 
     # 1. Run full cycle with synthetic fallback (no API key configured)
     res = pipeline.run_full_cycle(leagues=["MLB"])
-    assert res["cycle_status"] == "SUCCESS"
+    assert res["operation_status"] == "SUCCESS"
+    assert res["cycle_status"] == "NO_QUALIFIED_REAL_MARKET_DATA"
     assert res["snapshot_cycle"]["snapshots_logged"] > 0
+    assert res["snapshot_cycle"]["synthetic_market_quote_count"] > 0
+    assert res["snapshot_cycle"]["qualified_pending_candidate_count"] == 0
     assert summary_path.exists()
 
     # 2. Check snapshot ledger

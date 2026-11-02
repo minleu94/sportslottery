@@ -60,11 +60,11 @@ from core.strategy_version import get_strategy_metadata
 from core.ticket_recorder import TicketRecorder
 from core.wallet import WeeklyWalletManager
 from core.betting_service import BettingService
-from core.market_scheduler import get_market_scheduler
+from core.market_scheduler import get_market_scheduler, stop_market_scheduler_if_initialized
 from integrations.common.models import TaiwanLeg
 from integrations.odds.betting_splits_client import BettingSplitsClient
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
-from integrations.odds.the_odds_api import TheOddsApiClient
+from integrations.odds.the_odds_api import SPORT_KEY_MAP, TheOddsApiClient
 from server.auth import (
     session_manager,
     require_any_authenticated_session,
@@ -97,7 +97,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-atexit.register(lambda: get_market_scheduler().stop())
+atexit.register(stop_market_scheduler_if_initialized)
 
 # CORS middleware with strict origin whitelist & LAN/tunnel regex (no wildcard credentials)
 cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
@@ -443,17 +443,28 @@ def estimate_pipeline_cost(
     leagues: Optional[str] = Query(None, description="Comma-separated leagues (e.g. MLB,NBA)"),
     markets: Optional[str] = Query(None, description="Comma-separated markets (e.g. h2h,spreads)"),
 ):
-    """Estimate credits required for a market pipeline fetch cycle."""
+    """Estimate credits by supported API sports, markets, and regions."""
+    odds_client = TheOddsApiClient()
     target_leagues = [l.strip().upper() for l in leagues.split(",")] if leagues else ["NBA", "SOCCER"]
-    market_str = markets or "h2h"
-    market_count = len([m for m in market_str.split(",") if m.strip()])
+    market_str = markets or odds_client.scheduled_markets or "h2h"
     league_count = len(target_leagues)
-    estimated_credits = league_count * market_count
+    market_count = len([m for m in market_str.split(",") if m.strip()])
+    api_sports = {
+        SPORT_KEY_MAP.get(league.upper())
+        for league in target_leagues
+    }
+    api_sport_count = len({sport for sport in api_sports if sport})
+    regions = odds_client.regions or "us"
+    region_count = len([region for region in regions.split(",") if region.strip()])
+    estimated_credits = api_sport_count * market_count * region_count
     return {
         "target_leagues": target_leagues,
         "markets": market_str,
+        "regions": regions,
         "league_count": league_count,
+        "api_sport_count": api_sport_count,
         "market_count": market_count,
+        "region_count": region_count,
         "estimated_credits": estimated_credits,
     }
 

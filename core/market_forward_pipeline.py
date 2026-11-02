@@ -73,25 +73,35 @@ class MarketForwardPipeline:
         self.summary_path = summary_path or SUMMARY_PATH
         self.summary_path.parent.mkdir(parents=True, exist_ok=True)
 
+    def resolve_target_leagues(self, leagues: Optional[List[str]] = None) -> List[str]:
+        """Resolve one cycle's league list so costing and fetching use the same targets."""
+        if leagues:
+            return list(leagues)
+        try:
+            active = self.odds_adapter.get_active_leagues_with_games()
+            return list(active) if active else ["NBA", "SOCCER"]
+        except Exception:
+            return ["MLB", "NBA", "NFL", "SOCCER"]
+
     def run_market_snapshot_cycle(
         self,
         leagues: Optional[List[str]] = None,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
         """Fetch live Taiwan legs, align with international sharp markets, and log sealed snapshots."""
-        if leagues:
-            target_leagues = leagues
-        else:
-            try:
-                active = self.odds_adapter.get_active_leagues_with_games()
-                target_leagues = active if active else ["NBA", "SOCCER"]
-            except Exception:
-                target_leagues = ["MLB", "NBA", "NFL", "SOCCER"]
+        target_leagues = self.resolve_target_leagues(leagues)
 
         total_legs_processed = 0
         total_matched = 0
         total_unmatched = 0
         total_snapshots_logged = 0
+        real_market_quote_count = 0
+        synthetic_market_quote_count = 0
+        real_matched_count = 0
+        synthetic_matched_count = 0
+        qualified_pending_candidate_count = 0
+
+        usage_before = self.odds_client.get_source_status().get("requests_used_this_month", 0)
 
         target_markets = getattr(self.odds_client, "scheduled_markets", "h2h") or "h2h"
 
@@ -103,6 +113,8 @@ class MarketForwardPipeline:
                     markets=target_markets,
                     force_refresh=force_refresh,
                 )
+                synthetic_market_quote_count += sum(1 for quote in int_odds if quote.is_synthetic)
+                real_market_quote_count += sum(1 for quote in int_odds if not quote.is_synthetic)
             except Exception as exc:
                 logger.warning("Pipeline fetch error for %s: %s", league, exc)
                 continue
@@ -114,6 +126,10 @@ class MarketForwardPipeline:
 
                 if cand and record.status == MarketAlignmentStatus.MATCHED:
                     total_matched += 1
+                    if cand.is_synthetic:
+                        synthetic_matched_count += 1
+                    else:
+                        real_matched_count += 1
                     # Extract opposing & draw odds for de-vigging strictly matching same bookmaker
                     opp_quote = next(
                         (c for c in int_odds
@@ -167,17 +183,41 @@ class MarketForwardPipeline:
                     enriched.odds_scraped_at = (cand.observed_at_utc if cand else None) or datetime.now(timezone.utc).isoformat()
 
                 try:
-                    self.snapshot_logger.log_snapshot(enriched)
+                    snapshot = self.snapshot_logger.log_snapshot(enriched)
                     total_snapshots_logged += 1
+                    if (
+                        cand
+                        and record.status == MarketAlignmentStatus.MATCHED
+                        and not cand.is_synthetic
+                        and snapshot.get("forward_validation_eligible") is True
+                        and snapshot.get("settlement_status") == "PENDING"
+                    ):
+                        qualified_pending_candidate_count += 1
                 except Exception as exc:
                     logger.debug("Snapshot logging skipped for leg %s: %s", enriched.event_id, exc)
 
+        source_status_after = self.odds_client.get_source_status()
+        usage_after = source_status_after.get("requests_used_this_month", usage_before)
+        try:
+            credits_consumed = max(0, int(usage_after) - int(usage_before))
+        except (TypeError, ValueError):
+            credits_consumed = 0
+
         return {
             "target_leagues": target_leagues,
+            "target_markets": target_markets,
+            "target_regions": getattr(self.odds_client, "regions", ""),
             "total_legs_processed": total_legs_processed,
             "total_matched": total_matched,
+            "real_matched_count": real_matched_count,
+            "synthetic_matched_count": synthetic_matched_count,
             "total_unmatched": total_unmatched,
             "snapshots_logged": total_snapshots_logged,
+            "taiwan_snapshots_logged": total_snapshots_logged,
+            "real_market_quote_count": real_market_quote_count,
+            "synthetic_market_quote_count": synthetic_market_quote_count,
+            "qualified_pending_candidate_count": qualified_pending_candidate_count,
+            "credits_consumed": credits_consumed,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -389,8 +429,17 @@ class MarketForwardPipeline:
         eval_report = self.generate_forward_evaluation_report()
         evaluation_duration_ms = round((time.perf_counter() - stage_started) * 1000)
 
+        snapshot_cycle_status = (
+            "QUALIFIED_REAL_MARKET_DATA"
+            if snap_res.get("qualified_pending_candidate_count", 0) > 0
+            else "NO_QUALIFIED_REAL_MARKET_DATA"
+        )
+
         return {
-            "cycle_status": "SUCCESS",
+            # The operation may complete successfully even when no real aligned
+            # candidates were available. Keep that distinction explicit.
+            "cycle_status": snapshot_cycle_status,
+            "operation_status": "SUCCESS",
             "snapshot_cycle": snap_res,
             "settlement_cycle": settle_res,
             "evaluation_summary": eval_report.to_dict(),
