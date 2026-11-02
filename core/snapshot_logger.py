@@ -22,6 +22,7 @@ import logging
 import math
 import os
 import tempfile
+import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -171,6 +172,9 @@ class PredictionSnapshotLogger:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._strategy_metadata = get_strategy_metadata()
         self._experiment_identity = get_current_experiment_identity()
+        self._uniqueness_index: Dict[str, Dict[str, Any]] = {}
+        self._uniqueness_index_signature: Optional[Tuple[int, int]] = None
+        self._uniqueness_index_lock = threading.Lock()
 
     @contextmanager
     def _file_lock(self):
@@ -472,9 +476,14 @@ class PredictionSnapshotLogger:
 
         try:
             with self._file_lock():
-                if self._find_existing_snapshot_by_key(uniqueness_key):
-                    return self._find_existing_snapshot_by_key(uniqueness_key)
+                existing_record = self._find_existing_snapshot_by_key(uniqueness_key)
+                if existing_record:
+                    return existing_record
                 append_jsonl(self.log_path, record)
+                signature = self._snapshot_file_signature()
+                with self._uniqueness_index_lock:
+                    self._uniqueness_index[uniqueness_key] = record
+                    self._uniqueness_index_signature = signature
         except Exception as exc:
             raise OSError(f"Failed to persist prediction snapshot {snapshot_id}: {exc}") from exc
 
@@ -485,11 +494,24 @@ class PredictionSnapshotLogger:
         return [self.log_snapshot(leg, observation_window_id=observation_window_id) for leg in legs]
 
     def _find_existing_snapshot_by_key(self, uniqueness_key: str) -> Optional[Dict[str, Any]]:
-        """Search existing snapshot log for duplicate key."""
-        for data in read_jsonl(self.log_path):
-            if data.get("uniqueness_key") == uniqueness_key:
-                return data
-        return None
+        """Use a file-versioned in-memory index instead of rescanning the full history per leg."""
+        signature = self._snapshot_file_signature()
+        with self._uniqueness_index_lock:
+            if signature != self._uniqueness_index_signature:
+                self._uniqueness_index = {
+                    str(data["uniqueness_key"]): data
+                    for data in read_jsonl(self.log_path)
+                    if data.get("uniqueness_key")
+                }
+                self._uniqueness_index_signature = self._snapshot_file_signature()
+            return self._uniqueness_index.get(uniqueness_key)
+
+    def _snapshot_file_signature(self) -> Tuple[int, int]:
+        try:
+            stat = self.log_path.stat()
+            return stat.st_mtime_ns, stat.st_size
+        except FileNotFoundError:
+            return 0, 0
 
     def get_all_snapshots(self) -> List[Dict[str, Any]]:
         """Read a locked complete ledger; malformed rows fail with line numbers."""

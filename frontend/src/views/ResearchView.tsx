@@ -109,10 +109,14 @@ export const ResearchView: React.FC = () => {
     setRunningCycle(true)
     setFeedbackMsg(null)
     try {
-      await api.triggerMarketPipelineCycle()
+      const result = await api.triggerMarketPipelineCycle()
+      const durations = result?.cycle_result?.durations_ms
+      const timing = durations
+        ? `（抓取/快照 ${(durations.snapshot_and_fetch / 1000).toFixed(1)} 秒、結算 ${(durations.settlement_scan / 1000).toFixed(1)} 秒、驗證 ${(durations.forward_evaluation / 1000).toFixed(1)} 秒；總計 ${(durations.total / 1000).toFixed(1)} 秒）`
+        : ""
       setFeedbackMsg({
         type: "success",
-        text: "✓ 前瞻驗證週期已執行完成，已同步盤口、校驗不可篡改快照並更新驗證指標！",
+        text: `✓ 前瞻驗證週期已完成，已同步盤口、校驗快照並更新驗證指標！${timing}`,
       })
       const [resAnalytics, resMarket] = await Promise.all([
         api.getResearchAnalytics().catch(() => null),
@@ -232,11 +236,11 @@ export const ResearchView: React.FC = () => {
                 {theOdds?.key_masked ? `金鑰: ${theOdds.key_masked}` : "尚未配置 Key"}
               </div>
               <div className="text-[10px] text-slate-400 truncate">
-                {theOdds?.last_successful_fetch_utc
+                {!theOdds?.has_api_key
+                  ? "降級合成展示"
+                  : theOdds?.last_successful_fetch_utc
                   ? `最近成功: ${new Date(theOdds.last_successful_fetch_utc).toLocaleTimeString()}`
-                  : theOdds?.has_api_key
-                  ? "等待連線測試或首次排程"
-                  : "降級合成展示"}
+                  : "等待連線測試或首次排程"}
               </div>
             </div>
 

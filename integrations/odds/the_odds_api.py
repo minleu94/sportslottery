@@ -191,6 +191,10 @@ class TheOddsApiClient:
             self.key_source = "LOCAL_CONFIG"
         return ok
 
+    def reload_api_key(self) -> None:
+        """Reload credentials after a local key update without restarting the service."""
+        self.api_key, self.key_source = self._resolve_api_key()
+
     def get_masked_api_key(self) -> str:
         """Return safely masked API key for UI display (e.g. ***1a2b). Never exposes full key."""
         if not self.api_key:
@@ -198,6 +202,11 @@ class TheOddsApiClient:
         if len(self.api_key) >= 4:
             return f"***{self.api_key[-4:]}"
         return "***"
+
+    def _api_key_fingerprint(self) -> str:
+        """Identify which credential last verified successfully without storing the key."""
+        import hashlib
+        return hashlib.sha256(self.api_key.encode("utf-8")).hexdigest() if self.api_key else ""
 
     def get_official_remaining(self) -> int:
         month_key = datetime.now(timezone.utc).strftime("%Y-%m")
@@ -212,6 +221,8 @@ class TheOddsApiClient:
         If fetch_sample=True, queries 1 league with 'h2h' (costs 1 credit).
         Never exposes the API key.
         """
+        if not self.api_key:
+            self.reload_api_key()
         if not self.api_key:
             return {
                 "success": False,
@@ -248,6 +259,7 @@ class TheOddsApiClient:
                             pass
 
                     self._cache_data["last_successful_fetch_utc"] = now_utc.isoformat()
+                    self._cache_data["last_successful_key_fingerprint"] = self._api_key_fingerprint()
                     self._cache_data["last_error"] = None
                     self._save_cache()
 
@@ -271,6 +283,7 @@ class TheOddsApiClient:
                 except Exception:
                     pass
                 self._cache_data["last_error"] = err_text
+                self._cache_data["last_error_key_fingerprint"] = self._api_key_fingerprint()
                 self._cache_data["last_error_utc"] = now_utc.isoformat()
                 self._save_cache()
                 return {
@@ -283,6 +296,7 @@ class TheOddsApiClient:
             except Exception as exc:
                 err_text = str(exc)
                 self._cache_data["last_error"] = err_text
+                self._cache_data["last_error_key_fingerprint"] = self._api_key_fingerprint()
                 self._cache_data["last_error_utc"] = now_utc.isoformat()
                 self._save_cache()
                 return {
@@ -326,6 +340,7 @@ class TheOddsApiClient:
                             pass
 
                     self._cache_data["last_successful_fetch_utc"] = now_utc.isoformat()
+                    self._cache_data["last_successful_key_fingerprint"] = self._api_key_fingerprint()
                     self._cache_data["last_error"] = None
                     self._save_cache()
 
@@ -342,6 +357,7 @@ class TheOddsApiClient:
             except Exception as exc:
                 err_text = str(exc)
                 self._cache_data["last_error"] = err_text
+                self._cache_data["last_error_key_fingerprint"] = self._api_key_fingerprint()
                 self._cache_data["last_error_utc"] = now_utc.isoformat()
                 self._save_cache()
                 return {
@@ -354,14 +370,22 @@ class TheOddsApiClient:
 
     def get_source_status(self) -> Dict[str, Any]:
         """Return operational capabilities and quota metrics with strict mode distinctions."""
+        if not self.api_key:
+            self.reload_api_key()
         now_utc = datetime.now(timezone.utc)
         month_key = now_utc.strftime("%Y-%m")
         month_usage = self._cache_data.get("usage", {}).get(month_key, 0)
         has_key = bool(self.api_key)
         official_rem = self._cache_data.get("requests_remaining_official")
         remaining_est = official_rem if official_rem is not None else max(0, self.monthly_quota - month_usage)
-        has_successful_fetch = bool(self._cache_data.get("last_successful_fetch_utc"))
+        has_successful_fetch = bool(
+            has_key
+            and self._cache_data.get("last_successful_fetch_utc")
+            and self._cache_data.get("last_successful_key_fingerprint") == self._api_key_fingerprint()
+        )
         last_error = self._cache_data.get("last_error")
+        if not has_key or self._cache_data.get("last_error_key_fingerprint") != self._api_key_fingerprint():
+            last_error = None
 
         if not has_key:
             mode = "UNCONFIGURED"
@@ -407,7 +431,7 @@ class TheOddsApiClient:
             "cache_ttl_seconds": self.cache_ttl,
             "operating_mode": mode,
             "is_live_verified": has_successful_fetch,
-            "last_successful_fetch_utc": self._cache_data.get("last_successful_fetch_utc"),
+            "last_successful_fetch_utc": self._cache_data.get("last_successful_fetch_utc") if has_successful_fetch else None,
             "last_live_fetch_utc": self._cache_data.get("last_live_fetch_utc"),
             "last_error": last_error,
             "last_error_utc": self._cache_data.get("last_error_utc"),
@@ -430,6 +454,8 @@ class TheOddsApiClient:
             return []
 
         # Check API key presence
+        if not self.api_key:
+            self.reload_api_key()
         if not self.api_key:
             logger.info("No ODDS_API_KEY configured; serving standardized synthetic fixtures for %s", league_norm)
             return self._generate_synthetic_fixtures(league_norm)
@@ -496,6 +522,7 @@ class TheOddsApiClient:
                 now_iso = datetime.now(timezone.utc).isoformat()
                 self._cache_data["last_live_fetch_utc"] = now_iso
                 self._cache_data["last_successful_fetch_utc"] = now_iso
+                self._cache_data["last_successful_key_fingerprint"] = self._api_key_fingerprint()
                 self._cache_data["last_error"] = None
                 self._cache_data["last_query_summary"] = {
                     "sport": sport_key,
@@ -527,6 +554,7 @@ class TheOddsApiClient:
             except Exception:
                 pass
             self._cache_data["last_error"] = err_text
+            self._cache_data["last_error_key_fingerprint"] = self._api_key_fingerprint()
             self._cache_data["last_error_utc"] = datetime.now(timezone.utc).isoformat()
             self._save_cache()
             logger.warning("The Odds API HTTP error for %s: %s; using synthetic fixtures", sport_key, err_text)
@@ -534,6 +562,7 @@ class TheOddsApiClient:
         except Exception as exc:
             err_text = str(exc)
             self._cache_data["last_error"] = err_text
+            self._cache_data["last_error_key_fingerprint"] = self._api_key_fingerprint()
             self._cache_data["last_error_utc"] = datetime.now(timezone.utc).isoformat()
             self._save_cache()
             logger.warning("Error fetching live odds from The Odds API for %s: %s; using synthetic fixtures", sport_key, err_text)

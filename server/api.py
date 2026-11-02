@@ -411,6 +411,13 @@ def update_market_api_key(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save local API key.")
 
+    # The scheduler owns a long-lived client created at service startup. Refresh
+    # that instance too so the next live cycle does not keep serving synthetic data.
+    try:
+        get_market_scheduler().pipeline.odds_client.reload_api_key()
+    except Exception as exc:
+        logger.warning("Saved The Odds API key, but the active scheduler client did not reload it: %s", exc)
+
     return {
         "status": "SUCCESS",
         "message": "The Odds API key saved securely into local configuration.",

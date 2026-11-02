@@ -375,15 +375,28 @@ class MarketForwardPipeline:
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
         """Execute full closed loop: Snapshot -> Settle -> Evaluate."""
+        cycle_started = time.perf_counter()
+        stage_started = cycle_started
         snap_res = self.run_market_snapshot_cycle(leagues=leagues, force_refresh=force_refresh)
+        snapshot_duration_ms = round((time.perf_counter() - stage_started) * 1000)
+        stage_started = time.perf_counter()
         settle_res = self.run_settlement_cycle()
+        settlement_duration_ms = round((time.perf_counter() - stage_started) * 1000)
+        stage_started = time.perf_counter()
         eval_report = self.generate_forward_evaluation_report()
+        evaluation_duration_ms = round((time.perf_counter() - stage_started) * 1000)
 
         return {
             "cycle_status": "SUCCESS",
             "snapshot_cycle": snap_res,
             "settlement_cycle": settle_res,
             "evaluation_summary": eval_report.to_dict(),
+            "durations_ms": {
+                "snapshot_and_fetch": snapshot_duration_ms,
+                "settlement_scan": settlement_duration_ms,
+                "forward_evaluation": evaluation_duration_ms,
+                "total": round((time.perf_counter() - cycle_started) * 1000),
+            },
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         }
 
