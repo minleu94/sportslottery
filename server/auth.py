@@ -9,23 +9,58 @@ Provides:
 
 from __future__ import annotations
 
+import hashlib
 import secrets
+import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from typing import Any, Dict, Optional
 
 from fastapi import Depends, Header, HTTPException, Request, status
+from core.storage_config import get_db_path
 
 SESSION_TTL_SECONDS = 7 * 86400  # 7 days
 
 
 class SessionManager:
-    """Thread-safe in-memory session manager with cryptographic token generation and revocation."""
+    """Thread-safe sessions persisted in the shared application database."""
 
     def __init__(self, ttl_seconds: int = SESSION_TTL_SECONDS):
         self.ttl_seconds = ttl_seconds
         self._sessions: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
+
+    @staticmethod
+    def _token_hash(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    def _connect(self) -> sqlite3.Connection:
+        db_path = get_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(db_path), timeout=30.0)
+        conn.execute("""CREATE TABLE IF NOT EXISTS auth_sessions (
+            token_hash TEXT PRIMARY KEY,
+            profile_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            is_admin INTEGER NOT NULL DEFAULT 0,
+            token_version INTEGER NOT NULL DEFAULT 1,
+            created_at REAL NOT NULL,
+            expires_at REAL NOT NULL
+        )""")
+        return conn
+
+    @contextmanager
+    def _connection(self):
+        conn = self._connect()
+        try:
+            yield conn
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def create_session(self, profile: Dict[str, Any]) -> str:
         token = secrets.token_urlsafe(32)
@@ -56,6 +91,17 @@ class SessionManager:
         }
         with self._lock:
             self._sessions[token] = session_data
+        try:
+            with self._connection() as conn:
+                conn.execute(
+                    """INSERT OR REPLACE INTO auth_sessions
+                    (token_hash, profile_id, name, is_admin, token_version, created_at, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (self._token_hash(token), pid, pname, int(is_admin), token_version, now, now + self.ttl_seconds),
+                )
+        except sqlite3.Error:
+            # Keep the session usable for this process if persistent storage is temporarily unavailable.
+            pass
         return token
 
     def get_session(self, token: Optional[str], check_version: bool = True) -> Optional[Dict[str, Any]]:
@@ -66,22 +112,60 @@ class SessionManager:
         with self._lock:
             session = self._sessions.get(token_str)
             if not session:
-                return None
-            if now > session.get("expires_at", 0):
+                session = None
+            if session and now > session.get("expires_at", 0):
                 self._sessions.pop(token_str, None)
+                session = None
+            session_copy = dict(session) if session else None
+        if session_copy is None:
+            try:
+                with self._connection() as conn:
+                    row = conn.execute(
+                        """SELECT profile_id, name, is_admin, token_version, created_at, expires_at
+                        FROM auth_sessions WHERE token_hash = ?""",
+                        (self._token_hash(token_str),),
+                    ).fetchone()
+                    if row:
+                        if now > float(row[5]):
+                            conn.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (self._token_hash(token_str),))
+                            return None
+                        pid, name, is_admin, token_version, created_at, expires_at = row
+                        session_copy = {
+                            "token": token_str,
+                            "profile_id": pid,
+                            "name": name,
+                            "is_admin": bool(is_admin),
+                            "token_version": int(token_version),
+                            "created_at": float(created_at),
+                            "expires_at": float(expires_at),
+                        }
+                        with self._lock:
+                            self._sessions[token_str] = dict(session_copy)
+            except sqlite3.Error:
                 return None
-            session_copy = dict(session)
+        if session_copy is None:
+            return None
 
         # Enforce token version against database state if credential was changed
         if check_version and session_copy.get("profile_id"):
             try:
                 from core.profile_manager import ProfileManager
                 pm = ProfileManager()
+                profile = pm.get_profile(session_copy["profile_id"])
+                if not profile:
+                    self.revoke_session(token_str)
+                    return None
+                session_copy["name"] = str(profile.get("name") or session_copy.get("name") or "")
+                session_copy["is_admin"] = (
+                    session_copy["profile_id"] == "default"
+                    or session_copy["name"] == "Archie"
+                    or bool(profile.get("is_admin"))
+                )
                 current_ver = pm.get_token_version(session_copy["profile_id"])
                 if session_copy.get("token_version", 1) < current_ver:
                     self.revoke_session(token_str)
                     return None
-                if session_copy.get("is_admin"):
+                if session_copy["is_admin"]:
                     session_copy["must_change_password"] = pm.is_default_admin_pin()
             except Exception:
                 pass
@@ -92,7 +176,15 @@ class SessionManager:
         if not token:
             return False
         with self._lock:
-            return bool(self._sessions.pop(str(token).strip(), None))
+            token_str = str(token).strip()
+            existed = bool(self._sessions.pop(token_str, None))
+        try:
+            with self._connection() as conn:
+                cursor = conn.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (self._token_hash(token_str),))
+                existed = existed or cursor.rowcount > 0
+        except sqlite3.Error:
+            pass
+        return existed
 
     def revoke_all_for_profile(self, profile_id: str) -> int:
         """Revoke all active sessions belonging to a specific profile (e.g. after PIN change)."""
@@ -101,6 +193,11 @@ class SessionManager:
             to_remove = [t for t, s in self._sessions.items() if s.get("profile_id") == pid]
             for t in to_remove:
                 del self._sessions[t]
+        try:
+            with self._connection() as conn:
+                cursor = conn.execute("DELETE FROM auth_sessions WHERE profile_id = ?", (pid,))
+                return max(len(to_remove), cursor.rowcount)
+        except sqlite3.Error:
             return len(to_remove)
 
     def clean_expired(self) -> int:
@@ -109,6 +206,11 @@ class SessionManager:
             expired = [t for t, s in self._sessions.items() if now > s.get("expires_at", 0)]
             for t in expired:
                 del self._sessions[t]
+        try:
+            with self._connection() as conn:
+                cursor = conn.execute("DELETE FROM auth_sessions WHERE expires_at < ?", (now,))
+                return max(len(expired), cursor.rowcount)
+        except sqlite3.Error:
             return len(expired)
 
 

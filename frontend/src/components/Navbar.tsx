@@ -66,7 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md transition-colors">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-2.5 xl:py-3 flex flex-col xl:flex-row xl:items-center justify-between gap-2 xl:gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-2.5 xl:py-3 flex flex-col gap-2 xl:gap-3">
         {/* Row 1 on < xl (Mobile & Tablet) / Left Section on >= xl (Desktop) */}
         <div className="flex items-center justify-between gap-2 min-w-0">
           {/* Brand & Mascot */}

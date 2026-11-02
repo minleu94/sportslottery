@@ -51,6 +51,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
 
   // Admin Action Dialogs
   const [deletePlayerTarget, setDeletePlayerTarget] = useState<PlayerOverviewItem | null>(null)
+  const [deletePlayerHistory, setDeletePlayerHistory] = useState(true)
   const [resetPinPlayerTarget, setResetPinPlayerTarget] = useState<PlayerOverviewItem | null>(null)
   const [editPlayerTarget, setEditPlayerTarget] = useState<PlayerOverviewItem | null>(null)
   const [editPlayerName, setEditPlayerName] = useState("")
@@ -177,7 +178,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
     if (!deletePlayerTarget) return
     setAdminActionLoading(true)
     try {
-      const res = await api.adminDeletePlayer(deletePlayerTarget.id)
+      const res = await api.adminDeletePlayer(deletePlayerTarget.id, deletePlayerHistory)
       setMessage({ type: "success", text: res.message || `已成功刪除玩家【${deletePlayerTarget.name}】！` })
       setDeletePlayerTarget(null)
       await loadProfiles()
@@ -601,7 +602,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
                                   <span>重設PIN</span>
                                 </button>
                                 <button
-                                  onClick={() => setDeletePlayerTarget(p)}
+                                  onClick={() => { setDeletePlayerHistory(true); setDeletePlayerTarget(p) }}
                                   title="永久刪除此玩家"
                                   className="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
                                 >
@@ -700,13 +701,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
               <p className="font-bold text-sm text-rose-400">
                 ⚠️ 即將永久刪除玩家【{deletePlayerTarget.name}】（ID: {deletePlayerTarget.id}）
               </p>
-              <p>執行此操作將全數清空該玩家之以下所有數據且無法復原：</p>
+              <p>玩家帳號與錢包會刪除。請選擇是否同時刪除投注與帳本歷史：</p>
               <ul className="list-disc list-inside space-y-0.5 text-slate-300 pl-1">
                 <li>本週錢包可玩餘額：<b className="text-white">{formatNTD(deletePlayerTarget.weekly_wallet_balance)}</b></li>
                 <li>保留儲備池：<b className="text-white">{formatNTD(deletePlayerTarget.prize_pool)}</b></li>
-                <li>歷史投注注單紀錄與所有帳本明細</li>
+                <li>歷史投注注單紀錄與所有帳本明細（可選擇保留）</li>
               </ul>
             </div>
+
+            <fieldset className="space-y-2 text-sm text-slate-200">
+              <legend className="font-semibold">歷史資料處理</legend>
+              <label className="flex items-start gap-2 rounded-lg border border-slate-700 p-3 cursor-pointer">
+                <input type="radio" name="delete-player-history" checked={deletePlayerHistory} onChange={() => setDeletePlayerHistory(true)} className="mt-0.5 accent-rose-500" />
+                <span>一併刪除所有投注與帳本紀錄</span>
+              </label>
+              <label className="flex items-start gap-2 rounded-lg border border-slate-700 p-3 cursor-pointer">
+                <input type="radio" name="delete-player-history" checked={!deletePlayerHistory} onChange={() => setDeletePlayerHistory(false)} className="mt-0.5 accent-emerald-500" />
+                <span>保留投注與帳本紀錄</span>
+              </label>
+            </fieldset>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button

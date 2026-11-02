@@ -655,9 +655,9 @@ export const api = {
 
 
 
-  async adminDeletePlayer(profileId: string, adminPin?: string): Promise<{ success: boolean; message: string }> {
+  async adminDeletePlayer(profileId: string, deleteHistory: boolean = true, adminPin?: string): Promise<{ success: boolean; message: string }> {
 
-    const res = await fetch(`${BASE_URL}/admin/players/${encodeURIComponent(profileId)}`, {
+    const res = await fetch(`${BASE_URL}/admin/players/${encodeURIComponent(profileId)}?delete_history=${deleteHistory}`, {
 
       method: "DELETE",
 

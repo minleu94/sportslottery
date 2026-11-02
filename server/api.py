@@ -1341,6 +1341,7 @@ def get_admin_players_overview(
 def admin_delete_player(
     profile_id: str,
     admin_pin: Optional[str] = None,
+    delete_history: bool = Query(True, description="Whether to permanently delete the player's ticket and ledger history"),
     session: Dict[str, Any] = Depends(require_active_admin_session),
 ):
     _, _, _, _, profile_mgr, _, _, _ = get_services()
@@ -1355,11 +1356,12 @@ def admin_delete_player(
             target_profile_id=profile_id,
             admin_pin=admin_pin,
             admin_profile_id=session.get("profile_id", "default"),
+            delete_history=delete_history,
         )
         session_manager.revoke_all_for_profile(profile_id)
         return {
             "success": True,
-            "message": f"已成功刪除玩家【{profile['name']}】及其相關錢包帳本與投注注單！",
+            "message": f"已成功刪除玩家【{profile['name']}】的帳號與錢包。" + ("投注及帳本歷史已一併刪除。" if delete_history else "投注及帳本歷史已保留。"),
         }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

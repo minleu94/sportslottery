@@ -425,6 +425,7 @@ class ProfileManager:
         current_pin: Optional[str] = None,
         is_admin: bool = False,
         admin_profile_id: str = DEFAULT_PROFILE_ID,
+        delete_history: bool = True,
     ) -> bool:
         pid = str(profile_id or "").strip()
         if pid == DEFAULT_PROFILE_ID:
@@ -448,12 +449,13 @@ class ProfileManager:
             table_info = [r["name"] for r in conn.execute("PRAGMA table_info(wallet_state)").fetchall()]
             if "profile_id" in table_info:
                 conn.execute("DELETE FROM wallet_state WHERE profile_id = ?", (pid,))
-            ledger_info = [r["name"] for r in conn.execute("PRAGMA table_info(ledger)").fetchall()]
-            if "profile_id" in ledger_info:
-                conn.execute("DELETE FROM ledger WHERE profile_id = ?", (pid,))
-            ticket_info = [r["name"] for r in conn.execute("PRAGMA table_info(tickets)").fetchall()]
-            if "profile_id" in ticket_info:
-                conn.execute("DELETE FROM tickets WHERE profile_id = ?", (pid,))
+            if delete_history:
+                ledger_info = [r["name"] for r in conn.execute("PRAGMA table_info(ledger)").fetchall()]
+                if "profile_id" in ledger_info:
+                    conn.execute("DELETE FROM ledger WHERE profile_id = ?", (pid,))
+                ticket_info = [r["name"] for r in conn.execute("PRAGMA table_info(tickets)").fetchall()]
+                if "profile_id" in ticket_info:
+                    conn.execute("DELETE FROM tickets WHERE profile_id = ?", (pid,))
         return True
 
     def admin_delete_profile(
@@ -461,6 +463,7 @@ class ProfileManager:
         target_profile_id: str,
         admin_pin: Optional[str] = None,
         admin_profile_id: str = DEFAULT_PROFILE_ID,
+        delete_history: bool = True,
     ) -> bool:
         """Administrative deletion of any player profile and associated records."""
         return self.delete_profile(
@@ -468,6 +471,7 @@ class ProfileManager:
             current_pin=admin_pin,
             is_admin=True,
             admin_profile_id=admin_profile_id,
+            delete_history=delete_history,
         )
 
     def admin_reset_pin(
