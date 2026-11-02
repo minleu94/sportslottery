@@ -64,10 +64,12 @@ class SignalHub:
         self.weights_config = self._load_weights_config()
         self.edge_engine = edge_engine or EdgeEngine(source_weights=self.weights_config.get("source_weights", {}))
         self._leg_eval_cache: Dict[tuple, TaiwanLeg] = {}
+        self._cache_epoch = 0
 
     def refresh(self) -> None:
         """Clear evaluation caches and refresh underlying adapters."""
         self._leg_eval_cache.clear()
+        self._cache_epoch += 1
         if hasattr(self.model_registry, "refresh"):
             self.model_registry.refresh()
         if hasattr(self.expert_adapter, "refresh"):

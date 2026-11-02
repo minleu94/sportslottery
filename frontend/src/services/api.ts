@@ -176,6 +176,17 @@ export const api = {
 
     enriched_legs_count: number
 
+    performance?: {
+      service_setup_ms: number
+      taiwan_fetch_ms: number
+      signal_enrichment_ms: number
+      parlay_search_ms: number
+      response_format_ms: number
+      total_ms: number
+      raw_legs_count: number
+      prepared_legs_cache_hit: boolean
+    }
+
   }> {
 
     const res = await fetch(`${BASE_URL}/parlays/search`, {

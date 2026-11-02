@@ -32,6 +32,16 @@ interface ParlayViewProps {
 type OddsMode = "banker" | "target" | "range"
 type ParlayTier = "high_consensus" | "aggressive" | "moonshot"
 type ParlayTiers = Record<ParlayTier, ParlayRecommendation[]>
+type ParlayPerformance = {
+  service_setup_ms: number
+  taiwan_fetch_ms: number
+  signal_enrichment_ms: number
+  parlay_search_ms: number
+  response_format_ms: number
+  total_ms: number
+  raw_legs_count: number
+  prepared_legs_cache_hit: boolean
+}
 
 interface ParlaySearchCache {
   oddsMode: OddsMode
@@ -49,6 +59,8 @@ interface ParlaySearchCache {
   activeTier: ParlayTier
   tiers: ParlayTiers
   hasSearched: boolean
+  performance: ParlayPerformance | null
+  searchComplete: boolean
 }
 
 const PARLAY_CACHE_TTL_MS = 4 * 60 * 1000
@@ -98,6 +110,8 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
 
   const [activeTier, setActiveTier] = useState<ParlayTier>(restoredSearch?.activeTier ?? "high_consensus")
   const [tiers, setTiers] = useState<ParlayTiers>(restoredSearch?.tiers ?? emptyParlayTiers())
+  const [searchPerformance, setSearchPerformance] = useState<ParlayPerformance | null>(restoredSearch?.performance ?? null)
+  const [searchComplete, setSearchComplete] = useState<boolean>(restoredSearch?.searchComplete ?? true)
 
   // Modals state
   const [selectedParlayForEvidence, setSelectedParlayForEvidence] = useState<ParlayRecommendation | null>(null)
@@ -120,8 +134,10 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       activeTier,
       tiers,
       hasSearched,
+      performance: searchPerformance,
+      searchComplete,
     })
-  }, [oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax, crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam, activeTier, tiers, hasSearched])
+  }, [oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax, crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam, activeTier, tiers, hasSearched, searchPerformance, searchComplete])
 
   const allianceOptions = [
     { id: "1", label: "NBA 籃球" },
@@ -177,10 +193,12 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
     setSearching(true)
     setError(null)
     setHasSearched(true)
+    setSearchPerformance(null)
+    setSearchComplete(false)
     writeParlaySearchCache({
       oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax,
       crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam,
-      activeTier, tiers, hasSearched: true,
+      activeTier, tiers, hasSearched: true, performance: null, searchComplete: false,
     })
 
     try {
@@ -206,13 +224,17 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
             : activeTier
       setTiers(res.tiers)
       setActiveTier(nextActiveTier)
+      setSearchPerformance(res.performance ?? null)
+      setSearchComplete(res.search_complete)
       writeParlaySearchCache({
         oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax,
         crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam,
         activeTier: nextActiveTier, tiers: res.tiers, hasSearched: true,
+        performance: res.performance ?? null, searchComplete: res.search_complete,
       })
     } catch (err: any) {
       setError(err.message || "搜尋串關失敗")
+      setSearchComplete(true)
     } finally {
       setSearching(false)
     }
@@ -593,6 +615,21 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
               </span>
             </button>
           </div>
+
+          {!searching && searchPerformance && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
+              <span>資料 {searchPerformance.taiwan_fetch_ms.toFixed(0)} ms</span>
+              <span>訊號 {searchPerformance.signal_enrichment_ms.toFixed(0)} ms</span>
+              <span>組合 {searchPerformance.parlay_search_ms.toFixed(0)} ms</span>
+              <span>總計 {searchPerformance.total_ms.toFixed(0)} ms</span>
+              <span>前處理快取 {searchPerformance.prepared_legs_cache_hit ? "命中" : "建立"}</span>
+            </div>
+          )}
+          {!searching && !searchComplete && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              搜尋預算已用完；目前候選尚未保證涵蓋完整搜尋空間。
+            </div>
+          )}
 
           {/* Results List */}
           {searching ? (
