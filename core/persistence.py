@@ -1,6 +1,7 @@
 """Durable local ledger operations shared by foreground and scheduled writers."""
 from __future__ import annotations
 
+import copy
 import json
 import os
 import tempfile
@@ -186,7 +187,7 @@ def read_jsonl(path: Path) -> list[dict]:
                 cached = _jsonl_cache.get(key)
                 if cached is not None and cached[0] == mtime_ns and cached[1] == size:
                     _jsonl_cache.move_to_end(key)
-                    return list(cached[2])
+                    return copy.deepcopy(cached[2])
         else:
             # Large ledgers must never remain pinned in process memory.
             with _cache_guard:
@@ -201,4 +202,4 @@ def read_jsonl(path: Path) -> list[dict]:
                 while len(_jsonl_cache) > JSONL_CACHE_MAX_FILES:
                     _jsonl_cache.popitem(last=False)
 
-        return list(rows)
+        return copy.deepcopy(rows)

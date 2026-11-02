@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from integrations.common.models import TaiwanLeg
 from core.identity.league_mapping import normalize_league_and_sport
+from core.identity.team_alias import GLOBAL_TEAM_REGISTRY
 from integrations.odds.market_models import (
     MarketAlignmentRecord,
     MarketAlignmentStatus,
@@ -214,6 +215,7 @@ def resolve_canonical_team(team_str: str, league: str) -> Optional[str]:
     if not team_str:
         return None
     league_key = league.upper().strip()
+
     alias_dict = TEAM_CANONICAL_ALIASES.get(league_key) or TEAM_CANONICAL_ALIASES.get("SOCCER", {})
 
     cleaned = normalize_string(team_str)
@@ -236,6 +238,26 @@ def resolve_canonical_team(team_str: str, league: str) -> Optional[str]:
     matches = difflib.get_close_matches(cleaned, list(alias_dict.keys()), n=1, cutoff=0.75)
     if matches:
         return alias_dict[matches[0]]
+
+    # Fall back to the project-wide, sport-scoped alias registry. The legacy
+    # market table only covered a handful of NBA/NFL teams, so valid fixtures
+    # were rejected before kickoff or market comparison could run.
+    canonical_league, sport = normalize_league_and_sport(league_key)
+    if sport == "other" and canonical_league == "OTHER" and league_key in {
+        "PREMIER", "CHAMPIONS", "CHAMPIONS_QUALIFYING", "MLS", "LALIGA",
+        "COLOMBIA_PRIMERA_A", "COSTA_RICA_PRIMERA", "AFC_CHAMPIONS_LEAGUE_TWO",
+        "SAUDI_PRO_LEAGUE", "CONMEBOL_LIBERTADORES",
+    }:
+        sport = "soccer"
+        canonical_league = league_key
+    if sport != "other" and not canonical_league.startswith("UNKNOWN_"):
+        registered = GLOBAL_TEAM_REGISTRY.resolve(
+            team_str,
+            sport=sport,
+            league=canonical_league,
+        )
+        if registered:
+            return registered.canonical_id.casefold()
 
     return None
 
@@ -283,9 +305,10 @@ class MarketAligner:
             reason: str,
             candidate: Optional[MarketOddsSnapshot] = None,
             time_delta_seconds: Optional[float] = None,
+            status: MarketAlignmentStatus = MarketAlignmentStatus.AMBIGUOUS,
         ) -> Tuple[None, MarketAlignmentRecord]:
             record = MarketAlignmentRecord(
-                status=MarketAlignmentStatus.AMBIGUOUS,
+                status=status,
                 taiwan_event_id=leg.event_id,
                 taiwan_league=leg.league,
                 taiwan_market=leg.market,
@@ -339,6 +362,13 @@ class MarketAligner:
                 "Taiwan event kickoff is missing, invalid, or has no timezone; refusing to align by team names alone.",
             )
 
+        if not candidates:
+            return reject_event_identity(
+                "ERR_NO_INTERNATIONAL_QUOTES",
+                f"No international quotes were supplied for Taiwan competition '{tw_league}'.",
+                status=MarketAlignmentStatus.UNMATCHED,
+            )
+
         # Resolve Taiwan canonical teams within the verified competition family.
         tw_home_canon = resolve_canonical_team(leg.home_team, tw_league)
         tw_away_canon = resolve_canonical_team(leg.away_team, tw_league)
@@ -368,7 +398,7 @@ class MarketAligner:
         tw_market_type: Optional[str] = None
         if leg.market in {"讓分", "讓球"}:
             tw_market_type = "SPREAD"
-        elif leg.market in {"不讓分", "獨贏", "勝負"}:
+        elif leg.market in {"不讓分", "和局", "獨贏", "勝負"}:
             tw_market_type = "MONEYLINE"
         elif leg.market in {"大小", "大小分", "總分"}:
             tw_market_type = "TOTAL"
@@ -393,6 +423,10 @@ class MarketAligner:
             return None, rec
 
         # Filter candidates by competition and team match before comparing kickoff.
+        league_candidates = [
+            cand for cand in candidates
+            if _normalize_market_league(cand.league, from_odds_api=True) == tw_league
+        ]
         team_candidates: List[Tuple[MarketOddsSnapshot, bool]] = []
         for cand in candidates:
             if _normalize_market_league(cand.league, from_odds_api=True) != tw_league:
@@ -407,6 +441,12 @@ class MarketAligner:
                 team_candidates.append((cand, False))
 
         if not team_candidates:
+            if not league_candidates:
+                rejection_code = "ERR_LEAGUE_MISMATCH"
+                reason = f"No international quotes belong to Taiwan competition '{tw_league}'."
+            else:
+                rejection_code = "ERR_TEAM_NOT_MATCHED"
+                reason = f"Same-league quotes exist, but no home/away team pair matched {tw_away_canon} @ {tw_home_canon}."
             rec = MarketAlignmentRecord(
                 status=MarketAlignmentStatus.UNMATCHED,
                 taiwan_event_id=leg.event_id,
@@ -421,8 +461,8 @@ class MarketAligner:
                 international_selection=None,
                 international_line=None,
                 aligned_at_utc=now_iso,
-                reason=f"No same-league international event found for {tw_away_canon} @ {tw_home_canon} in {tw_league}",
-                rejection_code="ERR_EVENT_NOT_FOUND",
+                reason=reason,
+                rejection_code=rejection_code,
             )
             return None, rec
 
@@ -516,6 +556,8 @@ class MarketAligner:
                 if cand.selection == target_sel:
                     selected_cand = cand
                     alignment_note = f"Moneyline matched ({target_sel})"
+                    if not is_aligned:
+                        alignment_note += "; international home/away order reversed"
                     break
 
             # 2. Spread (Line matching required!)

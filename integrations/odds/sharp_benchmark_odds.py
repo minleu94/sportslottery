@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.bet_validation import parse_aware_time
 from integrations.common.models import PredictionSignal, TaiwanLeg
+from integrations.odds.market_models import MarketBenchmarkEvidence
 
 logger = logging.getLogger(__name__)
 
@@ -75,15 +76,13 @@ class SharpComparisonResult:
 
 
 class SharpBenchmarkOddsAdapter:
-    """Adapter for obtaining sharp reference market odds and de-vigged fair probabilities."""
+    """Adapter for validated Sharp evidence supplied by the market pipeline."""
 
     SOURCE_CATEGORY = "SHARP_MARKET_BENCHMARK"
     INDEPENDENCE_GROUP = "SHARP_CONSENSUS"
 
     def __init__(self, cache_dir: Optional[Path] = None):
         self.cache_dir = cache_dir or CACHE_DIR
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self._memory_cache: Dict[str, Dict[str, Any]] = {}
 
     def get_sharp_fair_odds(
         self,
@@ -96,52 +95,11 @@ class SharpBenchmarkOddsAdapter:
         opposing_odds: Optional[float] = None,
         draw_odds: Optional[float] = None,
     ) -> Optional[SharpComparisonResult]:
-        """Calculate a benchmark only from an explicitly sourced external quote.
+        """Deprecated cache-only entry point; Taiwan odds cannot qualify as Sharp.
 
-        Taiwan opposing prices are intentionally not accepted as Sharp evidence.
+        Use ``evaluate_leg(leg, market_evidence)`` with typed evidence from the
+        validated international market pipeline.
         """
-        if taiwan_odds <= 1.0:
-            return None
-
-        # Check memory cache first
-        cache_key = f"{sport}:{league}:{event_id}:{market}:{selection}"
-        if cache_key in self._memory_cache:
-            data = self._memory_cache[cache_key]
-            source_type = str(data.get("source_type") or "").upper()
-            if (
-                source_type not in {"BOOKMAKER", "EXCHANGE"}
-                or not data.get("source_id")
-                or not data.get("observed_at_utc")
-                or data.get("is_synthetic") is True
-            ):
-                return None
-            try:
-                sharp_probability = float(data.get("fair_prob"))
-                sharp_odds = float(data.get("sharp_odds"))
-                observed_at = parse_aware_time(data.get("observed_at_utc"))
-                if not (math.isfinite(sharp_probability) and 0.0 < sharp_probability < 1.0
-                        and math.isfinite(sharp_odds) and sharp_odds > 1.0):
-                    return None
-            except (TypeError, ValueError, OverflowError):
-                return None
-            if observed_at is None:
-                return None
-            now = datetime.now(timezone.utc)
-            age_seconds = (now - observed_at).total_seconds()
-            if age_seconds > 900 or age_seconds < -300:
-                return None
-            return self._build_comparison(
-                event_id=event_id, sport=sport, league=league, market=market,
-                selection=selection, taiwan_odds=taiwan_odds,
-                sharp_odds=sharp_odds,
-                sharp_fair_prob=sharp_probability,
-                sharp_book=str(data.get("book") or data["source_id"]),
-                observed_at_utc=observed_at.isoformat(),
-                source_id=str(data["source_id"]),
-            )
-
-        # The previous Taiwan-price de-vig fallback was not independent market
-        # evidence and must never be labeled as a Sharp benchmark.
         return None
 
     def _build_comparison(
@@ -192,25 +150,16 @@ class SharpBenchmarkOddsAdapter:
             details={"source_id": source_id} if source_id else {},
         )
 
-    def evaluate_leg(self, leg: TaiwanLeg) -> Optional[PredictionSignal]:
-        """Produce a PredictionSignal representing Sharp Market consensus."""
-        odds = float(leg.taiwan_odds or 0.0)
-        if odds <= 1.0:
+    def evaluate_leg(
+        self,
+        leg: TaiwanLeg,
+        market_evidence: Optional[MarketBenchmarkEvidence] = None,
+    ) -> Optional[PredictionSignal]:
+        """Adapt explicitly validated Sharp evidence; never discover or infer it locally."""
+        comp = self.compare_leg(leg, market_evidence)
+        if comp is None:
             return None
-
-        comp = self.get_sharp_fair_odds(
-            sport=leg.sport,
-            league=leg.league,
-            event_id=leg.event_id,
-            market=leg.market,
-            selection=leg.selection,
-            taiwan_odds=odds,
-        )
-
-        if not comp:
-            return None
-
-        # Build PredictionSignal
+        sharp_source_id = str(comp.details.get("source_id") or "")
         metadata = {
             "sharp_fair_probability": round(comp.sharp_fair_prob, 4),
             "edge_pp": comp.edge_pp,
@@ -218,8 +167,12 @@ class SharpBenchmarkOddsAdapter:
             "is_value_bet": comp.is_value_bet,
             "value_grade": comp.value_grade,
             "sharp_book": comp.sharp_book,
+            "source_id": sharp_source_id,
+            "canonical_event_id": market_evidence.canonical_event_id,
+            "market_source_qualification": market_evidence.source_qualification,
+            "market_freshness": market_evidence.freshness_status,
+            "market_devig_method": market_evidence.devig_method,
         }
-
         confidence = "HIGH" if comp.is_value_bet else ("MED" if comp.value_grade == "FAIR_VALUE" else "LOW")
         observed_at = parse_aware_time(comp.timestamp)
         freshness = (
@@ -227,7 +180,6 @@ class SharpBenchmarkOddsAdapter:
             if observed_at and (datetime.now(timezone.utc) - observed_at).total_seconds() > 300
             else "LIVE"
         )
-
         return PredictionSignal(
             source_id="sharp_benchmark",
             source_name=f"Sharp Market Benchmark ({comp.sharp_book})",
@@ -242,4 +194,92 @@ class SharpBenchmarkOddsAdapter:
             data_as_of=comp.timestamp,
             freshness_status=freshness,
             metadata=metadata,
+        )
+
+    def compare_leg(
+        self,
+        leg: TaiwanLeg,
+        market_evidence: Optional[MarketBenchmarkEvidence] = None,
+    ) -> Optional[SharpComparisonResult]:
+        """Return a comparison only for complete, fresh, typed Sharp evidence."""
+        try:
+            odds = float(leg.taiwan_odds or 0.0)
+            sharp_probability = float(market_evidence.sharp_fair_probability) if isinstance(market_evidence, MarketBenchmarkEvidence) else 0.0
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if odds <= 1.0 or not isinstance(market_evidence, MarketBenchmarkEvidence):
+            return None
+        if (
+            market_evidence.eligible is not True
+            or market_evidence.complete is not True
+            or market_evidence.is_synthetic is not False
+            or market_evidence.source_qualification != "SHARP_QUALIFIED"
+            or not isinstance(market_evidence.source_id, str)
+            or not market_evidence.source_id.startswith("the_odds_api:")
+            or not market_evidence.sharp_qualified_source_ids
+            or market_evidence.taiwan_event_id != str(leg.event_id)
+            or market_evidence.taiwan_selection != str(leg.selection)
+            or market_evidence.market_type != ("SPREAD" if leg.market in {"讓分", "讓球"} else
+                                                "TOTAL" if leg.market in {"大小", "大小分", "總分"} else "MONEYLINE")
+            or not math.isfinite(odds)
+            or not math.isfinite(sharp_probability)
+            or not 0.0 < sharp_probability < 1.0
+        ):
+            return None
+        raw_quotes = market_evidence.raw_outcome_odds
+        raw_times = market_evidence.market_observation_times
+        qualified_sources = market_evidence.sharp_qualified_source_ids
+        if not isinstance(raw_quotes, dict) or not isinstance(raw_times, dict):
+            return None
+        if not isinstance(qualified_sources, (list, tuple, set)):
+            return None
+        sharp_source_id = next((str(item) for item in qualified_sources
+                                if isinstance(item, str) and item.startswith("the_odds_api:")
+                                and item in raw_quotes and item in raw_times), None)
+        if sharp_source_id is None:
+            return None
+        sharp_book_name = sharp_source_id.split(":", 1)[-1].casefold()
+        if not any(str(book).casefold() == sharp_book_name
+                   for book in market_evidence.bookmaker_ids if isinstance(book, str)):
+            return None
+        outcome_odds = raw_quotes.get(sharp_source_id, {})
+        outcome_times = raw_times.get(sharp_source_id, {})
+        if not isinstance(outcome_odds, dict) or len(outcome_odds) < 2 or not isinstance(outcome_times, dict):
+            return None
+        if (str(leg.sport or "").casefold() == "soccer" and market_evidence.market_type == "MONEYLINE"
+                and not {"home", "away", "draw"}.issubset(outcome_odds)):
+            return None
+        if any(not isinstance(key, str) or key not in outcome_times for key in outcome_odds):
+            return None
+        parsed_outcome_odds: Dict[str, float] = {}
+        for key, value in outcome_odds.items():
+            try:
+                parsed_value = float(value)
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if not math.isfinite(parsed_value) or parsed_value <= 1.0:
+                return None
+            parsed_outcome_odds[key] = parsed_value
+        quote_times = [parse_aware_time(outcome_times.get(key)) for key in outcome_odds]
+        retrieved_at = parse_aware_time(market_evidence.retrieved_at_utc)
+        now = datetime.now(timezone.utc)
+        if retrieved_at is None or not quote_times or any(item is None for item in quote_times):
+            return None
+        if any((now - item).total_seconds() > 900 or (retrieved_at - item).total_seconds() < -60
+               for item in quote_times if item is not None):
+            return None
+        if (now - retrieved_at).total_seconds() < -60 or (now - retrieved_at).total_seconds() > 900:
+            return None
+        sharp_odds = parsed_outcome_odds.get(market_evidence.selection)
+        if sharp_odds is None:
+            return None
+        observed_dt = parse_aware_time(outcome_times.get(market_evidence.selection))
+        if observed_dt is None or (now - observed_dt).total_seconds() > 300:
+            return None
+        return self._build_comparison(
+            event_id=leg.event_id, sport=leg.sport, league=leg.league, market=leg.market,
+            selection=leg.selection, taiwan_odds=odds, sharp_odds=sharp_odds,
+            sharp_fair_prob=sharp_probability,
+            sharp_book=sharp_source_id.split(":", 1)[-1],
+            observed_at_utc=observed_dt.isoformat(), source_id=sharp_source_id,
         )

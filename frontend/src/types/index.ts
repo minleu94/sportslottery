@@ -53,8 +53,10 @@ export interface ParlayRecommendation {
   sharp_parlay_ev_pct?: number
   joint_probability?: number
   sharp_joint_probability?: number
-  is_positive_ev?: boolean
+  has_sharp_benchmark?: boolean
+  joint_probability_validation_status?: string
   sharp_badge?: string
+  is_positive_ev?: boolean
   confidence_score?: number
   is_valid: boolean
 }

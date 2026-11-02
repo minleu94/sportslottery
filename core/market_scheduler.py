@@ -43,6 +43,17 @@ def _api_sport_request_count(leagues: Optional[List[str]]) -> int:
     return max(1, len(supported))
 
 
+def _market_budget_setting(odds_client: Any) -> str:
+    """Use the explicit scheduled allowlist, or the full configured cap for candidate-driven plans."""
+    scheduled = getattr(odds_client, "scheduled_markets", "auto")
+    if not isinstance(scheduled, str) or not scheduled.strip():
+        scheduled = "auto"
+    if scheduled.strip().casefold() in {"auto", "candidate", "candidate_driven"}:
+        configured = getattr(odds_client, "markets", "h2h")
+        return configured.strip() if isinstance(configured, str) and configured.strip() else "h2h"
+    return scheduled.strip()
+
+
 def compute_adaptive_interval_seconds(
     quota_status: Dict[str, Any],
     active_leagues: Optional[List[str]] = None,
@@ -239,7 +250,7 @@ class MarketScheduler:
                 cycle_leagues = self.pipeline.resolve_target_leagues()
             else:
                 cycle_leagues = leagues
-            markets = getattr(self.pipeline.odds_client, "scheduled_markets", "h2h") or "h2h"
+            markets = _market_budget_setting(self.pipeline.odds_client)
             regions = getattr(self.pipeline.odds_client, "regions", "us") or "us"
             region_count = len([r for r in str(regions).split(",") if r.strip()])
             market_count = len([m for m in str(markets).split(",") if m.strip()])
@@ -271,12 +282,24 @@ class MarketScheduler:
                 "target_markets": snapshot_cycle.get("target_markets", markets),
                 "target_regions": snapshot_cycle.get("target_regions", regions),
                 "taiwan_snapshots_logged": snapshot_cycle.get("taiwan_snapshots_logged", 0),
+                "valid_candidate_count": snapshot_cycle.get("valid_candidate_count", 0),
+                "unique_candidate_event_count": snapshot_cycle.get("unique_candidate_event_count", 0),
                 "real_market_quote_count": snapshot_cycle.get("real_market_quote_count", 0),
                 "real_matched_count": snapshot_cycle.get("real_matched_count", 0),
+                "complete_market_benchmark_count": snapshot_cycle.get("complete_market_benchmark_count", 0),
+                "sharp_qualified_count": snapshot_cycle.get("sharp_qualified_count", 0),
+                "ev_count": snapshot_cycle.get("ev_count", 0),
+                "alignment_rejection_counts": snapshot_cycle.get("alignment_rejection_counts", {}),
+                "alignment_rejection_examples": snapshot_cycle.get("alignment_rejection_examples", {}),
+                "query_diagnostics": snapshot_cycle.get("query_diagnostics", {}),
                 "synthetic_market_quote_count": snapshot_cycle.get("synthetic_market_quote_count", 0),
                 "synthetic_matched_count": snapshot_cycle.get("synthetic_matched_count", 0),
                 "qualified_pending_candidate_count": snapshot_cycle.get("qualified_pending_candidate_count", 0),
                 "credits_consumed": snapshot_cycle.get("credits_consumed", 0),
+                "estimated_credits": snapshot_cycle.get("estimated_credits", 0),
+                "official_credits_consumed": snapshot_cycle.get("official_credits_consumed"),
+                "credit_accounting_source": snapshot_cycle.get("credit_accounting_source", "UNKNOWN"),
+                "qualified_market_matches_per_credit": snapshot_cycle.get("qualified_market_matches_per_credit"),
                 "settled_snapshot_count": (result.get("settlement_cycle") or {}).get("settled_count", 0),
                 "unresolved_snapshot_count": (result.get("settlement_cycle") or {}).get("unresolved_count", 0),
                 "result_fetch_errors": (result.get("settlement_cycle") or {}).get("result_fetch_errors", {}),
@@ -392,7 +415,7 @@ class MarketScheduler:
         sched_rem = max(0, rem_est - 50)
         daily_allowance = round(sched_rem / days_left, 1)
         regions = getattr(self.pipeline.odds_client, "regions", "us") or "us"
-        markets = getattr(self.pipeline.odds_client, "scheduled_markets", "h2h") or "h2h"
+        markets = _market_budget_setting(self.pipeline.odds_client)
         estimated_leagues = (
             self.last_cycle_summary.get("target_leagues")
             if self.last_cycle_summary

@@ -29,8 +29,8 @@ from server.api import app
 
 
 @pytest.fixture
-def test_client():
-    profile_manager = ProfileManager()
+def test_client(tmp_path):
+    profile_manager = ProfileManager(db_path=tmp_path / "scheduler-test-profiles.sqlite3")
     admin_profile = profile_manager.get_profile(DEFAULT_PROFILE_ID)
     assert admin_profile is not None
     admin_check = patch.object(ProfileManager, "is_default_admin_pin", return_value=False)
@@ -90,10 +90,68 @@ def test_scheduler_status_estimates_regions_in_cycle_cost(tmp_path):
     assert status["credit_budget"]["estimated_cycle_markets"] == "h2h"
     assert status["credit_budget"]["estimated_cycle_regions"] == "us,eu"
 
-    scheduler.last_cycle_summary = {"credits_consumed": 8, "qualified_pending_candidate_count": 0}
+    scheduler.last_cycle_summary = {
+        "credits_consumed": 8,
+        "qualified_pending_candidate_count": 0,
+        "alignment_rejection_counts": {"ERR_TEAM_NOT_FOUND": 2},
+        "alignment_rejection_examples": {"ERR_TEAM_NOT_FOUND": [{"taiwan_event_id": "sample"}]},
+    }
     scheduler._save_config()
     reloaded = MarketScheduler(pipeline=mock_pipeline, config_path=scheduler.config_path)
     assert reloaded.get_status()["last_cycle_summary"] == scheduler.last_cycle_summary
+
+
+def test_scheduler_auto_market_budget_uses_full_configured_cap(tmp_path):
+    mock_pipeline = MagicMock()
+    mock_pipeline.odds_client.get_source_status.return_value = {
+        "operating_mode": "LIVE_API", "requests_remaining_est": 486,
+    }
+    mock_pipeline.odds_client.regions = "us,eu"
+    mock_pipeline.odds_client.markets = "h2h,spreads,totals"
+    mock_pipeline.odds_client.scheduled_markets = "auto"
+
+    status = MarketScheduler(
+        pipeline=mock_pipeline, config_path=tmp_path / "scheduler_auto_budget.json",
+    ).get_status()
+
+    assert status["credit_budget"]["estimated_cycle_markets"] == "h2h,spreads,totals"
+    assert status["credit_budget"]["next_cycle_estimated_cost"] == 24
+
+
+def test_scheduler_persists_candidate_and_credit_diagnostics(tmp_path):
+    mock_pipeline = MagicMock()
+    mock_pipeline.odds_client.get_source_status.return_value = {
+        "operating_mode": "LIVE_API", "requests_remaining_est": 450,
+    }
+    mock_pipeline.odds_client.regions = "us"
+    mock_pipeline.odds_client.scheduled_markets = "h2h"
+    mock_pipeline.run_full_cycle.return_value = {
+        "operation_status": "SUCCESS",
+        "cycle_status": "QUALIFIED_REAL_MARKET_DATA",
+        "snapshot_cycle": {
+            "target_leagues": ["NBA"], "target_markets": "h2h", "target_regions": "us",
+            "taiwan_snapshots_logged": 4, "valid_candidate_count": 2,
+            "unique_candidate_event_count": 2, "real_market_quote_count": 10,
+            "real_matched_count": 2, "complete_market_benchmark_count": 2,
+            "sharp_qualified_count": 1, "ev_count": 2,
+            "query_diagnostics": {"basketball_nba": {"official_credits_consumed": 1}},
+            "credits_consumed": 1, "estimated_credits": 1,
+            "official_credits_consumed": 1, "credit_accounting_source": "OFFICIAL_HEADERS",
+            "qualified_market_matches_per_credit": 2.0,
+        },
+        "settlement_cycle": {"settled_count": 0, "unresolved_count": 0},
+        "timestamp_utc": "2026-11-02T00:00:00Z",
+    }
+    scheduler = MarketScheduler(pipeline=mock_pipeline, config_path=tmp_path / "scheduler_diagnostics.json")
+
+    scheduler.run_cycle_now(automated=True)
+    status = scheduler.get_status()["last_cycle_summary"]
+
+    assert status["valid_candidate_count"] == 2
+    assert status["complete_market_benchmark_count"] == 2
+    assert status["sharp_qualified_count"] == 1
+    assert status["official_credits_consumed"] == 1
+    assert status["query_diagnostics"]["basketball_nba"]["official_credits_consumed"] == 1
 
 
 def test_scheduler_lifecycle_start_and_stop(tmp_path):
@@ -273,7 +331,11 @@ def _assert_api_scheduler_endpoints(test_client, scheduler):
     assert updated_data["interval_seconds"] == 3600
 
     # 3. GET /api/market/research-summary embeds scheduler status
-    res_sum = test_client.get("/api/market/research-summary")
+    # The summary route normally constructs the full production pipeline and
+    # reads local research files. Keep this endpoint contract test hermetic.
+    with patch("core.market_forward_pipeline.MarketForwardPipeline") as pipeline_cls:
+        pipeline_cls.return_value.get_research_status_summary.return_value = {}
+        res_sum = test_client.get("/api/market/research-summary")
     assert res_sum.status_code == 200
     sum_data = res_sum.json()
     assert "scheduler" in sum_data

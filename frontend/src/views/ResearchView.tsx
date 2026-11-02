@@ -166,6 +166,12 @@ export const ResearchView: React.FC = () => {
   const sampleSize = fwd?.paired_sample_size || 0
   const eligibleEventCount = fwd?.sample_size || 0
   const sched = marketSummary?.scheduler || {}
+  const alignment = marketSummary?.alignment || {}
+  const lastCycle = sched?.last_cycle_summary || {}
+  const minSample = fwd?.minimum_sample_size || 30
+  const rejectionSummary = Object.entries(alignment?.rejection_counts || {})
+    .map(([reason, count]) => `${reason} ${count}`)
+    .join(" · ")
 
   return (
     <motion.div
@@ -190,13 +196,13 @@ export const ResearchView: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Globe className="w-4 h-4 text-slate-400" />
-              <span>國際即時市場情報與前瞻驗證閉環</span>
+              <span>國際市場資料與前瞻驗證狀態</span>
             </CardTitle>
             <div className="flex items-center gap-2">
               {opMode === "LIVE_VERIFIED" || opMode === "LIVE_API" ? (
                 <Badge variant="green" className="gap-1.5 py-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                  LIVE (真實國際市場已驗證)
+                  API 曾成功連線；盤口配對另列
                 </Badge>
               ) : opMode === "KEY_CONFIGURED_UNVERIFIED" ? (
                 <Badge variant="blue" className="gap-1.5 py-0.5">
@@ -232,7 +238,7 @@ export const ResearchView: React.FC = () => {
             {/* 1. Market Live Status */}
             <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>國際盤口來源</span>
+                <span>The Odds API 連線</span>
                 <Activity className="w-3.5 h-3.5 text-slate-400" />
               </div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono">
@@ -293,19 +299,53 @@ export const ResearchView: React.FC = () => {
             {/* 4. Forward Gate Status */}
             <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>模型 / 國際基準配對事件 (N)</span>
-                <span className="text-[11px] font-mono font-medium text-slate-400">門檻 30</span>
+                <span>模型 / Sharp 配對事件 (N)</span>
+                <span className="text-[11px] font-mono font-medium text-slate-400">門檻 {minSample}</span>
               </div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                {sampleSize} / 30
+                {sampleSize} / {minSample}
               </div>
               <div className="text-[11px] truncate">
                 <span className="text-slate-600 dark:text-slate-400 font-medium">
-                  {fwd?.acceptance_gate_qualified ? "已達配對統計驗證條件" : "影子模式：優勢尚未獲得統計支持"}
+                  {fwd?.acceptance_gate_qualified
+                    ? "Sharp 配對差異獲得統計支持，仍需人工審閱"
+                    : `未宣告優勢：${fwd?.statistical_evidence_status || fwd?.status || "尚未評估"}`}
                 </span>
               </div>
               <div className="text-[10px] text-slate-400 truncate">
-                去重賽事 {eligibleEventCount} · Brier 差異 95% CI {fwd?.delta_brier_ci_95?.map((value: number) => value.toFixed(4)).join(" 至 ") || "尚無"}
+                Sharp 配對 {sampleSize} · 國際市場配對 {fwd?.market_paired_sample_size || 0} · 合格事件 {eligibleEventCount}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
+              <div className="text-slate-500 dark:text-slate-400">最近一輪國際盤口</div>
+              <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                {lastCycle.real_market_quote_count > 0
+                  ? `真實報價 ${lastCycle.real_market_quote_count} · 完整市場 ${lastCycle.complete_market_benchmark_count ?? 0}`
+                  : lastCycle.synthetic_market_quote_count > 0 ? "只有合成報價" : "未知／尚未執行"}
+              </div>
+              <div className="mt-1 text-[10px] text-slate-500">
+                Sharp 合格 {lastCycle.sharp_qualified_count ?? 0} · 最近扣點 {lastCycle.official_credits_consumed ?? "未取得官方記帳"}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
+              <div className="text-slate-500 dark:text-slate-400">台彩賽事與國際盤配對</div>
+              <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                候選 {alignment.valid_candidate_count ?? 0} · 對齊 {alignment.real_matched_count ?? 0}
+              </div>
+              <div className="mt-1 text-[10px] text-slate-500 truncate" title={rejectionSummary}>
+                {rejectionSummary || "沒有拒絕原因紀錄"}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
+              <div className="text-slate-500 dark:text-slate-400">前瞻資料品質與模型協定</div>
+              <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                {fwd?.data_quality_status || "尚無資料品質狀態"}
+              </div>
+              <div className="mt-1 text-[10px] text-slate-500 truncate">
+                {fwd?.evaluation_protocol_status || "尚無模型協定狀態"} · Brier 95% CI {fwd?.delta_brier_ci_95?.map((value: number) => value.toFixed(4)).join(" 至 ") || "尚無"}
               </div>
             </div>
           </div>
@@ -390,10 +430,13 @@ export const ResearchView: React.FC = () => {
               </div>
             </div>
             {sched?.last_cycle_summary && (
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-[11px] pt-2 border-t border-sky-500/10">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-2 border-t border-sky-500/10">
                 <div className="text-slate-600 dark:text-slate-300">台彩快照 <strong className="font-mono">{sched.last_cycle_summary.taiwan_snapshots_logged ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">有效候選 <strong className="font-mono">{sched.last_cycle_summary.valid_candidate_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">真實盤口 <strong className="font-mono">{sched.last_cycle_summary.real_market_quote_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">成功對齊 <strong className="font-mono">{sched.last_cycle_summary.real_matched_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">完整市場 <strong className="font-mono">{sched.last_cycle_summary.complete_market_benchmark_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">Sharp 合格 <strong className="font-mono">{sched.last_cycle_summary.sharp_qualified_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">Synthetic <strong className="font-mono">{sched.last_cycle_summary.synthetic_market_quote_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">待結算合格候選 <strong className="font-mono">{sched.last_cycle_summary.qualified_pending_candidate_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">本次扣點 <strong className="font-mono">{sched.last_cycle_summary.credits_consumed ?? 0}</strong></div>
@@ -613,14 +656,13 @@ export const ResearchView: React.FC = () => {
               <span>三向基準比較與影子前瞻閘門 (Three-Way Benchmark & Acceptance Gate)</span>
             </div>
             <span className="text-xs font-mono font-semibold bg-sky-500/10 text-sky-500 px-2.5 py-1 rounded-full">
-              {sampleSize >= 30 ? "ACCEPTANCE GATE ACTIVE" : "SHADOW LOGGING ACTIVE"}
+              {fwd?.acceptance_gate_qualified ? "STATISTICAL EVIDENCE SUPPORTED" : "MODEL REMAINS UNVERIFIED"}
             </span>
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-4 space-y-4">
           <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-            系統嚴格遵守 Phase 4 前瞻驗證承諾：任何新接入之國際市場資料或預測訊號在累積滿 30 筆真實結算樣本前，強制以<strong>影子模式 (Shadow Mode)</strong> 運作，
-            不允許未經考驗的模型單方面調高下注推薦信心。
+            30 筆是最低配對樣本門檻，不代表模型通過。系統還會要求快照完整性、固定的已接受模型版本與協定，以及模型相對 Sharp 基準的 Brier 差異 95% 信賴區間低於 0；未同時滿足時，模型仍列為未驗證。
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -635,12 +677,12 @@ export const ResearchView: React.FC = () => {
             </div>
 
             <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-1">
-              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">基準 2：國際 Sharp 尖銳公允</div>
+              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">基準 2：國際市場基準／合格 Sharp</div>
               <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                Pinnacle / Consensus
+                一般國際市場與 Sharp 分開統計
               </div>
               <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80">
-                去抽水無水公允勝率，量化正期望值 (+EV) 的真實指針。
+                只有通過來源與時間條件的報價才列為 Sharp；它是比較基準，不代表真實勝率或保證正期望值。
               </p>
             </div>
 

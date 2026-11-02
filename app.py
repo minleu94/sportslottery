@@ -367,6 +367,7 @@ if active_tab == NAV_RADAR:
 
     source_statuses = odds_adapter.get_source_status()
     with st.expander("資料來源與賽事身份狀態 (除錯觀測)", expanded=not active_leagues_with_games):
+        st.caption("LIVE / FRESH 只代表台彩來源有回應且資料仍新鮮；本來源面板不表示國際盤已成功配對。研究 API 另列 source status 與 alignment 結果。")
         for aid, status in source_statuses.items():
             name = ALLIANCE_MAP.get(str(aid), str(aid))
             age = status.get("cache_age_minutes")
@@ -825,9 +826,9 @@ elif active_tab == NAV_PARLAY:
 
                 sharp_ev_pct = item.get("sharp_parlay_ev_pct")
                 sharp_badge_html = ""
-                if item.get("is_positive_ev") and sharp_ev_pct is not None:
+                if item.get("has_sharp_benchmark") and item.get("is_positive_ev") and sharp_ev_pct is not None:
                     sharp_badge_html = f"&nbsp; <span style='background:#1b5e20; color:#b9f6ca; border:1px solid #00e676; padding:2px 8px; border-radius:8px; font-weight:bold;'>🔥 國際去水正期望值 (+EV {sharp_ev_pct:+.1f}%)</span>"
-                elif sharp_ev_pct is not None:
+                elif item.get("has_sharp_benchmark") and sharp_ev_pct is not None:
                     badge_text = item.get("sharp_summary_badge", "⚪ 市場中性/負EV")
                     sharp_badge_html = f"&nbsp; <span style='background:#2a2b36; color:#bdbdbd; padding:2px 8px; border-radius:8px; font-weight:bold;'>{badge_text} ({sharp_ev_pct:+.1f}%)</span>"
 
@@ -847,9 +848,9 @@ elif active_tab == NAV_PARLAY:
                             </div>
                         </div>
                         <div style='display:flex; gap:18px; margin-top:10px; padding:6px 12px; background:#1e202e; border-radius:6px; font-size:0.92rem; align-items:center; flex-wrap:wrap;'>
-                            <span>🎯 <b>聯合估計勝率</b>：<span style='color:#4ade80; font-weight:bold;'>{joint_prob_pct:.1f}%</span></span>
+                            <span>🎯 <b>啟發式聯合機率（未驗證）</b>：<span style='color:#cbd5e1; font-weight:bold;'>{joint_prob_pct:.1f}%</span></span>
                             <span>⚖️ <b>打平門檻</b>：<span style='color:#cbd5e1; font-weight:bold;'>{100.0/float(item['total_odds']):.1f}%</span></span>
-                            <span>📊 <b>預期淨利 (EV)</b>：<span style='color:{"#4ade80" if ev_val>0 else "#f87171"}; font-weight:bold;'>{ev_val:+.1f}%</span></span>
+                            <span>📊 <b>估計 EV（未驗證）</b>：<span style='color:#cbd5e1; font-weight:bold;'>{ev_val:+.1f}%</span></span>
                             <span>🛡️ <b>相關性風險</b>：<span style='color:#94a3b8;'>{corr_grade}</span></span>
                         </div>
                     </div>
@@ -979,13 +980,15 @@ elif active_tab == NAV_PARLAY:
 
                 # Expandable Why? Drawer on each parlay ticket
                 with st.expander(f"🔍 查看 No.{idx} 的模型、EV 與原始證據", expanded=False):
-                    sharp_joint_p = item.get("sharp_joint_probability", 0.0) * 100.0
-                    sharp_ev_val = item.get("sharp_parlay_ev_pct", 0.0)
+                    sharp_joint_raw = item.get("sharp_joint_probability") if item.get("has_sharp_benchmark") else None
+                    sharp_ev_val = item.get("sharp_parlay_ev_pct") if item.get("has_sharp_benchmark") else None
+                    sharp_joint_label = f"{float(sharp_joint_raw) * 100.0:.2f}%" if sharp_joint_raw is not None else "尚無合格 Sharp 基準"
+                    sharp_ev_label = f"{float(sharp_ev_val):+.1f}%" if sharp_ev_val is not None else "尚無合格 Sharp 基準"
                     st.write(
                         f"{estimate_label}串關機率：{joint_prob_pct:.2f}%｜"
                         f"{estimate_label}串關 EV：{ev_val:+.1f}%｜"
-                        f"國際去水勝率：{sharp_joint_p:.2f}%｜"
-                        f"國際真實 EV：{sharp_ev_val:+.1f}%｜相關性：{corr_grade}｜訊號：{item['signal_summary']}"
+                        f"Sharp 參考聯合機率：{sharp_joint_label}｜"
+                        f"Sharp 參考 EV：{sharp_ev_label}｜相關性：{corr_grade}｜訊號：{item['signal_summary']}"
                     )
                     st.caption("串關機率含規則式相關性折扣，尚未驗證準確度；模型估計與 EV 不是已證實的勝率或獲利能力。")
                     st.table([{

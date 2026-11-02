@@ -29,6 +29,7 @@ from integrations.experts.playsport_crowd import PlaysportCrowdAdapter
 from integrations.experts.playsport_expert import PlaysportExpertAdapter
 from integrations.odds.betting_splits_client import BettingSplitsClient
 from integrations.odds.sharp_benchmark_odds import SharpBenchmarkOddsAdapter
+from integrations.odds.market_models import MarketBenchmarkEvidence
 
 logger = logging.getLogger(__name__)
 
@@ -87,12 +88,28 @@ class SignalHub:
             logger.warning("Failed to load evidence weights config: %s", exc)
             return {}
 
-    def evaluate_taiwan_leg(self, leg: TaiwanLeg) -> TaiwanLeg:
+    def evaluate_taiwan_leg(
+        self,
+        leg: TaiwanLeg,
+        *,
+        market_benchmark: Optional[MarketBenchmarkEvidence] = None,
+    ) -> TaiwanLeg:
         """Gather all external evidence for a TaiwanLeg and calculate agreement level."""
+        benchmark_cache_key = None
+        if isinstance(market_benchmark, MarketBenchmarkEvidence):
+            benchmark_cache_key = (
+                market_benchmark.canonical_event_id,
+                market_benchmark.source_id,
+                market_benchmark.fair_probability,
+                market_benchmark.sharp_fair_probability,
+                market_benchmark.retrieved_at_utc,
+                market_benchmark.eligible,
+                market_benchmark.is_synthetic,
+            )
         cache_key = (
             leg.event_id, leg.sport, leg.league, leg.market,
             leg.selection, getattr(leg, "side", None), getattr(leg, "line", None),
-            float(leg.taiwan_odds or 0.0), getattr(leg, "odds_scraped_at", "")
+            float(leg.taiwan_odds or 0.0), getattr(leg, "odds_scraped_at", ""), benchmark_cache_key,
         )
         if hasattr(self, "_leg_eval_cache") and cache_key in self._leg_eval_cache:
             return self._leg_eval_cache[cache_key]
@@ -135,13 +152,10 @@ class SignalHub:
         model_signals = self.model_registry.evaluate_leg_across_models(leg)
         signals.extend(model_signals)
 
-        # 5. Sharp Market Benchmark (+EV Quantitative Value Engine)
-        try:
-            sharp_sig = self.sharp_adapter.evaluate_leg(leg)
-            if sharp_sig:
-                signals.append(sharp_sig)
-        except Exception as exc:
-            logger.debug("Sharp benchmark evaluation skipped: %s", exc)
+        # International market evidence is injected by MarketForwardPipeline
+        # after event, market, source, counterpart, and timestamp validation.
+        # The legacy adapter remains constructor-compatible but is not allowed
+        # to manufacture a second, disconnected market vote.
 
         # 6. Public Betting Splits (Tickets % vs Money Handle %)
         try:
@@ -195,14 +209,24 @@ class SignalHub:
         except Exception as exc:
             logger.debug("Betting splits retrieval skipped: %s", exc)
 
-        result = self.synthesize_signals_for_leg(leg, signals)
+        result = self.synthesize_signals_for_leg(leg, signals, market_benchmark=market_benchmark)
         if hasattr(self, "_leg_eval_cache"):
             self._leg_eval_cache[cache_key] = result
         return result
 
-    def synthesize_signals_for_leg(self, leg: TaiwanLeg, signals: List[PredictionSignal]) -> TaiwanLeg:
+    def synthesize_signals_for_leg(
+        self,
+        leg: TaiwanLeg,
+        signals: List[PredictionSignal],
+        *,
+        market_benchmark: Optional[MarketBenchmarkEvidence] = None,
+    ) -> TaiwanLeg:
         """Synthesize a collection of signals for a TaiwanLeg with source-family independence rules."""
         original_evidence = dict(leg.signal_evidence or {})
+        if isinstance(market_benchmark, MarketBenchmarkEvidence):
+            market_dict = market_benchmark.to_dict()
+            leg.signal_evidence = {**original_evidence, "market_benchmark": market_dict}
+            original_evidence = dict(leg.signal_evidence)
         odds = leg.taiwan_odds
         market_implied = 1.0 / odds if odds > 1.0 else 0.5
 
@@ -404,11 +428,13 @@ class SignalHub:
             key=lambda s: (str((s.metadata or {}).get("model_id", s.source_id)), str(s.source_id)),
             default=None,
         )
-        candidate_eval = self.edge_engine.evaluate_leg(leg, signals=model_signals, research_candidate=True)
+        candidate_eval = self.edge_engine.evaluate_leg(
+            leg, signals=model_signals, research_candidate=True, market_benchmark=market_benchmark
+        )
         edge_eval = self.edge_engine.evaluate_leg(leg, signals=[
             s for s in signals if s not in model_signals
         ] + ([champion] if champion is not None else []),
-            direct_accepted_model=champion is not None)
+            direct_accepted_model=champion is not None, market_benchmark=market_benchmark)
         candidate_provenances = []
         for signal in model_signals:
             metadata = signal.metadata or {}
@@ -435,8 +461,28 @@ class SignalHub:
         expert_metadata = expert_signal.metadata if expert_signal else {}
         sharp_metadata = sharp_signal.metadata if sharp_signal else {}
         splits_metadata = splits_signal.metadata if splits_signal else {}
-        is_sharp_synth = bool(sharp_metadata.get("is_synthetic", False))
+        market_benchmark_data = original_evidence.get("market_benchmark") or {}
+        if not isinstance(market_benchmark_data, dict):
+            market_benchmark_data = {}
+        is_sharp_synth = bool(market_benchmark_data.get("is_synthetic", sharp_metadata.get("is_synthetic", False)))
         is_splits_synth = bool(splits_metadata.get("is_synthetic", False))
+        source_qualification = str(market_benchmark_data.get("source_qualification") or "UNAVAILABLE")
+        benchmark_fair_probability = edge_eval.market_fair_probability if edge_eval.details.get("market_benchmark_eligible") else None
+        benchmark_ev = (
+            benchmark_fair_probability * odds - 1.0
+            if benchmark_fair_probability is not None and odds > 1.0 else None
+        )
+        sharp_fair_probability = (
+            market_benchmark_data.get("sharp_fair_probability")
+            if source_qualification == "SHARP_QUALIFIED" and not is_sharp_synth else None
+        )
+        sharp_ev = sharp_fair_probability * odds - 1.0 if sharp_fair_probability is not None and odds > 1.0 else None
+        market_source = market_benchmark_data.get("source_id") if edge_eval.details.get("market_benchmark_eligible") else None
+        observed_times = [
+            observed for source_times in market_benchmark_data.get("market_observation_times", {}).values()
+            if isinstance(source_times, dict) for observed in source_times.values() if observed
+        ]
+        market_observed_at = min(observed_times) if observed_times else None
 
         crowd_ratio = crowd_metadata.get("ratio", original_evidence.get("crowd_ratio", original_evidence.get("consensus_ratio")))
         if crowd_ratio is None and crowd_signal and crowd_signal.score is not None:
@@ -455,7 +501,7 @@ class SignalHub:
                 logger.debug("Line movement analysis skipped: %s", exc)
 
         is_sharp_money_divergence = bool((not is_splits_synth) and splits_divergence and splits_divergence >= 15.0)
-        is_sharp_val = bool((not is_sharp_synth) and sharp_metadata.get("is_value_bet", False))
+        is_sharp_val = bool(sharp_ev is not None and sharp_ev >= 0.02)
 
         evidence_summary: Dict[str, Any] = {
             **original_evidence,
@@ -493,15 +539,20 @@ class SignalHub:
                     "role": "合成測試資料 (不計入正式推薦)" if is_splits_synth else "國際投注傾向（籌碼分佈非勝率）",
                 },
                 "market_benchmark": {
-                    "fair_probability": None if is_sharp_synth else sharp_metadata.get("sharp_fair_probability"),
-                    "synthetic_fair_probability": sharp_metadata.get("sharp_fair_probability") if is_sharp_synth else None,
-                    "expected_value_pct": None if is_sharp_synth else sharp_metadata.get("expected_value_pct"),
-                    "synthetic_expected_value_pct": sharp_metadata.get("expected_value_pct") if is_sharp_synth else None,
-                    "sharp_book": sharp_metadata.get("sharp_book"),
-                    "is_value_bet": is_sharp_val,
+                    "fair_probability": benchmark_fair_probability,
+                    "synthetic_fair_probability": market_benchmark_data.get("fair_probability") if is_sharp_synth else None,
+                    "expected_value_pct": benchmark_ev * 100.0 if benchmark_ev is not None else None,
+                    "synthetic_expected_value_pct": (market_benchmark_data.get("fair_probability") * odds - 1.0) * 100.0 if is_sharp_synth and market_benchmark_data.get("fair_probability") is not None else None,
+                    "sharp_fair_probability": sharp_fair_probability,
+                    "sharp_expected_value_pct": sharp_ev * 100.0 if sharp_ev is not None else None,
+                    "sharp_books": market_benchmark_data.get("sharp_qualified_source_ids", []),
+                    "source_qualification": source_qualification,
+                    "bookmaker_ids": market_benchmark_data.get("bookmaker_ids", []),
+                    "freshness_status": market_benchmark_data.get("freshness_status", "UNKNOWN"),
+                    "is_value_bet": bool(benchmark_ev is not None and benchmark_ev >= 0.02),
                     "classification": "MARKET_BENCHMARK",
                     "is_synthetic": is_sharp_synth,
-                    "role": "合成測試資料 (不計入正式推薦)" if is_sharp_synth else "國際市場公允定價（去水公允機率）",
+                    "role": "合成測試資料 (不計入正式推薦)" if is_sharp_synth else ("可追溯的國際市場基準；非 Sharp 資格" if source_qualification != "SHARP_QUALIFIED" else "符合來源、盤口完整性及時間條件的 Sharp 基準"),
                 },
                 "statistical_models": {
                     "candidate_count": len(model_signals),
@@ -513,12 +564,22 @@ class SignalHub:
             "market_implied_pct": round(market_implied * 100.0, 1),
             "market_implied_probability": round(market_implied, 3),
             "market_fair_probability": edge_eval.market_fair_probability,
-            "sharp_fair_probability": None if is_sharp_synth else sharp_metadata.get("sharp_fair_probability"),
-            "sharp_expected_value_pct": None if is_sharp_synth else sharp_metadata.get("expected_value_pct"),
+            "market_fair_method": edge_eval.details["market_fair_method"],
+            "market_benchmark_fair_probability": benchmark_fair_probability,
+            "market_benchmark_ev": benchmark_ev,
+            "market_benchmark_ev_pct": benchmark_ev * 100.0 if benchmark_ev is not None else None,
+            "market_benchmark_status": "AVAILABLE" if edge_eval.details.get("market_benchmark_eligible") else "UNAVAILABLE",
+            "international_market_complete": bool(edge_eval.details.get("market_benchmark_eligible")),
+            "market_source_qualification": source_qualification,
+            "market_source": market_source,
+            "market_observed_at": market_observed_at,
+            "is_market_synthetic": is_sharp_synth,
+            "sharp_fair_probability": sharp_fair_probability,
+            "sharp_expected_value_pct": sharp_ev * 100.0 if sharp_ev is not None else None,
             "is_sharp_value_bet": is_sharp_val,
-            "sharp_value_grade": "SYNTHETIC_TEST" if is_sharp_synth else sharp_metadata.get("value_grade", "NONE"),
-            "sharp_edge_pp": None if is_sharp_synth else sharp_metadata.get("edge_pp"),
-            "sharp_book": sharp_metadata.get("sharp_book"),
+            "sharp_value_grade": "SYNTHETIC_TEST" if is_sharp_synth else ("POSITIVE_EV" if is_sharp_val else "NONE"),
+            "sharp_edge_pp": (sharp_fair_probability - market_implied) * 100.0 if sharp_fair_probability is not None else None,
+            "sharp_book": market_benchmark_data.get("sharp_qualified_source_ids", []),
             "model_probability": edge_eval.consensus_probability if edge_eval.model_probability_raw is not None else None,
             "model_probability_raw": edge_eval.model_probability_raw,
             "model_probability_calibrated": edge_eval.model_probability_calibrated,

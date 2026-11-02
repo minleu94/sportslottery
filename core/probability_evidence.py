@@ -7,10 +7,12 @@ from typing import Any
 
 from probability.calibration import inv_logit, logit
 from core.model_acceptance import acceptance_matches_signal
+from integrations.odds.market_models import MarketBenchmarkEvidence
 
 
 def evaluate_evidence(engine: Any, leg: Any, signals: Any = None, opposing_odds: Any = None,
-                      *, research_candidate: bool = False, direct_accepted_model: bool = False):
+                      *, research_candidate: bool = False, direct_accepted_model: bool = False,
+                      market_benchmark: Any = None):
     from core.edge_engine import ProbabilityEdgeEvaluation
 
     odds = float(leg.taiwan_odds)
@@ -23,10 +25,39 @@ def evaluate_evidence(engine: Any, leg: Any, signals: Any = None, opposing_odds:
         outcomes = {}
     fair_method = "BREAKEVEN_BASELINE_NOT_DEVIGGED"
     fair = market_prob
+    market_baseline_source = "TAIWAN_BREAKEVEN_ONLY"
+    benchmark_eligible = False
+    benchmark_source_qualification = "UNAVAILABLE"
+    benchmark_bookmaker_count = 0
+    if isinstance(market_benchmark, MarketBenchmarkEvidence):
+        benchmark_source_qualification = str(market_benchmark.source_qualification or "UNAVAILABLE")
+        try:
+            benchmark_probability = float(market_benchmark.fair_probability)
+        except (TypeError, ValueError, OverflowError):
+            benchmark_probability = float("nan")
+        benchmark_eligible = bool(
+            market_benchmark.eligible is True
+            and market_benchmark.complete is True
+            and market_benchmark.is_synthetic is False
+            and market_benchmark.source_id.startswith("the_odds_api:")
+            and benchmark_source_qualification in {"INTERNATIONAL_MARKET", "SHARP_QUALIFIED"}
+            and math.isfinite(benchmark_probability)
+            and 0.0 < benchmark_probability < 1.0
+            and bool(market_benchmark.bookmaker_ids)
+        )
+        if benchmark_eligible:
+            fair = benchmark_probability
+            fair_method = market_benchmark.devig_method or "INTERNATIONAL_MARKET_DEVIG"
+            market_baseline_source = market_benchmark.source_id
+            benchmark_bookmaker_count = len(set(market_benchmark.bookmaker_ids))
     expected_sides = {"主", "客", "和"} if leg.sport == "soccer" and leg.market in {"不讓分", "和局", "獨贏"} else (
         {"大", "小"} if leg.market == "大小" else {"主", "客"}
     )
-    if evidence.get("market_complete") and set(outcomes) == expected_sides and leg.side in outcomes:
+    if benchmark_eligible:
+        # A typed, pipeline-qualified external benchmark takes precedence over
+        # any Taiwan-only outcome prices attached to the leg.
+        pass
+    elif evidence.get("market_complete") and set(outcomes) == expected_sides and leg.side in outcomes:
         try:
             values = {side: float(value) for side, value in outcomes.items()}
             if all(math.isfinite(value) and value > 1 for value in values.values()) and abs(values[leg.side] - odds) < 1e-8:
@@ -99,6 +130,10 @@ def evaluate_evidence(engine: Any, leg: Any, signals: Any = None, opposing_odds:
         "independent_model_count": len(groups), "model_count": len(groups),
         "excluded_models": excluded,
         "market_fair_method": fair_method,
+        "market_baseline_source": market_baseline_source,
+        "market_benchmark_eligible": benchmark_eligible,
+        "market_source_qualification": benchmark_source_qualification,
+        "market_benchmark_bookmaker_count": benchmark_bookmaker_count,
         "probability_status": ("UNVALIDATED_MODEL_ESTIMATE" if research_candidate else
                                ("CALIBRATED_MODEL_ESTIMATE" if direct_accepted_model else
                                 "UNVALIDATED_MODEL_FUSION_ESTIMATE")) if model_prob is not None else "MARKET_BASELINE_ONLY",

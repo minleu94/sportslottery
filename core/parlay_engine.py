@@ -361,10 +361,15 @@ class ParlayEngine:
                     "naive_joint_probability": round(corr.naive_joint_probability, 6),
                     "parlay_expected_value": round(corr.parlay_expected_value, 4),
                     "parlay_ev_pct": round(corr.parlay_ev_pct, 1),
-                    "sharp_parlay_ev": sharp_eval.get("sharp_parlay_ev", 0.0),
-                    "sharp_parlay_ev_pct": sharp_eval.get("sharp_parlay_ev_pct", 0.0),
-                    "sharp_joint_probability": sharp_eval.get("sharp_joint_probability", 0.0),
-                    "is_positive_ev": sharp_eval.get("is_positive_ev", False) or corr.parlay_expected_value > 0,
+                    "sharp_parlay_ev": sharp_eval.get("sharp_parlay_ev"),
+                    "sharp_parlay_ev_pct": sharp_eval.get("sharp_parlay_ev_pct"),
+                    "sharp_joint_probability": sharp_eval.get("sharp_joint_probability"),
+                    "has_sharp_benchmark": bool(sharp_eval.get("has_sharp_benchmark", False)),
+                    "is_positive_ev": bool(sharp_eval.get("has_sharp_benchmark", False)
+                                            and sharp_eval.get("is_positive_ev", False)),
+                    "joint_probability_validation_status": getattr(
+                        corr, "joint_probability_validation_status", "UNVALIDATED_HEURISTIC"
+                    ),
                     "value_legs_count": sharp_eval.get("value_legs_count", 0),
                     "sharp_badge": sharp_eval.get("summary_badge", ""),
                     "correlation_penalty": round(corr.correlation_penalty, 4),

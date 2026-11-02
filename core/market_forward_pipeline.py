@@ -20,22 +20,29 @@ import logging
 import math
 import threading
 import time
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from core.forward_evaluation_engine import ForwardEvaluationEngine, StrategyComparisonReport
+from core.forward_evaluation_engine import (
+    ForwardEvaluationEngine,
+    MIN_FORWARD_EVALUATION_SAMPLE,
+    StrategyComparisonReport,
+    _validated_market_probabilities,
+)
 from core.market_aligner import MarketAligner
 from core.market_fair_odds import BookmakerQuote, MarketFairOddsEngine
 from core.persistence import iter_jsonl
 from core.settlement_engine import SettlementEngine
 from core.signal_hub import SignalHub
-from core.snapshot_logger import PredictionSnapshotLogger
+from core.snapshot_logger import PredictionSnapshotLogger, compute_prediction_payload_hash
 from core.bet_validation import parse_aware_time
+from core.identity.league_mapping import normalize_league_and_sport
 from integrations.common.models import TaiwanLeg
-from integrations.odds.market_models import MarketAlignmentStatus, MarketOddsSnapshot
+from integrations.odds.market_models import MarketAlignmentStatus, MarketBenchmarkEvidence, MarketOddsSnapshot
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
-from integrations.odds.the_odds_api import TheOddsApiClient
+from integrations.odds.the_odds_api import SPORT_KEY_MAP, TheOddsApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +54,41 @@ _summary_cache_time: float = 0
 _summary_cache_lock = threading.Lock()
 
 
+def _alignment_summary_from_scheduler_status(scheduler_status: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Expose quote alignment separately from Odds API source availability."""
+    latest_cycle = (scheduler_status or {}).get("last_cycle_summary") or {}
+    if not latest_cycle:
+        return {"status": "NO_RECORDED_CYCLE"}
+    matched = int(latest_cycle.get("real_matched_count", 0) or 0)
+    return {
+        "status": "REAL_QUOTES_MATCHED" if matched else "NO_REAL_QUOTES_MATCHED",
+        "real_matched_count": matched,
+        "taiwan_snapshots_logged": latest_cycle.get("taiwan_snapshots_logged", 0),
+        "valid_candidate_count": latest_cycle.get("valid_candidate_count", 0),
+        "unique_candidate_event_count": latest_cycle.get("unique_candidate_event_count", 0),
+        "real_market_quote_count": latest_cycle.get("real_market_quote_count", 0),
+        "complete_market_benchmark_count": latest_cycle.get("complete_market_benchmark_count", 0),
+        "sharp_qualified_count": latest_cycle.get("sharp_qualified_count", 0),
+        "ev_count": latest_cycle.get("ev_count", 0),
+        "rejection_counts": latest_cycle.get("alignment_rejection_counts", {}),
+        "rejection_examples": latest_cycle.get("alignment_rejection_examples", {}),
+        "query_diagnostics": latest_cycle.get("query_diagnostics", {}),
+        "official_credits_consumed": latest_cycle.get("official_credits_consumed"),
+        "estimated_credits": latest_cycle.get("estimated_credits", 0),
+        "credit_accounting_source": latest_cycle.get("credit_accounting_source", "UNKNOWN"),
+        "cycle_timestamp_utc": latest_cycle.get("timestamp_utc"),
+    }
+
+
 class MarketForwardPipeline:
     """End-to-end continuous market intelligence and prospective validation engine."""
+
+    _MARKET_TO_API = {
+        "不讓分": "h2h", "和局": "h2h", "獨贏": "h2h", "勝負": "h2h",
+        "moneyline": "h2h", "h2h": "h2h",
+        "讓分": "spreads", "讓球": "spreads", "spread": "spreads", "spreads": "spreads",
+        "大小": "totals", "大小分": "totals", "總分": "totals", "total": "totals", "totals": "totals",
+    }
 
     def __init__(
         self,
@@ -87,6 +127,313 @@ class MarketForwardPipeline:
             return list(active) if active else ["NBA", "SOCCER"]
         except Exception:
             return ["MLB", "NBA", "NFL", "SOCCER"]
+
+    @staticmethod
+    def _candidate_query_key(league: str) -> Optional[str]:
+        """Resolve only leagues the configured Odds API client can query."""
+        raw = str(league or "").strip()
+        key = SPORT_KEY_MAP.get(raw.upper()) or SPORT_KEY_MAP.get(raw.lower())
+        if key:
+            return key
+        # The adapter uses provider-facing aliases for a few canonical league names.
+        canonical_aliases = {
+            "PREMIER": "EPL",
+            "LALIGA": "LALIGA",
+            "CHAMPIONS": "CHAMPIONS_LEAGUE",
+        }
+        if raw.upper() in canonical_aliases:
+            return SPORT_KEY_MAP.get(canonical_aliases[raw.upper()])
+        canonical, _ = normalize_league_and_sport(raw)
+        alias = canonical_aliases.get(canonical)
+        return SPORT_KEY_MAP.get(alias) if alias else None
+
+    @classmethod
+    def _api_query_league(cls, league: str) -> Optional[str]:
+        """Return a concrete client-supported league label for a sport key."""
+        key = cls._candidate_query_key(league)
+        if not key:
+            return None
+        preferred = {
+            "baseball_mlb": "MLB",
+            "basketball_nba": "NBA",
+            "americanfootball_nfl": "NFL",
+            "soccer_epl": "EPL",
+            "soccer_spain_la_liga": "LALIGA",
+            "soccer_uefa_champs_league": "CHAMPIONS_LEAGUE",
+            "soccer_germany_bundesliga": "BUNDESLIGA",
+            "soccer_italy_serie_a": "SERIE_A",
+        }
+        return preferred.get(key)
+
+    @staticmethod
+    def _split_markets(value: Any) -> set[str]:
+        if isinstance(value, str):
+            return {part.strip().casefold() for part in value.split(",") if part.strip()}
+        if isinstance(value, (list, tuple, set)):
+            return {str(part).strip().casefold() for part in value if str(part).strip()}
+        return set()
+
+    def _allowed_scheduled_markets(self) -> set[str]:
+        """Return markets both enabled by the client cap and schedule policy."""
+        cap = self._split_markets(getattr(self.odds_client, "markets", "h2h"))
+        if not cap:
+            cap = {"h2h"}
+        scheduled = getattr(self.odds_client, "scheduled_markets", "auto")
+        if not isinstance(scheduled, str) or scheduled.strip().casefold() in {"", "auto", "candidate", "candidate_driven"}:
+            return cap
+        return self._split_markets(scheduled) & cap
+
+    @classmethod
+    def _candidate_rejection_reason(
+        cls,
+        leg: TaiwanLeg,
+        query_league: str,
+        target_markets: str,
+    ) -> Optional[str]:
+        """Return why a Taiwan leg cannot produce a comparable Odds API query."""
+        if not str(leg.event_id or "").strip():
+            return "MISSING_EVENT_ID"
+        if str(getattr(leg, "odds_status", "UNKNOWN") or "UNKNOWN").upper() not in {"LIVE", "FRESH"}:
+            return "TAIWAN_ODDS_NOT_FRESH"
+        if bool(getattr(leg, "is_synthetic", False)) or bool((getattr(leg, "signal_evidence", None) or {}).get("is_synthetic")):
+            return "SYNTHETIC_TAIWAN_ODDS"
+        if parse_aware_time(leg.start_time_utc) is None:
+            return "INVALID_OR_MISSING_START_TIME"
+        leg_key = cls._candidate_query_key(leg.league)
+        target_label = str(query_league or "").strip().upper()
+        target_key = cls._candidate_query_key(query_league)
+        if not target_key or not leg_key:
+            return "UNSUPPORTED_OR_MISMATCHED_LEAGUE"
+        if target_label == "SOCCER":
+            if not leg_key.startswith("soccer_") or str(leg.league or "").strip().upper() == "SOCCER":
+                return "UNSUPPORTED_OR_MISMATCHED_LEAGUE"
+        elif target_key != leg_key:
+            return "UNSUPPORTED_OR_MISMATCHED_LEAGUE"
+
+        key_to_sport = {
+            "baseball": "baseball",
+            "basketball": "basketball",
+            "americanfootball": "football",
+            "soccer": "soccer",
+        }
+        expected_sport = key_to_sport.get(leg_key.split("_")[0])
+        supplied_sport = str(leg.sport or "").strip().casefold().replace(" ", "")
+        sport_aliases = {"americanfootball": "football", "football": "football"}
+        supplied_sport = sport_aliases.get(supplied_sport, supplied_sport)
+        if not expected_sport or supplied_sport != expected_sport:
+            return "SPORT_LEAGUE_MISMATCH"
+
+        if not str(leg.home_team or "").strip() or not str(leg.away_team or "").strip():
+            return "MISSING_TEAMS"
+        if str(leg.home_team).strip() in {"主隊", "主队"} or str(leg.away_team).strip() in {"客隊", "客队"}:
+            return "MISSING_TEAMS"
+        if not str(leg.selection or "").strip():
+            return "MISSING_SELECTION"
+
+        api_market = cls._MARKET_TO_API.get(str(leg.market or "").strip().casefold())
+        if not api_market:
+            return "UNSUPPORTED_MARKET"
+        requested = cls._split_markets(target_markets)
+        if api_market not in requested:
+            return "MARKET_NOT_ALLOWED"
+        side = str(leg.side or "").strip().casefold()
+        valid_sides = {
+            "h2h": {"主", "客", "和", "home", "away", "draw"},
+            "spreads": {"主", "客", "home", "away"},
+            "totals": {"大", "小", "大分", "小分", "over", "under"},
+        }
+        if side not in valid_sides[api_market]:
+            return "INVALID_SELECTION_SIDE"
+        if api_market in {"spreads", "totals"}:
+            try:
+                if leg.line is None or not math.isfinite(float(leg.line)):
+                    return "MISSING_OR_INVALID_LINE"
+            except (TypeError, ValueError, OverflowError):
+                return "MISSING_OR_INVALID_LINE"
+        try:
+            odds = float(leg.taiwan_odds)
+        except (TypeError, ValueError, OverflowError):
+            return "INVALID_TAIWAN_ODDS"
+        if not math.isfinite(odds) or odds <= 1.0:
+            return "INVALID_TAIWAN_ODDS"
+        return None
+
+    @staticmethod
+    def _quote_freshness(observed_times: List[Optional[str]]) -> str:
+        parsed = [parse_aware_time(value) for value in observed_times]
+        if not parsed or any(value is None for value in parsed):
+            return "UNKNOWN"
+        now = datetime.now(timezone.utc)
+        ages = [(now - value).total_seconds() for value in parsed if value is not None]
+        if any(age < -300 or age > 900 for age in ages):
+            return "STALE"
+        if any(age > 300 for age in ages):
+            return "AGING"
+        if any(age > 120 for age in ages):
+            return "FRESH"
+        return "LIVE"
+
+    def _build_market_benchmark_evidence(
+        self,
+        leg: TaiwanLeg,
+        primary: MarketOddsSnapshot,
+        market_quotes: List[MarketOddsSnapshot],
+        *,
+        taiwan_odds: float,
+    ) -> Optional[MarketBenchmarkEvidence]:
+        """Build a same-event, complete-market benchmark from verified API books."""
+        provider_quotes = [
+            quote for quote in market_quotes
+            if quote.event_id == primary.event_id
+            and quote.market_type == primary.market_type
+            and not quote.is_synthetic
+            and quote.source_type.upper() in {"BOOKMAKER", "EXCHANGE"}
+            and quote.source_id.startswith("the_odds_api:")
+            and quote.decimal_odds > 1.0
+        ]
+        matching_primaries = [
+            quote for quote in provider_quotes
+            if quote.selection == primary.selection
+            and (
+                quote.line is None and primary.line is None
+                or quote.line is not None and primary.line is not None
+                and math.isclose(quote.line, primary.line, abs_tol=0.01)
+            )
+        ]
+
+        bookmaker_quotes: List[BookmakerQuote] = []
+        bookmaker_rows: List[Dict[str, Any]] = []
+        sharp_quotes: List[BookmakerQuote] = []
+        sharp_sources: List[str] = []
+        raw_outcome_odds: Dict[str, Dict[str, float]] = {}
+        observation_times: Dict[str, Dict[str, Optional[str]]] = {}
+        retrieval_times: List[datetime] = []
+        all_observed: List[Optional[str]] = []
+        sharp_book_ids = {
+            str(book).strip().casefold()
+            for book in getattr(self.odds_client, "sharp_qualified_books", ["pinnacle"])
+            if str(book).strip()
+        }
+
+        for candidate in matching_primaries:
+            same_book = [quote for quote in provider_quotes if quote.source_id == candidate.source_id]
+            is_three_way = (
+                candidate.market_type == "MONEYLINE"
+                and any(quote.event_id == candidate.event_id
+                        and quote.market_type == candidate.market_type
+                        and quote.selection == "draw" for quote in same_book)
+            )
+            quote = self._build_fair_odds_quote(candidate, same_book, is_three_way)
+            if quote is None:
+                continue
+            if candidate.market_type == "MONEYLINE":
+                quote_times = list(same_book)
+            elif candidate.market_type == "SPREAD" and candidate.line is not None:
+                opposing_selection = "away" if candidate.selection == "home" else "home"
+                quote_times = [
+                    item for item in same_book
+                    if (item.selection == candidate.selection and item.line is not None
+                        and math.isclose(item.line, candidate.line, abs_tol=0.01))
+                    or (item.selection == opposing_selection and item.line is not None
+                        and math.isclose(item.line, -candidate.line, abs_tol=0.01))
+                ]
+            elif candidate.market_type == "TOTAL" and candidate.line is not None:
+                quote_times = [
+                    item for item in same_book
+                    if item.selection in {"over", "under"} and item.line is not None
+                    and math.isclose(item.line, candidate.line, abs_tol=0.01)
+                ]
+            else:
+                quote_times = []
+            times = [item.observed_at_utc for item in quote_times]
+            freshness = self._quote_freshness(times)
+            if freshness in {"UNKNOWN", "STALE"}:
+                continue
+            result = self.fair_engine.calculate_fair_odds(
+                taiwan_odds=taiwan_odds,
+                benchmark_quotes=[quote],
+                observed_at=candidate.observed_at_utc,
+            )
+            if result is None:
+                continue
+
+            bookmaker_id = candidate.source_id.split(":", 1)[-1].casefold()
+            sharp_qualified = bookmaker_id in sharp_book_ids
+            bookmaker_quotes.append(quote)
+            bookmaker_rows.append({
+                "source_id": candidate.source_id,
+                "bookmaker_id": bookmaker_id,
+                "source_type": candidate.source_type,
+                "outcome_odds": {item.selection: item.decimal_odds for item in quote_times},
+                "observed_at_utc": {item.selection: item.observed_at_utc for item in quote_times},
+                "retrieved_at_utc": max((item.retrieved_at_utc for item in quote_times), default=None),
+                "fair_probability": result.market_fair_prob,
+                "devig_method": result.devig_method,
+                "freshness_status": freshness,
+                "sharp_qualified": sharp_qualified,
+            })
+            raw_outcome_odds[candidate.source_id] = {
+                item.selection: item.decimal_odds for item in quote_times
+            }
+            observation_times[candidate.source_id] = {
+                item.selection: item.observed_at_utc for item in quote_times
+            }
+            all_observed.extend(times)
+            for item in quote_times:
+                retrieved = parse_aware_time(item.retrieved_at_utc)
+                if retrieved:
+                    retrieval_times.append(retrieved)
+            if sharp_qualified:
+                sharp_quotes.append(quote)
+                sharp_sources.append(candidate.source_id)
+
+        if not bookmaker_quotes:
+            return None
+        fair_result = self.fair_engine.calculate_fair_odds(
+            taiwan_odds=taiwan_odds,
+            benchmark_quotes=bookmaker_quotes,
+            observed_at=primary.observed_at_utc,
+        )
+        if fair_result is None:
+            return None
+        sharp_result = self.fair_engine.calculate_fair_odds(
+            taiwan_odds=taiwan_odds,
+            benchmark_quotes=sharp_quotes,
+            observed_at=primary.observed_at_utc,
+        ) if sharp_quotes else None
+        kickoff = parse_aware_time(primary.start_time_utc)
+        canonical_event_id = ":".join((
+            str(leg.sport or "").casefold(),
+            str(leg.league or "").casefold(),
+            str(primary.event_id),
+            kickoff.isoformat() if kickoff else "UNKNOWN_KICKOFF",
+        ))
+        return MarketBenchmarkEvidence(
+            taiwan_event_id=str(leg.event_id),
+            taiwan_selection=str(leg.selection),
+            canonical_event_id=canonical_event_id,
+            sport=leg.sport,
+            league=leg.league,
+            market_type=primary.market_type,
+            selection=primary.selection,
+            line=primary.line,
+            source_id="the_odds_api:consensus",
+            bookmaker_ids=sorted({row["bookmaker_id"] for row in bookmaker_rows}),
+            raw_outcome_odds=raw_outcome_odds,
+            market_observation_times=observation_times,
+            retrieved_at_utc=max(retrieval_times).isoformat() if retrieval_times else datetime.now(timezone.utc).isoformat(),
+            is_synthetic=False,
+            devig_method=fair_result.devig_method,
+            fair_probability=fair_result.market_fair_prob,
+            sharp_fair_probability=sharp_result.market_fair_prob if sharp_result else None,
+            source_qualification="SHARP_QUALIFIED" if sharp_result else "INTERNATIONAL_MARKET",
+            complete=True,
+            freshness_status=self._quote_freshness(all_observed),
+            eligible=True,
+            eligibility_reason=None,
+            sharp_qualified_source_ids=sorted(set(sharp_sources)),
+            bookmaker_evidence=bookmaker_rows,
+        )
 
     @staticmethod
     def _build_fair_odds_quote(
@@ -176,107 +523,274 @@ class MarketForwardPipeline:
         force_refresh: bool = False,
         automated: bool = False,
     ) -> Dict[str, Any]:
-        """Fetch live Taiwan legs, align with international sharp markets, and log sealed snapshots."""
+        """Fetch only candidate-required markets, align evidence, and log sealed snapshots."""
         target_leagues = self.resolve_target_leagues(leagues)
+        initial_status = self.odds_client.get_source_status()
+        usage_before = initial_status.get("requests_used_this_month", 0)
+        metrics_before = initial_status.get("request_metrics", {}) or {}
+        allowed_markets = self._allowed_scheduled_markets()
+        market_order = ("h2h", "spreads", "totals")
+        region_count = len(self._split_markets(getattr(self.odds_client, "regions", "us"))) or 1
 
-        total_legs_processed = 0
-        total_matched = 0
-        total_unmatched = 0
-        total_snapshots_logged = 0
-        real_market_quote_count = 0
-        synthetic_market_quote_count = 0
-        real_matched_count = 0
-        synthetic_matched_count = 0
-        qualified_pending_candidate_count = 0
-
-        usage_before = self.odds_client.get_source_status().get("requests_used_this_month", 0)
-
-        target_markets = getattr(self.odds_client, "scheduled_markets", "h2h") or "h2h"
-
+        raw_by_league: Dict[str, List[TaiwanLeg]] = {}
+        candidate_records: List[tuple[str, TaiwanLeg, str, str]] = []
+        seen_candidate_legs: set[tuple[str, str, str, str, str, str]] = set()
+        query_groups: Dict[str, Dict[str, Any]] = {}
+        league_query_diagnostics: Dict[str, Dict[str, Any]] = {}
         for league in target_leagues:
             try:
-                raw_legs = self.odds_adapter.get_taiwan_legs([league], force_refresh=force_refresh)
-                int_odds = self.odds_client.fetch_market_odds(
-                    league,
-                    markets=target_markets,
-                    force_refresh=force_refresh,
-                    automated=automated,
-                )
-                synthetic_market_quote_count += sum(1 for quote in int_odds if quote.is_synthetic)
-                real_market_quote_count += sum(1 for quote in int_odds if not quote.is_synthetic)
+                raw_legs = list(self.odds_adapter.get_taiwan_legs([league], force_refresh=force_refresh) or [])
             except Exception as exc:
-                logger.warning("Pipeline fetch error for %s: %s", league, exc)
-                continue
+                logger.warning("Taiwan candidate retrieval failed for %s: %s", league, exc)
+                raw_legs = []
+                league_query_diagnostics[league] = {
+                    "raw_leg_count": 0, "valid_candidate_count": 0, "valid_event_count": 0,
+                    "rejected_leg_count": 0, "skip_reason_counts": {"TAIWAN_SOURCE_ERROR": 1},
+                    "query_called": False, "client_call_count": 0, "network_request_count": 0,
+                    "cache_hit_count": 0, "estimated_credits": 0, "actual_credits": 0,
+                }
+            raw_by_league[league] = raw_legs
+            rejection_counts: Counter[str] = Counter()
+            valid_count = 0
+            valid_events: set[str] = set()
+            for leg in raw_legs:
+                reason = self._candidate_rejection_reason(leg, league, ",".join(sorted(allowed_markets)))
+                if reason:
+                    rejection_counts[reason] += 1
+                    continue
+                api_market = self._MARKET_TO_API.get(str(leg.market or "").strip().casefold())
+                query_key = self._candidate_query_key(leg.league)
+                client_league = self._api_query_league(leg.league)
+                if not api_market or not query_key or not client_league:
+                    rejection_counts["UNSUPPORTED_OR_MISMATCHED_LEAGUE"] += 1
+                    continue
+                try:
+                    normalized_line = str(float(leg.line)) if leg.line is not None else ""
+                except (TypeError, ValueError, OverflowError):
+                    normalized_line = str(leg.line or "").strip()
+                candidate_fingerprint = (
+                    str(leg.sport).casefold(), query_key, str(leg.event_id), api_market,
+                    str(leg.side).strip().casefold(), normalized_line,
+                )
+                if candidate_fingerprint in seen_candidate_legs:
+                    rejection_counts["DUPLICATE_CANDIDATE_LEG"] += 1
+                    continue
+                seen_candidate_legs.add(candidate_fingerprint)
+                valid_count += 1
+                valid_events.add(str(leg.event_id))
+                candidate_records.append((league, leg, query_key, api_market))
+                group = query_groups.setdefault(query_key, {
+                    "client_league": client_league,
+                    "markets": set(),
+                    "records": [],
+                })
+                group["markets"].add(api_market)
+                group["records"].append((league, leg))
+            if league not in league_query_diagnostics:
+                league_query_diagnostics[league] = {
+                    "raw_leg_count": len(raw_legs), "valid_candidate_count": valid_count,
+                    "valid_event_count": len(valid_events), "rejected_leg_count": len(raw_legs) - valid_count,
+                    "skip_reason_counts": dict(rejection_counts), "query_called": False,
+                    "client_call_count": 0, "network_request_count": 0, "cache_hit_count": 0,
+                    "estimated_credits": 0, "actual_credits": 0,
+                }
+            if not valid_count:
+                if not raw_legs:
+                    league_query_diagnostics[league]["skip_reason_counts"] = {"NO_TAIWAN_CANDIDATES": 1}
+                logger.info("Skipping Odds API odds query for %s: no valid Taiwan candidates; 0 estimated credits", league)
 
+        query_diagnostics: Dict[str, Dict[str, Any]] = {}
+        quotes_by_sport_key: Dict[str, List[MarketOddsSnapshot]] = {}
+        requested_market_union: set[str] = set()
+        client_invocation_count = 0
+        network_request_count = 0
+        cache_hit_count = 0
+        estimated_credits = 0
+        official_credits_consumed = 0
+        official_credit_accounting_complete = True
+        for query_key, group in query_groups.items():
+            markets = [market for market in market_order if market in group["markets"]]
+            market_string = ",".join(markets)
+            requested_market_union.update(markets)
+            estimated_cost = len(markets) * region_count
+            estimated_credits += estimated_cost
+            client_invocation_count += 1
+            before = self.odds_client.get_source_status()
+            before_metrics = before.get("request_metrics", {}) or {}
+            before_usage = before.get("requests_used_this_month", 0)
+            try:
+                quotes = list(self.odds_client.fetch_market_odds(
+                    group["client_league"], markets=market_string,
+                    force_refresh=force_refresh, automated=automated,
+                ) or [])
+                query_error = None
+            except Exception as exc:
+                logger.warning("Odds API market query failed for %s: %s", query_key, exc)
+                quotes = []
+                query_error = str(exc)
+            after = self.odds_client.get_source_status()
+            after_metrics = after.get("request_metrics", {}) or {}
+            try:
+                query_network_requests = max(0, int(after_metrics.get("api_requests", 0) or 0) - int(before_metrics.get("api_requests", 0) or 0))
+                query_cache_hits = max(0, int(after_metrics.get("cache_hits", 0) or 0) - int(before_metrics.get("cache_hits", 0) or 0))
+                query_cache_hits += max(0, int(after_metrics.get("coalesced_requests", 0) or 0) - int(before_metrics.get("coalesced_requests", 0) or 0))
+                query_actual_credits = max(0, int(after.get("requests_used_this_month", before_usage) or 0) - int(before_usage or 0))
+            except (TypeError, ValueError):
+                query_network_requests = query_cache_hits = query_actual_credits = 0
+            network_request_count += query_network_requests
+            cache_hit_count += query_cache_hits
+            query_accounting_source = after.get("requests_last_accounting_source", "UNKNOWN")
+            if query_network_requests == 0:
+                query_official_credits: Optional[int] = 0
+            elif query_accounting_source == "OFFICIAL_HEADERS":
+                query_official_credits = query_actual_credits
+            else:
+                query_official_credits = None
+                official_credit_accounting_complete = False
+            if query_official_credits is not None:
+                official_credits_consumed += query_official_credits
+            quotes_by_sport_key[query_key] = quotes
+            synthetic_count = sum(1 for quote in quotes if quote.is_synthetic)
+            query_diagnostics[query_key] = {
+                "query_league": group["client_league"], "markets": markets,
+                "regions": getattr(self.odds_client, "regions", ""),
+                "candidate_count": len(group["records"]),
+                "event_count": len({str(leg.event_id) for _, leg in group["records"]}),
+                "client_invocation_count": 1, "network_request_count": query_network_requests,
+                "cache_hit_count": query_cache_hits, "estimated_credits": estimated_cost,
+                "accounted_credits_consumed": query_actual_credits,
+                "official_credits_consumed": query_official_credits,
+                "credit_accounting_source": query_accounting_source,
+                "snapshot_count": len(quotes),
+                "real_snapshot_count": len(quotes) - synthetic_count,
+                "synthetic_snapshot_count": synthetic_count, "error": query_error,
+            }
+            for requested_league, _ in group["records"]:
+                diag = league_query_diagnostics[requested_league]
+                diag["query_called"] = True
+                diag["query_sport_keys"] = sorted(set(diag.get("query_sport_keys", []) + [query_key]))
+                diag["client_call_count"] += 1
+                diag["network_request_count"] += query_network_requests
+                diag["cache_hit_count"] += query_cache_hits
+                diag["estimated_credits"] += estimated_cost
+                diag["actual_credits"] += query_actual_credits
+
+        total_legs_processed = total_matched = total_unmatched = total_snapshots_logged = 0
+        real_market_quote_count = synthetic_market_quote_count = 0
+        real_matched_count = synthetic_matched_count = 0
+        complete_market_benchmark_count = sharp_qualified_count = ev_count = 0
+        qualified_pending_candidate_count = 0
+        alignment_rejection_counts: Counter[str] = Counter()
+        alignment_rejection_examples: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for query_key, quotes in quotes_by_sport_key.items():
+            synthetic_market_quote_count += sum(1 for quote in quotes if quote.is_synthetic)
+            real_market_quote_count += sum(1 for quote in quotes if not quote.is_synthetic)
+
+        for league, raw_legs in raw_by_league.items():
             for leg in raw_legs:
                 total_legs_processed += 1
-                enriched = self.signal_hub.evaluate_taiwan_leg(leg)
-                cand, record = self.aligner.align_leg_with_candidates(enriched, int_odds)
-
+                query_key = self._candidate_query_key(leg.league)
+                int_odds = quotes_by_sport_key.get(query_key or "", [])
+                cand, record = self.aligner.align_leg_with_candidates(leg, int_odds)
+                benchmark: Optional[MarketBenchmarkEvidence] = None
                 if cand and record.status == MarketAlignmentStatus.MATCHED:
                     total_matched += 1
                     if cand.is_synthetic:
                         synthetic_matched_count += 1
                     else:
                         real_matched_count += 1
-                    is_soccer = (enriched.sport or "").lower() == "soccer" or (enriched.league or "").upper() in {"EPL", "SOCCER", "LALIGA"}
-                    requires_three_way = is_soccer and cand.market_type == "MONEYLINE"
-                    benchmark_quote = self._build_fair_odds_quote(cand, int_odds, requires_three_way)
-                    fair_result = (
-                        self.fair_engine.calculate_fair_odds(
-                            taiwan_odds=float(enriched.taiwan_odds or 1.0),
-                            benchmark_quotes=[benchmark_quote],
-                            observed_at=cand.observed_at_utc,
-                        )
-                        if benchmark_quote else None
-                    )
-
-                    if fair_result:
-                        enriched.expected_value = fair_result.theoretical_ev
-                        enriched.signal_evidence["market_fair_probability"] = fair_result.market_fair_prob
-                        enriched.signal_evidence["market_fair_method"] = fair_result.devig_method
-                        enriched.signal_evidence["market_source"] = cand.source_id
-                        enriched.signal_evidence["market_observed_at"] = cand.observed_at_utc
-                        enriched.signal_evidence["is_market_synthetic"] = cand.is_synthetic
-                        enriched.signal_evidence["market_complete"] = True
-                        enriched.is_market_synthetic = cand.is_synthetic
+                        try:
+                            benchmark = self._build_market_benchmark_evidence(
+                                leg, cand, int_odds, taiwan_odds=float(leg.taiwan_odds),
+                            )
+                        except Exception as exc:
+                            logger.warning("Market benchmark qualification failed for event %s: %s", leg.event_id, exc)
+                    if benchmark and benchmark.eligible:
+                        complete_market_benchmark_count += 1
+                        sharp_qualified_count += bool(benchmark.sharp_qualified_source_ids)
                 else:
                     total_unmatched += 1
+                    rejection_code = record.rejection_code or record.status.value
+                    alignment_rejection_counts[rejection_code] += 1
+                    if len(alignment_rejection_examples[rejection_code]) < 2:
+                        alignment_rejection_examples[rejection_code].append({
+                            "taiwan_event_id": record.taiwan_event_id,
+                            "taiwan_league": record.taiwan_league,
+                            "taiwan_market": record.taiwan_market,
+                            "taiwan_selection": record.taiwan_selection,
+                            "taiwan_line": record.taiwan_line,
+                            "international_event_id": record.international_event_id,
+                            "international_league": next((q.league for q in int_odds if q.event_id == record.international_event_id), None),
+                            "international_market_type": record.international_market_type,
+                            "international_line": record.international_line,
+                            "time_delta_seconds": record.time_delta_seconds,
+                            "reason": record.reason,
+                        })
 
-                # Preserve truthful status without forced 'LIVE' override
+                if benchmark and benchmark.eligible:
+                    enriched = self.signal_hub.evaluate_taiwan_leg(leg, market_benchmark=benchmark)
+                else:
+                    enriched = self.signal_hub.evaluate_taiwan_leg(leg)
                 if not enriched.odds_scraped_at:
                     enriched.odds_scraped_at = (cand.observed_at_utc if cand else None) or datetime.now(timezone.utc).isoformat()
-
+                if enriched.expected_value is not None:
+                    ev_count += 1
                 try:
                     snapshot = self.snapshot_logger.log_snapshot(enriched)
                     total_snapshots_logged += 1
                     if (
-                        cand
-                        and record.status == MarketAlignmentStatus.MATCHED
-                        and not cand.is_synthetic
-                        and snapshot.get("forward_validation_eligible") is True
+                        benchmark and cand and record.status == MarketAlignmentStatus.MATCHED
+                        and not cand.is_synthetic and snapshot.get("forward_validation_eligible") is True
                         and snapshot.get("settlement_status") == "PENDING"
                     ):
                         qualified_pending_candidate_count += 1
                 except Exception as exc:
                     logger.debug("Snapshot logging skipped for leg %s: %s", enriched.event_id, exc)
 
-        source_status_after = self.odds_client.get_source_status()
-        usage_after = source_status_after.get("requests_used_this_month", usage_before)
+        final_status = self.odds_client.get_source_status()
         try:
-            credits_consumed = max(0, int(usage_after) - int(usage_before))
+            credits_consumed = max(0, int(final_status.get("requests_used_this_month", usage_before) or 0) - int(usage_before or 0))
         except (TypeError, ValueError):
             credits_consumed = 0
-
+        final_metrics = final_status.get("request_metrics", {}) or {}
+        qualified_per_credit = round(complete_market_benchmark_count / credits_consumed, 4) if credits_consumed else None
+        credit_accounting_source = (
+            "NO_NETWORK_REQUESTS" if network_request_count == 0 else
+            "OFFICIAL_HEADERS" if official_credit_accounting_complete else
+            "MIXED_OR_ESTIMATED"
+        )
+        official_credit_result = (
+            0 if network_request_count == 0 else
+            official_credits_consumed if official_credit_accounting_complete else
+            None
+        )
         return {
             "target_leagues": target_leagues,
-            "target_markets": target_markets,
+            "target_markets": ",".join(market for market in market_order if market in requested_market_union) or "NONE",
             "target_regions": getattr(self.odds_client, "regions", ""),
             "total_legs_processed": total_legs_processed,
+            "valid_candidate_count": sum(int(d.get("valid_candidate_count", 0) or 0) for d in league_query_diagnostics.values()),
+            "unique_candidate_event_count": len({(leg.sport, leg.league, str(leg.event_id)) for _, leg, _, _ in candidate_records}),
             "total_matched": total_matched,
             "real_matched_count": real_matched_count,
             "synthetic_matched_count": synthetic_matched_count,
             "total_unmatched": total_unmatched,
+            "complete_market_benchmark_count": complete_market_benchmark_count,
+            "sharp_qualified_count": sharp_qualified_count,
+            "ev_count": ev_count,
+            "alignment_rejection_counts": dict(alignment_rejection_counts),
+            "alignment_rejection_examples": dict(alignment_rejection_examples),
+            "league_query_diagnostics": league_query_diagnostics,
+            "query_diagnostics": query_diagnostics,
+            "client_invocation_count": client_invocation_count,
+            "network_request_count": network_request_count,
+            "cache_hit_count": cache_hit_count,
+            "estimated_credits": estimated_credits,
+            "accounted_credits_consumed": credits_consumed,
+            "official_credits_consumed": official_credit_result,
+            "credit_accounting_source": credit_accounting_source,
+            "qualified_market_matches_per_credit": qualified_per_credit,
+            "api_request_count_total": int(final_metrics.get("api_requests", 0) or 0),
             "snapshots_logged": total_snapshots_logged,
             "taiwan_snapshots_logged": total_snapshots_logged,
             "real_market_quote_count": real_market_quote_count,
@@ -386,6 +900,11 @@ class MarketForwardPipeline:
         synthetic_fixture_count = 0
         invalid_odds_or_outcome_count = 0
         ineligible_flag_count = 0
+        missing_hash_count = 0
+        invalid_hash_count = 0
+        valid_hash_count = 0
+        market_benchmark_count = 0
+        sharp_benchmark_count = 0
 
         eligible_samples: List[Dict[str, Any]] = []
 
@@ -408,15 +927,21 @@ class MarketForwardPipeline:
             event_start = r.get("event_start") or r.get("start_time_utc")
             is_pre_match = False
 
+            pred_dt = None
+            event_dt = None
             if pred_time and event_start:
                 try:
                     pt_dt = datetime.fromisoformat(str(pred_time).replace("Z", "+00:00"))
                     es_dt = datetime.fromisoformat(str(event_start).replace("Z", "+00:00"))
-                    if pt_dt < es_dt:
+                    if pt_dt.tzinfo is None or es_dt.tzinfo is None:
+                        missing_timestamp_count += 1
+                    elif pt_dt < es_dt:
                         is_pre_match = True
                         pre_match_verified_count += 1
                     else:
                         post_match_leak_count += 1
+                    pred_dt = pt_dt.astimezone(timezone.utc) if pt_dt.tzinfo is not None else None
+                    event_dt = es_dt.astimezone(timezone.utc) if es_dt.tzinfo is not None else None
                 except Exception:
                     missing_timestamp_count += 1
             else:
@@ -438,10 +963,16 @@ class MarketForwardPipeline:
                 r.get("model_probability") is not None or r.get("model_prob") is not None
             ) and r.get("probability_status") != "MARKET_BASELINE_ONLY"
 
-            m_src = r.get("market_source") or ev.get("market_source")
-            has_sharp = bool(m_src and str(m_src).upper() not in ("SYNTHETIC", "MOCK", "PLAYSPORT_TAIWAN_ODDS"))
+            mkt_prob, sharp_prob, _ = (
+                _validated_market_probabilities(r, pred_dt)
+                if pred_dt is not None else (None, None, None)
+            )
+            has_market = mkt_prob is not None
+            has_sharp = sharp_prob is not None
+            market_benchmark_count += int(has_market)
+            sharp_benchmark_count += int(has_sharp)
 
-            if not has_model and not has_sharp:
+            if not has_model and not has_market:
                 legacy_unverified_count += 1
 
             # 5. Outcome & odds check
@@ -465,6 +996,20 @@ class MarketForwardPipeline:
             if not explicitly_eligible:
                 ineligible_flag_count += 1
 
+            hash_valid = False
+            try:
+                hash_schema = int(r.get("prediction_hash_schema", 0) or 0)
+                saved_hash = r.get("prediction_payload_hash")
+                if not saved_hash:
+                    missing_hash_count += 1
+                elif hash_schema >= 3 and compute_prediction_payload_hash(r) == saved_hash:
+                    hash_valid = True
+                    valid_hash_count += 1
+                else:
+                    invalid_hash_count += 1
+            except (TypeError, ValueError, OverflowError):
+                invalid_hash_count += 1
+
             # Eligibility for Forward Evaluation:
             # Must be: settled, valid outcome/odds, strictly pre-match, non-synthetic, and have model or sharp benchmark
             if (
@@ -474,7 +1019,8 @@ class MarketForwardPipeline:
                 and odds_val and odds_val > 1.0
                 and not is_syn
                 and is_pre_match
-                and (has_model or has_sharp)
+                and hash_valid
+                and (has_model or has_market)
             ):
                 eligible_samples.append(r)
 
@@ -488,6 +1034,9 @@ class MarketForwardPipeline:
             "legacy_unverified_count": legacy_unverified_count,
             "synthetic_fixture_count": synthetic_fixture_count,
             "eligible_forward_samples_count": len(eligible_samples),
+            "valid_prediction_hash_count": valid_hash_count,
+            "market_benchmark_count": market_benchmark_count,
+            "sharp_qualified_benchmark_count": sharp_benchmark_count,
             "excluded_breakdown": {
                 "legacy_unverified": legacy_unverified_count,
                 "unsettled_pending": unsettled_count,
@@ -496,6 +1045,8 @@ class MarketForwardPipeline:
                 "invalid_odds_or_outcome": invalid_odds_or_outcome_count,
                 "missing_timestamp": missing_timestamp_count,
                 "forward_validation_ineligible_or_missing": ineligible_flag_count,
+                "missing_prediction_hash": missing_hash_count,
+                "invalid_prediction_hash": invalid_hash_count,
             },
             "eligible_samples": eligible_samples,
         }
@@ -595,17 +1146,29 @@ class MarketForwardPipeline:
                     "post_match_leak_count": audit["post_match_leak_count"],
                     "legacy_unverified_count": audit["legacy_unverified_count"],
                     "forward_eligible_count": audit["eligible_forward_samples_count"],
+                    "valid_prediction_hash_count": audit["valid_prediction_hash_count"],
+                    "market_benchmark_count": audit["market_benchmark_count"],
+                    "sharp_qualified_benchmark_count": audit["sharp_qualified_benchmark_count"],
                     "excluded_breakdown": audit["excluded_breakdown"],
                 },
                 "forward_evaluation": {
                     "sample_size": report.sample_size,
                     "paired_sample_size": report.paired_sample_size,
+                    "market_paired_sample_size": report.market_paired_sample_size,
+                    "sharp_paired_sample_size": report.sharp_paired_sample_size,
+                    "minimum_sample_size": MIN_FORWARD_EVALUATION_SAMPLE,
                     "status": report.status,
+                    "data_quality_status": report.data_quality_status,
+                    "evaluation_protocol_status": report.evaluation_protocol_status,
+                    "statistical_evidence_status": report.statistical_evidence_status,
                     "champion_source": report.champion_source,
                     "acceptance_gate_qualified": report.acceptance_gate_qualified,
                     "shadow_mode_recommendation": report.shadow_mode_recommendation,
                     "delta_brier_ci_95": list(report.delta_brier_ci_95) if report.delta_brier_ci_95 else None,
+                    "delta_brier_market_ci_95": list(report.delta_brier_market_ci_95) if report.delta_brier_market_ci_95 else None,
                     "taiwan_baseline": report.taiwan_market_baseline.to_dict(),
+                    "international_market": report.international_market_benchmark.to_dict()
+                    if report.international_market_benchmark else None,
                     "international_sharp": report.international_sharp_benchmark.to_dict(),
                     "active_model": report.active_model_strategy.to_dict(),
                 },
@@ -623,9 +1186,13 @@ class MarketForwardPipeline:
         except Exception:
             pass
 
+        alignment_summary = _alignment_summary_from_scheduler_status(scheduler_status)
+
         return {
             "live_status": odds_status.get("operating_mode", "SYNTHETIC_FIXTURE"),
+            "live_status_scope": "ODDS_API_SOURCE_STATUS_ONLY",
             "the_odds_api": odds_status,
+            "alignment": alignment_summary,
             "scheduler": scheduler_status,
             "snapshots": cached_blocks["snapshots"],
             "forward_evaluation": cached_blocks["forward_evaluation"],

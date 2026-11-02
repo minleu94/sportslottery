@@ -666,7 +666,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                             {parlay.legs.length} 串 1
                           </span>
                           {parlay.sharp_badge && (
-                            <Badge variant={parlay.is_positive_ev ? "green" : "secondary"} className="text-[10px]">
+                            <Badge variant={parlay.has_sharp_benchmark && parlay.is_positive_ev ? "green" : "secondary"} className="text-[10px]">
                               {parlay.sharp_badge}
                             </Badge>
                           )}
@@ -677,7 +677,9 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                             <>
                               <span>·</span>
                               <span className="text-slate-700 dark:text-slate-300 font-medium font-mono tabular-nums">
-                                聯合勝率 {(parlay.joint_probability * 100).toFixed(1)}%
+                                {parlay.joint_probability_validation_status === "VALIDATED"
+                                  ? "聯合機率"
+                                  : "啟發式聯合機率（未驗證）"} {(parlay.joint_probability * 100).toFixed(1)}%
                               </span>
                             </>
                           ) : null}
@@ -691,17 +693,20 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                           {parlay.total_odds.toFixed(2)}x
                         </div>
                         {(() => {
-                          const evVal = parlay.parlay_ev_pct ?? (parlay.expected_value ? parlay.expected_value * 100 : null)
+                          const hasSharp = Boolean(parlay.has_sharp_benchmark)
+                          const evVal = hasSharp
+                            ? parlay.sharp_parlay_ev_pct
+                            : (parlay.parlay_ev_pct ?? (parlay.expected_value ? parlay.expected_value * 100 : null))
                           if (evVal === null || evVal === undefined) return null
                           const parlayHasSynth = parlay.legs?.some((l) => l.is_market_synthetic || (l.signal_evidence || {}).is_market_synthetic)
-                          const isPos = !parlayHasSynth && evVal > 0
+                          const isPos = hasSharp && !parlayHasSynth && evVal > 0
                           return (
                             <div
                               className={`text-xs font-medium tabular-nums font-mono flex items-center justify-end gap-1 ${
                                 isPos ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"
                               }`}
                             >
-                              <span>{isPos ? "+EV" : (parlayHasSynth ? "EV (模擬)" : "EV")}</span>
+                              <span>{hasSharp ? "Sharp 基準 EV" : (parlayHasSynth ? "估計 EV（模擬）" : "估計 EV（未驗證）")}</span>
                               <span>{isPos ? `+${evVal.toFixed(1)}%` : `${evVal.toFixed(1)}%`}</span>
                             </div>
                           )
@@ -713,9 +718,14 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                     <div className="space-y-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
                       {parlay.legs.map((leg, lIdx) => {
                         const isSynth = Boolean(leg.is_market_synthetic || (leg.signal_evidence || {}).is_market_synthetic)
-                        const legEv = leg.expected_value_pct ?? (leg.expected_value ? leg.expected_value * 100 : null)
+                        const legEvidence = leg.signal_evidence || {}
+                        const sharpLegEv = legEvidence.sharp_expected_value_pct
+                        const hasSharpLeg = !isSynth && legEvidence.market_source_qualification === "SHARP_QUALIFIED" && sharpLegEv !== null && sharpLegEv !== undefined
+                        const legEv = hasSharpLeg
+                          ? Number(sharpLegEv)
+                          : (leg.expected_value_pct ?? (leg.expected_value ? leg.expected_value * 100 : null))
                         const legProb = leg.consensus_probability ? (leg.consensus_probability * 100).toFixed(0) : null
-                        const isPos = Boolean(!isSynth && (leg.is_positive_ev || (legEv !== null && legEv > 0)))
+                        const isPos = Boolean(hasSharpLeg && legEv !== null && legEv > 0)
 
                         return (
                           <div
@@ -744,14 +754,16 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                                         : "bg-slate-100 dark:bg-slate-800 text-slate-500"
                                     }`}
                                   >
-                                    {isPos ? `+EV +${legEv.toFixed(1)}%` : (isSynth ? `EV ${legEv.toFixed(1)}% (模擬)` : `EV ${legEv.toFixed(1)}%`)}
+                                    {hasSharpLeg
+                                      ? `Sharp 基準 EV ${legEv.toFixed(1)}%`
+                                      : isSynth ? `估計 EV ${legEv.toFixed(1)}%（模擬）` : `估計 EV ${legEv.toFixed(1)}%（未驗證）`}
                                   </span>
                                 )}
 
                                 {/* Leg Prob */}
                                 {legProb && (
                                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                                    勝率 {legProb}%
+                                    估計機率 {legProb}%
                                   </span>
                                 )}
                               </div>

@@ -435,6 +435,9 @@ class PredictionSnapshotLogger:
                 key: evidence.get(key) for key in (
                     "market_complete", "market_outcome_odds", "market_fair_probability",
                     "market_fair_method", "opposing_odds", "market_source", "market_observed_at",
+                    "market_benchmark_fair_probability", "market_benchmark_ev", "market_benchmark_ev_pct",
+                    "market_benchmark_status", "international_market_complete",
+                    "market_source_qualification", "market_benchmark", "is_market_synthetic",
                 ) if key in evidence
             },
             "signal_evidence": copy.deepcopy(evidence),

@@ -115,6 +115,7 @@ class TheOddsApiClient:
         self.cache_path = cache_path or CACHE_PATH
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         self.config = self._load_config()
+        self._explicit_api_key_override = api_key is not None
 
         # Key preference:
         # 1. Explicit argument
@@ -131,8 +132,12 @@ class TheOddsApiClient:
         self.cache_ttl = int(self.config.get("cache_ttl_seconds", 900))
         self.regions = self.config.get("regions", "us,eu")
         self.markets = self.config.get("markets", "h2h,spreads,totals")
-        self.scheduled_markets = self.config.get("scheduled_markets", "h2h")
+        self.scheduled_markets = self.config.get("scheduled_markets", "auto")
         self.preferred_books = self.config.get("preferred_books", ["pinnacle", "draftkings", "fanduel"])
+        self.sharp_qualified_books = self.config.get("sharp_qualified_books", ["pinnacle"])
+        if not isinstance(self.sharp_qualified_books, list):
+            self.sharp_qualified_books = ["pinnacle"]
+        self.sharp_qualified_books = [str(book).strip().casefold() for book in self.sharp_qualified_books if str(book).strip()]
 
         self._cache_data: Dict[str, Any] = self._load_cache()
 
@@ -215,6 +220,7 @@ class TheOddsApiClient:
 
     def reload_api_key(self) -> None:
         """Reload credentials after a local key update without restarting the service."""
+        self._explicit_api_key_override = False
         self.api_key, self.key_source = self._resolve_api_key()
 
     def get_masked_api_key(self) -> str:
@@ -265,7 +271,7 @@ class TheOddsApiClient:
             return self._test_connection_locked(fetch_sample, sport_league)
 
     def _test_connection_locked(self, fetch_sample: bool, sport_league: str) -> Dict[str, Any]:
-        if not self.api_key:
+        if not self.api_key and not self._explicit_api_key_override:
             self.reload_api_key()
         if not self.api_key:
             return {
@@ -392,6 +398,9 @@ class TheOddsApiClient:
 
                     credits_last = int(h_last) if h_last is not None else 1
                     self._cache_data["requests_last_official"] = credits_last
+                    self._cache_data["requests_last_accounting_source"] = (
+                        "OFFICIAL_HEADERS" if h_last is not None or h_used is not None else "ESTIMATED"
+                    )
                     if h_used is not None:
                         try:
                             self._cache_data.setdefault("usage", {})[month_key] = int(h_used)
@@ -438,7 +447,7 @@ class TheOddsApiClient:
 
     def get_source_status(self) -> Dict[str, Any]:
         """Return operational capabilities and quota metrics with strict mode distinctions."""
-        if not self.api_key:
+        if not self.api_key and not self._explicit_api_key_override:
             self.reload_api_key()
         with file_lock(self.cache_path):
             self._refresh_cache_locked()
@@ -499,6 +508,7 @@ class TheOddsApiClient:
             "requests_remaining_est": remaining_est,
             "official_remaining": official_rem,
             "requests_last_consumed": self._cache_data.get("requests_last_official", 0),
+            "requests_last_accounting_source": self._cache_data.get("requests_last_accounting_source", "UNKNOWN"),
             "days_remaining_in_month": days_remaining,
             "daily_schedulable_budget": daily_schedulable_budget,
             "cache_ttl_seconds": self.cache_ttl,
@@ -546,13 +556,15 @@ class TheOddsApiClient:
             return []
 
         # Check API key presence
-        if not self.api_key:
+        if not self.api_key and not self._explicit_api_key_override:
             self.reload_api_key()
         if not self.api_key:
             logger.info("No ODDS_API_KEY configured; serving standardized synthetic fixtures for %s", league_norm)
             return self._generate_synthetic_fixtures(league_norm)
 
-        target_markets = markets or self.scheduled_markets or "h2h"
+        scheduled_markets = str(self.scheduled_markets or "auto").strip()
+        default_markets = self.markets if scheduled_markets.casefold() in {"auto", "candidate", "candidate_driven"} else scheduled_markets
+        target_markets = markets or default_markets or "h2h"
         regions = str(self.regions or "us")
         query_key = f"{sport_key}|{regions}|{target_markets}"
         # Check shared cache TTL. A force-refresh caller that waited behind a
@@ -621,6 +633,10 @@ class TheOddsApiClient:
 
                 credits_last = int(h_last) if h_last is not None else estimated_cost
                 self._cache_data["requests_last_official"] = credits_last
+                credit_accounting_source = (
+                    "OFFICIAL_HEADERS" if h_last is not None or h_used is not None else "ESTIMATED"
+                )
+                self._cache_data["requests_last_accounting_source"] = credit_accounting_source
 
                 if h_used is not None:
                     try:
@@ -650,6 +666,7 @@ class TheOddsApiClient:
                     "events_count": len(data),
                     "snapshots_count": 0,
                     "credits_consumed": credits_last,
+                    "credit_accounting_source": credit_accounting_source,
                     "is_synthetic": False,
                 }
 

@@ -71,6 +71,39 @@ class MarketOddsSnapshot:
 
 
 @dataclass
+class MarketBenchmarkEvidence:
+    """Validated international market evidence consumed by research decisions."""
+
+    taiwan_event_id: str
+    taiwan_selection: str
+    canonical_event_id: str
+    sport: str
+    league: str
+    market_type: str
+    selection: str
+    line: Optional[float]
+    source_id: str
+    bookmaker_ids: List[str]
+    raw_outcome_odds: Dict[str, Dict[str, float]]
+    market_observation_times: Dict[str, Dict[str, Optional[str]]]
+    retrieved_at_utc: str
+    is_synthetic: bool
+    devig_method: Optional[str]
+    fair_probability: Optional[float]
+    sharp_fair_probability: Optional[float]
+    source_qualification: str
+    complete: bool
+    freshness_status: str
+    eligible: bool
+    eligibility_reason: Optional[str] = None
+    sharp_qualified_source_ids: List[str] = field(default_factory=list)
+    bookmaker_evidence: List[Dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class BettingSplitsSnapshot:
     """Standardized snapshot of public betting splits (tickets vs money volume)."""
     source_id: str                                # e.g. "vsin_splits", "action_network"

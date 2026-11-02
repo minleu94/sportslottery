@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from integrations.common.models import PredictionSignal, TaiwanLeg
+from integrations.odds.market_models import MarketBenchmarkEvidence
 from probability.calibration import calculate_conservative_lower_bound, inv_logit, logit
 
 logger = logging.getLogger(__name__)
@@ -111,12 +112,14 @@ class EdgeEngine:
         *,
         research_candidate: bool = False,
         direct_accepted_model: bool = False,
+        market_benchmark: Optional[MarketBenchmarkEvidence] = None,
     ) -> ProbabilityEdgeEvaluation:
         """Perform full quantitative evaluation for a TaiwanLeg."""
         from core.probability_evidence import evaluate_evidence
         return evaluate_evidence(self, leg, signals, reference_opposing_odds,
                                  research_candidate=research_candidate,
-                                 direct_accepted_model=direct_accepted_model)
+                                 direct_accepted_model=direct_accepted_model,
+                                 market_benchmark=market_benchmark)
 
     @staticmethod
     def devig_proportional(odds_list: List[float]) -> List[float]:

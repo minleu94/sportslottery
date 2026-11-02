@@ -6,8 +6,11 @@ monthly_quota: 500
 cache_ttl_seconds: 900  # 15 minutes
 regions: "us,eu"
 markets: "h2h,spreads,totals"
+scheduled_markets: "auto"  # Query only markets required by valid Taiwan candidates
 preferred_books:
   - pinnacle
   - draftkings
   - fanduel
   - betfair_ex_eu
+sharp_qualified_books:
+  - pinnacle

@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import pytest
 from fastapi.testclient import TestClient
+import server.api as api_module
 from server.api import app, _line_notifier
 from core.profile_manager import ProfileManager, hash_pin_code, verify_pin_code, PBKDF2_PREFIX
 from core.wallet import WeeklyWalletManager
@@ -315,22 +316,50 @@ def test_line_webhook_signature_verification(monkeypatch):
 
 
 def test_radar_and_legs():
-    res_radar = client.get("/api/radar")
-    assert res_radar.status_code == 200
-    r_data = res_radar.json()
-    assert "radar" in r_data
-    assert "status_counts" in r_data
-    assert isinstance(r_data["radar"], list)
+    from unittest.mock import MagicMock, patch
 
-    res_legs = client.get("/api/legs?limit=10")
-    assert res_legs.status_code == 200
-    l_data = res_legs.json()
-    assert "legs" in l_data
-    assert l_data["returned"] <= 10
+    adapter = MagicMock(
+        get_taiwan_legs=lambda *args, **kwargs: [],
+        get_source_status=lambda: {},
+    )
+    season_radar = MagicMock(get_radar_summary=lambda legs: [])
+    services = (adapter, MagicMock(), MagicMock(), season_radar,
+                MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    with patch("server.api.get_services", return_value=services):
+        res_radar = client.get("/api/radar")
+        assert res_radar.status_code == 200
+        r_data = res_radar.json()
+        assert "radar" in r_data
+        assert "status_counts" in r_data
+        assert isinstance(r_data["radar"], list)
+
+        res_legs = client.get("/api/legs?limit=10")
+        assert res_legs.status_code == 200
+        l_data = res_legs.json()
+        assert "legs" in l_data
+        assert l_data["returned"] <= 10
 
 
-def test_research_analytics():
-    res = client.get("/api/research/analytics")
+def test_research_analytics(tmp_path):
+    from unittest.mock import MagicMock, patch
+
+    snapshot_logger = MagicMock(log_path=tmp_path / "empty-snapshots.jsonl")
+    snapshot_logger.get_all_snapshots.return_value = []
+    metrics_engine = MagicMock()
+    metrics_engine.forward_cohort.return_value = {}
+    metrics_engine.evaluate_agreement_buckets.return_value = {}
+    metrics_engine.evaluate_ev_buckets.return_value = {}
+    metrics_engine.evaluate_crowd_buckets.return_value = {}
+    metrics_engine.evaluate_expert_metrics.return_value = {}
+    shadow_portfolio = MagicMock()
+    shadow_portfolio.get_portfolio_summary.return_value = {}
+    services = (MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(),
+                snapshot_logger, metrics_engine, shadow_portfolio)
+    api_module._analytics_cache = None
+    api_module._analytics_cache_mtime = 0
+    api_module._analytics_cache_time = 0
+    with patch("server.api.get_services", return_value=services):
+        res = client.get("/api/research/analytics")
     assert res.status_code == 200
     data = res.json()
     assert "total_snapshots" in data

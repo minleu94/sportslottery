@@ -11,10 +11,12 @@ Calculates:
 from __future__ import annotations
 
 import logging
+from dataclasses import fields
 from typing import Any, Dict, List, Optional
 
 from integrations.common.models import TaiwanLeg
 from integrations.odds.sharp_benchmark_odds import SharpBenchmarkOddsAdapter, SharpComparisonResult
+from integrations.odds.market_models import MarketBenchmarkEvidence
 
 logger = logging.getLogger(__name__)
 
@@ -26,40 +28,19 @@ class SharpEdgeEngine:
         self.adapter = adapter or SharpBenchmarkOddsAdapter()
 
     def evaluate_leg_sharp_edge(self, leg: TaiwanLeg) -> Optional[SharpComparisonResult]:
-        """Compute the sharp edge and true EV for a single TaiwanLeg."""
+        """Compute Sharp EV only from the validated benchmark sealed on the leg."""
         odds = float(leg.taiwan_odds or 0.0)
-        if odds <= 1.0:
+        raw_evidence = (leg.signal_evidence or {}).get("market_benchmark")
+        if odds <= 1.0 or not isinstance(raw_evidence, dict):
             return None
-
-        evidence = leg.signal_evidence or {}
-        opposing_odds = None
-        draw_odds = None
-        outcomes = evidence.get("market_outcome_odds") or {}
-
-        if outcomes and isinstance(outcomes, dict):
-            if leg.side == "主" and "客" in outcomes:
-                opposing_odds = float(outcomes["客"])
-                if "和" in outcomes:
-                    draw_odds = float(outcomes["和"])
-            elif leg.side == "客" and "主" in outcomes:
-                opposing_odds = float(outcomes["主"])
-                if "和" in outcomes:
-                    draw_odds = float(outcomes["和"])
-            elif leg.side == "大" and "小" in outcomes:
-                opposing_odds = float(outcomes["小"])
-            elif leg.side == "小" and "大" in outcomes:
-                opposing_odds = float(outcomes["大"])
-
-        return self.adapter.get_sharp_fair_odds(
-            sport=leg.sport,
-            league=leg.league,
-            event_id=leg.event_id,
-            market=leg.market,
-            selection=leg.selection,
-            taiwan_odds=odds,
-            opposing_odds=opposing_odds,
-            draw_odds=draw_odds,
-        )
+        try:
+            allowed = {item.name for item in fields(MarketBenchmarkEvidence)}
+            benchmark = MarketBenchmarkEvidence(**{
+                key: value for key, value in raw_evidence.items() if key in allowed
+            })
+        except (TypeError, ValueError):
+            return None
+        return self.adapter.compare_leg(leg, benchmark)
 
     def evaluate_parlay_sharp_ev(
         self,
@@ -75,26 +56,36 @@ class SharpEdgeEngine:
         if not legs or total_odds <= 1.0:
             return {
                 "has_sharp_benchmark": False,
-                "sharp_joint_probability": 0.0,
-                "sharp_parlay_ev": -1.0,
-                "sharp_parlay_ev_pct": -100.0,
+                "sharp_joint_probability": None,
+                "sharp_parlay_ev": None,
+                "sharp_parlay_ev_pct": None,
                 "value_legs_count": 0,
                 "total_legs": len(legs),
+                "benchmark_status": "NO_QUALIFIED_SHARP_BENCHMARK",
+                "summary_badge": "Sharp 基準尚未取得",
+            }
+
+        results = [self.evaluate_leg_sharp_edge(leg) for leg in legs]
+        if any(result is None for result in results):
+            return {
+                "has_sharp_benchmark": False,
+                "sharp_joint_probability": None,
+                "sharp_parlay_ev": None,
+                "sharp_parlay_ev_pct": None,
+                "value_legs_count": 0,
+                "total_legs": len(legs),
+                "benchmark_status": "INCOMPLETE_QUALIFIED_SHARP_BENCHMARK",
+                "summary_badge": "Sharp 基準不完整，無法計算",
             }
 
         sharp_probs = []
         value_count = 0
 
-        for leg in legs:
-            res = self.evaluate_leg_sharp_edge(leg)
-            if res is not None and res.sharp_fair_prob > 0:
-                sharp_probs.append(res.sharp_fair_prob)
-                if res.is_value_bet:
-                    value_count += 1
-            else:
-                # Fallback to market implied
-                p = 1.0 / leg.taiwan_odds if leg.taiwan_odds > 1.0 else 0.5
-                sharp_probs.append(p)
+        for res in results:
+            assert res is not None  # guarded above
+            sharp_probs.append(res.sharp_fair_prob)
+            if res.is_value_bet:
+                value_count += 1
 
         # Naive joint
         naive_sharp_joint = 1.0
@@ -117,6 +108,7 @@ class SharpEdgeEngine:
             "sharp_parlay_ev_pct": round(sharp_parlay_ev_pct, 2),
             "value_legs_count": value_count,
             "total_legs": len(legs),
+            "benchmark_status": "QUALIFIED_SHARP_BENCHMARK_AVAILABLE",
             "is_positive_ev": is_positive_ev,
             "is_prime_value": is_prime_value,
             "summary_badge": "🟢 正期望值 (+EV)" if is_positive_ev else "⚪ 市場中性/負EV",

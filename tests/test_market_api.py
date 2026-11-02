@@ -8,23 +8,26 @@ Milestone 6 Verification:
 - Tests /api/market/evaluation returns three-way forward evaluation report
 """
 
-from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 import pytest
 
+import server.api as api_module
 from server.api import app
 from core.profile_manager import DEFAULT_PROFILE_ID, ProfileManager
 from integrations.odds.the_odds_api import TheOddsApiClient
+from integrations.odds.betting_splits_client import BettingSplitsClient
+from core.snapshot_logger import PredictionSnapshotLogger
 from server.auth import session_manager
 
 client = TestClient(app)
 
 
 @pytest.fixture(scope="module", autouse=True)
-def authenticated_admin_client():
-    """Give protected endpoint tests an admin session without changing the stored PIN."""
-    profile_manager = ProfileManager()
+def authenticated_admin_client(tmp_path_factory):
+    """Use an isolated temporary profile database for this offline endpoint suite."""
+    profile_db = tmp_path_factory.mktemp("market-api-auth") / "profiles.sqlite3"
+    profile_manager = ProfileManager(db_path=profile_db)
     admin_profile = profile_manager.get_profile(DEFAULT_PROFILE_ID)
     assert admin_profile is not None
     admin_check = patch.object(ProfileManager, "is_default_admin_pin", return_value=False)
@@ -41,8 +44,25 @@ def authenticated_admin_client():
 
 @pytest.fixture(autouse=True)
 def prevent_odds_api_requests(monkeypatch):
-    """Never spend real credits in endpoint tests."""
+    """Keep endpoint tests offline and isolated from local research data."""
     monkeypatch.setattr(TheOddsApiClient, "fetch_market_odds", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        TheOddsApiClient, "get_source_status",
+        lambda self: {"has_api_key": True, "key_source": "LOCAL_CONFIG", "status": "HEALTHY"},
+    )
+    monkeypatch.setattr(TheOddsApiClient, "save_api_key", lambda self, key: True)
+    monkeypatch.setattr(TheOddsApiClient, "reload_api_key", lambda self: None)
+    monkeypatch.setattr(BettingSplitsClient, "get_betting_splits", lambda self, league: [])
+    monkeypatch.setattr(PredictionSnapshotLogger, "get_all_snapshots", lambda self: [])
+    monkeypatch.setattr(
+        api_module, "get_services",
+        lambda: (MagicMock(get_taiwan_legs=lambda leagues, **kwargs: []), MagicMock(),
+                 MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()),
+    )
+    monkeypatch.setattr(
+        api_module, "get_market_scheduler",
+        lambda: MagicMock(pipeline=MagicMock()),
+    )
 
 
 def test_get_market_status():
@@ -130,10 +150,28 @@ def test_get_market_evaluation():
 
 
 def test_get_market_research_summary():
-    resp = client.get("/api/market/research-summary")
+    summary = {
+        "live_status": {"status": "HEALTHY"},
+        "live_status_scope": "ODDS_API_SOURCE_STATUS_ONLY",
+        "alignment": {"status": "NO_RECORDED_CYCLE"},
+        "the_odds_api": {"status": "HEALTHY"},
+        "snapshots": {"total_count": 0},
+        "forward_evaluation": {"sample_size": 0},
+    }
+    pipeline = MagicMock()
+    pipeline.get_research_status_summary.return_value = summary
+    with patch("core.market_forward_pipeline.MarketForwardPipeline", return_value=pipeline), patch(
+        "server.api.get_market_scheduler", return_value=MagicMock(get_status=lambda: {"enabled": False})
+    ):
+        resp = client.get("/api/market/research-summary")
     assert resp.status_code == 200
     data = resp.json()
     assert "live_status" in data
+    assert data["live_status_scope"] == "ODDS_API_SOURCE_STATUS_ONLY"
+    assert "alignment" in data
+    assert data["alignment"]["status"] in {
+        "NO_RECORDED_CYCLE", "REAL_QUOTES_MATCHED", "NO_REAL_QUOTES_MATCHED"
+    }
     assert "the_odds_api" in data
     assert "snapshots" in data
     assert "forward_evaluation" in data
@@ -142,25 +180,14 @@ def test_get_market_research_summary():
 
 
 def test_post_market_config():
-    local_cfg = Path("config/odds_api.local.yaml")
-    previous_cfg = local_cfg.read_bytes() if local_cfg.exists() else None
-    try:
-        # Test valid key update
-        resp = client.post("/api/market/config", json={"the_odds_api_key": "test_key_api_12345"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "SUCCESS"
-        assert data["the_odds_api"]["has_api_key"] is True
-        assert data["the_odds_api"]["key_source"] == "LOCAL_CONFIG"
-
-        # Test invalid key rejection (e.g. invalid symbols / injection attempt)
-        bad_resp = client.post("/api/market/config", json={"the_odds_api_key": "bad; key!@#$"})
-        assert bad_resp.status_code == 400
-    finally:
-        if previous_cfg is None:
-            local_cfg.unlink(missing_ok=True)
-        else:
-            local_cfg.write_bytes(previous_cfg)
+    # Saving is mocked by the offline fixture; this validates route semantics
+    # without replacing a developer's local API configuration.
+    resp = client.post("/api/market/config", json={"the_odds_api_key": "test_key_api_12345"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "SUCCESS"
+    bad_resp = client.post("/api/market/config", json={"the_odds_api_key": "bad; key!@#$"})
+    assert bad_resp.status_code == 400
 
 
 def test_post_market_pipeline_cycle():
@@ -210,12 +237,17 @@ def test_estimate_pipeline_cost_endpoint():
     assert data["estimated_credits"] == 4
 
 
-def test_pipeline_audit_snapshots():
+def test_pipeline_audit_snapshots(tmp_path):
     """Verify MarketForwardPipeline.audit_snapshots classifies historical vs eligible records accurately."""
     from core.market_forward_pipeline import MarketForwardPipeline
     from datetime import datetime, timezone, timedelta
 
-    p = MarketForwardPipeline()
+    p = MarketForwardPipeline(
+        odds_adapter=MagicMock(), odds_client=MagicMock(), signal_hub=MagicMock(),
+        aligner=MagicMock(), fair_engine=MagicMock(), snapshot_logger=MagicMock(),
+        settlement_engine=MagicMock(), evaluation_engine=MagicMock(),
+        summary_path=tmp_path / "summary.json",
+    )
     now = datetime.now(timezone.utc)
 
     sample_records = [
@@ -265,6 +297,7 @@ def test_pipeline_audit_snapshots():
             "event_start": (now - timedelta(hours=4)).isoformat(),
             "model_probability": 0.52,
             "market_source": "the_odds_api",
+            "forward_validation_eligible": True,
         },
         # 5. Unsettled pending record
         {
@@ -277,6 +310,9 @@ def test_pipeline_audit_snapshots():
             "market_source": "the_odds_api",
         },
     ]
+    from core.snapshot_logger import compute_prediction_payload_hash
+    sample_records[3]["prediction_hash_schema"] = 3
+    sample_records[3]["prediction_payload_hash"] = compute_prediction_payload_hash(sample_records[3])
 
     audit = p.audit_snapshots(sample_records)
     assert audit["total_count"] == 5
