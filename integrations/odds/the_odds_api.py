@@ -29,7 +29,9 @@ from integrations.odds.market_models import (
 
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "odds_api.yaml"
+CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+CONFIG_PATH = CONFIG_DIR / "odds_api.yaml"  # User-owned runtime config; gitignored.
+EXAMPLE_CONFIG_PATH = CONFIG_DIR / "odds_api.example.yaml"
 LOCAL_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "odds_api.local.yaml"
 ENV_FILE_PATH = Path(__file__).resolve().parents[2] / ".env"
 CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "cache" / "the_odds_api_cache.json"
@@ -118,8 +120,9 @@ class TheOddsApiClient:
         # 2. THE_ODDS_API_KEY environment variable (Primary)
         # 3. ODDS_API_KEY environment variable (Backward Compatibility)
         # 4. .env file in project root (THE_ODDS_API_KEY then ODDS_API_KEY)
-        # 5. config/odds_api.local.yaml (Gitignored local override)
-        # 6. config/odds_api.yaml (Base config file)
+        # 5. config/odds_api.local.yaml (Gitignored key storage managed by the UI)
+        # 6. config/odds_api.yaml (Gitignored user-owned runtime config)
+        # 7. config/odds_api.example.yaml (Tracked defaults without secrets)
         self.api_key, self.key_source = self._resolve_api_key(api_key)
 
         self.base_url = self.config.get("base_url", "https://api.the-odds-api.com/v4")
@@ -148,9 +151,12 @@ class TheOddsApiClient:
         local_cfg = self._load_yaml(self.local_config_path)
         if local_cfg.get("api_key"):
             return str(local_cfg["api_key"]).strip(), "LOCAL_CONFIG"
-        base_cfg = self._load_yaml(self.config_path)
-        if base_cfg.get("api_key"):
-            return str(base_cfg["api_key"]).strip(), "BASE_CONFIG"
+        user_cfg = self._load_yaml(self.config_path)
+        if user_cfg.get("api_key"):
+            return str(user_cfg["api_key"]).strip(), "BASE_CONFIG"
+        example_cfg = self._load_yaml(EXAMPLE_CONFIG_PATH)
+        if example_cfg.get("api_key"):
+            return str(example_cfg["api_key"]).strip(), "EXAMPLE_CONFIG"
         return "", "UNCONFIGURED"
 
     def _load_yaml(self, path: Path) -> Dict[str, Any]:
@@ -163,7 +169,8 @@ class TheOddsApiClient:
             return {}
 
     def _load_config(self) -> Dict[str, Any]:
-        merged = self._load_yaml(self.config_path)
+        merged = self._load_yaml(EXAMPLE_CONFIG_PATH)
+        merged.update(self._load_yaml(self.config_path))
         local_override = self._load_yaml(self.local_config_path)
         if local_override:
             merged.update(local_override)
