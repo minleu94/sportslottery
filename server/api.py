@@ -22,6 +22,8 @@ import logging
 import os
 import re
 import sys
+import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1403,10 +1405,33 @@ def admin_update_player_settings(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+_analytics_cache: Optional[Dict[str, Any]] = None
+_analytics_cache_mtime: int = 0
+_analytics_cache_time: float = 0
+_analytics_cache_lock = threading.Lock()
+
+
 @app.get("/api/research/analytics")
 def get_research_analytics():
+    global _analytics_cache, _analytics_cache_mtime, _analytics_cache_time
     _, _, _, _, _, snapshot_logger, metrics_engine, shadow_portfolio = get_services()
-    
+
+    mtime_ns = 0
+    try:
+        if snapshot_logger.log_path.exists():
+            mtime_ns = snapshot_logger.log_path.stat().st_mtime_ns
+    except Exception:
+        pass
+
+    now_ts = time.time()
+    with _analytics_cache_lock:
+        if (
+            _analytics_cache is not None
+            and _analytics_cache_mtime == mtime_ns
+            and (now_ts - _analytics_cache_time) < 120.0
+        ):
+            return _analytics_cache
+
     try:
         snaps = snapshot_logger.get_all_snapshots()
     except Exception:
@@ -1425,8 +1450,8 @@ def get_research_analytics():
         portfolio_summary = shadow_portfolio.get_portfolio_summary()
     except Exception:
         portfolio_summary = {}
-    
-    return {
+
+    result = {
         "total_snapshots": len(snaps),
         "cohort": cohort,
         "agreement": agreement,
@@ -1435,6 +1460,13 @@ def get_research_analytics():
         "expert_data": expert_data,
         "shadow_portfolio": portfolio_summary,
     }
+
+    with _analytics_cache_lock:
+        _analytics_cache = result
+        _analytics_cache_mtime = mtime_ns
+        _analytics_cache_time = now_ts
+
+    return result
 
 
 @app.get("/api/system/storage_status")

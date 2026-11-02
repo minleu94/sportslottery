@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -35,6 +37,11 @@ from integrations.odds.the_odds_api import TheOddsApiClient
 logger = logging.getLogger(__name__)
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "data" / "research" / "forward_evaluation_summary.json"
+
+_summary_cache_payload: Optional[Dict[str, Any]] = None
+_summary_cache_mtime: int = 0
+_summary_cache_time: float = 0
+_summary_cache_lock = threading.Lock()
 
 
 class MarketForwardPipeline:
@@ -230,11 +237,53 @@ class MarketForwardPipeline:
 
     def get_research_status_summary(self) -> Dict[str, Any]:
         """Retrieve aggregated research metrics for the UI."""
-        all_snaps = self.snapshot_logger.get_all_snapshots()
-        settled_snaps = [s for s in all_snaps if s.get("is_settled")]
-        odds_status = self.odds_client.get_source_status()
-        report = self.evaluation_engine.evaluate_cohort(settled_snaps)
+        global _summary_cache_payload, _summary_cache_mtime, _summary_cache_time
 
+        mtime_ns = 0
+        try:
+            if self.snapshot_logger.log_path.exists():
+                mtime_ns = self.snapshot_logger.log_path.stat().st_mtime_ns
+        except Exception:
+            pass
+
+        now_ts = time.time()
+        cached_blocks = None
+        with _summary_cache_lock:
+            if (
+                _summary_cache_payload is not None
+                and _summary_cache_mtime == mtime_ns
+                and (now_ts - _summary_cache_time) < 120.0
+            ):
+                cached_blocks = _summary_cache_payload
+
+        if cached_blocks is None:
+            all_snaps = self.snapshot_logger.get_all_snapshots()
+            settled_snaps = [s for s in all_snaps if s.get("is_settled")]
+            report = self.evaluation_engine.evaluate_cohort(settled_snaps)
+            cached_blocks = {
+                "snapshots": {
+                    "total_count": len(all_snaps),
+                    "settled_count": len(settled_snaps),
+                    "pending_count": len(all_snaps) - len(settled_snaps),
+                    "forward_eligible_count": sum(1 for s in all_snaps if s.get("forward_validation_eligible")),
+                },
+                "forward_evaluation": {
+                    "sample_size": report.sample_size,
+                    "status": report.status,
+                    "champion_source": report.champion_source,
+                    "acceptance_gate_qualified": report.acceptance_gate_qualified,
+                    "shadow_mode_recommendation": report.shadow_mode_recommendation,
+                    "taiwan_baseline": report.taiwan_market_baseline.to_dict(),
+                    "international_sharp": report.international_sharp_benchmark.to_dict(),
+                    "active_model": report.active_model_strategy.to_dict(),
+                },
+            }
+            with _summary_cache_lock:
+                _summary_cache_payload = cached_blocks
+                _summary_cache_mtime = mtime_ns
+                _summary_cache_time = now_ts
+
+        odds_status = self.odds_client.get_source_status()
         scheduler_status = None
         try:
             from core.market_scheduler import get_market_scheduler
@@ -246,21 +295,7 @@ class MarketForwardPipeline:
             "live_status": odds_status.get("operating_mode", "SYNTHETIC_FIXTURE"),
             "the_odds_api": odds_status,
             "scheduler": scheduler_status,
-            "snapshots": {
-                "total_count": len(all_snaps),
-                "settled_count": len(settled_snaps),
-                "pending_count": len(all_snaps) - len(settled_snaps),
-                "forward_eligible_count": sum(1 for s in all_snaps if s.get("forward_validation_eligible")),
-            },
-            "forward_evaluation": {
-                "sample_size": report.sample_size,
-                "status": report.status,
-                "champion_source": report.champion_source,
-                "acceptance_gate_qualified": report.acceptance_gate_qualified,
-                "shadow_mode_recommendation": report.shadow_mode_recommendation,
-                "taiwan_baseline": report.taiwan_market_baseline.to_dict(),
-                "international_sharp": report.international_sharp_benchmark.to_dict(),
-                "active_model": report.active_model_strategy.to_dict(),
-            },
+            "snapshots": cached_blocks["snapshots"],
+            "forward_evaluation": cached_blocks["forward_evaluation"],
             "as_of_utc": datetime.now(timezone.utc).isoformat(),
         }

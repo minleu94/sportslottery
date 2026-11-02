@@ -140,21 +140,23 @@ def read_jsonl(path: Path) -> list[dict]:
         with _cache_guard:
             cached = _jsonl_cache.get(key)
             if cached is not None and cached[0] == mtime_ns and cached[1] == size:
-                return [r.copy() for r in cached[2]]
+                return list(cached[2])
 
         rows = []
-        for number, line in enumerate(resolved.read_text(encoding='utf-8').splitlines(), 1):
-            if not line.strip():
-                continue
-            try:
-                row = json.loads(line)
-                if not isinstance(row, dict):
-                    raise ValueError('Expected JSON object')
-            except ValueError as exc:
-                raise ValueError(f'Invalid ledger record {resolved}:{number}: {exc}') from exc
-            rows.append(row)
+        with resolved.open('r', encoding='utf-8') as stream:
+            for number, line in enumerate(stream, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                    if not isinstance(row, dict):
+                        raise ValueError('Expected JSON object')
+                except ValueError as exc:
+                    raise ValueError(f'Invalid ledger record {resolved}:{number}: {exc}') from exc
+                rows.append(row)
 
         with _cache_guard:
             _jsonl_cache[key] = (mtime_ns, size, rows)
 
-        return [r.copy() for r in rows]
+        return list(rows)

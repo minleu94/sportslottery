@@ -26,7 +26,8 @@ import {
 export const ResearchView: React.FC = () => {
   const [data, setData] = useState<any>(null)
   const [marketSummary, setMarketSummary] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [loadingMarket, setLoadingMarket] = useState(true)
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true)
   const [apiKeyInput, setApiKeyInput] = useState("")
   const [showKeyForm, setShowKeyForm] = useState(false)
   const [submittingKey, setSubmittingKey] = useState(false)
@@ -39,19 +40,19 @@ export const ResearchView: React.FC = () => {
   }, [])
 
   async function loadAnalytics() {
-    setLoading(true)
-    try {
-      const [resAnalytics, resMarket] = await Promise.all([
-        api.getResearchAnalytics().catch(() => null),
-        api.getMarketResearchSummary().catch(() => null),
-      ])
-      setData(resAnalytics)
-      setMarketSummary(resMarket)
-    } catch (err: any) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
+    api.getMarketResearchSummary()
+      .then((res) => {
+        setMarketSummary(res)
+        setLoadingMarket(false)
+      })
+      .catch(() => setLoadingMarket(false))
+
+    api.getResearchAnalytics()
+      .then((res) => {
+        setData(res)
+        setLoadingAnalytics(false)
+      })
+      .catch(() => setLoadingAnalytics(false))
   }
 
   async function handleSaveKey(e: React.FormEvent) {
@@ -118,18 +119,6 @@ export const ResearchView: React.FC = () => {
     } finally {
       setTogglingScheduler(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-24 w-full" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Skeleton className="h-64" />
-          <Skeleton className="h-64" />
-        </div>
-      </div>
-    )
   }
 
   const portfolio = data?.shadow_portfolio || {}
