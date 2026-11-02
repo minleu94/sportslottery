@@ -210,6 +210,25 @@ def kill_proc_tree(proc: Optional[subprocess.Popen]) -> None:
             pass
 
 
+def kill_stale_port(port: int) -> None:
+    """Terminate any stale process listening on the specified port on Windows."""
+    if sys.platform != "win32":
+        return
+    try:
+        cmd = f'netstat -ano | findstr :{port}'
+        output = subprocess.check_output(cmd, shell=True, text=True, errors="ignore")
+        current_pid = os.getpid()
+        for line in output.strip().splitlines():
+            parts = line.split()
+            if len(parts) >= 5 and "LISTENING" in parts:
+                pid = parts[-1]
+                if pid.isdigit() and int(pid) != current_pid:
+                    log_tray(f"Terminating stale process holding port {port} (PID {pid})...")
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", pid], capture_output=True, creationflags=CREATE_NO_WINDOW)
+    except Exception as exc:
+        log_tray(f"Error checking/killing stale port {port}: {exc}")
+
+
 class AppTrayManager:
     """Coordinates FastAPI backend, Cloudflare single tunnel, and System Tray."""
 
@@ -251,7 +270,7 @@ class AppTrayManager:
 
     def _open_browser_when_ready(self, timeout: float = 35.0) -> None:
         """Poll FastAPI health check and automatically open browser."""
-        url = f"http://localhost:{PORT}"
+        url = f"http://127.0.0.1:{PORT}"
         health_url = f"{url}/api/health"
         start_t = time.time()
         while time.time() - start_t < timeout and self.is_running:
@@ -307,7 +326,7 @@ class AppTrayManager:
                 except Exception as exc:
                     log_tray(f"Error configuring ngrok authtoken: {exc}")
 
-            ngrok_cmd = [ngrok_exe, "http", f"http://127.0.0.1:{PORT}", f"--url=https://{clean_domain}"]
+            ngrok_cmd = [ngrok_exe, "http", f"http://127.0.0.1:{PORT}", f"--url=https://{clean_domain}", "--pooling-enabled"]
             try:
                 log_file = open(ROOT_DIR / "data" / "ngrok.log", "a", encoding="utf-8")
                 self.proc_tunnel = subprocess.Popen(
@@ -418,7 +437,9 @@ class AppTrayManager:
                     return
             except Exception:
                 pass
-            log_tray(f"Port {PORT} is currently in use. Launching current backend instance...")
+            log_tray(f"Port {PORT} is occupied by unverified/stale process. Terminating old port owner...")
+            kill_stale_port(PORT)
+            time.sleep(0.6)
 
         log_tray(f"Starting FastAPI on port {PORT} via: {python_bin}")
 
@@ -510,7 +531,7 @@ class AppTrayManager:
 
     def open_web_browser(self) -> None:
         """Open local FastAPI modern React UI in default browser."""
-        webbrowser.open(f"http://localhost:{PORT}")
+        webbrowser.open(f"http://127.0.0.1:{PORT}")
 
     def open_mobile_browser(self) -> None:
         """Open public HTTPS tunnel URL or LAN URL in browser."""
@@ -617,8 +638,9 @@ class AppTrayManager:
         """Main entry point."""
         log_tray("AppTrayManager.run() starting")
         if not self.acquire_single_instance():
-            log_tray("Single instance acquire failed, exiting run()")
-            return 1
+            log_tray(f"Single instance lock held on port {LOCK_PORT}; opening browser directly for user.")
+            webbrowser.open(f"http://127.0.0.1:{PORT}")
+            return 0
 
         self.start_services()
 
