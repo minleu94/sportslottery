@@ -33,6 +33,15 @@ export const Sheet: React.FC<SheetProps> = ({
     }
   }, [open])
 
+  React.useEffect(() => {
+    if (!open) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [open, onClose])
+
   if (!open) return null
 
   const sideAnimations = {
@@ -57,18 +66,25 @@ export const Sheet: React.FC<SheetProps> = ({
           className
         )}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 py-3.5 sm:p-5 bg-slate-50/90 dark:bg-slate-950/80 shrink-0">
+        <div
+          className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-4 py-3.5 sm:p-5 bg-slate-50/90 dark:bg-slate-950/80 shrink-0"
+          style={{
+            paddingTop: "max(0.875rem, env(safe-area-inset-top))",
+            paddingRight: "max(1rem, env(safe-area-inset-right))",
+          }}
+        >
           <div className="pr-3 flex-1 min-w-0">
-            {title && <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate">{title}</h2>}
+            {title && <h2 className="min-w-0 text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate">{title}</h2>}
             {description && <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 truncate">{description}</p>}
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-slate-700 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white cursor-pointer"
             title="關閉 (Esc)"
             aria-label="關閉"
           >
             <X className="h-5 w-5" />
+            <span className="text-sm font-semibold">關閉</span>
           </button>
         </div>
         
