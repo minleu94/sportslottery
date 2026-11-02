@@ -169,7 +169,7 @@ def render_profile_view(
     st.markdown("---")
 
     # Tabs for Settings and Creation (Archie sees all players, others see only self)
-    is_admin = bool(profile.get("name") == "Archie")
+    is_admin = profile.get("id") == DEFAULT_PROFILE_ID
     if is_admin:
         tab_edit, tab_admin_all, tab_create = st.tabs([
             "⚙️ 編輯我的設定",
@@ -289,7 +289,7 @@ def render_profile_view(
                 "`綁定 <名字> <PIN碼>`（例如：`綁定 小明 0000`），即可自動將其 LINE 帳號連動至個人空間。"
             )
 
-            other_players = [p for p in all_profs if p["name"] != "Archie" and p["id"] != DEFAULT_PROFILE_ID]
+            other_players = [p for p in all_profs if p["id"] != DEFAULT_PROFILE_ID]
             other_names = [p["name"] for p in other_players]
 
             # 1. Admin Delete Player

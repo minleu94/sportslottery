@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, Optional
 
 from fastapi import Depends, Header, HTTPException, Request, status
+from core.profile_manager import DEFAULT_PROFILE_ID
 from core.storage_config import get_db_path
 
 SESSION_TTL_SECONDS = 7 * 86400  # 7 days
@@ -30,6 +31,7 @@ class SessionManager:
         self.ttl_seconds = ttl_seconds
         self._sessions: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
+        self._legacy_admin_sessions_revoked_for: set[str] = set()
 
     @staticmethod
     def _token_hash(token: str) -> str:
@@ -48,6 +50,18 @@ class SessionManager:
             created_at REAL NOT NULL,
             expires_at REAL NOT NULL
         )""")
+        db_key = str(db_path.resolve())
+        with self._lock:
+            if db_key not in self._legacy_admin_sessions_revoked_for:
+                # Older releases derived admin privileges from the display name
+                # "Archie". Revoke persisted non-default elevated sessions once
+                # per database after upgrade.
+                conn.execute(
+                    "DELETE FROM auth_sessions WHERE profile_id != ? AND is_admin != 0",
+                    (DEFAULT_PROFILE_ID,),
+                )
+                conn.commit()
+                self._legacy_admin_sessions_revoked_for.add(db_key)
         return conn
 
     @contextmanager
@@ -68,7 +82,7 @@ class SessionManager:
         pid = str(profile.get("id") or "").strip()
         pname = str(profile.get("name") or "").strip()
         token_version = int(profile.get("token_version") or 1)
-        is_admin = (pid == "default") or (pname == "Archie") or bool(profile.get("is_admin"))
+        is_admin = pid == DEFAULT_PROFILE_ID
 
         must_change_password = False
         if is_admin:
@@ -134,7 +148,9 @@ class SessionManager:
                             "token": token_str,
                             "profile_id": pid,
                             "name": name,
-                            "is_admin": bool(is_admin),
+                            # The persisted flag is retained for schema compatibility,
+                            # but authorization always comes from the fixed profile ID.
+                            "is_admin": str(pid) == DEFAULT_PROFILE_ID,
                             "token_version": int(token_version),
                             "created_at": float(created_at),
                             "expires_at": float(expires_at),
@@ -146,6 +162,16 @@ class SessionManager:
         if session_copy is None:
             return None
 
+        # Old in-memory sessions may predate the role fix and still carry an
+        # elevated flag. Invalidate them instead of merely demoting them.
+        if str(session_copy.get("profile_id") or "").strip() != DEFAULT_PROFILE_ID and session_copy.get("is_admin"):
+            self.revoke_session(token_str)
+            return None
+
+        # Never trust a serialized or cached role bit. This also protects callers
+        # while profile storage is temporarily unavailable.
+        session_copy["is_admin"] = str(session_copy.get("profile_id") or "").strip() == DEFAULT_PROFILE_ID
+
         # Enforce token version against database state if credential was changed
         if check_version and session_copy.get("profile_id"):
             try:
@@ -156,19 +182,24 @@ class SessionManager:
                     self.revoke_session(token_str)
                     return None
                 session_copy["name"] = str(profile.get("name") or session_copy.get("name") or "")
-                session_copy["is_admin"] = (
-                    session_copy["profile_id"] == "default"
-                    or session_copy["name"] == "Archie"
-                    or bool(profile.get("is_admin"))
-                )
+                session_copy["is_admin"] = session_copy["profile_id"] == DEFAULT_PROFILE_ID
                 current_ver = pm.get_token_version(session_copy["profile_id"])
                 if session_copy.get("token_version", 1) < current_ver:
                     self.revoke_session(token_str)
                     return None
                 if session_copy["is_admin"]:
-                    session_copy["must_change_password"] = pm.is_default_admin_pin()
+                    # Fail closed for privileged actions if the admin credential
+                    # state cannot be checked.
+                    try:
+                        session_copy["must_change_password"] = pm.is_default_admin_pin()
+                    except Exception:
+                        session_copy["must_change_password"] = True
+                else:
+                    session_copy["must_change_password"] = False
             except Exception:
-                pass
+                # Authentication and authorization must fail closed when profile
+                # or token-version state cannot be read.
+                return None
 
         return session_copy
 
@@ -311,7 +342,7 @@ def verify_profile_ownership(profile_id: str, session: Dict[str, Any]) -> None:
     """Ensure session owner matches requested profile_id, unless admin ('default')."""
     target_pid = str(profile_id or "").strip()
     sess_pid = str(session.get("profile_id") or "").strip()
-    is_admin = session.get("is_admin", False) or (sess_pid == "default")
+    is_admin = sess_pid == DEFAULT_PROFILE_ID
 
     if not is_admin and sess_pid != target_pid:
         raise HTTPException(
@@ -327,7 +358,7 @@ def require_active_admin_session(
 ) -> Dict[str, Any]:
     """Enforce that request provides a valid admin session that has completed initial 0000 password change."""
     session = require_any_authenticated_session(request, authorization, x_session_token)
-    is_admin = session.get("is_admin", False) or (session.get("profile_id") == "default") or (session.get("name") == "Archie")
+    is_admin = str(session.get("profile_id") or "").strip() == DEFAULT_PROFILE_ID
     if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

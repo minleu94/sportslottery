@@ -20,7 +20,7 @@ from core.storage_config import (
 )
 from ui.navigation import render_sidebar_navigation
 from ui.theme import inject_theme
-from core.profile_manager import ProfileManager
+from core.profile_manager import DEFAULT_PROFILE_ID, ProfileManager
 
 st.set_page_config(page_title="系統設定與資料存放｜瘋狗流", page_icon="⚙️", layout="wide")
 render_sidebar_navigation()
@@ -31,7 +31,7 @@ pm = ProfileManager()
 auth_id = st.session_state.get("authenticated_profile_id")
 active_profile = pm.get_profile(auth_id) if auth_id else None
 
-if not active_profile or active_profile.get("name") != "Archie":
+if not active_profile or active_profile.get("id") != DEFAULT_PROFILE_ID:
     st.error("⛔ 存取受限：【系統設定與資料存放】為系統核心最高權限，僅限管理員 Archie 存取！")
     st.info("若您是管理員 Archie，請先返回首頁以 Archie 帳號及 PIN 碼登入。")
     st.stop()

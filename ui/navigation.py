@@ -165,7 +165,7 @@ def render_sidebar_navigation() -> None:
         except Exception:
             pass
 
-        is_admin_archie = bool(active_profile and active_profile.get("name") == "Archie")
+        is_admin_archie = bool(active_profile and active_profile.get("id") == DEFAULT_PROFILE_ID)
 
         st.markdown("**🧭 系統頁面**")
         st.page_link(str(HOME_PAGE), label="瘋狗流決策台", icon="🐕", use_container_width=True)

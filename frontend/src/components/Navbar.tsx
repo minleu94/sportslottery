@@ -62,7 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     dark: <Moon className="w-3.5 h-3.5 text-indigo-400" />,
   }
 
-  const isAdmin = currentProfile?.name === "Archie" || currentProfile?.id === "default"
+  const isAdmin = currentProfile?.id === "default"
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md transition-colors">
@@ -98,7 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate max-w-[210px] sm:max-w-xs md:max-w-md xl:max-w-none">
-                高倍串關期望值分析 · 週額度風控 · 目前【{isAdmin ? "👑 管理員 Archie" : (currentProfile?.name || "主帳號")}】
+                高倍串關期望值分析 · 週額度風控 · 目前【{isAdmin ? "👑 系統管理員" : (currentProfile?.name || "主帳號")}】
               </p>
             </div>
           </div>

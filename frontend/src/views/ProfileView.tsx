@@ -29,7 +29,7 @@ interface PlayerOverviewItem {
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProfileChange }) => {
-  const isAdmin = currentProfile?.name === "Archie" || currentProfile?.id === "default"
+  const isAdmin = currentProfile?.id === "default"
   const [activeTab, setActiveTab] = useState<"edit" | "admin_overview" | "create">("edit")
 
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -99,7 +99,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
   }
 
   async function handleSwitchProfile() {
-    const isTargetAdmin = selectedProfileId === "default" || profiles.find((p) => p.id === selectedProfileId)?.name === "Archie"
+    const isTargetAdmin = selectedProfileId === "default"
     if (!pinCode.trim()) {
       setMessage({ type: "error", text: isTargetAdmin ? "請輸入 8 位管理員密碼（首次預設 0000）" : "請輸入 4 位數 PIN 碼（預設 0000）" })
       return
@@ -366,14 +366,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
                 >
                   {profiles.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name === "Archie" || p.id === "default" ? `👑 ${p.name} (管理員)` : p.name} (每週上限: {formatNTD(p.weekly_play_cap)})
+                      {p.id === "default" ? `👑 ${p.name} (管理員)` : p.name} (每週上限: {formatNTD(p.weekly_play_cap)})
                     </option>
                   ))}
                 </select>
               </div>
 
               {(() => {
-                const isSelectedSwitchAdmin = selectedProfileId === "default" || profiles.find((p) => p.id === selectedProfileId)?.name === "Archie"
+                const isSelectedSwitchAdmin = selectedProfileId === "default"
                 return (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -529,7 +529,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
                         <tr key={p.id} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/40 transition-colors">
                           <td className="p-3 font-sans font-bold text-slate-900 dark:text-slate-100">
                             <div className="flex items-center gap-1.5">
-                              {p.name === "Archie" && <Crown className="w-3.5 h-3.5 text-amber-500" />}
+                              {p.id === "default" && <Crown className="w-3.5 h-3.5 text-amber-500" />}
                               <span>{p.name}</span>
                               {isCurrent && (
                                 <Badge variant="green" className="text-[10px] px-1 py-0">目前視角</Badge>
@@ -554,7 +554,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
                             </span>
                           </td>
                           <td className="p-3 text-right">
-                            {p.name === "Archie" || p.id === "default" ? (
+                            {p.id === "default" ? (
                               <div className="flex items-center justify-end gap-1.5">
                                 <Badge variant="amber" className="text-[10px]">👑 系統管理者</Badge>
                                 {!isCurrent && (

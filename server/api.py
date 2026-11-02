@@ -1203,7 +1203,7 @@ def list_profiles(session: Optional[Dict[str, Any]] = Depends(get_current_sessio
     _, _, _, _, profile_mgr, _, _, _ = get_services()
     profiles = profile_mgr.list_profiles()
 
-    if session and (session.get("is_admin") or session.get("profile_id") == DEFAULT_PROFILE_ID):
+    if session and session.get("profile_id") == DEFAULT_PROFILE_ID:
         safe_profiles = []
         for p in profiles:
             p_dict = dict(p)
@@ -1286,7 +1286,7 @@ def profile_login(
     )
 
     # Check for default admin weak PIN
-    is_admin = (profile["id"] == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+    is_admin = profile["id"] == DEFAULT_PROFILE_ID
     is_weak_pin = (str(req.pin_code).strip() == "0000")
     requires_pin_change = bool(is_admin and is_weak_pin)
 
@@ -1409,7 +1409,7 @@ def verify_profile_pin(
         path="/",
     )
 
-    is_admin = (profile["id"] == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+    is_admin = profile["id"] == DEFAULT_PROFILE_ID
     is_weak_pin = (str(req.pin_code).strip() == "0000")
     requires_pin_change = bool(is_admin and is_weak_pin)
 
@@ -1534,8 +1534,8 @@ def admin_delete_player(
     profile = profile_mgr.get_profile(profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail=f"找不到 ID 為 {profile_id} 的玩家。")
-    if profile_id == "default" or profile.get("name") == "Archie":
-        raise HTTPException(status_code=400, detail="管理者帳號「Archie」不可被刪除。")
+    if profile_id == DEFAULT_PROFILE_ID:
+        raise HTTPException(status_code=400, detail="系統預設管理員帳號不可被刪除。")
 
     try:
         profile_mgr.admin_delete_profile(
@@ -1567,7 +1567,7 @@ def admin_reset_player_pin(
     session: Optional[Dict[str, Any]] = Depends(get_current_session_optional),
 ):
     _, _, _, _, profile_mgr, _, _, _ = get_services()
-    is_admin = bool(session and (session.get("is_admin") or session.get("profile_id") == "default"))
+    is_admin = bool(session and session.get("profile_id") == DEFAULT_PROFILE_ID)
 
     if is_admin:
         if session.get("must_change_password"):

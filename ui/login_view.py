@@ -314,7 +314,7 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
             st.caption("若成員忘記舊密碼，管理員 Archie 可在此輸入管理員 PIN 碼授權直接重設。")
             with st.form("admin_auth_reset_form"):
                 admin_target_name = st.text_input("👤 輸入要重設密碼的成員名稱：", placeholder="例如：guest", key="admin_gate_target_input")
-                admin_auth_pin_input = st.text_input("🔑 輸入管理員 Archie 的 PIN 碼：", type="password", max_chars=4, key="admin_gate_auth_pin_input")
+                admin_auth_pin_input = st.text_input("🔑 輸入管理員密碼：", type="password", max_chars=8, key="admin_gate_auth_pin_input")
                 admin_new_pin_input = st.text_input("🔑 設定該成員之新 PIN 碼 (預設 0000)：", value="0000", max_chars=4, type="password", key="admin_gate_new_pin_input")
                 submit_admin_gate_reset = st.form_submit_button("🔄 執行管理員授權重設", type="primary", use_container_width=True)
 

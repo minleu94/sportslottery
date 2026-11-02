@@ -79,7 +79,7 @@ def test_profile_view_has_archie_admin_roster():
     with open("ui/profile_view.py", encoding="utf-8") as f:
         code = f.read()
 
-    assert 'is_admin = bool(profile.get("name") == "Archie")' in code
+    assert 'is_admin = profile.get("id") == DEFAULT_PROFILE_ID' in code
     assert "👑 全系統玩家名單 (管理員 Archie 專屬)" in code
 
 

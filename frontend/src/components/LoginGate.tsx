@@ -38,11 +38,11 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
     (p) => p.name.toLowerCase() === selectedIdentifier.trim().toLowerCase() || p.id === selectedIdentifier.trim()
   )
   const isSelectedAdmin = selectedProfileObj
-    ? selectedProfileObj.name === "Archie" || selectedProfileObj.id === "default"
-    : selectedIdentifier.trim().toLowerCase() === "archie" || selectedIdentifier.trim().toLowerCase() === "default"
+    ? selectedProfileObj.id === "default"
+    : selectedIdentifier.trim().toLowerCase() === "default"
 
   const changeProfileObj = profiles.find((p) => p.id === changeProfileId)
-  const isChangeAdmin = changeProfileObj ? (changeProfileObj.name === "Archie" || changeProfileObj.id === "default") : false
+  const isChangeAdmin = changeProfileObj?.id === "default"
 
   // Admin Reset State (Forgot Password)
   const [isAdminResetMode, setIsAdminResetMode] = useState<boolean>(false)
@@ -326,7 +326,7 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
                       >
                         {profiles.map((p) => (
                           <option key={p.id} value={p.name}>
-                            {p.name === "Archie" || p.id === "default" ? "👑" : "👤"} {p.name} {p.name === "Archie" || p.id === "default" ? "(系統管理員)" : `(每週上限 NT$ ${p.weekly_play_cap})`}
+                            {p.id === "default" ? "👑" : "👤"} {p.name} {p.id === "default" ? "(系統管理員)" : `(每週上限 NT$ ${p.weekly_play_cap})`}
                           </option>
                         ))}
                       </select>
@@ -491,7 +491,7 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
                       >
                         {profiles.map((p) => (
                           <option key={p.id} value={p.id}>
-                            👤 {p.name} {p.name === "Archie" ? "(管理員)" : ""}
+                            👤 {p.name} {p.id === "default" ? "(管理員)" : ""}
                           </option>
                         ))}
                       </select>

@@ -383,7 +383,7 @@ class ProfileManager:
         target_pin = profile["pin_code"]
         pin_changed = False
         if new_pin_code is not None:
-            is_admin = (pid == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+            is_admin = pid == DEFAULT_PROFILE_ID
             target_pin = hash_pin_code(new_pin_code, is_admin=is_admin, allow_default_admin=False)
             pin_changed = True
 
@@ -433,9 +433,6 @@ class ProfileManager:
         profile = self.get_profile(pid)
         if not profile:
             raise ValueError(f"找不到 ID 為 {pid} 的玩家 Profile。")
-        if profile.get("name") == "Archie":
-            raise ValueError("管理者帳號「Archie」不可被刪除。")
-
         if is_admin:
             if current_pin is not None:
                 if not self.verify_pin(admin_profile_id, current_pin):
@@ -491,7 +488,7 @@ class ProfileManager:
             if not self.verify_pin(admin_profile_id, admin_pin):
                 raise ValueError("【PIN 碼驗證失敗】管理員 PIN 碼不正確。")
 
-        is_target_admin = (pid == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+        is_target_admin = pid == DEFAULT_PROFILE_ID
         valid_pin = validate_pin_code(new_pin_code, is_admin=is_target_admin, allow_default_admin=True)
         hashed_pin = hash_pin_code(valid_pin, is_admin=is_target_admin, allow_default_admin=True)
         now = get_now_iso()
@@ -544,7 +541,7 @@ class ProfileManager:
         target_pin = profile["pin_code"]
         pin_changed = False
         if new_pin_code is not None:
-            is_target_admin = (pid == DEFAULT_PROFILE_ID) or (profile.get("name") == "Archie")
+            is_target_admin = pid == DEFAULT_PROFILE_ID
             target_pin = hash_pin_code(new_pin_code, is_admin=is_target_admin, allow_default_admin=False)
             pin_changed = True
 

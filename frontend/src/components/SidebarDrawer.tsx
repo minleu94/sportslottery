@@ -44,7 +44,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
 }) => {
   const { theme, setTheme, viewMode, toggleViewMode } = useUI()
 
-  const isAdmin = currentProfile?.name === "Archie" || currentProfile?.id === "default"
+  const isAdmin = currentProfile?.id === "default"
 
   return (
     <AnimatePresence>

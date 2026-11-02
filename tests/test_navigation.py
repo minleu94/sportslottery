@@ -23,14 +23,14 @@ def test_streamlit_sidebar_uses_two_explicit_full_label_icon_links_and_hides_dup
     original = navigation.st
     navigation.st = FakeStreamlit()
     try:
-        # 1. Unauthenticated or non-Archie player: settings page is hidden
+        # 1. Unauthenticated player: settings page is hidden
         navigation.render_sidebar_navigation()
         assert [entry[0] for entry in observed] == ["app.py", "1_指標與資料來源.py", "2_資料健康與研究工具.py"]
 
-        # 2. Logged in as Archie: admin settings page is visible
+        # 2. Only the fixed default profile ID receives the admin settings link
         pm = ProfileManager()
-        archie = pm.get_profile_by_name("Archie") or pm.create_profile("Archie", weekly_play_cap=500.0, pin_code="0000")
-        FakeStreamlit.session_state = {"authenticated_profile_id": archie["id"]}
+        admin = pm.get_profile("default")
+        FakeStreamlit.session_state = {"authenticated_profile_id": admin["id"]}
         observed.clear()
         navigation.render_sidebar_navigation()
         assert [entry[0] for entry in observed] == ["app.py", "1_指標與資料來源.py", "2_資料健康與研究工具.py", "3_系統設定與資料存放.py"]
