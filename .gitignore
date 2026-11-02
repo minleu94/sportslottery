@@ -68,4 +68,5 @@ graphify-out/reflections/
 graphify-out/.graphify_learning.json
 
 # Local Agent files
-.agent/
+.agent/*
+!.agent/skills/
