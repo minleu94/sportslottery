@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import threading
 import time
 from datetime import datetime, timezone
@@ -25,13 +26,13 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from core.forward_evaluation_engine import ForwardEvaluationEngine, StrategyComparisonReport
 from core.market_aligner import MarketAligner
-from core.market_fair_odds import MarketFairOddsEngine
+from core.market_fair_odds import BookmakerQuote, MarketFairOddsEngine
 from core.persistence import iter_jsonl
 from core.settlement_engine import SettlementEngine
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger
 from integrations.common.models import TaiwanLeg
-from integrations.odds.market_models import MarketAlignmentStatus
+from integrations.odds.market_models import MarketAlignmentStatus, MarketOddsSnapshot
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
 from integrations.odds.the_odds_api import TheOddsApiClient
 
@@ -83,6 +84,72 @@ class MarketForwardPipeline:
         except Exception:
             return ["MLB", "NBA", "NFL", "SOCCER"]
 
+    @staticmethod
+    def _build_fair_odds_quote(
+        primary: MarketOddsSnapshot,
+        market_quotes: List[MarketOddsSnapshot],
+        is_three_way: bool,
+    ) -> Optional[BookmakerQuote]:
+        """Build a complete same-event, same-book quote for the fair-odds engine."""
+        same_market = [
+            quote for quote in market_quotes
+            if quote.event_id == primary.event_id
+            and quote.source_id == primary.source_id
+            and quote.market_type == primary.market_type
+            and quote.decimal_odds > 1.0
+        ]
+
+        if is_three_way:
+            by_selection = {quote.selection: quote for quote in same_market}
+            if not {"home", "away", "draw"}.issubset(by_selection):
+                return None
+            other_selections = [selection for selection in ("home", "away", "draw") if selection != primary.selection]
+            if primary.selection not in by_selection or len(other_selections) != 2:
+                return None
+            return BookmakerQuote(
+                book_name=primary.source_id,
+                odds=primary.decimal_odds,
+                opposing_odds=by_selection[other_selections[0]].decimal_odds,
+                draw_odds=by_selection[other_selections[1]].decimal_odds,
+                is_three_way=True,
+            )
+
+        if primary.market_type == "SPREAD":
+            if primary.selection not in {"home", "away"} or primary.line is None:
+                return None
+            opposing_selection = "away" if primary.selection == "home" else "home"
+            opposing = next((
+                quote for quote in same_market
+                if quote.selection == opposing_selection
+                and quote.line is not None
+                and math.isclose(quote.line, -primary.line, abs_tol=0.01)
+            ), None)
+        elif primary.market_type == "TOTAL":
+            if primary.selection not in {"over", "under"} or primary.line is None:
+                return None
+            opposing_selection = "under" if primary.selection == "over" else "over"
+            opposing = next((
+                quote for quote in same_market
+                if quote.selection == opposing_selection
+                and quote.line is not None
+                and math.isclose(quote.line, primary.line, abs_tol=0.01)
+            ), None)
+        elif primary.market_type == "MONEYLINE":
+            if primary.selection not in {"home", "away"}:
+                return None
+            opposing_selection = "away" if primary.selection == "home" else "home"
+            opposing = next((quote for quote in same_market if quote.selection == opposing_selection), None)
+        else:
+            return None
+
+        if opposing is None:
+            return None
+        return BookmakerQuote(
+            book_name=primary.source_id,
+            odds=primary.decimal_odds,
+            opposing_odds=opposing.decimal_odds,
+        )
+
     def run_market_snapshot_cycle(
         self,
         leagues: Optional[List[str]] = None,
@@ -132,41 +199,17 @@ class MarketForwardPipeline:
                         synthetic_matched_count += 1
                     else:
                         real_matched_count += 1
-                    # Extract opposing & draw odds for de-vigging strictly matching same bookmaker
-                    opp_quote = next(
-                        (c for c in int_odds
-                         if c.event_id == cand.event_id
-                         and c.bookmaker == cand.bookmaker
-                         and c.market_type == cand.market_type
-                         and c.selection != cand.selection
-                         and c.selection != "draw"
-                         and (c.line == cand.line if cand.line is not None else True)),
-                        None,
-                    )
-                    draw_quote = next(
-                        (c for c in int_odds
-                         if c.event_id == cand.event_id
-                         and c.bookmaker == cand.bookmaker
-                         and c.market_type == cand.market_type
-                         and c.selection == "draw"),
-                        None,
-                    )
-
                     is_soccer = (enriched.sport or "").lower() == "soccer" or (enriched.league or "").upper() in {"EPL", "SOCCER", "LALIGA"}
                     requires_three_way = is_soccer and cand.market_type == "MONEYLINE"
-
-                    if requires_three_way and not draw_quote:
-                        fair_result = None
-                    elif not opp_quote:
-                        fair_result = None
-                    else:
-                        fair_result = self.fair_engine.calculate_fair_odds(
+                    benchmark_quote = self._build_fair_odds_quote(cand, int_odds, requires_three_way)
+                    fair_result = (
+                        self.fair_engine.calculate_fair_odds(
                             taiwan_odds=float(enriched.taiwan_odds or 1.0),
-                            primary_quote=cand,
-                            opposing_quote=opp_quote,
-                            draw_quote=draw_quote,
-                            is_three_way=requires_three_way,
+                            benchmark_quotes=[benchmark_quote],
+                            observed_at=cand.observed_at_utc,
                         )
+                        if benchmark_quote else None
+                    )
 
                     if fair_result:
                         enriched.expected_value = fair_result.theoretical_ev

@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from integrations.common.models import TaiwanLeg
+from core.identity.league_mapping import normalize_league_and_sport
 from integrations.odds.market_models import (
     MarketAlignmentRecord,
     MarketAlignmentStatus,
@@ -30,6 +31,73 @@ from integrations.odds.market_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_market_league(value: Optional[str], from_odds_api: bool = False) -> Optional[str]:
+    """Return a verified competition key, or None when the league is too vague."""
+    raw = str(value or "").strip()
+    if not raw or raw.upper().startswith("UNKNOWN_"):
+        return None
+
+    key = re.sub(r"[\s()（）_\-]+", "", raw).casefold()
+    aliases = {
+        "epl": "PREMIER",
+        "premier": "PREMIER",
+        "premierleague": "PREMIER",
+        "英超": "PREMIER",
+        "laliga": "LALIGA",
+        "laligaspain": "LALIGA",
+        "西甲": "LALIGA",
+        "champions": "CHAMPIONS",
+        "championsleague": "CHAMPIONS",
+        "champsleague": "CHAMPIONS",
+        "uefachampionsleague": "CHAMPIONS",
+        "歐冠": "CHAMPIONS",
+    }
+    if key in aliases:
+        return aliases[key]
+
+    if from_odds_api:
+        # These are provider query aliases. The Odds API client maps generic
+        # sport names to one specific competition (e.g. SOCCER -> soccer_epl).
+        api_aliases = {
+            "baseball": "MLB",
+            "basketball": "NBA",
+            "football": "NFL",
+            "soccer": "PREMIER",
+        }
+        if key in api_aliases:
+            return api_aliases[key]
+
+    canonical_codes = {
+        "MLB", "NBA", "WNBA", "NFL", "NHL", "CPBL", "NPB", "KBO",
+        "PREMIER", "LALIGA", "MLS", "CHAMPIONS", "CHAMPIONS_QUALIFYING",
+        "COLOMBIA_PRIMERA_A", "COSTA_RICA_PRIMERA", "AFC_CHAMPIONS_LEAGUE_TWO",
+        "SAUDI_PRO_LEAGUE", "CONMEBOL_LIBERTADORES",
+    }
+    if raw.upper() in canonical_codes:
+        return raw.upper()
+
+    canonical, _sport = normalize_league_and_sport(raw)
+    if canonical == "OTHER" or canonical.startswith("UNKNOWN_"):
+        return None
+    return canonical
+
+
+def _parse_utc_datetime(value: Optional[Any]) -> Optional[datetime]:
+    """Parse an ISO timestamp only when it carries an explicit timezone."""
+    if value is None:
+        return None
+    try:
+        if isinstance(value, datetime):
+            parsed = value
+        else:
+            parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return None
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 # Canonical team dictionary across leagues
 # Maps canonical_id -> list of aliases (Chinese Traditional, Simplified, English, Short code)
@@ -186,8 +254,8 @@ def parse_numeric_line(line_str: Optional[Any]) -> Optional[float]:
 class MarketAligner:
     """Precision alignment engine between TaiwanLeg and International Market Odds."""
 
-    def __init__(self, max_time_delta_seconds: float = 28800.0, max_staleness_seconds: float = 10800.0):
-        # 28800 seconds = 8 hours tolerance for schedule time differences
+    def __init__(self, max_time_delta_seconds: float = 7200.0, max_staleness_seconds: float = 10800.0):
+        # 7200 seconds = 2 hours; wider gaps risk matching a different fixture.
         self.max_time_delta = max_time_delta_seconds
         # 10800 seconds = 3 hours staleness
         self.max_staleness = max_staleness_seconds
@@ -204,7 +272,37 @@ class MarketAligner:
         record explains why it was rejected.
         """
         now = now_utc or datetime.now(timezone.utc)
+        if now.tzinfo is None or now.utcoffset() is None:
+            now = now.replace(tzinfo=timezone.utc)
+        else:
+            now = now.astimezone(timezone.utc)
         now_iso = now.isoformat()
+
+        def reject_event_identity(
+            rejection_code: str,
+            reason: str,
+            candidate: Optional[MarketOddsSnapshot] = None,
+            time_delta_seconds: Optional[float] = None,
+        ) -> Tuple[None, MarketAlignmentRecord]:
+            record = MarketAlignmentRecord(
+                status=MarketAlignmentStatus.AMBIGUOUS,
+                taiwan_event_id=leg.event_id,
+                taiwan_league=leg.league,
+                taiwan_market=leg.market,
+                taiwan_selection=leg.selection,
+                taiwan_side=leg.side,
+                taiwan_line=leg.line,
+                international_event_id=candidate.event_id if candidate else None,
+                international_source_id=candidate.source_id if candidate else None,
+                international_market_type=candidate.market_type if candidate else None,
+                international_selection=candidate.selection if candidate else None,
+                international_line=candidate.line if candidate else None,
+                aligned_at_utc=now_iso,
+                time_delta_seconds=time_delta_seconds,
+                reason=reason,
+                rejection_code=rejection_code,
+            )
+            return None, record
 
         # Step 1: Validate TaiwanLeg basics
         if not leg.league or not leg.market or not leg.taiwan_odds or leg.taiwan_odds <= 1.0:
@@ -227,9 +325,23 @@ class MarketAligner:
             )
             return None, rec
 
-        # Resolve Taiwan canonical teams
-        tw_home_canon = resolve_canonical_team(leg.home_team, leg.league)
-        tw_away_canon = resolve_canonical_team(leg.away_team, leg.league)
+        tw_league = _normalize_market_league(leg.league)
+        if not tw_league:
+            return reject_event_identity(
+                "ERR_LEAGUE_UNKNOWN",
+                f"Taiwan competition '{leg.league}' is unresolved; refusing cross-league alignment.",
+            )
+
+        tw_start = _parse_utc_datetime(leg.start_time_utc)
+        if tw_start is None:
+            return reject_event_identity(
+                "ERR_EVENT_TIME_UNKNOWN",
+                "Taiwan event kickoff is missing, invalid, or has no timezone; refusing to align by team names alone.",
+            )
+
+        # Resolve Taiwan canonical teams within the verified competition family.
+        tw_home_canon = resolve_canonical_team(leg.home_team, tw_league)
+        tw_away_canon = resolve_canonical_team(leg.away_team, tw_league)
 
         if not tw_home_canon or not tw_away_canon:
             rec = MarketAlignmentRecord(
@@ -280,22 +392,21 @@ class MarketAligner:
             )
             return None, rec
 
-        # Filter candidates by team match
-        matched_candidates: List[Tuple[MarketOddsSnapshot, bool]] = []
-        # bool indicates whether home/away are aligned (True) or reversed (False)
-
+        # Filter candidates by competition and team match before comparing kickoff.
+        team_candidates: List[Tuple[MarketOddsSnapshot, bool]] = []
         for cand in candidates:
-            cand_home_canon = resolve_canonical_team(cand.home_team, cand.league) or normalize_string(cand.home_team)
-            cand_away_canon = resolve_canonical_team(cand.away_team, cand.league) or normalize_string(cand.away_team)
+            if _normalize_market_league(cand.league, from_odds_api=True) != tw_league:
+                continue
 
-            # Check direct match: tw_home == cand_home and tw_away == cand_away
+            cand_home_canon = resolve_canonical_team(cand.home_team, tw_league) or normalize_string(cand.home_team)
+            cand_away_canon = resolve_canonical_team(cand.away_team, tw_league) or normalize_string(cand.away_team)
+
             if tw_home_canon == cand_home_canon and tw_away_canon == cand_away_canon:
-                matched_candidates.append((cand, True))
-            # Check reversed match: tw_home == cand_away and tw_away == cand_home
+                team_candidates.append((cand, True))
             elif tw_home_canon == cand_away_canon and tw_away_canon == cand_home_canon:
-                matched_candidates.append((cand, False))
+                team_candidates.append((cand, False))
 
-        if not matched_candidates:
+        if not team_candidates:
             rec = MarketAlignmentRecord(
                 status=MarketAlignmentStatus.UNMATCHED,
                 taiwan_event_id=leg.event_id,
@@ -310,10 +421,64 @@ class MarketAligner:
                 international_selection=None,
                 international_line=None,
                 aligned_at_utc=now_iso,
-                reason=f"No matching international event found for {tw_away_canon} @ {tw_home_canon}",
+                reason=f"No same-league international event found for {tw_away_canon} @ {tw_home_canon} in {tw_league}",
                 rejection_code="ERR_EVENT_NOT_FOUND",
             )
             return None, rec
+
+        # Group quotes by external event so multiple markets/books do not count
+        # as separate events. Every candidate event must have a trustworthy UTC
+        # kickoff before it can be considered for identity matching.
+        event_groups: Dict[str, List[Tuple[MarketOddsSnapshot, bool]]] = {}
+        for item in team_candidates:
+            event_groups.setdefault(item[0].event_id, []).append(item)
+
+        timed_events: Dict[str, Tuple[List[Tuple[MarketOddsSnapshot, bool]], float]] = {}
+        unknown_time_events: List[List[Tuple[MarketOddsSnapshot, bool]]] = []
+        out_of_window: List[Tuple[MarketOddsSnapshot, float]] = []
+        for event_quotes in event_groups.values():
+            event_times = [_parse_utc_datetime(item[0].start_time_utc) for item in event_quotes]
+            if any(event_time is None for event_time in event_times):
+                unknown_time_events.append(event_quotes)
+                continue
+            parsed_times = [event_time for event_time in event_times if event_time is not None]
+            kickoff = parsed_times[0]
+            if any(abs((candidate_time - kickoff).total_seconds()) > 1.0 for candidate_time in parsed_times[1:]):
+                unknown_time_events.append(event_quotes)
+                continue
+            delta = abs((kickoff - tw_start).total_seconds())
+            if delta <= self.max_time_delta:
+                timed_events[event_quotes[0][0].event_id] = (event_quotes, delta)
+            else:
+                out_of_window.append((event_quotes[0][0], delta))
+
+        if unknown_time_events:
+            candidate = unknown_time_events[0][0][0]
+            return reject_event_identity(
+                "ERR_EVENT_TIME_UNKNOWN",
+                "A same-league, same-team international candidate has an invalid or inconsistent UTC kickoff.",
+                candidate=candidate,
+            )
+
+        if not timed_events:
+            nearest = min(out_of_window, key=lambda item: item[1]) if out_of_window else None
+            return reject_event_identity(
+                "ERR_EVENT_TIME_MISMATCH",
+                f"Matching teams were found, but no kickoff was within {self.max_time_delta:.0f} seconds of the Taiwan event.",
+                candidate=nearest[0] if nearest else None,
+                time_delta_seconds=nearest[1] if nearest else None,
+            )
+
+        if len(timed_events) > 1:
+            nearest_event = min(timed_events.values(), key=lambda item: item[1])
+            return reject_event_identity(
+                "ERR_EVENT_TIME_AMBIGUOUS",
+                "Multiple international event IDs match the same teams, league, and kickoff window; refusing to choose the first.",
+                candidate=nearest_event[0][0][0],
+                time_delta_seconds=nearest_event[1],
+            )
+
+        matched_event_id, (matched_candidates, event_time_delta) = next(iter(timed_events.items()))
 
         # Check for market type match
         market_cands = [(c, aligned) for (c, aligned) in matched_candidates if c.market_type == tw_market_type]
@@ -417,31 +582,41 @@ class MarketAligner:
             return None, rec
 
         # Check Staleness of selected quote
-        try:
-            obs_dt = datetime.fromisoformat(selected_cand.observed_at_utc.replace("Z", "+00:00"))
-            age_sec = (now - obs_dt).total_seconds()
-            if age_sec > self.max_staleness:
-                rec = MarketAlignmentRecord(
-                    status=MarketAlignmentStatus.STALE,
-                    taiwan_event_id=leg.event_id,
-                    taiwan_league=leg.league,
-                    taiwan_market=leg.market,
-                    taiwan_selection=leg.selection,
-                    taiwan_side=leg.side,
-                    taiwan_line=leg.line,
-                    international_event_id=selected_cand.event_id,
-                    international_source_id=selected_cand.source_id,
-                    international_market_type=selected_cand.market_type,
-                    international_selection=selected_cand.selection,
-                    international_line=selected_cand.line,
-                    aligned_at_utc=now_iso,
-                    time_delta_seconds=age_sec,
-                    reason=f"International quote is stale (age {age_sec/60:.1f} min > limit {self.max_staleness/60:.0f} min)",
-                    rejection_code="ERR_STALE_ODDS",
-                )
-                return None, rec
-        except Exception:
-            pass
+        obs_dt = _parse_utc_datetime(selected_cand.observed_at_utc)
+        if obs_dt is None:
+            return reject_event_identity(
+                "ERR_ODDS_TIME_UNKNOWN",
+                "Matched international quote has an invalid or timezone-free observation timestamp.",
+                candidate=selected_cand,
+            )
+        age_sec = (now - obs_dt).total_seconds()
+        if age_sec < -300.0:
+            return reject_event_identity(
+                "ERR_ODDS_TIME_FUTURE",
+                "Matched international quote observation timestamp is more than five minutes in the future.",
+                candidate=selected_cand,
+                time_delta_seconds=age_sec,
+            )
+        if age_sec > self.max_staleness:
+            rec = MarketAlignmentRecord(
+                status=MarketAlignmentStatus.STALE,
+                taiwan_event_id=leg.event_id,
+                taiwan_league=leg.league,
+                taiwan_market=leg.market,
+                taiwan_selection=leg.selection,
+                taiwan_side=leg.side,
+                taiwan_line=leg.line,
+                international_event_id=selected_cand.event_id,
+                international_source_id=selected_cand.source_id,
+                international_market_type=selected_cand.market_type,
+                international_selection=selected_cand.selection,
+                international_line=selected_cand.line,
+                aligned_at_utc=now_iso,
+                time_delta_seconds=age_sec,
+                reason=f"International quote is stale (age {age_sec/60:.1f} min > limit {self.max_staleness/60:.0f} min)",
+                rejection_code="ERR_STALE_ODDS",
+            )
+            return None, rec
 
         # High-Fidelity Match confirmed!
         rec = MarketAlignmentRecord(
@@ -458,6 +633,7 @@ class MarketAligner:
             international_selection=selected_cand.selection,
             international_line=selected_cand.line,
             aligned_at_utc=now_iso,
+            time_delta_seconds=event_time_delta,
             reason=alignment_note,
         )
         return selected_cand, rec

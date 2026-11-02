@@ -52,6 +52,7 @@ def test_exact_spread_alignment_matched():
         side="主",
         line="-1.5",
         taiwan_odds=1.85,
+        start_time_utc=now_iso,
     )
 
     candidate = MarketOddsSnapshot(
@@ -93,6 +94,7 @@ def test_spread_line_mismatch_rejected():
         side="主",
         line="-1.5",
         taiwan_odds=1.85,
+        start_time_utc=now_iso,
     )
 
     # International quote has line -2.5 instead of -1.5
@@ -134,6 +136,7 @@ def test_total_threshold_mismatch_rejected():
         side="大",
         line="8.5",
         taiwan_odds=1.75,
+        start_time_utc=now_iso,
     )
 
     # Int quote has total line 9.0
@@ -176,6 +179,7 @@ def test_team_direction_reversal_handling():
         selection="道奇 客勝",
         side="主",  # Backing Dodgers
         taiwan_odds=1.60,
+        start_time_utc=now_iso,
     )
 
     candidate = MarketOddsSnapshot(
@@ -215,6 +219,7 @@ def test_stale_quote_rejection():
         selection="道奇勝",
         side="主",
         taiwan_odds=1.60,
+        start_time_utc=old_time,
     )
 
     candidate = MarketOddsSnapshot(
