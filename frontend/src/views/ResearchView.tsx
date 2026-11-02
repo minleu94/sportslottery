@@ -163,7 +163,8 @@ export const ResearchView: React.FC = () => {
   const snaps = marketSummary?.snapshots || {}
   const fwd = marketSummary?.forward_evaluation || {}
   const opMode = marketSummary?.live_status || theOdds?.operating_mode || "SYNTHETIC_FIXTURE"
-  const sampleSize = fwd?.sample_size || 0
+  const sampleSize = fwd?.paired_sample_size || 0
+  const eligibleEventCount = fwd?.sample_size || 0
   const sched = marketSummary?.scheduler || {}
 
   return (
@@ -292,7 +293,7 @@ export const ResearchView: React.FC = () => {
             {/* 4. Forward Gate Status */}
             <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>前瞻驗證樣本 (N)</span>
+                <span>模型 / 國際基準配對事件 (N)</span>
                 <span className="text-[11px] font-mono font-medium text-slate-400">門檻 30</span>
               </div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
@@ -300,11 +301,11 @@ export const ResearchView: React.FC = () => {
               </div>
               <div className="text-[11px] truncate">
                 <span className="text-slate-600 dark:text-slate-400 font-medium">
-                  {fwd?.status === "SHADOW_MODE_ACCUMULATING" ? "影子累積中 (0/30)" : (fwd?.status || "影子累積中")}
+                  {fwd?.acceptance_gate_qualified ? "已達配對統計驗證條件" : "影子模式：優勢尚未獲得統計支持"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-400 truncate">
-                {fwd?.acceptance_gate_qualified ? "已通過驗證閘門" : "未達驗證門檻"}
+                去重賽事 {eligibleEventCount} · Brier 差異 95% CI {fwd?.delta_brier_ci_95?.map((value: number) => value.toFixed(4)).join(" 至 ") || "尚無"}
               </div>
             </div>
           </div>

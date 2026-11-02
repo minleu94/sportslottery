@@ -277,12 +277,42 @@ class MarketScheduler:
                 "synthetic_matched_count": snapshot_cycle.get("synthetic_matched_count", 0),
                 "qualified_pending_candidate_count": snapshot_cycle.get("qualified_pending_candidate_count", 0),
                 "credits_consumed": snapshot_cycle.get("credits_consumed", 0),
+                "settled_snapshot_count": (result.get("settlement_cycle") or {}).get("settled_count", 0),
+                "unresolved_snapshot_count": (result.get("settlement_cycle") or {}).get("unresolved_count", 0),
+                "result_fetch_errors": (result.get("settlement_cycle") or {}).get("result_fetch_errors", {}),
                 "closure_status": result.get("cycle_status", "NO_QUALIFIED_REAL_MARKET_DATA"),
                 "timestamp_utc": result.get("timestamp_utc"),
             }
             self._save_config()
 
             self.last_run_utc = datetime.now(timezone.utc).isoformat()
+            result_fetch_errors = (result.get("settlement_cycle") or {}).get("result_fetch_errors") or {}
+            if result.get("operation_status") == "PARTIAL" or result_fetch_errors:
+                self.last_status = "PARTIAL"
+                self.last_error = "賽果來源抓取失敗，已保留未結算快照並安排重試。"
+                self.consecutive_failures += 1
+                self.total_runs += 1
+                self.failed_runs += 1
+                backoff_interval = min(
+                    86400,
+                    adaptive_interval * (2 ** min(self.consecutive_failures, 4)),
+                )
+                self.current_interval_seconds = backoff_interval
+                self.next_run_utc = (datetime.now(timezone.utc) + timedelta(seconds=backoff_interval)).isoformat()
+                return {
+                    "status": "PARTIAL",
+                    "cycle_status": result.get("cycle_status", "NO_QUALIFIED_REAL_MARKET_DATA"),
+                    "operation_status": "PARTIAL",
+                    "error": self.last_error,
+                    "cycle_result": result,
+                    "snapshot_cycle": result.get("snapshot_cycle"),
+                    "settlement_cycle": result.get("settlement_cycle"),
+                    "evaluation_summary": result.get("evaluation_summary"),
+                    "interval_seconds": backoff_interval,
+                    "next_run_utc": self.next_run_utc,
+                    "timestamp_utc": self.last_run_utc,
+                }
+
             self.last_status = "SUCCESS"
             self.consecutive_failures = 0
             self.total_runs += 1

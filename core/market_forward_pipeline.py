@@ -31,6 +31,7 @@ from core.persistence import iter_jsonl
 from core.settlement_engine import SettlementEngine
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger
+from core.bet_validation import parse_aware_time
 from integrations.common.models import TaiwanLeg
 from integrations.odds.market_models import MarketAlignmentStatus, MarketOddsSnapshot
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
@@ -70,6 +71,9 @@ class MarketForwardPipeline:
         self.settlement_engine = settlement_engine or SettlementEngine(
             snapshot_logger=self.snapshot_logger
         )
+        if (isinstance(self.settlement_engine, SettlementEngine)
+                and self.settlement_engine.snapshot_logger is not self.snapshot_logger):
+            self.settlement_engine.snapshot_logger = self.snapshot_logger
         self.evaluation_engine = evaluation_engine or ForwardEvaluationEngine()
         self.summary_path = summary_path or SUMMARY_PATH
         self.summary_path.parent.mkdir(parents=True, exist_ok=True)
@@ -267,36 +271,71 @@ class MarketForwardPipeline:
         }
 
     def run_settlement_cycle(self, now: Optional[datetime] = None) -> Dict[str, Any]:
-        """Scan unsettled historical predictions and settle completed matches."""
-        current_time = now or datetime.now(timezone.utc)
+        """Fetch verified results and settle due prediction snapshots idempotently."""
+        current_time = parse_aware_time(now) if now is not None else datetime.now(timezone.utc)
+        if current_time is None:
+            raise ValueError("Settlement observation time must be timezone aware.")
+
         unsettled_checked = 0
-        settled_count = 0
         deferred_count = 0
+        missing_start_count = 0
+        due_snapshots: List[Dict[str, Any]] = []
+        result_grace = 3 * 60 * 60
 
         for snap in iter_jsonl(self.snapshot_logger.log_path):
             if snap.get("is_settled"):
                 continue
             unsettled_checked += 1
-            # Check if match has elapsed
-            event_start_str = snap.get("event_start") or snap.get("start_time_utc")
-            if not event_start_str:
+            event_start = parse_aware_time(snap.get("event_start") or snap.get("start_time_utc"))
+            if event_start is None:
+                missing_start_count += 1
                 continue
-            try:
-                start_dt = datetime.fromisoformat(str(event_start_str).replace("Z", "+00:00"))
-                # If start time is at least 3 hours in the past, evaluate settlement
-                if (current_time - start_dt).total_seconds() > 10800:
-                    # In real operation, result engine queries verified match scores
-                    # Here we support automated settlement invocation
-                    pass
-                else:
-                    deferred_count += 1
-            except Exception:
+            if (current_time - event_start).total_seconds() <= result_grace:
+                deferred_count += 1
                 continue
+            due_snapshots.append(snap)
 
+        # Reuse the same provider coverage, identity matching, Taiwan settlement
+        # rules, payload integrity check, and idempotent writes used by the full
+        # research settlement workflow.
+        if due_snapshots:
+            from scripts.settle_results import settle_snapshot_results
+
+            result = settle_snapshot_results(
+                self.settlement_engine,
+                due_snapshots,
+                now=current_time,
+            )
+        else:
+            result = {
+                "settled": 0,
+                "unresolved": 0,
+                "games": 0,
+                "coverage": {},
+                "unmatched_observations": [],
+                "deferred_snapshots": 0,
+                "deferred_observations": [],
+            }
+
+        parlay_result = self.settlement_engine.settle_parlays_against_snapshots()
+        fetch_errors = {
+            league: list(info.get("errors") or [])
+            for league, info in result.get("coverage", {}).items()
+            if info.get("fetch_status") == "FETCH_ERROR"
+        }
         return {
             "unsettled_checked": unsettled_checked,
-            "settled_count": settled_count,
-            "deferred_count": deferred_count,
+            "due_count": len(due_snapshots),
+            "settled_count": int(result.get("settled", 0)),
+            "unresolved_count": int(result.get("unresolved", 0)) + missing_start_count,
+            "deferred_count": deferred_count + int(result.get("deferred_snapshots", 0)),
+            "missing_start_count": missing_start_count,
+            "result_games": int(result.get("games", 0)),
+            "coverage": result.get("coverage", {}),
+            "unmatched_observations": result.get("unmatched_observations", []),
+            "result_fetch_errors": fetch_errors,
+            "settled_parlay_candidates": int(parlay_result.get("settled_parlay_candidates", 0)),
+            "settled_shadow_tickets": int(parlay_result.get("settled_shadow_tickets", 0)),
             "timestamp_utc": current_time.isoformat(),
         }
 
@@ -480,12 +519,13 @@ class MarketForwardPipeline:
             if snap_res.get("qualified_pending_candidate_count", 0) > 0
             else "NO_QUALIFIED_REAL_MARKET_DATA"
         )
+        operation_status = "PARTIAL" if settle_res.get("result_fetch_errors") else "SUCCESS"
 
         return {
             # The operation may complete successfully even when no real aligned
             # candidates were available. Keep that distinction explicit.
             "cycle_status": snapshot_cycle_status,
-            "operation_status": "SUCCESS",
+            "operation_status": operation_status,
             "snapshot_cycle": snap_res,
             "settlement_cycle": settle_res,
             "evaluation_summary": eval_report.to_dict(),
@@ -536,10 +576,12 @@ class MarketForwardPipeline:
                 },
                 "forward_evaluation": {
                     "sample_size": report.sample_size,
+                    "paired_sample_size": report.paired_sample_size,
                     "status": report.status,
                     "champion_source": report.champion_source,
                     "acceptance_gate_qualified": report.acceptance_gate_qualified,
                     "shadow_mode_recommendation": report.shadow_mode_recommendation,
+                    "delta_brier_ci_95": list(report.delta_brier_ci_95) if report.delta_brier_ci_95 else None,
                     "taiwan_baseline": report.taiwan_market_baseline.to_dict(),
                     "international_sharp": report.international_sharp_benchmark.to_dict(),
                     "active_model": report.active_model_strategy.to_dict(),
