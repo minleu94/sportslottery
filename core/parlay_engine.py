@@ -226,6 +226,7 @@ class ParlayEngine:
             legs_by_event.setdefault(event_key(leg), []).append(leg)
         events = []
         duplicate_option_records_collapsed = 0
+        semantic_ids_by_object: Dict[int, str] = {}
         for eid, options in legs_by_event.items():
             options.sort(key=lambda leg: (quality_score.get(leg.evidence_quality, 0),
                                           float((leg.signal_evidence or {}).get("non_market_supports", 0)),
@@ -243,6 +244,7 @@ class ParlayEngine:
                                           "side": getattr(option, "side", None),
                                           "line": getattr(option, "line", None),
                                           "odds": option.taiwan_odds})
+                semantic_ids_by_object[id(option)] = semantic_id
                 if semantic_id in unique:
                     duplicate_option_records_collapsed += 1
                     continue
@@ -254,6 +256,8 @@ class ParlayEngine:
         event_options = {row[1]: row[2] for row in events}
         option_ids = {eid: [_stable_id(leg.to_dict()) for leg in event_options[eid]] for eid in event_ids}
         legs_by_id = {option_ids[eid][idx]: leg for eid in event_ids for idx, leg in enumerate(event_options[eid])}
+        option_id_by_object = {id(leg): option_ids[eid][idx]
+                               for eid in event_ids for idx, leg in enumerate(event_options[eid])}
         event_index_by_id = {eid: idx for idx, eid in enumerate(event_ids)}
 
         config_scope = {"min_odds": min_odds, "max_odds": max_odds, "target_odds": target_odds,
@@ -340,15 +344,15 @@ class ParlayEngine:
                 list(leg_tuple), total_odds=total_odds, correlation_penalty=corr.correlation_penalty
             )
             target_mid = target_odds if target_odds is not None else (min_odds + max_odds) / 2.0
-            checks = [assess_leg(leg.to_dict(), now=scope_as_of) for leg in leg_tuple]
-            reasons = list(dict.fromkeys(reason for check in checks for reason in check["reasons"]))
-            ready_combo = all(check["is_ready"] for check in checks)
-            has_stale = any(reason in {"ODDS_STALE", "ODDS_TIME_UNKNOWN", "ODDS_TIME_FUTURE"} for reason in reasons)
-            ids = [option_ids[event_key(leg)][event_options[event_key(leg)].index(leg)] for leg in leg_tuple]
-            semantic_ids = [_stable_id({"event_id": event_key(leg), "sport": leg.sport, "league": leg.league,
-                                        "market": leg.market, "selection": leg.selection,
-                                        "side": getattr(leg, "side", None), "line": getattr(leg, "line", None),
-                                        "odds": leg.taiwan_odds}) for leg in leg_tuple]
+            # Every leg in this search pool already passed assess_leg at the
+            # same scope_as_of above. Rechecking each leg for every candidate
+            # repeated date parsing and full TaiwanLeg serialization without
+            # changing the readiness result. Resume requests also validate the
+            # active pool against current time before reaching this point.
+            reasons: List[str] = []
+            ready_combo = True
+            has_stale = False
+            semantic_ids = [semantic_ids_by_object[id(leg)] for leg in leg_tuple]
             candidate_id = _stable_id(semantic_ids)
             return {"candidate_id": candidate_id, "legs_count": num_legs, "parlay_name": f"{num_legs} 串 1",
                     "total_odds": round(total_odds, 2), "min_evidence_score": min_score,
@@ -370,7 +374,8 @@ class ParlayEngine:
                     "has_steam": steam_count > 0, "has_trap": trap_count > 0,
                     "bet_status": "READY" if ready_combo else (reasons[0] if reasons else "NOT_READY"),
                     "is_ready": ready_combo, "readiness_reasons": reasons, "has_stale_odds": has_stale,
-                    "legs": [leg.to_dict() for leg in leg_tuple], "raw_legs": list(leg_tuple)}
+                    # Materialize these only for retained top candidates below.
+                    "_raw_legs": leg_tuple}
 
         # Restore top candidates and preserve their original bucket placement.
         for tier, refs in state.get("top_candidates", {}).items():
@@ -508,8 +513,17 @@ class ParlayEngine:
         top_refs = {}
         for tier, bucket in buckets.items():
             top_refs[tier] = [{"candidate_id": combo["candidate_id"],
-                               "leg_ids": [option_ids[event_key(leg)][event_options[event_key(leg)].index(leg)]
-                                           for leg in combo["raw_legs"]]} for combo in bucket]
+                               "leg_ids": [option_id_by_object[id(leg)]
+                                           for leg in combo["_raw_legs"]]} for combo in bucket]
+        materialized = set()
+        for bucket in buckets.values():
+            for combo in bucket:
+                if id(combo) in materialized:
+                    continue
+                materialized.add(id(combo))
+                selected_legs = combo.pop("_raw_legs")
+                combo["legs"] = [leg.to_dict() for leg in selected_legs]
+                combo["raw_legs"] = list(selected_legs)
         state["top_candidates"] = top_refs
         state["status"] = "COMPLETE" if complete else ("BUDGET_EXHAUSTED" if visited_this_call >= budget else "PARTIAL_NO_GLOBAL_TOP_GUARANTEE")
         progress = {str(k): {"complete_candidates_checked": int(state["length_progress"][str(k)]["complete_candidates_checked"]),

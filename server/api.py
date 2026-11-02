@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import atexit
 import base64
+from concurrent.futures import Future
 from contextlib import asynccontextmanager
 import hashlib
 import hmac
@@ -40,6 +41,13 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 logger = logging.getLogger("server.api")
+
+# Parlay searches are CPU and memory intensive. Coalesce identical requests
+# while they are in flight, and bound both active work and queued unique work.
+_parlay_search_lock = threading.Lock()
+_parlay_search_inflight: Dict[str, Future] = {}
+_parlay_search_capacity = threading.BoundedSemaphore(6)  # 2 active + up to 4 waiting
+_parlay_search_slots = threading.BoundedSemaphore(2)
 
 from core.bet_validation import assess_leg
 from core.app_meta import APP_BUILD, APP_VERSION
@@ -760,6 +768,65 @@ def search_parlays(
     req: ParlaySearchRequest,
     _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
 ):
+    request_key = hashlib.sha256(
+        json.dumps(req.model_dump(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+    with _parlay_search_lock:
+        shared_result = _parlay_search_inflight.get(request_key)
+        if shared_result is None:
+            if not _parlay_search_capacity.acquire(blocking=False):
+                raise HTTPException(
+                    status_code=429,
+                    detail="串關搜尋目前繁忙，請稍後再試。",
+                    headers={"Retry-After": "5"},
+                )
+            shared_result = Future()
+            _parlay_search_inflight[request_key] = shared_result
+            is_owner = True
+        else:
+            is_owner = False
+
+    if not is_owner:
+        # Identical simultaneous searches use the same live data snapshot and
+        # result. Completed results are removed immediately; later manual clicks
+        # always start a fresh search.
+        return shared_result.result()
+
+    slot_acquired = False
+    try:
+        if not _parlay_search_slots.acquire(timeout=20):
+            raise HTTPException(
+                status_code=429,
+                detail="串關搜尋佇列已滿，請稍後再試。",
+                headers={"Retry-After": "5"},
+            )
+        slot_acquired = True
+        try:
+            result = _execute_parlay_search(req)
+        finally:
+            if slot_acquired:
+                _parlay_search_slots.release()
+                slot_acquired = False
+    except BaseException as exc:
+        with _parlay_search_lock:
+            if _parlay_search_inflight.get(request_key) is shared_result:
+                del _parlay_search_inflight[request_key]
+        shared_result.set_exception(exc)
+        raise
+    else:
+        # Remove before completing the Future so later manual requests cannot
+        # receive a just-completed result as if it were a fresh search.
+        with _parlay_search_lock:
+            if _parlay_search_inflight.get(request_key) is shared_result:
+                del _parlay_search_inflight[request_key]
+        shared_result.set_result(result)
+        return result
+    finally:
+        _parlay_search_capacity.release()
+
+
+def _execute_parlay_search(req: ParlaySearchRequest):
     odds_adapter, signal_hub, parlay_engine, _, _, _, _, _ = get_services()
     
     selected_alliances = req.alliances if req.alliances else list(ALLIANCE_MAP.keys())

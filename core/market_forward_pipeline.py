@@ -87,6 +87,7 @@ class MarketForwardPipeline:
         self,
         leagues: Optional[List[str]] = None,
         force_refresh: bool = False,
+        automated: bool = False,
     ) -> Dict[str, Any]:
         """Fetch live Taiwan legs, align with international sharp markets, and log sealed snapshots."""
         target_leagues = self.resolve_target_leagues(leagues)
@@ -112,6 +113,7 @@ class MarketForwardPipeline:
                     league,
                     markets=target_markets,
                     force_refresh=force_refresh,
+                    automated=automated,
                 )
                 synthetic_market_quote_count += sum(1 for quote in int_odds if quote.is_synthetic)
                 real_market_quote_count += sum(1 for quote in int_odds if not quote.is_synthetic)
@@ -416,11 +418,12 @@ class MarketForwardPipeline:
         self,
         leagues: Optional[List[str]] = None,
         force_refresh: bool = False,
+        automated: bool = False,
     ) -> Dict[str, Any]:
         """Execute full closed loop: Snapshot -> Settle -> Evaluate."""
         cycle_started = time.perf_counter()
         stage_started = cycle_started
-        snap_res = self.run_market_snapshot_cycle(leagues=leagues, force_refresh=force_refresh)
+        snap_res = self.run_market_snapshot_cycle(leagues=leagues, force_refresh=force_refresh, automated=automated)
         snapshot_duration_ms = round((time.perf_counter() - stage_started) * 1000)
         stage_started = time.perf_counter()
         settle_res = self.run_settlement_cycle()

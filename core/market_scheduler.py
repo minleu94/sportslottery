@@ -217,6 +217,7 @@ class MarketScheduler:
         self,
         leagues: Optional[List[str]] = None,
         force_refresh: bool = False,
+        automated: bool = False,
     ) -> Dict[str, Any]:
         """Execute a forward cycle immediately, guarded against concurrent overlapping execution."""
         if not self._lock.acquire(blocking=False):
@@ -253,7 +254,7 @@ class MarketScheduler:
             self.current_interval_seconds = adaptive_interval
 
             # Guard: If in safety pause or exhausted, skip automatic run to preserve 50-credit manual reserve
-            if odds_status.get("operating_mode") in ("QUOTA_SAFETY_PAUSE", "QUOTA_EXHAUSTED") and not force_refresh:
+            if automated and odds_status.get("operating_mode") in ("QUOTA_SAFETY_PAUSE", "QUOTA_EXHAUSTED"):
                 self.last_status = "SKIPPED_QUOTA_RESERVE"
                 return {
                     "status": "SKIPPED_QUOTA_RESERVE_PROTECTION",
@@ -263,7 +264,7 @@ class MarketScheduler:
                     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 }
 
-            result = self.pipeline.run_full_cycle(leagues=cycle_leagues, force_refresh=force_refresh)
+            result = self.pipeline.run_full_cycle(leagues=cycle_leagues, force_refresh=force_refresh, automated=automated)
             snapshot_cycle = result.get("snapshot_cycle") or {}
             self.last_cycle_summary = {
                 "target_leagues": snapshot_cycle.get("target_leagues", cycle_leagues or []),
@@ -334,7 +335,7 @@ class MarketScheduler:
         while not self._stop_event.is_set():
             if self.enabled:
                 logger.info("MarketScheduler: Triggering scheduled forward cycle...")
-                self.run_cycle_now()
+                self.run_cycle_now(automated=True)
             else:
                 logger.debug("MarketScheduler: Scheduler is paused; skipping execution.")
 

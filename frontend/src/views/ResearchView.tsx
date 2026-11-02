@@ -264,6 +264,12 @@ export const ResearchView: React.FC = () => {
               <div className="text-[10px] text-slate-400 truncate">
                 日排程預算: {theOdds?.daily_schedulable_budget || 0} (手動保留 50)
               </div>
+              <div className="text-[10px] text-slate-400 truncate tabular-nums">
+                最近扣點 {theOdds?.requests_last_consumed || 0} · 請求 {theOdds?.request_metrics?.api_requests || 0} · 快取命中 {theOdds?.request_metrics?.cache_hits || 0} · 合併 {theOdds?.request_metrics?.coalesced_requests || 0}
+              </div>
+              <div className="text-[10px] text-slate-400 truncate tabular-nums">
+                失敗 {theOdds?.request_metrics?.request_failures || 0} · 配額略過 {theOdds?.request_metrics?.quota_skips || 0} · 退避略過 {theOdds?.request_metrics?.backoff_skips || 0}
+              </div>
             </div>
 
             {/* 3. Snapshots Accumulation */}

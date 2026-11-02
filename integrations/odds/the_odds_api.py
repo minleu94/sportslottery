@@ -18,9 +18,10 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
+from core.persistence import file_lock
 
 from integrations.odds.market_models import (
     MarketFreshnessStatus,
@@ -178,17 +179,31 @@ class TheOddsApiClient:
 
     def _load_cache(self) -> Dict[str, Any]:
         if not self.cache_path.exists():
-            return {"usage": {}, "entries": {}}
+            return {"usage": {}, "entries": {}, "metrics": {}}
         try:
             return json.loads(self.cache_path.read_text(encoding="utf-8"))
         except Exception:
-            return {"usage": {}, "entries": {}}
+            return {"usage": {}, "entries": {}, "metrics": {}}
 
     def _save_cache(self) -> None:
         try:
+            # All writers hold file_lock(cache_path), which prevents cross-client
+            # lost updates; direct write avoids Windows replace restrictions on
+            # protected temporary directories used by local installs/tests.
             self.cache_path.write_text(json.dumps(self._cache_data, indent=2, ensure_ascii=False), encoding="utf-8")
         except Exception as exc:
             logger.warning("Failed to save odds api cache: %s", exc)
+
+    def _refresh_cache_locked(self) -> None:
+        """Reload the shared state while the cache lock is held."""
+        self._cache_data = self._load_cache()
+        self._cache_data.setdefault("usage", {})
+        self._cache_data.setdefault("entries", {})
+        self._cache_data.setdefault("metrics", {})
+
+    def _metric(self, name: str, amount: int = 1) -> None:
+        metrics = self._cache_data.setdefault("metrics", {})
+        metrics[name] = int(metrics.get(name, 0)) + amount
 
     def save_api_key(self, api_key: str) -> bool:
         """Save API key locally to config/odds_api.local.yaml."""
@@ -217,9 +232,26 @@ class TheOddsApiClient:
 
     def get_official_remaining(self) -> int:
         month_key = datetime.now(timezone.utc).strftime("%Y-%m")
-        month_usage = self._cache_data.get("usage", {}).get(month_key, 0)
-        official_rem = self._cache_data.get("requests_remaining_official")
-        return official_rem if official_rem is not None else max(0, self.monthly_quota - month_usage)
+        with file_lock(self.cache_path):
+            self._refresh_cache_locked()
+            month_usage = self._cache_data.get("usage", {}).get(month_key, 0)
+            official_rem = self._official_remaining_for_month(month_key)
+            return official_rem if official_rem is not None else max(0, min(self.monthly_quota, MONTHLY_BUDGET_TOTAL) - month_usage)
+
+    def _official_remaining_for_month(self, month_key: str) -> Optional[int]:
+        recorded_month = self._cache_data.get("requests_remaining_month_key")
+        if not recorded_month:
+            # Legacy cache files predate the explicit month tag. Infer only when
+            # the timestamp is available; otherwise ignore the possibly stale header.
+            last_success = self._cache_data.get("last_successful_fetch_utc")
+            try:
+                recorded_month = datetime.fromisoformat(last_success.replace("Z", "+00:00")).strftime("%Y-%m")
+            except (AttributeError, ValueError):
+                return None
+        if recorded_month != month_key:
+            return None
+        value = self._cache_data.get("requests_remaining_official")
+        return int(value) if value is not None else None
 
     def test_connection(self, fetch_sample: bool = False, sport_league: str = "NBA") -> Dict[str, Any]:
         """Verify API key and live connectivity.
@@ -228,6 +260,11 @@ class TheOddsApiClient:
         If fetch_sample=True, queries 1 league with 'h2h' (costs 1 credit).
         Never exposes the API key.
         """
+        with file_lock(self.cache_path):
+            self._refresh_cache_locked()
+            return self._test_connection_locked(fetch_sample, sport_league)
+
+    def _test_connection_locked(self, fetch_sample: bool, sport_league: str) -> Dict[str, Any]:
         if not self.api_key:
             self.reload_api_key()
         if not self.api_key:
@@ -251,6 +288,7 @@ class TheOddsApiClient:
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     raw_bytes = resp.read()
                     data = json.loads(raw_bytes.decode("utf-8"))
+                    self._metric("successful_requests")
                     h_used = resp.headers.get("x-requests-used")
                     h_remaining = resp.headers.get("x-requests-remaining")
 
@@ -262,12 +300,16 @@ class TheOddsApiClient:
                     if h_remaining is not None:
                         try:
                             self._cache_data["requests_remaining_official"] = int(h_remaining)
+                            self._cache_data["requests_remaining_month_key"] = month_key
                         except ValueError:
                             pass
 
                     self._cache_data["last_successful_fetch_utc"] = now_utc.isoformat()
                     self._cache_data["last_successful_key_fingerprint"] = self._api_key_fingerprint()
                     self._cache_data["last_error"] = None
+                    self._cache_data["failure_streak"] = 0
+                    self._cache_data.pop("retry_after_epoch", None)
+                    self._cache_data.pop("retry_after_utc", None)
                     self._save_cache()
 
                     return {
@@ -315,6 +357,19 @@ class TheOddsApiClient:
                 }
         else:
             # 1-credit sample fetch test
+            self._refresh_cache_locked()
+            month_usage = int(self._cache_data.get("usage", {}).get(month_key, 0))
+            remaining = self._official_remaining_for_month(month_key)
+            if remaining is None:
+                remaining = max(0, min(self.monthly_quota, MONTHLY_BUDGET_TOTAL) - month_usage)
+            if month_usage + 1 > min(self.monthly_quota, MONTHLY_BUDGET_TOTAL) or remaining < 1:
+                return {
+                    "success": False,
+                    "status": "QUOTA_EXHAUSTED",
+                    "message": "本月 The Odds API 額度不足，未執行付費測試。",
+                    "credits_consumed": 0,
+                    "timestamp_utc": now_utc.isoformat(),
+                }
             league_norm = sport_league.upper().strip()
             sport_key = SPORT_KEY_MAP.get(league_norm, "basketball_nba")
             params = {
@@ -326,9 +381,11 @@ class TheOddsApiClient:
             url = f"{self.base_url}/sports/{sport_key}/odds/?{urllib.parse.urlencode(params)}"
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": "Sportslottery-Intelligence/4.5"})
+                self._metric("api_requests")
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     raw_bytes = resp.read()
                     data = json.loads(raw_bytes.decode("utf-8"))
+                    self._metric("successful_requests")
                     h_used = resp.headers.get("x-requests-used")
                     h_remaining = resp.headers.get("x-requests-remaining")
                     h_last = resp.headers.get("x-requests-last")
@@ -343,12 +400,16 @@ class TheOddsApiClient:
                     if h_remaining is not None:
                         try:
                             self._cache_data["requests_remaining_official"] = int(h_remaining)
+                            self._cache_data["requests_remaining_month_key"] = month_key
                         except ValueError:
                             pass
 
                     self._cache_data["last_successful_fetch_utc"] = now_utc.isoformat()
                     self._cache_data["last_successful_key_fingerprint"] = self._api_key_fingerprint()
                     self._cache_data["last_error"] = None
+                    self._cache_data["failure_streak"] = 0
+                    self._cache_data.pop("retry_after_epoch", None)
+                    self._cache_data.pop("retry_after_utc", None)
                     self._save_cache()
 
                     return {
@@ -363,10 +424,10 @@ class TheOddsApiClient:
                     }
             except Exception as exc:
                 err_text = str(exc)
+                self._record_request_failure(err_text, exc)
                 self._cache_data["last_error"] = err_text
                 self._cache_data["last_error_key_fingerprint"] = self._api_key_fingerprint()
                 self._cache_data["last_error_utc"] = now_utc.isoformat()
-                self._save_cache()
                 return {
                     "success": False,
                     "status": "LIVE_ERROR",
@@ -379,12 +440,17 @@ class TheOddsApiClient:
         """Return operational capabilities and quota metrics with strict mode distinctions."""
         if not self.api_key:
             self.reload_api_key()
+        with file_lock(self.cache_path):
+            self._refresh_cache_locked()
+            return self._get_source_status_locked()
+
+    def _get_source_status_locked(self) -> Dict[str, Any]:
         now_utc = datetime.now(timezone.utc)
         month_key = now_utc.strftime("%Y-%m")
         month_usage = self._cache_data.get("usage", {}).get(month_key, 0)
         has_key = bool(self.api_key)
-        official_rem = self._cache_data.get("requests_remaining_official")
-        remaining_est = official_rem if official_rem is not None else max(0, self.monthly_quota - month_usage)
+        official_rem = self._official_remaining_for_month(month_key)
+        remaining_est = official_rem if official_rem is not None else max(0, min(self.monthly_quota, MONTHLY_BUDGET_TOTAL) - month_usage)
         has_successful_fetch = bool(
             has_key
             and self._cache_data.get("last_successful_fetch_utc")
@@ -443,6 +509,8 @@ class TheOddsApiClient:
             "last_error": last_error,
             "last_error_utc": self._cache_data.get("last_error_utc"),
             "last_query_summary": self._cache_data.get("last_query_summary"),
+            "request_metrics": dict(self._cache_data.get("metrics", {})),
+            "retry_after_utc": self._cache_data.get("retry_after_utc"),
             "supported_sports": list(SPORT_KEY_MAP.keys()),
         }
 
@@ -451,8 +519,25 @@ class TheOddsApiClient:
         sport_league: str,
         markets: Optional[str] = None,
         force_refresh: bool = False,
+        automated: bool = False,
     ) -> List[MarketOddsSnapshot]:
         """Fetch market odds for a given sport league, or return synthetic fixtures if unconfigured."""
+        # Hold one cross-process lock through lookup, network fetch, and persistence.
+        # A waiter reloads the cache after the winner completes, so concurrent clients
+        # share one request and cannot overwrite newer quota headers with stale state.
+        started_at = time.time()
+        with file_lock(self.cache_path):
+            self._refresh_cache_locked()
+            return self._fetch_market_odds_locked(sport_league, markets, force_refresh, automated, started_at)
+
+    def _fetch_market_odds_locked(
+        self,
+        sport_league: str,
+        markets: Optional[str],
+        force_refresh: bool,
+        automated: bool,
+        started_at: float,
+    ) -> List[MarketOddsSnapshot]:
         league_norm = sport_league.upper().strip()
         sport_key = SPORT_KEY_MAP.get(league_norm, SPORT_KEY_MAP.get(sport_league.lower()))
 
@@ -467,49 +552,74 @@ class TheOddsApiClient:
             logger.info("No ODDS_API_KEY configured; serving standardized synthetic fixtures for %s", league_norm)
             return self._generate_synthetic_fixtures(league_norm)
 
-        # Check Cache TTL
+        target_markets = markets or self.scheduled_markets or "h2h"
+        regions = str(self.regions or "us")
+        query_key = f"{sport_key}|{regions}|{target_markets}"
+        # Check shared cache TTL. A force-refresh caller that waited behind a
+        # request started after it arrived joins that in-flight result.
         now_ts = time.time()
-        cached_entry = self._cache_data.get("entries", {}).get(sport_key)
-        if cached_entry and not force_refresh:
+        cached_entry = self._cache_data.get("entries", {}).get(query_key)
+        if cached_entry:
             fetched_at = cached_entry.get("fetched_at", 0)
-            if (now_ts - fetched_at) < self.cache_ttl:
+            is_fresh = (now_ts - fetched_at) < self.cache_ttl
+            coalesced = fetched_at >= started_at
+            if is_fresh and (not force_refresh or coalesced):
+                self._metric("coalesced_requests" if coalesced else "cache_hits")
+                self._save_cache()
                 logger.debug("Returning cached odds for %s (age %.1fs)", sport_key, now_ts - fetched_at)
                 return [MarketOddsSnapshot(**item) for item in cached_entry.get("snapshots", [])]
 
         # Check Quota & Safety Pause
         month_key = datetime.now(timezone.utc).strftime("%Y-%m")
-        used = self._cache_data.setdefault("usage", {}).get(month_key, 0)
-        official_rem = self._cache_data.get("requests_remaining_official")
-        remaining = official_rem if official_rem is not None else max(0, self.monthly_quota - used)
-        if used >= self.monthly_quota or remaining <= QUOTA_SAFETY_MARGIN:
+        used = int(self._cache_data.setdefault("usage", {}).get(month_key, 0))
+        official_rem = self._official_remaining_for_month(month_key)
+        remaining = official_rem if official_rem is not None else max(0, min(self.monthly_quota, MONTHLY_BUDGET_TOTAL) - used)
+        estimated_cost = len([m for m in target_markets.split(",") if m.strip()]) * len([r for r in regions.split(",") if r.strip()])
+        if estimated_cost <= 0:
+            estimated_cost = 1
+        auto_ceiling = min(MAX_AUTOMATED_BUDGET_CREDITS, self.monthly_quota, MONTHLY_BUDGET_TOTAL)
+        hard_ceiling = min(self.monthly_quota, MONTHLY_BUDGET_TOTAL)
+        retry_after = self._cache_data.get("retry_after_epoch", 0)
+        if retry_after and now_ts < retry_after:
+            self._metric("backoff_skips")
+            self._save_cache()
+            return self._generate_synthetic_fixtures(league_norm)
+        if (
+            used + estimated_cost > hard_ceiling
+            or remaining < estimated_cost
+            or (automated and (used + estimated_cost > auto_ceiling or remaining - estimated_cost < MANUAL_RESERVE_CREDITS))
+        ):
             logger.warning(
-                "Monthly quota protection triggered for The Odds API (%d/%d used, %d remaining); falling back to synthetic",
-                used, self.monthly_quota, remaining
+                "Monthly quota protection triggered for The Odds API (%d/%d used, %d remaining, estimated cost %d, automated=%s); falling back to synthetic",
+                used, hard_ceiling, remaining, estimated_cost, automated
             )
+            self._metric("quota_skips")
+            self._save_cache()
             return self._generate_synthetic_fixtures(league_norm)
 
         # Call live API
         try:
-            target_markets = markets or self.scheduled_markets or "h2h"
             params = {
                 "apiKey": self.api_key,
-                "regions": self.regions,
+                "regions": regions,
                 "markets": target_markets,
                 "oddsFormat": "decimal",
                 "dateFormat": "iso",
             }
             url = f"{self.base_url}/sports/{sport_key}/odds/?{urllib.parse.urlencode(params)}"
             req = urllib.request.Request(url, headers={"User-Agent": "Sportslottery-Intelligence/4.0"})
+            self._metric("api_requests")
             with urllib.request.urlopen(req, timeout=10) as resp:
                 raw_bytes = resp.read()
                 data = json.loads(raw_bytes.decode("utf-8"))
+                self._metric("successful_requests")
 
                 # Track usage from official response headers when available
                 h_used = resp.headers.get("x-requests-used")
                 h_remaining = resp.headers.get("x-requests-remaining")
                 h_last = resp.headers.get("x-requests-last")
 
-                credits_last = int(h_last) if h_last is not None else (target_markets.count(',') + 1)
+                credits_last = int(h_last) if h_last is not None else estimated_cost
                 self._cache_data["requests_last_official"] = credits_last
 
                 if h_used is not None:
@@ -523,6 +633,7 @@ class TheOddsApiClient:
                 if h_remaining is not None:
                     try:
                         self._cache_data["requests_remaining_official"] = int(h_remaining)
+                        self._cache_data["requests_remaining_month_key"] = month_key
                     except ValueError:
                         pass
 
@@ -534,6 +645,7 @@ class TheOddsApiClient:
                 self._cache_data["last_query_summary"] = {
                     "sport": sport_key,
                     "league": league_norm,
+                    "regions": regions,
                     "markets": target_markets,
                     "events_count": len(data),
                     "snapshots_count": 0,
@@ -544,10 +656,16 @@ class TheOddsApiClient:
                 snapshots = self._parse_api_payload(data, league_norm)
 
                 # Update cache
-                self._cache_data.setdefault("entries", {})[sport_key] = {
+                self._cache_data["entries"][query_key] = {
                     "fetched_at": now_ts,
+                    "sport_key": sport_key,
+                    "regions": regions,
+                    "markets": target_markets,
                     "snapshots": [s.to_dict() for s in snapshots],
                 }
+                self._cache_data.pop("retry_after_epoch", None)
+                self._cache_data.pop("retry_after_utc", None)
+                self._cache_data["failure_streak"] = 0
                 self._save_cache()
                 return snapshots
 
@@ -560,20 +678,36 @@ class TheOddsApiClient:
                     err_text = f"HTTP {exc.code}: {err_json['message']}"
             except Exception:
                 pass
+            self._record_request_failure(err_text, exc)
             self._cache_data["last_error"] = err_text
             self._cache_data["last_error_key_fingerprint"] = self._api_key_fingerprint()
             self._cache_data["last_error_utc"] = datetime.now(timezone.utc).isoformat()
-            self._save_cache()
             logger.warning("The Odds API HTTP error for %s: %s; using synthetic fixtures", sport_key, err_text)
             return self._generate_synthetic_fixtures(league_norm)
         except Exception as exc:
             err_text = str(exc)
+            self._record_request_failure(err_text, exc)
             self._cache_data["last_error"] = err_text
             self._cache_data["last_error_key_fingerprint"] = self._api_key_fingerprint()
             self._cache_data["last_error_utc"] = datetime.now(timezone.utc).isoformat()
-            self._save_cache()
             logger.warning("Error fetching live odds from The Odds API for %s: %s; using synthetic fixtures", sport_key, err_text)
             return self._generate_synthetic_fixtures(league_norm)
+
+    def _record_request_failure(self, message: str, exc: Exception) -> None:
+        self._metric("request_failures")
+        streak = min(8, int(self._cache_data.get("failure_streak", 0)) + 1)
+        self._cache_data["failure_streak"] = streak
+        delay = min(300, 15 * (2 ** (streak - 1)))
+        if isinstance(exc, urllib.error.HTTPError) and exc.code == 429:
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            try:
+                delay = min(3600, max(delay, int(retry_after)))
+            except (TypeError, ValueError):
+                pass
+        retry_at = time.time() + delay
+        self._cache_data["retry_after_epoch"] = retry_at
+        self._cache_data["retry_after_utc"] = datetime.fromtimestamp(retry_at, timezone.utc).isoformat()
+        self._save_cache()
 
     def _parse_api_payload(self, events: List[Dict[str, Any]], league: str) -> List[MarketOddsSnapshot]:
         snapshots: List[MarketOddsSnapshot] = []

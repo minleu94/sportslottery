@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -166,18 +167,22 @@ def test_quota_safety_pause_and_exhaustion(tmp_path: Path):
     assert status["operating_mode"] in ("KEY_CONFIGURED_UNVERIFIED", "LIVE_API")
     assert status["has_api_key"] is True
 
-    # 2. Safety pause state: remaining <= 5
+    # 2. Safety pause state preserves the 50-credit manual reserve.
     client._cache_data["requests_remaining_official"] = 4
+    client._cache_data["requests_remaining_month_key"] = datetime.now(timezone.utc).strftime("%Y-%m")
+    client._save_cache()
     status_paused = client.get_source_status()
     assert status_paused["operating_mode"] == "QUOTA_SAFETY_PAUSE"
 
     # When safety pause is triggered, fetch_market_odds safely serves synthetic
-    snaps = client.fetch_market_odds("MLB")
+    snaps = client.fetch_market_odds("MLB", automated=True)
     assert len(snaps) > 0
     assert all(s.is_synthetic for s in snaps)
 
     # 3. Quota exhausted: remaining <= 0
     client._cache_data["requests_remaining_official"] = 0
+    client._cache_data["requests_remaining_month_key"] = datetime.now(timezone.utc).strftime("%Y-%m")
+    client._save_cache()
     status_exhausted = client.get_source_status()
     assert status_exhausted["operating_mode"] == "QUOTA_EXHAUSTED"
 
