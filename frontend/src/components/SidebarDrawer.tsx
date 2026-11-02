@@ -71,9 +71,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
             {/* Header */}
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs select-none">
-                  MDS
-                </div>
+                <span className="text-xl select-none leading-none" role="img" aria-label="瘋狗流">
+                  🐕
+                </span>
                 <div>
                   <h2 className="font-semibold text-sm text-slate-900 dark:text-slate-100 tracking-tight">
                     瘋狗流決策系統

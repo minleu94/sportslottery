@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   Table as TableIcon,
   ChevronRight,
+  Crown,
 } from "lucide-react"
 import { useUI, type ThemeMode } from "@/context/UIContext"
 import type { Profile } from "@/types"
@@ -78,10 +79,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Geometric Quant Emblem */}
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs select-none shadow-xs">
-              MDS
-            </div>
+            {/* Dog Mascot Logo */}
+            <span className="text-2xl select-none leading-none" role="img" aria-label="瘋狗流">
+              🐕
+            </span>
 
             <div>
               <div className="flex items-center gap-2">
@@ -91,9 +92,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/70">
                   v2.3.0
                 </span>
+                {currentProfile && (
+                  <button
+                    onClick={() => onTabChange("profile")}
+                    className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                      currentProfile.name === "Archie" || currentProfile.id === "default"
+                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/25"
+                        : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 hover:bg-emerald-500/20"
+                    }`}
+                    title="點擊前往帳號與個人設定"
+                  >
+                    {currentProfile.name === "Archie" || currentProfile.id === "default" ? (
+                      <>
+                        <Crown className="w-3 h-3 text-amber-500" />
+                        <span>👑 管理員 · {currentProfile.name}</span>
+                      </>
+                    ) : (
+                      <>
+                        <User className="w-3 h-3 text-emerald-500" />
+                        <span>👤 {currentProfile.name}</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
-                高倍串關期望值分析 · 週額度風控 · 玩家【{currentProfile?.name || "主帳號"}】
+                高倍串關期望值分析 · 週額度風控 · 目前身分【{currentProfile?.name === "Archie" || currentProfile?.id === "default" ? "👑 管理員 Archie" : (currentProfile?.name || "主帳號")}】
               </p>
             </div>
           </div>
@@ -170,6 +194,31 @@ export const Navbar: React.FC<NavbarProps> = ({
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-emerald-500" : ""}`} />
             <span>更新盤口</span>
           </button>
+
+          {/* Desktop Profile Quick Link */}
+          {currentProfile && (
+            <button
+              onClick={() => onTabChange("profile")}
+              className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
+                currentProfile.name === "Archie" || currentProfile.id === "default"
+                  ? "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-700 dark:text-amber-300 shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200/70 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border-slate-200 dark:border-slate-700/70 text-slate-700 dark:text-slate-300"
+              }`}
+              title="點擊前往個人帳號與風控設定"
+            >
+              {currentProfile.name === "Archie" || currentProfile.id === "default" ? (
+                <>
+                  <Crown className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="font-semibold">👑 管理員 · {currentProfile.name}</span>
+                </>
+              ) : (
+                <>
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  <span>👤 {currentProfile.name}</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </header>

@@ -226,8 +226,8 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
       >
         {/* Brand Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-sm mb-3 shadow-xs">
-            MDS
+          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 text-4xl mb-3 select-none">
+            🐕
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white flex items-center justify-center gap-2">
             台灣運彩 <span className="text-emerald-600 dark:text-emerald-400 font-bold">瘋狗流</span> 決策系統
