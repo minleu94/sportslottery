@@ -222,7 +222,12 @@ def test_api_scheduler_endpoints(test_client):
     assert sum_data["scheduler"]["enabled"] is True
 
     # 4. POST /api/market/pipeline/cycle delegates to scheduler
-    res_cycle = test_client.post("/api/market/pipeline/cycle")
-    assert res_cycle.status_code == 200
-    cycle_data = res_cycle.json()
-    assert cycle_data.get("status") in {"SUCCESS", "SKIPPED_CONCURRENT"}
+    with patch.object(
+        get_market_scheduler(),
+        "run_cycle_now",
+        return_value={"status": "SUCCESS", "cycle_status": "SUCCESS"},
+    ):
+        res_cycle = test_client.post("/api/market/pipeline/cycle")
+        assert res_cycle.status_code == 200
+        cycle_data = res_cycle.json()
+        assert cycle_data.get("status") == "SUCCESS"

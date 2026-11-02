@@ -139,7 +139,7 @@ def main():
 
     # 3. Launch service via AppTrayManager
     print("[3/3] 正在以原生即時模式啟動決策台...")
-    print("  [PC 瀏覽器]  http://localhost:8000 (啟動後自動開啟)")
+    print("  [PC 瀏覽器]  http://127.0.0.1:8000 (啟動後自動開啟)")
     print("  [手機與公網] https://fifty-saddlebag-immortal.ngrok-free.dev")
     print("  [LINE 機器人] Webhook 連線中")
     print("\n" + "=" * 70)
