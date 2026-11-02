@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { api } from "@/services/api"
 import type { ParlayRecommendation, WalletStatus } from "@/types"
@@ -30,46 +30,98 @@ interface ParlayViewProps {
 }
 
 type OddsMode = "banker" | "target" | "range"
+type ParlayTier = "high_consensus" | "aggressive" | "moonshot"
+type ParlayTiers = Record<ParlayTier, ParlayRecommendation[]>
+
+interface ParlaySearchCache {
+  oddsMode: OddsMode
+  targetOdds: number
+  tolerance: number
+  minLegs: number
+  maxLegs: number
+  rangeMin: number
+  rangeMax: number
+  crossSport: boolean
+  selectedAlliances: string[]
+  signalFilter: string
+  excludeTraps: boolean
+  preferSteam: boolean
+  activeTier: ParlayTier
+  tiers: ParlayTiers
+  hasSearched: boolean
+}
+
+const PARLAY_CACHE_TTL_MS = 4 * 60 * 1000
+let parlaySearchCache: { expiresAt: number; state: ParlaySearchCache } | null = null
+
+function readParlaySearchCache(): ParlaySearchCache | null {
+  if (!parlaySearchCache || Date.now() >= parlaySearchCache.expiresAt) {
+    parlaySearchCache = null
+    return null
+  }
+  return parlaySearchCache.state
+}
+
+function writeParlaySearchCache(state: ParlaySearchCache) {
+  parlaySearchCache = { state, expiresAt: Date.now() + PARLAY_CACHE_TTL_MS }
+}
+
+function emptyParlayTiers(): ParlayTiers {
+  return { high_consensus: [], aggressive: [], moonshot: [] }
+}
 
 export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }) => {
+  const [restoredSearch] = useState<ParlaySearchCache | null>(() => readParlaySearchCache())
   // Strategy & Odds Mode
-  const [oddsMode, setOddsMode] = useState<OddsMode>("banker")
-  const [targetOdds, setTargetOdds] = useState<number>(2.5)
-  const [tolerance, setTolerance] = useState<number>(0.35)
-  const [minLegs, setMinLegs] = useState<number>(2)
-  const [maxLegs, setMaxLegs] = useState<number>(3)
+  const [oddsMode, setOddsMode] = useState<OddsMode>(restoredSearch?.oddsMode ?? "banker")
+  const [targetOdds, setTargetOdds] = useState<number>(restoredSearch?.targetOdds ?? 2.5)
+  const [tolerance, setTolerance] = useState<number>(restoredSearch?.tolerance ?? 0.35)
+  const [minLegs, setMinLegs] = useState<number>(restoredSearch?.minLegs ?? 2)
+  const [maxLegs, setMaxLegs] = useState<number>(restoredSearch?.maxLegs ?? 3)
 
   // Range Slider state (for Range mode)
-  const [rangeMin, setRangeMin] = useState<number>(1.8)
-  const [rangeMax, setRangeMax] = useState<number>(4.0)
+  const [rangeMin, setRangeMin] = useState<number>(restoredSearch?.rangeMin ?? 1.8)
+  const [rangeMax, setRangeMax] = useState<number>(restoredSearch?.rangeMax ?? 4.0)
 
   // Cross-sport & Alliances
-  const [crossSport, setCrossSport] = useState<boolean>(true)
-  const [selectedAlliances, setSelectedAlliances] = useState<string[]>(["1", "3", "4"])
+  const [crossSport, setCrossSport] = useState<boolean>(restoredSearch?.crossSport ?? true)
+  const [selectedAlliances, setSelectedAlliances] = useState<string[]>(restoredSearch?.selectedAlliances ?? ["1", "3", "4"])
 
   // Quality & Smart Filters
-  const [signalFilter, setSignalFilter] = useState<string>("value_only")
-  const [excludeTraps, setExcludeTraps] = useState<boolean>(false)
-  const [preferSteam, setPreferSteam] = useState<boolean>(true)
+  const [signalFilter, setSignalFilter] = useState<string>(restoredSearch?.signalFilter ?? "value_only")
+  const [excludeTraps, setExcludeTraps] = useState<boolean>(restoredSearch?.excludeTraps ?? false)
+  const [preferSteam, setPreferSteam] = useState<boolean>(restoredSearch?.preferSteam ?? true)
 
   const [searching, setSearching] = useState(false)
-  const [hasSearched, setHasSearched] = useState(false)
+  const [hasSearched, setHasSearched] = useState<boolean>(restoredSearch?.hasSearched ?? false)
   const [error, setError] = useState<string | null>(null)
 
-  const [activeTier, setActiveTier] = useState<"high_consensus" | "aggressive" | "moonshot">("high_consensus")
-  const [tiers, setTiers] = useState<{
-    high_consensus: ParlayRecommendation[]
-    aggressive: ParlayRecommendation[]
-    moonshot: ParlayRecommendation[]
-  }>({
-    high_consensus: [],
-    aggressive: [],
-    moonshot: [],
-  })
+  const [activeTier, setActiveTier] = useState<ParlayTier>(restoredSearch?.activeTier ?? "high_consensus")
+  const [tiers, setTiers] = useState<ParlayTiers>(restoredSearch?.tiers ?? emptyParlayTiers())
 
   // Modals state
   const [selectedParlayForEvidence, setSelectedParlayForEvidence] = useState<ParlayRecommendation | null>(null)
   const [selectedParlayForBet, setSelectedParlayForBet] = useState<ParlayRecommendation | null>(null)
+
+  useEffect(() => {
+    writeParlaySearchCache({
+      oddsMode,
+      targetOdds,
+      tolerance,
+      minLegs,
+      maxLegs,
+      rangeMin,
+      rangeMax,
+      crossSport,
+      selectedAlliances,
+      signalFilter,
+      excludeTraps,
+      preferSteam,
+      activeTier,
+      tiers,
+      hasSearched,
+    })
+  }, [oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax, crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam, activeTier, tiers, hasSearched])
 
   const allianceOptions = [
     { id: "1", label: "NBA 籃球" },
@@ -125,6 +177,11 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
     setSearching(true)
     setError(null)
     setHasSearched(true)
+    writeParlaySearchCache({
+      oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax,
+      crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam,
+      activeTier, tiers, hasSearched: true,
+    })
 
     try {
       const alliances = crossSport ? undefined : selectedAlliances
@@ -140,10 +197,20 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
         search_budget: 60000,
       })
 
+      const nextActiveTier = res.tiers.high_consensus.length > 0
+        ? "high_consensus"
+        : res.tiers.aggressive.length > 0
+          ? "aggressive"
+          : res.tiers.moonshot.length > 0
+            ? "moonshot"
+            : activeTier
       setTiers(res.tiers)
-      if (res.tiers.high_consensus.length > 0) setActiveTier("high_consensus")
-      else if (res.tiers.aggressive.length > 0) setActiveTier("aggressive")
-      else if (res.tiers.moonshot.length > 0) setActiveTier("moonshot")
+      setActiveTier(nextActiveTier)
+      writeParlaySearchCache({
+        oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax,
+        crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam,
+        activeTier: nextActiveTier, tiers: res.tiers, hasSearched: true,
+      })
     } catch (err: any) {
       setError(err.message || "搜尋串關失敗")
     } finally {
