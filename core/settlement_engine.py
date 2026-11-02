@@ -32,6 +32,7 @@ from core.settlement.taiwan_rules import SettlementResult, TaiwanSettlementRules
 from core.shadow_parlay_logger import ShadowParlayLogger
 from core.shadow_portfolio import ShadowPortfolioManager
 from core.snapshot_logger import AuditFailureError, PredictionSnapshotLogger
+from core.research_sqlite import database_for_ledger, get_predictions_by_ids
 from core.persistence import iter_jsonl
 from core.identity.team_alias import GLOBAL_TEAM_REGISTRY
 from core.bet_validation import parse_aware_time
@@ -308,8 +309,10 @@ class SettlementEngine:
     @staticmethod
     def find_leg_snapshot(leg: Dict[str, Any], snapshots: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Resolve a stored parlay leg to one prediction snapshot without local-id guessing."""
-        sid = leg.get("snapshot_id")
+        sid = leg.get("snapshot_id") or (leg.get("signal_evidence") or {}).get("snapshot_id")
         if sid:
+            if isinstance(snapshots, dict):
+                return snapshots.get(str(sid))
             found = [s for s in snapshots if s.get("snapshot_id") == sid]
             return found[0] if len(found) == 1 else None
         source_id = leg.get("source_game_id") or leg.get("game_pk")
@@ -319,7 +322,8 @@ class SettlementEngine:
         market, selection = leg.get("market"), leg.get("selection")
         line = str(leg.get("line") or "")
         matches = []
-        for snap in snapshots:
+        records = snapshots.values() if isinstance(snapshots, dict) else snapshots
+        for snap in records:
             if snap.get("market") != market or snap.get("selection") != selection or str(snap.get("line") or "") != line:
                 continue
             if source_id is not None:
@@ -445,11 +449,9 @@ class SettlementEngine:
 
     def settle_parlays_against_snapshots(self) -> Dict[str, int]:
         """Settle parlay candidates and shadow tickets using official Taiwan VOID logic."""
-        all_snaps = self.snapshot_logger.get_all_snapshots()
-
         settled_candidates_count = 0
         candidate_settlements: Dict[str, Dict[str, Any]] = {}
-
+        unsettled_candidates = []
         for p_snap in iter_jsonl(self.parlay_logger.log_path):
             for cand in p_snap.get("candidates", []):
                 if cand.get("settled"):
@@ -458,39 +460,74 @@ class SettlementEngine:
                 legs = cand.get("legs", [])
                 if not legs:
                     continue
+                unsettled_candidates.append({
+                    "candidate_id": cand.get("candidate_id"),
+                    "legs": legs,
+                })
 
-                # Check status of every leg
-                leg_eval_list: List[Tuple[str, float]] = []
-                leg_result_snapshots = []
-                all_resolved = True
+        open_tickets = [t for t in self.shadow_portfolio.get_recent_tickets(200) if t["status"] == "OPEN"]
+        target_legs = [leg for candidate in unsettled_candidates for leg in candidate.get("legs", [])]
+        for ticket in open_tickets:
+            try:
+                ticket_legs = json.loads(ticket["legs_json"]) if isinstance(ticket["legs_json"], str) else ticket["legs_json"]
+            except Exception:
+                ticket_legs = []
+            target_legs.extend(ticket_legs or [])
+        snapshot_ids = {
+            str(snapshot_id)
+            for leg in target_legs
+            for snapshot_id in [leg.get("snapshot_id") or (leg.get("signal_evidence") or {}).get("snapshot_id")]
+            if snapshot_id
+        }
+        has_legacy_legs = any(
+            not (leg.get("snapshot_id") or (leg.get("signal_evidence") or {}).get("snapshot_id"))
+            for leg in target_legs
+        )
+        if database_for_ledger(self.snapshot_logger.log_path) and not has_legacy_legs:
+            all_snaps = get_predictions_by_ids(self.snapshot_logger.log_path, snapshot_ids)
+        elif has_legacy_legs:
+            all_snaps = self.snapshot_logger.get_all_snapshots()
+        else:
+            all_snaps = {
+                str(row["snapshot_id"]): row for row in iter_jsonl(self.snapshot_logger.log_path)
+                if row.get("snapshot_id") and str(row["snapshot_id"]) in snapshot_ids
+            }
 
-                for leg in legs:
-                    target_snap = self.find_leg_snapshot(leg, all_snaps)
+        for cand in unsettled_candidates:
+            legs = cand.get("legs", [])
 
-                    if not target_snap or not target_snap.get("is_settled"):
-                        all_resolved = False
-                        break
+            # Check status of every leg
+            leg_eval_list: List[Tuple[str, float]] = []
+            leg_result_snapshots = []
+            all_resolved = True
 
-                    status = target_snap.get("settlement_status")
-                    if not status:
-                        outcome = target_snap.get("actual_outcome")
-                        status = "WON" if outcome is True else "LOST" if outcome is False else "UNRESOLVED"
-                    if status not in {"WON", "LOST", "PUSH", "VOID"}:
-                        all_resolved = False
-                        break
+            for leg in legs:
+                target_snap = self.find_leg_snapshot(leg, all_snaps)
 
-                    orig_odds = float(leg.get("taiwan_odds", target_snap.get("taiwan_odds", 1.0)))
-                    leg_eval_list.append((status, orig_odds))
-                    leg_result_snapshots.append(target_snap)
+                if not target_snap or not target_snap.get("is_settled"):
+                    all_resolved = False
+                    break
 
-                if all_resolved:
-                    cid = cand.get("candidate_id")
-                    if cid:
-                        candidate_settlements[str(cid)] = {
-                            "leg_statuses": leg_eval_list,
-                            "virtual_stake": 10.0,
-                            "leg_result_snapshots": leg_result_snapshots,
-                        }
+                status = target_snap.get("settlement_status")
+                if not status:
+                    outcome = target_snap.get("actual_outcome")
+                    status = "WON" if outcome is True else "LOST" if outcome is False else "UNRESOLVED"
+                if status not in {"WON", "LOST", "PUSH", "VOID"}:
+                    all_resolved = False
+                    break
+
+                orig_odds = float(leg.get("taiwan_odds", target_snap.get("taiwan_odds", 1.0)))
+                leg_eval_list.append((status, orig_odds))
+                leg_result_snapshots.append(target_snap)
+
+            if all_resolved:
+                cid = cand.get("candidate_id")
+                if cid:
+                    candidate_settlements[str(cid)] = {
+                        "leg_statuses": leg_eval_list,
+                        "virtual_stake": 10.0,
+                        "leg_result_snapshots": leg_result_snapshots,
+                    }
 
         if candidate_settlements:
             settled = self.parlay_logger.settle_parlay_candidates_with_taiwan_rules(candidate_settlements)
@@ -498,7 +535,6 @@ class SettlementEngine:
 
         # Settle shadow tickets using identical Taiwan VOID rules
         settled_shadow_count = 0
-        open_tickets = [t for t in self.shadow_portfolio.get_recent_tickets(200) if t["status"] == "OPEN"]
 
         for t in open_tickets:
             try:

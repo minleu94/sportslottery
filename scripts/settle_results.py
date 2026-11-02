@@ -464,12 +464,15 @@ def run_settlement(date_filter: str | None = None):
     for league, info in engine.supported_result_coverage().items():
         print(f"  • {league}: {info['coverage']} [{info['provider']}]")
 
-    snapshots = snap_logger.get_all_snapshots()
-    unsettled = [s for s in snapshots if not s.get("is_settled")]
-    print(f"歷史快照總數: {len(snapshots)} 筆 | 待結算快照: {len(unsettled)} 筆")
+    from core.persistence import iter_jsonl
+    total_snapshots = unsettled_count = 0
+    for snapshot in iter_jsonl(snap_logger.log_path):
+        total_snapshots += 1
+        unsettled_count += not bool(snapshot.get("is_settled"))
+    print(f"歷史快照總數: {total_snapshots} 筆 | 待結算快照: {unsettled_count} 筆")
 
     print(f"結算目標日期: {date_filter or '依各賽事歷史日期'}")
-    outcome_counts = settle_snapshot_results(engine, snapshots, date_filter)
+    outcome_counts = settle_snapshot_results(engine, iter_jsonl(snap_logger.log_path), date_filter)
     settled_snaps = outcome_counts["settled"]
     print(f"已取得結果來源場次: {outcome_counts['games']} 場 | 待處理/無法唯一匹配: {outcome_counts['unresolved']} 筆")
     for league, info in outcome_counts.get("coverage", {}).items():

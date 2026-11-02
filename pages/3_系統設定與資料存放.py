@@ -81,11 +81,14 @@ with tab_storage:
 
     # 重點檔案容量拆解
     st.subheader("3. 核心資料體積明細")
-    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+    col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
     col_f1.metric("💰 錢包帳本 (war_chest.sqlite3)", f"{stats['db_size_mb']} MB")
-    col_f2.metric("📜 串關紀錄 (parlay_snapshots)", f"{stats['parlay_snapshots_mb']} MB")
-    col_f3.metric("🎯 預測快照 (prediction_snapshots)", f"{stats['prediction_snapshots_mb']} MB")
-    col_f4.metric("⚾ MLB 官方底冊 (mlb_schedule)", f"{stats['mlb_schedule_mb']} MB")
+    col_f2.metric("🗃️ 研究 SQLite (research.sqlite3)", f"{stats['research_db_size_mb']} MB")
+    col_f3.metric("📜 串關 JSONL 備份", f"{stats['parlay_snapshots_mb']} MB")
+    col_f4.metric("🎯 預測 JSONL 備份", f"{stats['prediction_snapshots_mb']} MB")
+    col_f5.metric("⚾ MLB 官方底冊 (mlb_schedule)", f"{stats['mlb_schedule_mb']} MB")
+    if stats.get("research_db_size_mb", 0) > 0:
+        st.caption("研究功能已使用 SQLite；原始 JSONL 檔保留作回復備份。")
 
     st.divider()
 

@@ -52,12 +52,17 @@ def file_lock(path: Path):
                 if not stream.tell():
                     stream.write(b'\0'); stream.flush()
                 stream.seek(0)
-                try:
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-                    locked = True
-                except OSError:
-                    # Non-blocking lock busy or deadlock avoided on Windows
-                    pass
+                lock_deadline = time.monotonic() + 30.0
+                while not locked and time.monotonic() < lock_deadline:
+                    try:
+                        msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                        locked = True
+                    except OSError:
+                        # Wait for the cooperating writer instead of silently
+                        # entering the critical section without the file lock.
+                        time.sleep(0.05)
+                if not locked:
+                    raise TimeoutError(f"Timed out waiting for ledger lock: {path}")
             else:
                 import fcntl
                 try:
@@ -109,6 +114,9 @@ def atomic_write_bytes(path: Path, payload: bytes):
 def append_jsonl(path: Path, record: dict):
     """Return only after a locked, fsynced append; propagate persistence failures."""
     path = Path(path)
+    from core.research_sqlite import append as append_research_record
+    if append_research_record(path, record):
+        return
     key = str(path.resolve())
     with _cache_guard:
         _jsonl_cache.pop(key, None)
@@ -149,6 +157,10 @@ def _iter_jsonl_unlocked(resolved: Path) -> Iterator[dict]:
 def iter_jsonl(path: Path) -> Iterator[dict]:
     """Read a JSONL ledger one record at a time without retaining its contents."""
     resolved = Path(path).resolve()
+    from core.research_sqlite import database_for_ledger, iter_records
+    if database_for_ledger(resolved):
+        yield from iter_records(resolved)
+        return
     with file_lock(resolved):
         yield from _iter_jsonl_unlocked(resolved)
 
@@ -156,6 +168,9 @@ def iter_jsonl(path: Path) -> Iterator[dict]:
 def read_jsonl(path: Path) -> list[dict]:
     resolved = Path(path).resolve()
     key = str(resolved)
+    from core.research_sqlite import database_for_ledger, iter_records
+    if database_for_ledger(resolved):
+        return list(iter_records(resolved))
     with file_lock(resolved):
         if not resolved.exists():
             with _cache_guard:

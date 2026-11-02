@@ -33,6 +33,7 @@ from core.experiment_identity import build_experiment_identity
 from core.parlay_validation import freeze_candidate
 from core.research_paths import research_paths
 from core.persistence import append_jsonl, clear_jsonl_cache, file_lock, iter_jsonl, read_jsonl
+from core.research_sqlite import database_for_ledger, settle_parlays as settle_sqlite_parlays
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +231,12 @@ class ShadowParlayLogger:
         self, settlements: Dict[str, Dict[str, Any]]
     ) -> Dict[str, Dict[str, Any]]:
         """Settle many candidates with one streaming ledger rewrite."""
-        if not settlements or not self.log_path.exists():
+        if not settlements:
+            return {}
+
+        if database_for_ledger(self.log_path):
+            return settle_sqlite_parlays(self.log_path, settlements) or {}
+        if not self.log_path.exists():
             return {}
 
         with file_lock(self.log_path):

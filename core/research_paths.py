@@ -43,6 +43,7 @@ def research_paths(data_root=None, config_path=None) -> dict[str, Path]:
     return {"root": root,
             "snapshots": root / "historical/prediction_snapshots.jsonl",
             "parlays": root / "historical/parlay_snapshots.jsonl",
+            "database": root / "historical/research.sqlite3",
             "odds": root / "historical/odds_history.jsonl",
             "source_health": root / "source_health/playsport.jsonl",
             "reports": root / "reports"}

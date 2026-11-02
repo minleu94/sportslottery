@@ -231,8 +231,10 @@ def evaluate_parlay_forward(records: list[dict], experiment_id: str, *, replicat
                 previous = unique.get(key)
                 if previous and previous["settlement_status"] != row["settlement_status"]:
                     conflicts.add(key)
+                compact_row = {name: value for name, value in row.items()
+                               if name not in {"validation_legs", "leg_result_snapshots"}}
                 if previous is None or row["recorded_at"] < previous["recorded_at"]:
-                    unique[key] = row
+                    unique[key] = compact_row
             except (TypeError, ValueError, KeyError, OverflowError):
                 excluded["INVALID_RECORD"] += 1
     excluded["CONFLICTING_TICKETS"] += len(conflicts)

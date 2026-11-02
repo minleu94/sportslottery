@@ -34,6 +34,7 @@ from core.strategy_version import STRATEGY_VERSION, get_strategy_metadata
 from core.research_paths import research_paths
 from core.experiment_identity import get_current_experiment_identity
 from core.persistence import read_jsonl, iter_jsonl, append_jsonl, atomic_write_bytes, file_lock
+from core.research_sqlite import database_for_ledger, get_prediction_by_unique_key, update_prediction
 from integrations.common.models import TaiwanLeg
 
 logger = logging.getLogger(__name__)
@@ -499,6 +500,8 @@ class PredictionSnapshotLogger:
 
     def _find_existing_snapshot_by_key(self, uniqueness_key: str) -> Optional[Dict[str, Any]]:
         """Use a file-versioned in-memory index instead of rescanning the full history per leg."""
+        if database_for_ledger(self.log_path):
+            return get_prediction_by_unique_key(self.log_path, uniqueness_key)
         signature = self._snapshot_file_signature()
         with self._uniqueness_index_lock:
             if signature != self._uniqueness_index_signature:
@@ -568,89 +571,70 @@ class PredictionSnapshotLogger:
         closing_odds_source: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Settle a snapshot with strict payload hash verification."""
-        if not self.log_path.exists():
-            return None
-
-        lines = self.log_path.read_text(encoding="utf-8").splitlines()
-        updated_lines = []
-        settled_record = None
         settled_time = datetime.now(timezone.utc).isoformat()
 
-        for line in lines:
+        def apply_settlement(data: Dict[str, Any]) -> Dict[str, Any]:
+            expected_hash = data.get("prediction_payload_hash")
+            if expected_hash and compute_prediction_payload_hash(data) != expected_hash:
+                raise AuditFailureError(
+                    f"AUDIT_FAILURE: Original prediction payload has been altered for snapshot {snapshot_id}!"
+                )
+            status = str(settlement_status or ("WON" if actual_outcome is True else "LOST" if actual_outcome is False else "UNRESOLVED")).upper()
+            if status not in {"WON", "LOST", "PUSH", "VOID", "PENDING", "UNRESOLVED"}:
+                status = "UNRESOLVED"
+            if (status == "WON" and actual_outcome is False) or (status == "LOST" and actual_outcome is True):
+                status = "UNRESOLVED"
+
+            valid_probability = data.get("probability_status") in {
+                "UNVALIDATED_MODEL_ESTIMATE", "MODEL_ESTIMATE", "CALIBRATED_MODEL_ESTIMATE"
+            }
+            pred_prob = data.get("model_probability") if valid_probability else None
+            brier = logloss = None
+            if status in {"WON", "LOST"} and pred_prob is not None and math.isfinite(float(pred_prob)) and 0.0 <= float(pred_prob) <= 1.0:
+                pred_prob = float(pred_prob)
+                outcome_numeric = 1.0 if status == "WON" else 0.0
+                brier = round((pred_prob - outcome_numeric) ** 2, 4)
+                p_clamped = max(0.001, min(0.999, pred_prob))
+                logloss = round(-(outcome_numeric * math.log(p_clamped) + (1.0 - outcome_numeric) * math.log(1.0 - p_clamped)), 4)
+
+            taiwan_odds = float(data.get("taiwan_odds", 1.0))
+            odds_clv_ratio = clv_prob_pp = None
+            clv_status = "NOT_AVAILABLE"
+            if closing_odds is not None and closing_odds > 1.0:
+                odds_clv_ratio = round((taiwan_odds / closing_odds) - 1.0, 4)
+                clv_prob_pp = round(((1.0 / closing_odds) - (1.0 / taiwan_odds)) * 100.0, 2)
+                clv_status = "BEAT_CLOSING" if taiwan_odds > closing_odds else "EQUAL_CLOSING" if taiwan_odds == closing_odds else "TRAIL_CLOSING"
+
+            data.update({
+                "actual_outcome": (status == "WON") if status in {"WON", "LOST"} else None,
+                "is_settled": status in {"WON", "LOST", "PUSH", "VOID"},
+                "settlement_status": status, "settlement_reason": settlement_reason,
+                "settled_at": settled_time, "final_score": final_score, "result_source": result_source,
+                "brier_score": brier, "log_loss": logloss, "closing_odds": closing_odds,
+                "reference_closing_odds": reference_closing_odds,
+                "closing_odds_source": closing_odds_source if closing_odds is not None else None,
+                "odds_clv_ratio": odds_clv_ratio, "clv_probability_pp": clv_prob_pp,
+                "clv_status": clv_status,
+                "clv_beat": bool(odds_clv_ratio > 0) if odds_clv_ratio is not None else None,
+            })
+            return data
+
+        if database_for_ledger(self.log_path):
+            return update_prediction(self.log_path, snapshot_id, apply_settlement)
+        if not self.log_path.exists():
+            return None
+        updated_lines = []
+        settled_record = None
+        for line in self.log_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
             data = json.loads(line)
             if data.get("snapshot_id") == snapshot_id:
-                # 1. Audit Check: Verify original prediction payload hash!
-                expected_hash = data.get("prediction_payload_hash")
-                if expected_hash:
-                    current_hash = compute_prediction_payload_hash(data)
-                    if current_hash != expected_hash:
-                        raise AuditFailureError(
-                            f"AUDIT_FAILURE: Original prediction payload has been altered for snapshot {snapshot_id}!"
-                        )
-
-                # Preserve the complete settlement state. Never infer a win from False.
-                status = str(settlement_status or ("WON" if actual_outcome is True else "LOST" if actual_outcome is False else "UNRESOLVED")).upper()
-                if status not in {"WON", "LOST", "PUSH", "VOID", "PENDING", "UNRESOLVED"}:
-                    status = "UNRESOLVED"
-                if (status == "WON" and actual_outcome is False) or (status == "LOST" and actual_outcome is True):
-                    status = "UNRESOLVED"
-
-                # 2. Probability & Metric Calculation (only binary resolved results).
-                p = data.get("market_implied_prob", 0.5)
-                valid_probability = data.get("probability_status") in {
-                    "UNVALIDATED_MODEL_ESTIMATE", "MODEL_ESTIMATE", "CALIBRATED_MODEL_ESTIMATE"
-                }
-                pred_prob = data.get("model_probability") if valid_probability else None
-                brier = logloss = None
-                if status in {"WON", "LOST"} and pred_prob is not None and math.isfinite(float(pred_prob)) and 0.0 <= float(pred_prob) <= 1.0:
-                    pred_prob = float(pred_prob)
-                    outcome_numeric = 1.0 if status == "WON" else 0.0
-                    brier = round((pred_prob - outcome_numeric) ** 2, 4)
-                    p_clamped = max(0.001, min(0.999, pred_prob))
-                    logloss = round(-(outcome_numeric * math.log(p_clamped) + (1.0 - outcome_numeric) * math.log(1.0 - p_clamped)), 4)
-
-                # 3. Dual Closing Line Value (CLV) Calculation
-                taiwan_odds = float(data.get("taiwan_odds", 1.0))
-                odds_clv_ratio = None
-                clv_prob_pp = None
-                clv_status = "NOT_AVAILABLE"
-
-                if closing_odds is not None and closing_odds > 1.0:
-                    odds_clv_ratio = round((taiwan_odds / closing_odds) - 1.0, 4)
-                    pred_imp = 1.0 / taiwan_odds
-                    close_imp = 1.0 / closing_odds
-                    clv_prob_pp = round((close_imp - pred_imp) * 100.0, 2)
-                    clv_status = "BEAT_CLOSING" if taiwan_odds > closing_odds else "EQUAL_CLOSING" if taiwan_odds == closing_odds else "TRAIL_CLOSING"
-
-                # 4. Append settlement fields without mutating prediction attributes
-                data["actual_outcome"] = (status == "WON") if status in {"WON", "LOST"} else None
-                data["is_settled"] = status in {"WON", "LOST", "PUSH", "VOID"}
-                data["settlement_status"] = status
-                data["settlement_reason"] = settlement_reason
-                data["settled_at"] = settled_time
-                data["final_score"] = final_score
-                data["result_source"] = result_source
-                data["brier_score"] = brier
-                data["log_loss"] = logloss
-                data["closing_odds"] = closing_odds
-                data["reference_closing_odds"] = reference_closing_odds
-                data["closing_odds_source"] = (
-                    closing_odds_source if closing_odds is not None else None
-                )
-                data["odds_clv_ratio"] = odds_clv_ratio
-                data["clv_probability_pp"] = clv_prob_pp
-                data["clv_status"] = clv_status
-                data["clv_beat"] = bool(odds_clv_ratio > 0) if odds_clv_ratio is not None else None
-
+                data = apply_settlement(data)
                 settled_record = data
-
             updated_lines.append(json.dumps(data, ensure_ascii=False))
-
         if settled_record:
             atomic_write_bytes(self.log_path, ("\n".join(updated_lines) + "\n").encode("utf-8"))
-
         return settled_record
 
     def compute_calibration_metrics(self) -> Dict[str, Any]:

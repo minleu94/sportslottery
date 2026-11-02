@@ -48,7 +48,8 @@ from ui.ticket_submission import readiness, recommendation_fingerprint, record_r
 from ui.navigation import render_sidebar_navigation
 from core.parlay_validation import shared_event_exposure
 from ui.model_acceptance_display import acceptance_rows, acceptance_label
-from ui.research_overview import render_research_overview, read_jsonl
+from ui.research_overview import render_research_overview
+from core.persistence import read_jsonl
 from core.research_paths import research_paths
 from core.line_movement import LineMovementTracker
 from core.parlay_validation import evaluate_parlay_forward
@@ -200,11 +201,11 @@ def get_cached_taiwan_legs(_odds_adapter, force_refresh: bool = False):
 
 @st.cache_data(ttl=120, show_spinner=False)
 def get_cached_forward_parlay_metrics(parlays_path_str: str, experiment_id: str, mtime: float):
+    from core.persistence import iter_jsonl
     parlay_file = Path(parlays_path_str)
     if not parlay_file.exists():
         return evaluate_parlay_forward([], experiment_id)
-    records = read_jsonl(parlay_file)
-    return evaluate_parlay_forward(records, experiment_id)
+    return evaluate_parlay_forward(iter_jsonl(parlay_file), experiment_id)
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -1727,8 +1728,13 @@ elif active_tab == NAV_RESEARCH:
     r_paths = research_paths()
     snap_p = r_paths["snapshots"]
     parl_p = r_paths["parlays"]
-    snap_mtime = snap_p.stat().st_mtime if snap_p.exists() else 0.0
-    parl_mtime = parl_p.stat().st_mtime if parl_p.exists() else 0.0
+    active_ledger = r_paths.get("database")
+    if active_ledger and active_ledger.exists():
+        ledger_mtime = active_ledger.stat().st_mtime
+        snap_mtime = parl_mtime = ledger_mtime
+    else:
+        snap_mtime = snap_p.stat().st_mtime if snap_p.exists() else 0.0
+        parl_mtime = parl_p.stat().st_mtime if parl_p.exists() else 0.0
 
     snap_analysis = get_cached_snapshot_analytics(str(snap_p), snap_mtime)
     snapshots = snap_analysis["snapshots"]

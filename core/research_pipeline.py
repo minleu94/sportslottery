@@ -726,7 +726,8 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
 
     def _stage_settlement(self, stage_data: Path) -> dict[str, Any]:
         from scripts.settle_results import settle_snapshot_results
-        snapshots = self.snapshot_logger.get_all_snapshots()
+        from core.persistence import iter_jsonl
+        snapshots = iter_jsonl(self.snapshot_logger.log_path)
         result = settle_snapshot_results(self._result_engine, snapshots, now=self.clock())
         _write_json_atomic(stage_data / "settlement_audit.json", result)
         parlay_result = self._result_engine.settle_parlays_against_snapshots()

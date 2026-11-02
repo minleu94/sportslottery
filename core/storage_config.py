@@ -107,6 +107,8 @@ def get_storage_stats() -> Dict[str, Any]:
         return 0.0
 
     db_size = get_file_size_mb(root / "war_chest.sqlite3")
+    research_db = root / "research_pipeline" / "historical" / "research.sqlite3"
+    research_db_size = get_file_size_mb(research_db)
     parlay_size = get_file_size_mb(root / "research_pipeline" / "historical" / "parlay_snapshots.jsonl")
     pred_size = get_file_size_mb(root / "research_pipeline" / "historical" / "prediction_snapshots.jsonl")
     odds_size = get_file_size_mb(root / "research_pipeline" / "historical" / "odds_history.jsonl")
@@ -150,6 +152,7 @@ def get_storage_stats() -> Dict[str, Any]:
         "drive_total_gb": total_gb,
         "drive_used_pct": used_pct,
         "db_size_mb": db_size,
+        "research_db_size_mb": research_db_size,
         "parlay_snapshots_mb": parlay_size,
         "prediction_snapshots_mb": pred_size,
         "odds_history_mb": odds_size,

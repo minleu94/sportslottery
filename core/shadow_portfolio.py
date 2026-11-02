@@ -29,6 +29,8 @@ from core.shadow_parlay_logger import compute_parlay_fingerprint
 from core.strategy_version import GOVERNANCE_RULES, STRATEGY_VERSION
 from core.experiment_identity import get_current_experiment_identity, validate_experiment_identity
 from core.research_paths import research_paths
+from core.persistence import iter_jsonl
+from core.research_sqlite import database_for_ledger, get_predictions_by_ids
 from core.snapshot_logger import compute_prediction_payload_hash
 
 logger = logging.getLogger(__name__)
@@ -146,18 +148,31 @@ class ShadowPortfolioManager:
             )
             conn.commit()
 
-    def _snapshot_index(self) -> Dict[str, Dict[str, Any]]:
+    def _snapshot_index(self, snapshot_ids=None) -> Dict[str, Dict[str, Any]]:
+        wanted = {str(value) for value in snapshot_ids or [] if value}
+        if database_for_ledger(self.snapshot_path):
+            return get_predictions_by_ids(self.snapshot_path, wanted)
         if not self.snapshot_path.exists():
             return {}
-        rows = []
-        for line in self.snapshot_path.read_text(encoding="utf-8").splitlines():
+        return {
+            str(row["snapshot_id"]): row
+            for row in iter_jsonl(self.snapshot_path)
+            if row.get("snapshot_id") and (not wanted or str(row["snapshot_id"]) in wanted)
+        }
+
+    @staticmethod
+    def _snapshot_ids_from_tickets(rows) -> set[str]:
+        ids = set()
+        for row in rows:
             try:
-                value = json.loads(line)
-                if isinstance(value, dict):
-                    rows.append(value)
+                legs = json.loads(row["legs_json"]) if isinstance(row.get("legs_json"), str) else row.get("legs_json", [])
             except (TypeError, ValueError):
                 continue
-        return {str(row.get("snapshot_id")): row for row in rows if row.get("snapshot_id")}
+            for leg in legs or []:
+                snapshot_id = (leg.get("signal_evidence") or {}).get("snapshot_id")
+                if snapshot_id:
+                    ids.add(str(snapshot_id))
+        return ids
 
     @staticmethod
     def _leg_snapshot_ref(leg: Dict[str, Any], snapshots: Dict[str, Dict[str, Any]],
@@ -255,7 +270,11 @@ class ShadowPortfolioManager:
         identity = experiment_identity or self.experiment_identity
         if not validate_experiment_identity(identity):
             raise ValueError("Shadow tickets require a valid experiment identity.")
-        snapshot_index = self._snapshot_index()
+        snapshot_ids = {
+            str((leg.get("signal_evidence") or {}).get("snapshot_id"))
+            for leg in legs_clean if (leg.get("signal_evidence") or {}).get("snapshot_id")
+        }
+        snapshot_index = self._snapshot_index(snapshot_ids)
         snapshot_refs = [self._leg_snapshot_ref(leg, snapshot_index, identity) for leg in legs_clean]
         forward_eligible = bool(legs_clean and all(snapshot_refs))
         ticket_payload = {
@@ -502,7 +521,7 @@ class ShadowPortfolioManager:
         if target_experiment_id:
             rows = [row for row in rows if row.get("experiment_id") == target_experiment_id]
         if eligible_only:
-            snapshot_index = self._snapshot_index()
+            snapshot_index = self._snapshot_index(self._snapshot_ids_from_tickets(rows))
             rows = [row for row in rows if self._ticket_is_current_and_sealed(
                 row, snapshot_index, target_experiment_id or self.experiment_identity["experiment_id"]
             )]

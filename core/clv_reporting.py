@@ -16,6 +16,7 @@ from typing import Any
 from core.bet_validation import parse_aware_time
 from core.experiment_identity import get_current_experiment_identity, validate_experiment_identity
 from core.odds_watcher import select_last_prestart_observation
+from core.persistence import read_jsonl as read_persisted_jsonl
 from core.research_paths import research_paths
 from core.snapshot_logger import compute_prediction_payload_hash
 
@@ -26,6 +27,10 @@ CLV_MIN_EVENT_CLUSTERS = 30
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     """Read valid JSON object rows from an append-only JSONL artifact."""
+    if Path(path).name in {"prediction_snapshots.jsonl", "parlay_snapshots.jsonl"}:
+        from core.research_sqlite import database_for_ledger
+        if database_for_ledger(path):
+            return read_persisted_jsonl(path)
     rows = []
     if not Path(path).exists():
         return rows
