@@ -809,5 +809,22 @@ export const api = {
     return res.json()
   },
 
+  async getMarketSchedulerStatus() {
+    const res = await fetch(`${BASE_URL}/market/scheduler/status`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error("取得自動排程狀態失敗")
+    return res.json()
+  },
+
+  async updateMarketSchedulerConfig(params: { enabled?: boolean; interval_seconds?: number }) {
+    const res = await fetch(`${BASE_URL}/market/scheduler/config`, {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    })
+    if (!res.ok) throw new Error("更新自動排程設定失敗")
+    return res.json()
+  },
 }
 

@@ -12,7 +12,9 @@ Provides high-performance RESTful API endpoints for:
 
 from __future__ import annotations
 
+import atexit
 import base64
+from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import json
@@ -56,6 +58,7 @@ from core.strategy_version import get_strategy_metadata
 from core.ticket_recorder import TicketRecorder
 from core.wallet import WeeklyWalletManager
 from core.betting_service import BettingService
+from core.market_scheduler import get_market_scheduler
 from integrations.common.models import TaiwanLeg
 from integrations.odds.betting_splits_client import BettingSplitsClient
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
@@ -72,11 +75,27 @@ from server.auth import (
 )
 from server.security import login_rate_limiter, get_client_ip, log_security_event
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application startup and shutdown lifecycle hooks."""
+    scheduler = get_market_scheduler()
+    scheduler.start()
+    logger.info("FastAPI startup: Market intelligence scheduler initiated.")
+    try:
+        yield
+    finally:
+        scheduler.stop()
+        logger.info("FastAPI shutdown: Market intelligence scheduler stopped.")
+
+
 app = FastAPI(
     title="Taiwan Sports Lottery API",
     description="台灣運彩「瘋狗流」高倍串關決策後端 API",
     version=APP_VERSION,
+    lifespan=lifespan,
 )
+
+atexit.register(lambda: get_market_scheduler().stop())
 
 # CORS middleware with strict origin whitelist & LAN/tunnel regex (no wildcard credentials)
 cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
@@ -242,6 +261,11 @@ class MarketKeyConfigRequest(BaseModel):
     the_odds_api_key: str = Field(..., min_length=1, max_length=128, description="API Key for The Odds API")
 
 
+class MarketSchedulerConfigRequest(BaseModel):
+    enabled: Optional[bool] = Field(None, description="Toggle automated forward cycle scheduler on/off")
+    interval_seconds: Optional[int] = Field(None, ge=300, le=86400, description="Cadence interval in seconds (300~86400)")
+
+
 class AdminResetPinRequest(BaseModel):
     profile_id: str
     new_pin: str = "0000"
@@ -342,7 +366,26 @@ def get_market_research_summary():
     """Retrieve unified Phase 4.5 operational and prospective verification summary."""
     from core.market_forward_pipeline import MarketForwardPipeline
     pipeline = MarketForwardPipeline()
-    return pipeline.get_research_status_summary()
+    summary = pipeline.get_research_status_summary()
+    summary["scheduler"] = get_market_scheduler().get_status()
+    return summary
+
+
+@app.get("/api/market/scheduler/status")
+def get_market_scheduler_status():
+    """Retrieve background scheduler runtime metrics, next run time, and cadence."""
+    scheduler = get_market_scheduler()
+    return scheduler.get_status()
+
+
+@app.post("/api/market/scheduler/config")
+def update_market_scheduler_config(
+    req: MarketSchedulerConfigRequest,
+    _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
+):
+    """Update background scheduler settings (enable/disable or interval)."""
+    scheduler = get_market_scheduler()
+    return scheduler.update_config(enabled=req.enabled, interval_seconds=req.interval_seconds)
 
 
 @app.post("/api/market/config")
@@ -374,10 +417,9 @@ def trigger_market_pipeline_cycle(
     _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
 ):
     """Run an automated prospective validation cycle across live odds and snapshots."""
-    from core.market_forward_pipeline import MarketForwardPipeline
-    pipeline = MarketForwardPipeline()
+    scheduler = get_market_scheduler()
     league_list = [l.strip().upper() for l in leagues.split(",")] if leagues else None
-    return pipeline.run_full_cycle(leagues=league_list, force_refresh=force_refresh)
+    return scheduler.run_cycle_now(leagues=league_list, force_refresh=force_refresh)
 
 
 @app.get("/api/market/benchmark")

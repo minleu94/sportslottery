@@ -55,4 +55,4 @@ jobs:
 
       - name: Run Core Test Suite (Security, Betting Integrity, Backup/Restore, Resilience)
         run: |
-          python -m pytest tests/test_phase1_security.py tests/test_phase2_betting_integrity.py tests/test_sqlite_backup_restore.py tests/test_external_source_resilience.py tests/test_wallet_atomicity.py tests/test_ticket_settlement.py tests/test_bet_validation.py tests/test_profile_manager.py tests/test_modern_api.py -v
+          python -m pytest tests/test_phase1_security.py tests/test_phase2_betting_integrity.py tests/test_sqlite_backup_restore.py tests/test_external_source_resilience.py tests/test_wallet_atomicity.py tests/test_ticket_settlement.py tests/test_bet_validation.py tests/test_profile_manager.py tests/test_modern_api.py tests/test_market_scheduler.py tests/test_market_api.py tests/test_odds_api_activation.py tests/test_market_forward_pipeline.py -v
