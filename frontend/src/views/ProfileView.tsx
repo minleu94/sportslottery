@@ -6,7 +6,7 @@ import { formatNTD } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
-import { User, KeyRound, Shield, CheckCircle2, AlertCircle, Users, Crown, Eye, UserPlus, RefreshCw, Trash2, Settings2, AlertTriangle } from "lucide-react"
+import { User, KeyRound, Shield, CheckCircle2, AlertCircle, Crown, Eye, UserPlus, RefreshCw, Trash2, Settings2 } from "lucide-react"
 import { Dialog } from "@/components/ui/Dialog"
 
 interface ProfileViewProps {
@@ -250,46 +250,46 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="max-w-4xl mx-auto space-y-6"
+      transition={{ duration: 0.18 }}
+      className="max-w-4xl mx-auto space-y-5"
     >
       <div>
-        <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <User className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
-          個人設定與風控管理 (Player Profile & Governance)
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 tracking-tight">
+          <User className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          個人設定與風控管理
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          獨立錢包帳本、PIN 碼隱私防護與多玩家健康娛樂額度管理
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          獨立資金帳本、PIN 碼隱私防護與多玩家娛樂額度設定
         </p>
       </div>
 
       {message && (
         <div
-          className={`p-4 rounded-xl text-sm flex items-center gap-2 ${
+          className={`p-3.5 rounded-xl text-xs flex items-center gap-2 ${
             message.type === "success"
-              ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
-              : "bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300"
+              ? "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+              : "bg-rose-50 dark:bg-rose-950/30 border border-rose-500/20 text-rose-700 dark:text-rose-300"
           }`}
         >
-          {message.type === "success" ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          {message.type === "success" ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
           <span>{message.text}</span>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 pb-2">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-1.5 pb-2">
         <button
           onClick={() => setActiveTab("edit")}
-          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
             activeTab === "edit"
-              ? "bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
-              : "bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
+              : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
           }`}
         >
-          <User className="w-3.5 h-3.5" />
-          <span>⚙️ 編輯個人設定</span>
+          <User className="w-3.5 h-3.5 text-slate-400" />
+          <span>編輯個人設定</span>
         </button>
 
         {isAdmin && (
@@ -298,48 +298,48 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
               setActiveTab("admin_overview")
               loadAdminPlayers()
             }}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
               activeTab === "admin_overview"
-                ? "bg-amber-600/20 text-amber-600 dark:text-amber-400 border border-amber-500/40"
-                : "bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
+                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
-            <Crown className="w-3.5 h-3.5 text-amber-400" />
-            <span>👑 全體玩家監控與切換 (管理員)</span>
+            <Crown className="w-3.5 h-3.5 text-slate-400" />
+            <span>全體玩家總覽 (管理員)</span>
           </button>
         )}
 
         <button
           onClick={() => setActiveTab("create")}
-          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
             activeTab === "create"
-              ? "bg-purple-600/20 text-purple-600 dark:text-purple-400 border border-purple-500/40"
-              : "bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
+              : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
           }`}
         >
-          <UserPlus className="w-3.5 h-3.5" />
-          <span>➕ 新增玩家 Profile</span>
+          <UserPlus className="w-3.5 h-3.5 text-slate-400" />
+          <span>新增玩家 Profile</span>
         </button>
       </div>
 
       {/* TAB 1: EDIT SETTINGS */}
       {activeTab === "edit" && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Switch Profile Card */}
-          <Card className="border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
-            <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/80">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+          <Card className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+            <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 切換帳號身分
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">選擇帳號</label>
+                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">選擇帳號</label>
                 <select
                   value={selectedProfileId}
                   onChange={(e) => setSelectedProfileId(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 cursor-pointer"
+                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
                   {profiles.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -350,8 +350,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+                <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-slate-400" />
                   輸入 4 位數 PIN 碼 (預設: 0000)
                 </label>
                 <input
@@ -360,7 +360,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
                   value={pinCode}
                   onChange={(e) => setPinCode(e.target.value)}
                   placeholder="••••"
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-center text-lg font-mono tracking-widest text-slate-900 dark:text-slate-100"
+                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-center text-lg font-mono tracking-widest text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
 
@@ -368,7 +368,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
                 variant="default"
                 onClick={handleSwitchProfile}
                 disabled={loading}
-                className="w-full font-bold cursor-pointer"
+                className="w-full font-medium cursor-pointer"
               >
                 確認切換身分
               </Button>
@@ -376,10 +376,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
           </Card>
 
           {/* Edit Profile Settings Card */}
-          <Card className="border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
-            <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/80">
-              <CardTitle className="text-base flex items-center gap-2">
-                <User className="w-4 h-4 text-sky-500" />
+          <Card className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+            <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <User className="w-4 h-4 text-slate-400" />
                 修改目前帳號【{currentProfile?.name}】參數
               </CardTitle>
             </CardHeader>

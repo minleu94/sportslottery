@@ -14,8 +14,22 @@ export const SystemHealthModal: React.FC<SystemHealthModalProps> = ({ open, onCl
   const [loading, setLoading] = useState<boolean>(true)
 
   useEffect(() => {
+    let isMounted = true
     if (open) {
-      loadHealth()
+      setLoading(true)
+      api.getRadar(false)
+        .then((res) => {
+          if (isMounted) setSourceStatus(res.source_status || {})
+        })
+        .catch((err) => {
+          console.error(err)
+        })
+        .finally(() => {
+          if (isMounted) setLoading(false)
+        })
+    }
+    return () => {
+      isMounted = false
     }
   }, [open])
 
@@ -48,24 +62,24 @@ export const SystemHealthModal: React.FC<SystemHealthModalProps> = ({ open, onCl
       onClose={onClose}
       title={
         <div className="flex items-center justify-between w-full pr-4">
-          <div className="flex items-center gap-2 text-lg font-black text-white">
-            <Activity className="w-5 h-5 text-emerald-400" />
-            <span>🔎 資料來源健康度與爬蟲觀測</span>
+          <div className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-slate-100">
+            <Activity className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>資料來源健康度與爬蟲觀測</span>
           </div>
           <button
             onClick={loadHealth}
             disabled={loading}
-            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+            className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
             title="重新探測"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
       }
-      description="監控玩運彩盤口、大神榜與模型伺服器之快取存活時間 (TTL) 與資料完整度"
+      description="監控各聯賽盤口、專家榜與模型伺服器之快取存活時間 (TTL) 與資料完整度"
       className="max-w-2xl max-h-[85vh] overflow-y-auto"
     >
-      <div className="space-y-3 text-xs pt-2">
+      <div className="space-y-3 text-xs pt-1">
         {loading ? (
           <div className="p-8 text-center text-slate-500">正在探測資料來源狀態...</div>
         ) : !sourceStatus || Object.keys(sourceStatus).length === 0 ? (
@@ -79,26 +93,26 @@ export const SystemHealthModal: React.FC<SystemHealthModalProps> = ({ open, onCl
               const age = typeof info.cache_age_minutes === "number" ? `${info.cache_age_minutes.toFixed(1)} 分鐘` : "即時"
 
               return (
-                <div key={aid} className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 flex flex-col gap-1.5">
+                <div key={aid} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-sm flex items-center gap-1.5">
-                      <Server className="w-4 h-4 text-slate-500" />
+                    <span className="font-medium text-slate-900 dark:text-slate-100 text-xs sm:text-sm flex items-center gap-1.5">
+                      <Server className="w-3.5 h-3.5 text-slate-400" />
                       {name}
                     </span>
                     <Badge variant={isFresh ? "green" : "secondary"} className="text-[10px]">
-                      {isFresh ? "🟢 正常運作" : rawStatus}
+                      {isFresh ? "正常運作" : rawStatus}
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-400 mt-1 font-mono">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
                     <div>
-                      盤口賽事數：<span className="text-slate-200">{info.market_match_count ?? 0} 場</span>
+                      盤口賽事數：<span className="text-slate-700 dark:text-slate-300 tabular-nums">{info.market_match_count ?? 0} 場</span>
                     </div>
                     <div>
-                      快取年齡：<span className="text-slate-200">{age}</span>
+                      快取年齡：<span className="text-slate-700 dark:text-slate-300 tabular-nums">{age}</span>
                     </div>
                     <div>
-                      最後觀測：<span className="text-slate-200">{info.observed_at ? info.observed_at.slice(11, 19) : "N/A"}</span>
+                      最後觀測：<span className="text-slate-700 dark:text-slate-300 tabular-nums">{info.observed_at ? info.observed_at.slice(11, 19) : "N/A"}</span>
                     </div>
                   </div>
                 </div>

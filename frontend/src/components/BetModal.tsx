@@ -97,29 +97,29 @@ export const BetModal: React.FC<BetModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      title="🎯 確認下注注單"
+      title="確認投注注單"
       description={`組合：${parlay.parlay_name} · 共 ${parlay.legs.length} 關`}
     >
       <div className="space-y-4">
         {success ? (
-          <div className="py-8 text-center space-y-3">
-            <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto animate-bounce" />
-            <h4 className="text-lg font-bold text-slate-100">下注成功！已記錄於注單流水帳</h4>
-            <p className="text-xs text-slate-400">已自本週可用餘額扣除 NT$ {stake}</p>
+          <div className="py-8 text-center space-y-2">
+            <CheckCircle2 className="w-10 h-10 text-emerald-600 dark:text-emerald-400 mx-auto" />
+            <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">下注成功！已記錄於注單帳本</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">已自本週可用餘額扣除 NT$ {stake}</p>
           </div>
         ) : (
           <>
             {/* Bet Summary Banner */}
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">綜合總賠率</span>
-                <span className="text-xl font-black text-amber-400 font-mono">
+                <span className="text-xs text-slate-500 dark:text-slate-400">綜合總賠率</span>
+                <span className="text-xl font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
                   {parlay.total_odds.toFixed(2)}x
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">預期中獎總回報</span>
-                <span className="text-xl font-black text-emerald-400 font-mono">
+                <span className="text-xs text-slate-500 dark:text-slate-400">預期中獎總回報</span>
+                <span className="text-xl font-semibold text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">
                   {formatNTD(potentialPayout)}
                 </span>
               </div>
@@ -128,9 +128,9 @@ export const BetModal: React.FC<BetModalProps> = ({
             {/* Stake Input */}
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <label className="font-semibold text-slate-300">投注金額 (NT$)</label>
-                <span className="text-slate-400">
-                  本週可用餘額：<strong className="text-slate-200">{formatNTD(wallet?.weekly_wallet_balance || 0)}</strong>
+                <label className="font-medium text-slate-700 dark:text-slate-300">投注金額 (NT$)</label>
+                <span className="text-slate-500 dark:text-slate-400 tabular-nums">
+                  本週可用餘額：<strong className="text-slate-800 dark:text-slate-200">{formatNTD(wallet?.weekly_wallet_balance || 0)}</strong>
                 </span>
               </div>
 
@@ -141,10 +141,10 @@ export const BetModal: React.FC<BetModalProps> = ({
                     type="button"
                     onClick={() => handleStakeSelect(amt)}
                     disabled={amt > maxStakeAllowed}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                       stake === amt
-                        ? "bg-emerald-600 text-white"
-                        : "bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
                     }`}
                   >
                     NT${amt}
@@ -164,13 +164,13 @@ export const BetModal: React.FC<BetModalProps> = ({
                   setError(null)
                   setIdempotencyKey(generateUUID())
                 }}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 font-mono text-sm focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-100 font-mono tabular-nums text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>
 
             {/* Error or validation alert */}
             {!canAfford && (
-              <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>
                   本週可用餘額不足（僅剩 NT$ {maxStakeAllowed.toFixed(0)}），無法下注此金額。
@@ -179,25 +179,25 @@ export const BetModal: React.FC<BetModalProps> = ({
             )}
 
             {error && (
-              <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs space-y-1">
-                <div className="font-semibold flex items-center gap-1">
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-300 text-xs space-y-1">
+                <div className="font-medium flex items-center gap-1">
                   <AlertTriangle className="w-3.5 h-3.5" />
                   <span>提交失敗</span>
                 </div>
                 <div>{error}</div>
                 <div className="text-[10px] text-slate-400">
-                  提示：點選「重試下注」將使用相同冪等鍵安全重試，不會重複扣款。
+                  提示：重試下注將使用相同冪等鍵安全重試，不會重複扣款。
                 </div>
               </div>
             )}
 
             {/* Action buttons */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <Button variant="ghost" onClick={onClose} disabled={submitting}>
                 取消
               </Button>
               <Button
-                variant="success"
+                variant="default"
                 onClick={handleConfirmBet}
                 disabled={!canAfford || submitting}
                 className="gap-2"

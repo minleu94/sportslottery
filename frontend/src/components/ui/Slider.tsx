@@ -25,10 +25,10 @@ export const Slider: React.FC<SliderProps> = ({
   const percentage = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
 
   return (
-    <div className={cn("space-y-2", className)}>
-      <div className="flex justify-between items-center text-sm">
-        {label && <span className="font-medium text-slate-300">{label}</span>}
-        <span className="font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-xs">
+    <div className={cn("space-y-1.5", className)}>
+      <div className="flex justify-between items-center text-xs">
+        {label && <span className="font-medium text-slate-700 dark:text-slate-300">{label}</span>}
+        <span className="font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/20 px-2 py-0.5 rounded font-mono tabular-nums text-xs">
           {displayValue || `${value}x`}
         </span>
       </div>
@@ -40,15 +40,14 @@ export const Slider: React.FC<SliderProps> = ({
           step={step}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 focus:outline-none"
+          className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-emerald-600 focus:outline-none"
           style={{
-            background: `linear-gradient(to right, #10b981 0%, #10b981 ${percentage}%, #1e293b ${percentage}%, #1e293b 100%)`,
+            background: `linear-gradient(to right, #059669 0%, #059669 ${percentage}%, #cbd5e1 ${percentage}%, #cbd5e1 100%)`,
           }}
         />
       </div>
-      <div className="flex justify-between text-[11px] text-slate-500 font-mono">
+      <div className="flex justify-between text-[11px] text-slate-400 font-mono tabular-nums">
         <span>{min}x</span>
-        <span>{Math.round((max + min) / 2)}x</span>
         <span>{max}x</span>
       </div>
     </div>

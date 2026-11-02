@@ -78,16 +78,30 @@ class MarketForwardPipeline:
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
         """Fetch live Taiwan legs, align with international sharp markets, and log sealed snapshots."""
-        target_leagues = leagues or ["MLB", "NBA", "NFL", "SOCCER"]
+        if leagues:
+            target_leagues = leagues
+        else:
+            try:
+                active = self.odds_adapter.get_active_leagues_with_games()
+                target_leagues = active if active else ["NBA", "SOCCER"]
+            except Exception:
+                target_leagues = ["MLB", "NBA", "NFL", "SOCCER"]
+
         total_legs_processed = 0
         total_matched = 0
         total_unmatched = 0
         total_snapshots_logged = 0
 
+        target_markets = getattr(self.odds_client, "scheduled_markets", "h2h") or "h2h"
+
         for league in target_leagues:
             try:
                 raw_legs = self.odds_adapter.get_taiwan_legs([league], force_refresh=force_refresh)
-                int_odds = self.odds_client.fetch_market_odds(league, force_refresh=force_refresh)
+                int_odds = self.odds_client.fetch_market_odds(
+                    league,
+                    markets=target_markets,
+                    force_refresh=force_refresh,
+                )
             except Exception as exc:
                 logger.warning("Pipeline fetch error for %s: %s", league, exc)
                 continue
@@ -99,10 +113,11 @@ class MarketForwardPipeline:
 
                 if cand and record.status == MarketAlignmentStatus.MATCHED:
                     total_matched += 1
-                    # Extract opposing & draw odds for de-vigging
+                    # Extract opposing & draw odds for de-vigging strictly matching same bookmaker
                     opp_quote = next(
                         (c for c in int_odds
                          if c.event_id == cand.event_id
+                         and c.bookmaker == cand.bookmaker
                          and c.market_type == cand.market_type
                          and c.selection != cand.selection
                          and c.selection != "draw"
@@ -112,6 +127,7 @@ class MarketForwardPipeline:
                     draw_quote = next(
                         (c for c in int_odds
                          if c.event_id == cand.event_id
+                         and c.bookmaker == cand.bookmaker
                          and c.market_type == cand.market_type
                          and c.selection == "draw"),
                         None,
@@ -141,14 +157,13 @@ class MarketForwardPipeline:
                         enriched.signal_evidence["market_observed_at"] = cand.observed_at_utc
                         enriched.signal_evidence["is_market_synthetic"] = cand.is_synthetic
                         enriched.signal_evidence["market_complete"] = True
+                        enriched.is_market_synthetic = cand.is_synthetic
                 else:
                     total_unmatched += 1
 
-                # Ensure freshness indicators for forward evaluation eligibility
-                if enriched.odds_status not in {"LIVE", "FRESH"}:
-                    enriched.odds_status = "LIVE"
+                # Preserve truthful status without forced 'LIVE' override
                 if not enriched.odds_scraped_at:
-                    enriched.odds_scraped_at = datetime.now(timezone.utc).isoformat()
+                    enriched.odds_scraped_at = (cand.observed_at_utc if cand else None) or datetime.now(timezone.utc).isoformat()
 
                 try:
                     self.snapshot_logger.log_snapshot(enriched)
@@ -198,13 +213,150 @@ class MarketForwardPipeline:
             "timestamp_utc": current_time.isoformat(),
         }
 
+    def audit_snapshots(
+        self,
+        snapshots: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Perform non-destructive classification and integrity audit of historical snapshots.
+
+        Classifies records into:
+        - total_count
+        - settled_count
+        - unsettled_pending_count
+        - pre_match_verified_count
+        - post_match_leak_count
+        - missing_timestamp_count
+        - legacy_unverified_count (Phase 1-3 baseline records lacking independent model predictions or international sharp quotes)
+        - synthetic_fixture_count
+        - eligible_forward_samples_count
+        - excluded_breakdown: summary of exclusions
+        - eligible_samples: list of records passed to forward evaluation engine
+        """
+        records = snapshots if snapshots is not None else self.snapshot_logger.get_all_snapshots()
+
+        total = len(records)
+        settled_count = 0
+        unsettled_count = 0
+        pre_match_verified_count = 0
+        post_match_leak_count = 0
+        missing_timestamp_count = 0
+        legacy_unverified_count = 0
+        synthetic_fixture_count = 0
+        invalid_odds_or_outcome_count = 0
+
+        eligible_samples: List[Dict[str, Any]] = []
+
+        for r in records:
+            # 1. Settlement status
+            is_settled = (
+                bool(r.get("is_settled"))
+                or r.get("settlement_status") in ("WON", "LOST", "PUSH")
+                or r.get("outcome") in (0, 1)
+                or r.get("actual_outcome") is not None
+            )
+            if is_settled:
+                settled_count += 1
+            else:
+                unsettled_count += 1
+
+            # 2. Timing check (pre-match vs post-match leak)
+            pred_time = r.get("prediction_timestamp") or r.get("snapshot_timestamp") or r.get("logged_at_utc")
+            event_start = r.get("event_start") or r.get("start_time_utc")
+            is_pre_match = False
+
+            if pred_time and event_start:
+                try:
+                    pt_dt = datetime.fromisoformat(str(pred_time).replace("Z", "+00:00"))
+                    es_dt = datetime.fromisoformat(str(event_start).replace("Z", "+00:00"))
+                    if pt_dt < es_dt:
+                        is_pre_match = True
+                        pre_match_verified_count += 1
+                    else:
+                        post_match_leak_count += 1
+                except Exception:
+                    missing_timestamp_count += 1
+            else:
+                missing_timestamp_count += 1
+
+            # 3. Synthetic check
+            ev = r.get("signal_evidence") or {}
+            is_syn = bool(
+                r.get("is_synthetic")
+                or r.get("is_market_synthetic")
+                or ev.get("is_market_synthetic")
+                or r.get("market_source") == "SYNTHETIC"
+            )
+            if is_syn:
+                synthetic_fixture_count += 1
+
+            # 4. Legacy baseline check (Phase 1-3 baseline only, no model & no sharp quote)
+            has_model = (
+                r.get("model_probability") is not None or r.get("model_prob") is not None
+            ) and r.get("probability_status") != "MARKET_BASELINE_ONLY"
+
+            m_src = r.get("market_source") or ev.get("market_source")
+            has_sharp = bool(m_src and str(m_src).upper() not in ("SYNTHETIC", "MOCK", "PLAYSPORT_TAIWAN_ODDS"))
+
+            if not has_model and not has_sharp:
+                legacy_unverified_count += 1
+
+            # 5. Outcome & odds check
+            outcome = r.get("outcome")
+            if outcome is None:
+                if r.get("actual_outcome") is True or r.get("settlement_status") == "WON":
+                    outcome = 1
+                elif r.get("actual_outcome") is False or r.get("settlement_status") == "LOST":
+                    outcome = 0
+
+            odds = r.get("taiwan_odds") or r.get("decimal_odds")
+            try:
+                odds_val = float(odds) if odds is not None else None
+            except (ValueError, TypeError):
+                odds_val = None
+
+            if is_settled and (outcome not in (0, 1) or not odds_val or odds_val <= 1.0):
+                invalid_odds_or_outcome_count += 1
+
+            # Eligibility for Forward Evaluation:
+            # Must be: settled, valid outcome/odds, strictly pre-match, non-synthetic, and have model or sharp benchmark
+            if (
+                is_settled
+                and outcome in (0, 1)
+                and odds_val and odds_val > 1.0
+                and not is_syn
+                and is_pre_match
+                and (has_model or has_sharp)
+            ):
+                eligible_samples.append(r)
+
+        return {
+            "total_count": total,
+            "settled_count": settled_count,
+            "unsettled_pending_count": unsettled_count,
+            "pre_match_verified_count": pre_match_verified_count,
+            "post_match_leak_count": post_match_leak_count,
+            "missing_timestamp_count": missing_timestamp_count,
+            "legacy_unverified_count": legacy_unverified_count,
+            "synthetic_fixture_count": synthetic_fixture_count,
+            "eligible_forward_samples_count": len(eligible_samples),
+            "excluded_breakdown": {
+                "legacy_unverified": legacy_unverified_count,
+                "unsettled_pending": unsettled_count,
+                "post_match_leak": post_match_leak_count,
+                "synthetic_fixture": synthetic_fixture_count,
+                "invalid_odds_or_outcome": invalid_odds_or_outcome_count,
+                "missing_timestamp": missing_timestamp_count,
+            },
+            "eligible_samples": eligible_samples,
+        }
+
     def generate_forward_evaluation_report(
         self,
         scope: str = "GLOBAL",
     ) -> StrategyComparisonReport:
-        """Run 3-way evaluation on all settled pre-match snapshots and persist summary."""
-        snapshots = self.snapshot_logger.get_all_snapshots()
-        report = self.evaluation_engine.evaluate_cohort(snapshots, scope_name=scope)
+        """Run 3-way evaluation on all verified eligible forward snapshots and persist summary."""
+        audit = self.audit_snapshots()
+        report = self.evaluation_engine.evaluate_cohort(audit["eligible_samples"], scope_name=scope)
 
         # Persist summary JSON
         try:
@@ -258,14 +410,18 @@ class MarketForwardPipeline:
 
         if cached_blocks is None:
             all_snaps = self.snapshot_logger.get_all_snapshots()
-            settled_snaps = [s for s in all_snaps if s.get("is_settled")]
-            report = self.evaluation_engine.evaluate_cohort(settled_snaps)
+            audit = self.audit_snapshots(all_snaps)
+            report = self.evaluation_engine.evaluate_cohort(audit["eligible_samples"])
             cached_blocks = {
                 "snapshots": {
-                    "total_count": len(all_snaps),
-                    "settled_count": len(settled_snaps),
-                    "pending_count": len(all_snaps) - len(settled_snaps),
-                    "forward_eligible_count": sum(1 for s in all_snaps if s.get("forward_validation_eligible")),
+                    "total_count": audit["total_count"],
+                    "settled_count": audit["settled_count"],
+                    "pending_count": audit["unsettled_pending_count"],
+                    "pre_match_verified_count": audit["pre_match_verified_count"],
+                    "post_match_leak_count": audit["post_match_leak_count"],
+                    "legacy_unverified_count": audit["legacy_unverified_count"],
+                    "forward_eligible_count": audit["eligible_forward_samples_count"],
+                    "excluded_breakdown": audit["excluded_breakdown"],
                 },
                 "forward_evaluation": {
                     "sample_size": report.sample_size,

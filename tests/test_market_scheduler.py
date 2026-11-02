@@ -32,22 +32,21 @@ def test_client():
 
 
 def test_compute_adaptive_interval_seconds():
-    """Verify quota-adaptive cadence adjusts properly based on remaining API quota."""
-    # 1. Quota safety pause / exhausted -> 24h backoff
+    """Verify Credit Budget-Aware cadence enforces 50-credit manual reserve and budget rules."""
+    # 1. Quota safety pause / exhausted / <= 50 manual reserve -> 24h backoff (86400s)
     assert compute_adaptive_interval_seconds({"operating_mode": "QUOTA_SAFETY_PAUSE", "requests_remaining_est": 4}) == 86400
     assert compute_adaptive_interval_seconds({"operating_mode": "QUOTA_EXHAUSTED", "requests_remaining_est": 0}) == 86400
     assert compute_adaptive_interval_seconds({"operating_mode": "LIVE_API", "requests_remaining_est": 5}) == 86400
+    assert compute_adaptive_interval_seconds({"operating_mode": "LIVE_API", "requests_remaining_est": 50}) == 86400
+    assert compute_adaptive_interval_seconds({"operating_mode": "LIVE_API", "requests_remaining_est": 18}) == 86400
 
-    # 2. Low quota (<= 20) -> 12h
-    assert compute_adaptive_interval_seconds({"operating_mode": "LIVE_API", "requests_remaining_est": 18}) == 43200
+    # 2. Low schedulable budget (> 50, e.g. 60 credits remaining = 10 schedulable) -> backs off
+    assert compute_adaptive_interval_seconds({"operating_mode": "LIVE_API", "requests_remaining_est": 60}) >= 43200
 
-    # 3. Medium quota (<= 100) -> 6h
-    assert compute_adaptive_interval_seconds({"operating_mode": "LIVE_API", "requests_remaining_est": 85}) == 21600
-
-    # 4. Healthy quota (> 100) -> 4h default (14400s)
+    # 3. Healthy automated budget (450 remaining) -> 4h default min_interval (14400s)
     assert compute_adaptive_interval_seconds({"operating_mode": "LIVE_API", "requests_remaining_est": 450}) == 14400
 
-    # 5. Synthetic fixture mode -> 4h default (does not burn quota)
+    # 4. Synthetic fixture mode -> 4h default (does not burn quota)
     assert compute_adaptive_interval_seconds({"operating_mode": "SYNTHETIC_FIXTURE", "requests_remaining_est": 500}) == 14400
 
 

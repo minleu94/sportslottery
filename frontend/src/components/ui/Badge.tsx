@@ -7,21 +7,21 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export const Badge: React.FC<BadgeProps> = ({ className, variant = "default", ...props }) => {
   const variants = {
-    default: "border-transparent bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
-    secondary: "border-transparent bg-slate-800 text-slate-300",
-    destructive: "border-transparent bg-rose-500/20 text-rose-400 border border-rose-500/30",
-    outline: "border-slate-700 text-slate-300",
-    green: "border-emerald-500/30 bg-emerald-950/60 text-emerald-400",
-    yellow: "border-amber-500/30 bg-amber-950/60 text-amber-300",
-    red: "border-rose-500/30 bg-rose-950/60 text-rose-400",
-    amber: "border-amber-500/30 bg-amber-900/50 text-amber-300",
-    blue: "border-sky-500/30 bg-sky-950/60 text-sky-400",
+    default: "border-emerald-500/20 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/30",
+    secondary: "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300",
+    destructive: "border-rose-500/20 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-500/30",
+    outline: "border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300 bg-transparent",
+    green: "border-emerald-500/20 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/30",
+    yellow: "border-amber-500/20 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-500/30",
+    red: "border-rose-500/20 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-500/30",
+    amber: "border-amber-500/20 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-500/30",
+    blue: "border-sky-500/20 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-500/30",
   }
 
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium tracking-normal transition-colors",
         variants[variant],
         className
       )}

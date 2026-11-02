@@ -32,35 +32,65 @@ CONFIG_PATH = Path(__file__).resolve().parents[1] / "data" / "research" / "sched
 
 def compute_adaptive_interval_seconds(
     quota_status: Dict[str, Any],
+    active_leagues: Optional[List[str]] = None,
+    markets_per_sport: int = 1,
     base_interval: int = 14400,  # 4 hours default
-    min_interval: int = 300,    # 5 minutes minimum guard
+    min_interval: int = 14400,   # Minimum 4 hours to prevent high-frequency burn
+    max_interval: int = 86400,   # 24 hours
 ) -> int:
-    """Calculate the optimal scheduling interval to conserve free tier quota (500 req/mo).
+    """Calculate Credit Budget-Aware scheduling interval.
 
-    Cadence Strategy:
-    - Quota safety pause (remaining <= 5) or exhausted: 24h backoff (86400s) to freeze live requests.
-    - Low quota (remaining <= 20): 12h backoff (43200s) (~2 requests/day).
-    - Moderate quota (remaining <= 100): 6h cadence (21600s) (~4 requests/day).
-    - Healthy quota (> 100) or Synthetic fixture: 4h default (14400s) (~6 requests/day).
+    Enforces Phase 4.5 Budget Rules:
+    1. Monthly Total: 500 credits.
+    2. Manual Research Reserve: 50 credits strictly preserved.
+    3. Max Automated Schedulable Budget: 450 credits.
+    4. Quota Safety Pause: When remaining <= 50, pauses automated sync.
+    5. Cadence adapts to: (Remaining Schedulable Credits / Days Left in Month) vs Cycle Cost.
+    6. Never burns quota on high-frequency requests even when 500 credits remain.
     """
     mode = quota_status.get("operating_mode", "SYNTHETIC_FIXTURE")
     remaining = quota_status.get("requests_remaining_est", 500)
+    manual_reserve = quota_status.get("manual_reserve_credits", 50)
 
-    # 1. Quota safety pause or exhausted
-    if mode in ("QUOTA_SAFETY_PAUSE", "QUOTA_EXHAUSTED") or remaining <= QUOTA_SAFETY_MARGIN:
-        return 86400  # 24 hours
+    # 1. Quota safety pause / exhausted: strictly protect manual reserve
+    if mode in ("QUOTA_SAFETY_PAUSE", "QUOTA_EXHAUSTED") or remaining <= manual_reserve:
+        return max_interval  # 24h backoff
 
-    # 2. Synthetic fixture mode: No external API consumption
-    if mode == "SYNTHETIC_FIXTURE":
-        return max(min_interval, base_interval)
+    # 2. Synthetic fixture or unconfigured mode: zero API consumption
+    if mode in ("SYNTHETIC_FIXTURE", "UNCONFIGURED"):
+        return max(300, base_interval)
 
-    # 3. Live API mode - tier based on remaining requests
-    if remaining <= 20:
-        return 43200  # 12 hours
-    elif remaining <= 100:
-        return 21600  # 6 hours
+    # 3. Calculate remaining days in current UTC month
+    now_utc = datetime.now(timezone.utc)
+    year = now_utc.year
+    month = now_utc.month
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
     else:
-        return max(min_interval, base_interval)  # default 4 hours
+        next_month = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+    days_left = max(1, (next_month.date() - now_utc.date()).days)
+
+    available_automated_credits = max(0, remaining - manual_reserve)
+    daily_budget = available_automated_credits / days_left
+
+    # Estimated cycle cost based on active leagues with Taiwan games
+    leagues_count = len(active_leagues) if active_leagues else 2
+    cost_per_cycle = max(1, leagues_count * max(1, markets_per_sport))
+
+    max_cycles_per_day = daily_budget / cost_per_cycle
+
+    # Conservative distribution of budget
+    if max_cycles_per_day < 1.0:
+        return max_interval     # 24 hours (1 cycle/day or skip)
+    elif max_cycles_per_day < 2.0:
+        return 86400             # 24 hours
+    elif max_cycles_per_day < 3.0:
+        return 43200             # 12 hours (~2 cycles/day)
+    elif max_cycles_per_day < 5.0:
+        return 28800             # 8 hours (~3 cycles/day)
+    else:
+        # Ample budget: target base_interval (4 hours default), bounded by min_interval
+        return max(min_interval, base_interval)
 
 
 class MarketScheduler:
@@ -183,9 +213,21 @@ class MarketScheduler:
             odds_status = self.pipeline.odds_client.get_source_status()
             adaptive_interval = compute_adaptive_interval_seconds(
                 odds_status,
+                active_leagues=leagues,
                 base_interval=self.base_interval_seconds,
             )
             self.current_interval_seconds = adaptive_interval
+
+            # Guard: If in safety pause or exhausted, skip automatic run to preserve 50-credit manual reserve
+            if odds_status.get("operating_mode") in ("QUOTA_SAFETY_PAUSE", "QUOTA_EXHAUSTED") and not force_refresh:
+                self.last_status = "SKIPPED_QUOTA_RESERVE"
+                return {
+                    "status": "SKIPPED_QUOTA_RESERVE_PROTECTION",
+                    "cycle_status": "SKIPPED_QUOTA_RESERVE",
+                    "message": "已達配額保護門檻 (剩餘 <= 50 credits)，自動排程已暫停以預留手動研究額度。",
+                    "interval_seconds": adaptive_interval,
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                }
 
             result = self.pipeline.run_full_cycle(leagues=leagues, force_refresh=force_refresh)
 
@@ -257,8 +299,17 @@ class MarketScheduler:
                 break
 
     def get_status(self) -> Dict[str, Any]:
-        """Return operational scheduler metrics."""
+        """Return operational scheduler metrics and budget allocation."""
         odds_status = self.pipeline.odds_client.get_source_status()
+        now_utc = datetime.now(timezone.utc)
+        year, month = now_utc.year, now_utc.month
+        next_m = datetime(year + 1, 1, 1, tzinfo=timezone.utc) if month == 12 else datetime(year, month + 1, 1, tzinfo=timezone.utc)
+        days_left = max(1, (next_m.date() - now_utc.date()).days)
+
+        rem_est = odds_status.get("requests_remaining_est", 500)
+        sched_rem = max(0, rem_est - 50)
+        daily_allowance = round(sched_rem / days_left, 1)
+
         return {
             "enabled": self.enabled,
             "is_running": bool(self._thread and self._thread.is_alive()),
@@ -270,14 +321,22 @@ class MarketScheduler:
             "interval_seconds": self.current_interval_seconds,
             "base_interval_seconds": self.base_interval_seconds,
             "quota_operating_mode": odds_status.get("operating_mode", "SYNTHETIC_FIXTURE"),
-            "requests_remaining_est": odds_status.get("requests_remaining_est", 500),
+            "requests_remaining_est": rem_est,
+            "credit_budget": {
+                "monthly_total": 500,
+                "manual_reserve": 50,
+                "automated_budget": 450,
+                "days_remaining_in_month": days_left,
+                "daily_schedulable_budget": daily_allowance,
+                "next_cycle_estimated_cost": 2,  # 2 sports * 1 market (h2h)
+            },
             "stats": {
                 "total_runs": self.total_runs,
                 "successful_runs": self.successful_runs,
                 "failed_runs": self.failed_runs,
                 "consecutive_failures": self.consecutive_failures,
             },
-            "as_of_utc": datetime.now(timezone.utc).isoformat(),
+            "as_of_utc": now_utc.isoformat(),
         }
 
     def update_config(

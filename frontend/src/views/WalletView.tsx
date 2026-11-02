@@ -19,7 +19,6 @@ import {
   History,
   AlertTriangle,
   Info,
-  CheckCircle2,
 } from "lucide-react"
 
 interface WalletViewProps {
@@ -46,20 +45,31 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
   const [settling, setSettling] = useState(false)
 
   useEffect(() => {
+    let isMounted = true
     if (wallet?.profile_id) {
-      loadTickets(wallet.profile_id)
+      setLoadingTickets(true)
+      api.getTickets(wallet.profile_id)
+        .then((res) => {
+          if (isMounted) setTickets(res.tickets || [])
+        })
+        .catch((err) => {
+          console.error(err)
+        })
+        .finally(() => {
+          if (isMounted) setLoadingTickets(false)
+        })
+    }
+    return () => {
+      isMounted = false
     }
   }, [wallet?.profile_id])
 
-  async function loadTickets(profileId: string) {
-    setLoadingTickets(true)
+  async function reloadTickets(profileId: string) {
     try {
       const res = await api.getTickets(profileId)
       setTickets(res.tickets || [])
-    } catch (err: any) {
+    } catch (err) {
       console.error(err)
-    } finally {
-      setLoadingTickets(false)
     }
   }
 
@@ -101,7 +111,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
       const payout = settleResult === "WON" ? customPayout : undefined
       const res = await api.settleTicket(settleTicket.ticket_id, settleResult, payout)
       if (res.wallet_status) onWalletUpdate(res.wallet_status)
-      await loadTickets(wallet.profile_id)
+      await reloadTickets(wallet.profile_id)
 
       if (settleResult === "WON") {
         triggerWinConfetti()
@@ -117,23 +127,22 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
   const openTickets = tickets.filter((t) => t.status === "PENDING")
   const settledTickets = tickets.filter((t) => t.status !== "PENDING")
 
-  // Explanatory reasons for deposit and withdraw buttons
   const canDeposit = Boolean(wallet?.can_deposit)
   const canWithdraw = Boolean(wallet && wallet.prize_pool > 0)
 
   const depositReason = !wallet
     ? "載入中..."
     : wallet.weekly_wallet_balance >= wallet.weekly_play_cap
-    ? `💡 儲備充盈免補金：目前本週可用餘額已達每週上限 NT$ ${wallet.weekly_play_cap.toFixed(0)}。為貫徹每週理性風控原則，餘額充盈時無需外部補金。若需提高額度，可至「個人設定」調整預算。`
+    ? `目前本週可用餘額已達每週上限 NT$ ${wallet.weekly_play_cap.toFixed(0)}，符合風控守則，無需額外補金。`
     : wallet.external_deposit_remaining <= 0
-    ? `⚠️ 補金上限已達：本週已外部補金 NT$ ${wallet.weekly_external_deposited.toFixed(0)}，受理性風控保護，待下週一刷新！`
-    : `尚可外部補金 NT$ ${wallet.external_deposit_remaining.toFixed(0)}`
+    ? `本週外部補金上限已達 NT$ ${wallet.weekly_external_deposited.toFixed(0)}，待下週一刷新。`
+    : `本週尚可補金 NT$ ${wallet.external_deposit_remaining.toFixed(0)}`
 
   const withdrawReason = !wallet
     ? "載入中..."
     : wallet.prize_pool <= 0
-    ? `💡 暫無獲利可提領：獲利保留儲備池目前餘額為 NT$ 0。中獎結算後派彩將全數撥入儲備池，屆時可隨時提領！`
-    : `目前儲備池共有 NT$ ${wallet.prize_pool.toFixed(1)} 可隨時提領`
+    ? `獲利儲備池目前餘額為 NT$ 0。中獎結算後將自動存入儲備池。`
+    : `獲利儲備池共有 NT$ ${wallet.prize_pool.toFixed(1)} 可供提領`
 
   function onClickDeposit() {
     if (canDeposit) {
@@ -157,91 +166,83 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
+      transition={{ duration: 0.18 }}
+      className="space-y-5"
     >
       {/* Capital Management Header & Action Buttons */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
-            資金紀錄與嚴格風控帳本 (Capital & Risk Governance)
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 tracking-tight">
+            <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            資金帳本與額度風控
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            每週外部損失上限 NT$ {wallet?.weekly_play_cap || 200} · 贏錢全數轉入獲利保留儲備池
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            每週外部損失上限 NT$ {wallet?.weekly_play_cap || 200} · 獲利全額鎖定於儲備池
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Deposit Button with Tooltip and Click Explanations */}
-          <div className="relative group">
-            <button
-              onClick={onClickDeposit}
-              title={depositReason}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                canDeposit
-                  ? "bg-purple-600 hover:bg-purple-500 text-white border-purple-500 shadow-sm"
-                  : "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-purple-500/50"
-              }`}
-            >
-              <ArrowDownLeft className="w-3.5 h-3.5 text-purple-400" />
-              <span>本週補金</span>
-              {!canDeposit && (
-                <span className="text-[10px] bg-slate-200 dark:bg-slate-800 px-1 py-0.2 rounded font-normal text-slate-500">
-                  免補金
-                </span>
-              )}
-            </button>
-          </div>
+          {/* Deposit Button */}
+          <button
+            onClick={onClickDeposit}
+            title={depositReason}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+              canDeposit
+                ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100 shadow-xs hover:bg-slate-800 dark:hover:bg-slate-200"
+                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700"
+            }`}
+          >
+            <ArrowDownLeft className="w-3.5 h-3.5 text-slate-400" />
+            <span>本週補金</span>
+            {!canDeposit && (
+              <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded text-slate-500 font-mono">
+                免補
+              </span>
+            )}
+          </button>
 
-          {/* Withdraw Button with Tooltip and Click Explanations */}
-          <div className="relative group">
-            <button
-              onClick={onClickWithdraw}
-              title={withdrawReason}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                canWithdraw
-                  ? "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-sm"
-                  : "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-emerald-500/50"
-              }`}
-            >
-              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
-              <span>提領獲利池</span>
-              {!canWithdraw && (
-                <span className="text-[10px] bg-slate-200 dark:bg-slate-800 px-1 py-0.2 rounded font-normal text-slate-500">
-                  NT$0
-                </span>
-              )}
-            </button>
-          </div>
+          {/* Withdraw Button */}
+          <button
+            onClick={onClickWithdraw}
+            title={withdrawReason}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+              canWithdraw
+                ? "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-600 shadow-xs"
+                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700"
+            }`}
+          >
+            <ArrowUpRight className="w-3.5 h-3.5" />
+            <span>提領儲備</span>
+            {!canWithdraw && (
+              <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded text-slate-500 font-mono">
+                NT$0
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
       {/* Explanatory Info Alert for Button Clicks */}
       {infoAlert && (
-        <motion.div
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-800 dark:text-sky-300 text-xs flex items-center justify-between gap-3 shadow-sm"
-        >
+        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 shrink-0 text-sky-500 dark:text-sky-400" />
+            <Info className="w-4 h-4 shrink-0 text-slate-400" />
             <span>{infoAlert}</span>
           </div>
           <button
             onClick={() => setInfoAlert(null)}
-            className="text-slate-400 hover:text-slate-200 text-sm font-bold p-1 cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm font-semibold p-1 cursor-pointer"
           >
             ✕
           </button>
-        </motion.div>
+        </div>
       )}
 
       {actionError && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-sm flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 shrink-0" />
+        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>{actionError}</span>
         </div>
       )}
@@ -249,30 +250,30 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
       {/* Active / Open Tickets Section */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2">
-            <Clock className="w-4 h-4 text-amber-500" />
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2">
+            <Clock className="w-4 h-4 text-slate-400" />
             進行中未結算注單 ({openTickets.length})
           </h3>
-          <span className="text-xs text-slate-500 dark:text-slate-400">賽事結束後可點擊結算</span>
+          <span className="text-xs text-slate-400">賽事完結後可手動結算</span>
         </div>
 
         {loadingTickets ? (
-          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-28 w-full" />
         ) : openTickets.length === 0 ? (
           <Card className="text-center py-8">
-            <CardContent className="text-slate-500 dark:text-slate-400 text-sm">
-              目前沒有進行中的注單。可前往「🔥 瘋狗看盤」選擇心儀組合進行下注！
+            <CardContent className="text-slate-500 dark:text-slate-400 text-xs">
+              目前沒有進行中的注單。可前往「串關決策」選擇組合下注。
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {openTickets.map((t) => (
               <div
                 key={t.ticket_id}
-                className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-4 shadow space-y-3"
+                className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs space-y-3"
               >
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-slate-500 dark:text-slate-400">
+                  <span className="font-mono text-slate-400">
                     #{t.ticket_id.slice(0, 10)}
                   </span>
                   <Badge variant="yellow" className="text-[10px]">
@@ -280,25 +281,25 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
                   </Badge>
                 </div>
 
-                <div className="space-y-1.5 pt-1 border-t border-slate-200 dark:border-slate-800/80">
+                <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
                   {t.legs?.map((leg, lIdx) => (
                     <div key={lIdx} className="text-xs flex justify-between items-center">
                       <span className="text-slate-700 dark:text-slate-300">
                         {leg.away_team} vs {leg.home_team}
                       </span>
-                      <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="font-mono font-medium text-slate-900 dark:text-slate-100">
                         {leg.selection} ({leg.odds}x)
                       </span>
                     </div>
                   ))}
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-xs">
-                  <div>
-                    下注: <span className="font-bold text-slate-900 dark:text-slate-100">{formatNTD(t.stake)}</span> · 賠率:{" "}
-                    <span className="font-mono text-amber-500 font-bold">{t.placed_odds.toFixed(2)}x</span>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                  <div className="tabular-nums">
+                    下注: <span className="font-medium text-slate-900 dark:text-slate-100">{formatNTD(t.stake)}</span> · 賠率:{" "}
+                    <span className="font-mono font-medium">{t.placed_odds.toFixed(2)}x</span>
                   </div>
-                  <div className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  <div className="text-emerald-600 dark:text-emerald-400 font-medium tabular-nums">
                     預計派彩: {formatNTD(t.potential_payout)}
                   </div>
                 </div>
@@ -309,7 +310,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
                     variant="outline"
                     size="sm"
                     onClick={() => openSettleModal(t, "WON")}
-                    className="flex-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 text-xs font-bold cursor-pointer"
+                    className="flex-1 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-xs font-medium cursor-pointer"
                   >
                     <Trophy className="w-3.5 h-3.5 mr-1" />
                     中獎結算
@@ -318,7 +319,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
                     variant="outline"
                     size="sm"
                     onClick={() => openSettleModal(t, "LOST")}
-                    className="flex-1 text-rose-500 border-rose-500/30 hover:bg-rose-500/10 text-xs font-bold cursor-pointer"
+                    className="flex-1 text-rose-600 dark:text-rose-400 border-rose-500/20 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-medium cursor-pointer"
                   >
                     <XCircle className="w-3.5 h-3.5 mr-1" />
                     未過關
@@ -331,19 +332,19 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
       </div>
 
       {/* Historical Settled Tickets Section */}
-      <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800/80">
-        <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2">
-          <History className="w-4 h-4 text-emerald-500" />
+      <div className="space-y-3 pt-3 border-t border-slate-200/80 dark:border-slate-800">
+        <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2">
+          <History className="w-4 h-4 text-slate-400" />
           歷史結算紀錄 (共 {settledTickets.length} 張)
         </h3>
 
         {settledTickets.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 text-xs">暫無已結算的歷史紀錄。</div>
+          <div className="p-8 text-center text-slate-400 text-xs">暫無已結算的歷史紀錄。</div>
         ) : (
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 overflow-hidden shadow">
+          <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-slate-100 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-slate-500">
+                <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 text-[11px]">
                   <tr>
                     <th className="p-3">單號 / 日期</th>
                     <th className="p-3">組合說明</th>
@@ -353,23 +354,23 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
                     <th className="p-3 text-right">實收派彩</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
+                <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/60">
                   {settledTickets.map((t) => {
                     const isWon = t.status === "WON"
                     const isLost = t.status === "LOST"
                     return (
-                      <tr key={t.ticket_id} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/40">
+                      <tr key={t.ticket_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="p-3">
-                          <div className="text-slate-700 dark:text-slate-300 font-bold">
+                          <div className="text-slate-800 dark:text-slate-200 font-medium">
                             #{t.ticket_id.slice(0, 8)}
                           </div>
                           <div className="text-[10px] text-slate-400">
                             {new Date(t.created_at).toLocaleDateString("zh-TW")}
                           </div>
                         </td>
-                        <td className="p-3 font-sans text-slate-800 dark:text-slate-200">{t.notes || "瘋狗高倍串關"}</td>
+                        <td className="p-3 font-sans text-slate-700 dark:text-slate-300">{t.notes || "串關組合"}</td>
                         <td className="p-3 text-right tabular-nums">{formatNTD(t.stake)}</td>
-                        <td className="p-3 text-right tabular-nums text-amber-500 dark:text-amber-400">{t.placed_odds.toFixed(2)}x</td>
+                        <td className="p-3 text-right tabular-nums text-slate-900 dark:text-slate-100 font-medium">{t.placed_odds.toFixed(2)}x</td>
                         <td className="p-3 text-center font-sans">
                           <Badge
                             variant={isWon ? "green" : isLost ? "destructive" : "secondary"}
@@ -378,7 +379,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
                             {isWon ? "過關" : isLost ? "未過關" : "取消"}
                           </Badge>
                         </td>
-                        <td className={`p-3 text-right tabular-nums font-bold ${isWon ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}>
+                        <td className={`p-3 text-right tabular-nums font-medium ${isWon ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}>
                           {formatNTD(t.actual_payout || 0)}
                         </td>
                       </tr>
@@ -395,23 +396,23 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
       <Dialog
         open={Boolean(settleTicket)}
         onClose={() => setSettleTicket(null)}
-        title={settleResult === "WON" ? "🎉 恭喜中獎！確認結算注單" : "確認標記未過關"}
+        title={settleResult === "WON" ? "中獎注單結算" : "標記未過關"}
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600 dark:text-slate-300">
+          <p className="text-xs text-slate-600 dark:text-slate-300">
             {settleResult === "WON"
-              ? "系統將把中獎獎金全數自動匯入【獲利儲備池】，確保贏利不被隨意反噬！"
-              : "將此注單結算為未過關，損失已於投注當下由每週限額錢包吸收。"}
+              ? "中獎派彩將全額撥入【獲利儲備池】，鎖定獲利。"
+              : "將此注單結算為未過關，損失已於投注當下由每週限額扣除。"}
           </p>
 
           {settleResult === "WON" && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">實收中獎派彩金額 (NT$)</label>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">實收中獎派彩金額 (NT$)</label>
               <input
                 type="number"
                 value={customPayout}
                 onChange={(e) => setCustomPayout(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-emerald-600 dark:text-emerald-400 font-mono tabular-nums font-bold text-base focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-emerald-600 dark:text-emerald-400 font-mono tabular-nums font-semibold text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>
           )}
@@ -421,7 +422,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
               取消
             </Button>
             <Button
-              variant={settleResult === "WON" ? "success" : "destructive"}
+              variant={settleResult === "WON" ? "default" : "destructive"}
               onClick={confirmSettle}
               disabled={settling}
             >
@@ -432,7 +433,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
       </Dialog>
 
       {/* Deposit Dialog */}
-      <Dialog open={depositOpen} onClose={() => setDepositOpen(false)} title="💵 補充每週可用額度">
+      <Dialog open={depositOpen} onClose={() => setDepositOpen(false)} title="補充每週可用額度">
         <div className="space-y-4">
           <p className="text-xs text-slate-500 dark:text-slate-400">
             依照每週嚴格風控原則，每週外部補金不可超過上限（剩餘可補額度：NT$ {wallet?.external_deposit_remaining || 0}）。
@@ -444,7 +445,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
             step={10}
             value={depositAmount}
             onChange={(e) => setDepositAmount(Number(e.target.value))}
-            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-100 font-mono tabular-nums text-sm"
+            className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-100 font-mono tabular-nums text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setDepositOpen(false)}>取消</Button>
@@ -454,10 +455,10 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
       </Dialog>
 
       {/* Withdraw Dialog */}
-      <Dialog open={withdrawOpen} onClose={() => setWithdrawOpen(false)} title="🔒 提領獲利保留池">
+      <Dialog open={withdrawOpen} onClose={() => setWithdrawOpen(false)} title="提領獲利儲備池">
         <div className="space-y-4">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            獲利儲備池目前餘額為 NT$ {wallet?.prize_pool || 0}。提領至外部帳戶將鎖定勝利果實。
+            獲利儲備池目前餘額為 NT$ {wallet?.prize_pool || 0}。
           </p>
           <input
             type="number"
@@ -465,11 +466,11 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
             max={wallet?.prize_pool || 0}
             value={withdrawAmount}
             onChange={(e) => setWithdrawAmount(Number(e.target.value))}
-            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-emerald-600 dark:text-emerald-400 font-mono tabular-nums font-bold text-sm"
+            className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-900 dark:text-slate-100 font-mono tabular-nums font-semibold text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setWithdrawOpen(false)}>取消</Button>
-            <Button variant="success" onClick={handleWithdraw}>確認提領</Button>
+            <Button variant="default" onClick={handleWithdraw}>確認提領</Button>
           </div>
         </div>
       </Dialog>

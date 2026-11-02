@@ -31,6 +31,22 @@ SPORT_LEAGUE_MAP = {
     "93": ("football", "NFL"),
 }
 
+LEAGUE_TO_AID_MAP = {
+    "MLB": "1",
+    "BASEBALL": "1",
+    "SOCCER": "4",
+    "足球": "4",
+    "NBA": "3",
+    "BASKETBALL": "3",
+    "WNBA": "7",
+    "NPB": "2",
+    "CPBL": "6",
+    "KBO": "9",
+    "NHL": "87",
+    "NFL": "93",
+    "FOOTBALL": "93",
+}
+
 
 class PlaysportOddsAdapter:
     """Extracts genuine Taiwan Sports Lottery markets and odds."""
@@ -42,13 +58,32 @@ class PlaysportOddsAdapter:
         getter = getattr(self.scraper, "get_scale_source_status", None)
         return getter() if callable(getter) else {}
 
+    def get_active_leagues_with_games(self) -> List[str]:
+        """Return list of canonical leagues (e.g. ['NBA', 'SOCCER']) that have active matches today."""
+        active = []
+        priority_aids = [("3", "NBA"), ("4", "SOCCER"), ("1", "MLB"), ("93", "NFL")]
+        for aid, league_name in priority_aids:
+            try:
+                matches = self.scraper.fetch_scale_matches(alliance_id=aid, force_refresh=False)
+                if matches and len(matches) > 0:
+                    active.append(league_name)
+            except Exception:
+                pass
+        return active if active else ["NBA", "SOCCER"]
+
     def get_taiwan_legs(
         self,
         alliance_ids: Optional[List[str]] = None,
         force_refresh: bool = False,
     ) -> List[TaiwanLeg]:
         """Fetch active matches and transform into validated TaiwanLeg betting selections."""
-        aids = alliance_ids or ["1", "2", "3", "4", "6", "7", "9", "93"]
+        raw_aids = alliance_ids or ["1", "2", "3", "4", "6", "7", "9", "93"]
+        aids = []
+        for item in raw_aids:
+            norm = str(item).upper().strip()
+            resolved = LEAGUE_TO_AID_MAP.get(norm, item)
+            if resolved not in aids:
+                aids.append(resolved)
         legs: List[TaiwanLeg] = []
 
         for aid in aids:

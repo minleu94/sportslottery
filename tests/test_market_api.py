@@ -159,3 +159,115 @@ def test_post_market_pipeline_cycle():
         assert "evaluation_summary" in data
 
 
+def test_the_odds_test_connection_endpoint():
+    """Verify /api/market/the-odds/test-connection returns zero-cost health check results."""
+    from unittest.mock import patch
+
+    mock_res = {
+        "status": "SUCCESS",
+        "official_remaining": 494,
+        "requests_used": 6,
+        "credits_consumed": 0,
+        "endpoint_called": "/v4/sports",
+        "operating_mode": "LIVE_VERIFIED",
+    }
+    with patch("integrations.odds.the_odds_api.TheOddsApiClient.test_connection", return_value=mock_res):
+        resp = client.post("/api/market/the-odds/test-connection", json={"fetch_sample": False})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "SUCCESS"
+        assert data["credits_consumed"] == 0
+        assert data["official_remaining"] == 494
+
+
+def test_estimate_pipeline_cost_endpoint():
+    """Verify /api/market/pipeline/estimate-cost returns correct credits estimation."""
+    resp = client.get("/api/market/pipeline/estimate-cost?leagues=NBA,MLB&markets=h2h")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["league_count"] == 2
+    assert data["market_count"] == 1
+    assert data["estimated_credits"] == 2
+
+
+def test_pipeline_audit_snapshots():
+    """Verify MarketForwardPipeline.audit_snapshots classifies historical vs eligible records accurately."""
+    from core.market_forward_pipeline import MarketForwardPipeline
+    from datetime import datetime, timezone, timedelta
+
+    p = MarketForwardPipeline()
+    now = datetime.now(timezone.utc)
+
+    sample_records = [
+        # 1. Settled legacy record (no model, no sharp market)
+        {
+            "event_id": "leg_1",
+            "is_settled": True,
+            "outcome": 1,
+            "taiwan_odds": 1.75,
+            "prediction_timestamp": (now - timedelta(hours=5)).isoformat(),
+            "event_start": (now - timedelta(hours=3)).isoformat(),
+            "probability_status": "MARKET_BASELINE_ONLY",
+            "model_probability": None,
+            "market_source": None,
+        },
+        # 2. Settled post-match leak record (pred_time >= event_start)
+        {
+            "event_id": "leak_1",
+            "is_settled": True,
+            "outcome": 1,
+            "taiwan_odds": 1.90,
+            "prediction_timestamp": (now - timedelta(hours=2)).isoformat(),
+            "event_start": (now - timedelta(hours=3)).isoformat(),
+            "model_probability": 0.55,
+            "market_source": "the_odds_api",
+        },
+        # 3. Settled synthetic record
+        {
+            "event_id": "syn_1",
+            "is_settled": True,
+            "outcome": 0,
+            "taiwan_odds": 1.80,
+            "is_synthetic": True,
+            "prediction_timestamp": (now - timedelta(hours=5)).isoformat(),
+            "event_start": (now - timedelta(hours=3)).isoformat(),
+            "model_probability": 0.60,
+            "market_source": "SYNTHETIC",
+        },
+        # 4. Verified eligible forward sample
+        {
+            "event_id": "fwd_eligible_1",
+            "is_settled": True,
+            "outcome": 1,
+            "taiwan_odds": 2.10,
+            "is_synthetic": False,
+            "prediction_timestamp": (now - timedelta(hours=6)).isoformat(),
+            "event_start": (now - timedelta(hours=4)).isoformat(),
+            "model_probability": 0.52,
+            "market_source": "the_odds_api",
+        },
+        # 5. Unsettled pending record
+        {
+            "event_id": "pending_1",
+            "is_settled": False,
+            "taiwan_odds": 1.95,
+            "prediction_timestamp": (now - timedelta(hours=1)).isoformat(),
+            "event_start": (now + timedelta(hours=2)).isoformat(),
+            "model_probability": 0.51,
+            "market_source": "the_odds_api",
+        },
+    ]
+
+    audit = p.audit_snapshots(sample_records)
+    assert audit["total_count"] == 5
+    assert audit["settled_count"] == 4
+    assert audit["unsettled_pending_count"] == 1
+    assert audit["pre_match_verified_count"] == 4
+    assert audit["post_match_leak_count"] == 1
+    assert audit["legacy_unverified_count"] == 1
+    assert audit["synthetic_fixture_count"] == 1
+    assert audit["eligible_forward_samples_count"] == 1
+    assert audit["eligible_samples"][0]["event_id"] == "fwd_eligible_1"
+
+
+

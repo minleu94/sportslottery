@@ -3,7 +3,7 @@ import { Sheet } from "@/components/ui/Sheet"
 import { Badge } from "@/components/ui/Badge"
 import type { ParlayRecommendation, Leg } from "@/types"
 import { cleanLeagueName } from "@/lib/utils"
-import { ShieldCheck, Users, TrendingUp, Sparkles, AlertTriangle, Globe, Coins } from "lucide-react"
+import { ShieldCheck, Users, Globe, Coins } from "lucide-react"
 
 interface EvidenceDrawerProps {
   open: boolean
@@ -24,37 +24,37 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
       onClose={onClose}
       title={
         <div className="flex items-center gap-2">
-          <span>📑 推薦關卡情報與證據抽屜</span>
-          <Badge variant="amber" className="text-xs font-mono">
+          <span>推薦關卡情報與分析依據</span>
+          <span className="text-xs font-mono font-medium text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             {parlay.total_odds.toFixed(2)}x
-          </Badge>
+          </span>
         </div>
       }
       description={`組合名稱：${parlay.parlay_name} · 共 ${parlay.legs.length} 關`}
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Summary Card */}
-        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2">
-          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">總賠率與期望值</div>
+        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-1.5">
+          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">總賠率與期望值</div>
           <div className="flex items-center justify-between">
-            <span className="text-2xl font-black text-amber-500 dark:text-amber-400 font-mono">
+            <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
               {parlay.total_odds.toFixed(2)} 倍
             </span>
             {parlay.expected_value !== undefined && parlay.expected_value !== null && (
-              <span className={`text-sm font-bold ${parlay.expected_value > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>
+              <span className={`text-sm font-medium ${parlay.expected_value > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>
                 EV: {parlay.expected_value > 0 ? "+" : ""}{(parlay.expected_value * 100).toFixed(1)}%
               </span>
             )}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            本組合嚴格排除同場賽事衝突，賠率以台灣運彩最新官方開盤為準。
+            本組合已排除同場賽事衝突，賠率以台灣運彩最新官方開盤為準。
           </p>
         </div>
 
         {/* Legs Detailed Evidence */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-slate-800 dark:text-slate-200 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             各關詳細訊號解析 (共 {parlay.legs.length} 關)
           </h4>
 

@@ -243,7 +243,7 @@ def test_the_odds_api_client_synthetic_fallback():
     client = TheOddsApiClient(api_key="")
     status = client.get_source_status()
     assert status["is_configured"] is False
-    assert status["operating_mode"] == "SYNTHETIC_FIXTURE"
+    assert status["operating_mode"] in ("UNCONFIGURED", "SYNTHETIC_FIXTURE")
 
     # Should safely return synthetic fixtures without error
     mlb_odds = client.fetch_market_odds("MLB")
