@@ -38,6 +38,7 @@ def test_offline_market_golden_replay_preserves_evidence_through_snapshot(tmp_pa
     kickoff = datetime.fromisoformat(fixture["kickoff_utc"])
     for module_name in (
         "core.market_forward_pipeline",
+        "core.market_candidate_policy",
         "core.market_aligner",
         "core.market_fair_odds",
         "core.snapshot_logger",
