@@ -20,7 +20,7 @@ import requests
 from scipy.stats import poisson
 
 from core.identity import GLOBAL_TEAM_REGISTRY
-from integrations.common.models import PredictionSignal, TaiwanLeg
+from core.contracts.common import PredictionSignal, TaiwanLeg
 
 logger = logging.getLogger(__name__)
 

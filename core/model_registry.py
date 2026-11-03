@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import yaml
 
-from integrations.common.models import PredictionSignal, TaiwanLeg
+from core.contracts.common import PredictionSignal, TaiwanLeg
 from core.model_acceptance import ModelAcceptanceGate, load_policy, protocol_hash
 from core.strategy_version import get_strategy_metadata
 from core.research_paths import research_paths

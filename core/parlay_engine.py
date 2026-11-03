@@ -19,7 +19,7 @@ from core.correlation_guard import CorrelationGuard
 from core.sharp_edge_engine import SharpEdgeEngine
 from core.signal_hub import SignalHub
 from core.bet_validation import assess_leg, event_key
-from integrations.common.models import PredictionSignal, TaiwanLeg
+from core.contracts.common import PredictionSignal, TaiwanLeg
 
 SEARCH_STATE_SCHEMA = "parlay-search-state-v1"
 SEARCH_VERSION = "fair-frontier-v1"

@@ -134,6 +134,16 @@ API 回歸以 M2 原始 OpenAPI 所列的 38 組 path/method 為基準；新增 
 
 詳細邊界見 [市場資料邊界與離線回放](03-market-boundaries.md)。
 
+## M5 實作紀錄
+
+共用且不依賴框架的資料契約已移至 `core/contracts/`。Core 服務直接匯入預測訊號、台彩賽事、國際市場證據與機率評估型別；舊的 `integrations.common.models` 與 `integrations.odds.market_models` 保留為相容 facade，重新匯出相同型別物件，維持舊呼叫者與序列化格式。
+
+市場對齊與基準準備共用 `MarketSelectionIdentity` 及其線位規則，統一同側與對手盤的比較。Provider 解析仍屬於 `integrations/`，流程協調仍屬於 `core/`。
+
+研究序列化、MLB 賽程核對及 payload 轉換 helper 已移至 `core/research_helpers.py`。MLB 與報表 mixin 不再反向匯入 `ResearchPipeline` 取得 helper。市場排程狀態由注入 provider 傳給 `MarketForwardPipeline`；機率 evidence 直接使用獨立的結果契約，不再匯入 edge engine。靜態 import graph 檢查顯示原先 edge/probability、market/scheduler、research 模組群的循環依賴已解除。
+
+預設測試 fixture 也將 Shadow Portfolio SQLite 與快照路徑導向每次測試的暫存目錄，避免觸及正式 `data` Junction。CI 新增契約相容與依賴邊界測試。詳細規則見[共用契約與依賴邊界](04-shared-contracts.md)。
+
 ## 架構決策紀錄
 
 - [ADR-0001：漸進式 Modular Monolith](adr/0001-modular-monolith.md)

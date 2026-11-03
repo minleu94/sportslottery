@@ -158,6 +158,10 @@ class MarketScheduler:
         self.failed_runs: int = 0
         self.consecutive_failures: int = 0
 
+        if (hasattr(self.pipeline, "scheduler_status_provider")
+                and self.pipeline.scheduler_status_provider is None):
+            self.pipeline.scheduler_status_provider = self.get_status
+
     def _load_config(self) -> None:
         """Load persistent scheduler toggle from local disk if present."""
         if self.config_path.exists():

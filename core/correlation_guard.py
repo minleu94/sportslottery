@@ -26,7 +26,7 @@ import math
 import statistics
 from typing import Any, Dict, List, Optional, Tuple
 
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 
 logger = logging.getLogger(__name__)
 

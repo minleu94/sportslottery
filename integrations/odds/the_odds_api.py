@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 from core.persistence import file_lock
 
-from integrations.odds.market_models import (
+from core.contracts.market import (
     MarketFreshnessStatus,
     MarketOddsSnapshot,
 )

@@ -14,9 +14,9 @@ import logging
 from dataclasses import fields
 from typing import Any, Dict, List, Optional
 
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 from integrations.odds.sharp_benchmark_odds import SharpBenchmarkOddsAdapter, SharpComparisonResult
-from integrations.odds.market_models import MarketBenchmarkEvidence
+from core.contracts.market import MarketBenchmarkEvidence
 
 logger = logging.getLogger(__name__)
 

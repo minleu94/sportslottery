@@ -7,12 +7,17 @@ from datetime import date, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from core.bet_validation import parse_aware_time
-
-
-def _mlb_game_is_cancelled(game):
-    status = game.get("status") or {}
-    return (str(status.get("codedGameState") or "").upper() == "C"
-            and str(status.get("detailedState") or "").casefold() in {"cancelled", "canceled"})
+from core.research_helpers import (
+    _mlb_game_date,
+    _mlb_game_is_cancelled,
+    _mlb_game_is_final,
+    _mlb_game_is_regular_or_postseason,
+    _mlb_needs_live_reconciliation,
+    _mlb_normalize_live_feed,
+    _mlb_reschedule_target_date,
+    _read_json,
+    _write_json_atomic,
+)
 
 
 def _contiguous_schedule_coverage(ledger, beginning, through):
@@ -35,9 +40,6 @@ def _contiguous_schedule_coverage(ledger, beginning, through):
 
 class MLBResearchMixin:
     def _stage_model_update(self, stage_data: Path) -> dict[str, Any]:
-        from core.research_pipeline import (_read_json, _write_json_atomic, _mlb_game_date,
-            _mlb_game_is_final, _mlb_game_is_regular_or_postseason, _mlb_needs_live_reconciliation,
-            _mlb_normalize_live_feed, _mlb_reschedule_target_date)
         settings = self.config.get("model_update", {}) or {}
         state_path = self.data_root / "model_state" / "live_mlb_elo.json"
         progress_path = self.data_root / "model_state" / "live_mlb_elo_fetch_coverage.json"

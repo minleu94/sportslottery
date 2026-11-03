@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from integrations.common.models import PredictionSignal, TaiwanLeg
+from core.contracts.common import PredictionSignal, TaiwanLeg
 
 
 class PlaysportCrowdAdapter:

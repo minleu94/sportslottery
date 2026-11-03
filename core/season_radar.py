@@ -13,7 +13,7 @@ import logging
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 from integrations.schedules.espn_schedule import ESPNScheduleAdapter
 from core.identity.league_mapping import normalize_league_and_sport
 

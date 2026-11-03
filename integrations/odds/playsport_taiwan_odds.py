@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from core.scraper import PlaysportScraper
 from core.identity.timezone import TAIPEI_TZ
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 
 logger = logging.getLogger(__name__)
 

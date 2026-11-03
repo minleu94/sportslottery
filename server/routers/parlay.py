@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from core.scraper import ALLIANCE_MAP
 from core.signal_hub import SignalHub
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 from server import service_registry
 from server.auth import verify_no_pending_password_change
 from server.formatters import clean_league_name

@@ -27,7 +27,7 @@ from bs4 import BeautifulSoup
 from core.identity import GLOBAL_TEAM_REGISTRY, normalize_league_and_sport
 from core.identity.timezone import TAIPEI_TZ
 from core.scraper import PlaysportScraper
-from integrations.common.models import PredictionSignal, TaiwanLeg, VerifiedExpertPick
+from core.contracts.common import PredictionSignal, TaiwanLeg, VerifiedExpertPick
 
 logger = logging.getLogger(__name__)
 

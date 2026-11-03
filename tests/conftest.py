@@ -65,6 +65,19 @@ def isolate_database_for_tests(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(cwc, "DEFAULT_DB_PATH", test_db)
     monkeypatch.setattr(cwc, "get_db_path", lambda: test_db)
 
+    # SettlementEngine may construct a shadow portfolio even when a test only
+    # exercises research settlement. Keep its SQLite and default snapshot paths
+    # isolated too; the production default is under the data Junction.
+    import core.shadow_portfolio as csp
+    shadow_root = test_storage / "shadow"
+    monkeypatch.setattr(csp, "SHADOW_DIR", shadow_root)
+    monkeypatch.setattr(csp, "SHADOW_DB_PATH", shadow_root / "shadow_portfolio.sqlite")
+    monkeypatch.setattr(
+        csp,
+        "DEFAULT_SNAPSHOT_PATH",
+        test_storage / "research_pipeline" / "historical" / "prediction_snapshots.jsonl",
+    )
+
     # 5. Reset the API service registry so every service resolves the isolated test paths.
     import server.service_registry as service_registry
     monkeypatch.setattr(service_registry, "_profile_mgr", pm.ProfileManager(db_path=test_db))

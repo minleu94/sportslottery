@@ -14,8 +14,10 @@ from statistics import NormalDist
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from integrations.common.models import PredictionSignal, TaiwanLeg
-from integrations.odds.market_models import MarketBenchmarkEvidence
+from core.contracts.probability import ProbabilityEdgeEvaluation
+
+from core.contracts.common import PredictionSignal, TaiwanLeg
+from core.contracts.market import MarketBenchmarkEvidence
 from probability.calibration import calculate_conservative_lower_bound, inv_logit, logit
 
 logger = logging.getLogger(__name__)
@@ -43,48 +45,6 @@ class DirectEdgeResult:
     is_negative_ev: bool
     is_value_bet: bool
     trap_warning: str = ""
-
-
-@dataclass
-class ProbabilityEdgeEvaluation:
-    """Estimated probability and value with explicit evidence limitations."""
-    market_probability: float                  # 1 / taiwan_odds (break-even hurdle)
-    market_fair_probability: float             # de-vigged market probability
-    model_probability_raw: Optional[float]     # raw uncalibrated model output
-    model_probability_calibrated: float        # model output after shrinkage toward market
-    consensus_probability: float               # final multi-source calibrated probability
-    conservative_prob_lower: Optional[float]
-    conservative_prob_upper: Optional[float]
-    confidence_interval: Optional[Tuple[float, float]]
-    uncertainty_level: str                     # 'LOW', 'MEDIUM', 'HIGH'
-    edge_vs_breakeven_pp: float                # (consensus_prob - market_prob) * 100
-    edge_vs_fair_pp: float                     # (consensus_prob - market_fair_prob) * 100
-    expected_value: float                      # consensus_prob * odds - 1.0 (EV ratio)
-    conservative_ev: Optional[float]
-    is_positive_ev: bool                       # expected_value > 0.0
-    ev_grade: str                              # 'PRIME_VALUE' (>+5%), 'MODEST_VALUE' (0~5%), 'NEGATIVE_EV' (<0)
-    details: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "market_probability": round(self.market_probability, 4),
-            "market_fair_probability": round(self.market_fair_probability, 4),
-            "model_probability_raw": round(self.model_probability_raw, 4) if self.model_probability_raw is not None else None,
-            "model_probability_calibrated": round(self.model_probability_calibrated, 4),
-            "consensus_probability": round(self.consensus_probability, 4),
-            "conservative_prob_lower": round(self.conservative_prob_lower, 4) if self.conservative_prob_lower is not None else None,
-            "conservative_prob_upper": round(self.conservative_prob_upper, 4) if self.conservative_prob_upper is not None else None,
-            "confidence_interval": [round(value, 4) for value in self.confidence_interval] if self.confidence_interval is not None else None,
-            "uncertainty_level": self.uncertainty_level,
-            "edge_vs_breakeven_pp": round(self.edge_vs_breakeven_pp, 2),
-            "edge_vs_fair_pp": round(self.edge_vs_fair_pp, 2),
-            "expected_value": round(self.expected_value, 4),
-            "expected_value_pct": round(self.expected_value * 100.0, 2),
-            "conservative_ev": round(self.conservative_ev, 4) if self.conservative_ev is not None else None,
-            "is_positive_ev": self.is_positive_ev,
-            "ev_grade": self.ev_grade,
-            "details": self.details,
-        }
 
 
 class EdgeEngine:

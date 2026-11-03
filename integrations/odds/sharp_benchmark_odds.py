@@ -24,8 +24,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.bet_validation import parse_aware_time
-from integrations.common.models import PredictionSignal, TaiwanLeg
-from integrations.odds.market_models import MarketBenchmarkEvidence
+from core.contracts.common import PredictionSignal, TaiwanLeg
+from core.contracts.market import MarketBenchmarkEvidence
 
 logger = logging.getLogger(__name__)
 

@@ -22,13 +22,14 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 from core.identity.league_mapping import normalize_league_and_sport
 from core.identity.team_alias import GLOBAL_TEAM_REGISTRY
-from integrations.odds.market_models import (
+from core.contracts.market import (
     MarketAlignmentRecord,
     MarketAlignmentStatus,
     MarketOddsSnapshot,
+    MarketSelectionIdentity,
 )
 
 logger = logging.getLogger(__name__)
@@ -553,7 +554,9 @@ class MarketAligner:
             # 1. Moneyline
             if tw_market_type == "MONEYLINE":
                 target_sel = self._map_side_to_selection(leg.side, is_aligned)
-                if cand.selection == target_sel:
+                if MarketSelectionIdentity("MONEYLINE", target_sel, cand.line).same_outcome(
+                    MarketSelectionIdentity(cand.market_type, cand.selection, cand.line)
+                ):
                     selected_cand = cand
                     alignment_note = f"Moneyline matched ({target_sel})"
                     if not is_aligned:
@@ -571,17 +574,14 @@ class MarketAligner:
                 # Note: If is_aligned is False (teams reversed), candidate's spread direction flips
                 expected_cand_line = tw_parsed_line if is_aligned else (-tw_parsed_line if tw_parsed_line is not None else None)
 
-                if tw_parsed_line is not None and cand_line is not None:
-                    if math.isclose(cand_line, expected_cand_line, abs_tol=0.01):
-                        selected_cand = cand
-                        alignment_note = f"Spread line matched ({cand_line:+.1f})"
-                        break
-                    else:
-                        # Line mismatch
-                        continue
-                elif tw_parsed_line is None and cand_line is None:
+                if MarketSelectionIdentity("SPREAD", target_sel, expected_cand_line).same_outcome(
+                    MarketSelectionIdentity(cand.market_type, cand.selection, cand_line)
+                ):
                     selected_cand = cand
-                    alignment_note = "Spread without line matched"
+                    alignment_note = (
+                        f"Spread line matched ({cand_line:+.1f})"
+                        if cand_line is not None else "Spread without line matched"
+                    )
                     break
 
             # 3. Total (Line threshold matching required!)
@@ -590,16 +590,11 @@ class MarketAligner:
                 if cand.selection != target_sel:
                     continue
 
-                if tw_parsed_line is not None and cand_line is not None:
-                    if math.isclose(cand_line, tw_parsed_line, abs_tol=0.01):
-                        selected_cand = cand
-                        alignment_note = f"Total threshold matched ({cand_line:.1f})"
-                        break
-                    else:
-                        continue
-                elif tw_parsed_line is None and cand_line is None:
+                if MarketSelectionIdentity("TOTAL", target_sel, tw_parsed_line).same_outcome(
+                    MarketSelectionIdentity(cand.market_type, cand.selection, cand_line)
+                ):
                     selected_cand = cand
-                    alignment_note = "Total matched"
+                    alignment_note = f"Total threshold matched ({cand_line:.1f})" if cand_line is not None else "Total matched"
                     break
 
         # If no quote matched the exact line

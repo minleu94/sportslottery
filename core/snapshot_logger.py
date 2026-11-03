@@ -35,7 +35,7 @@ from core.research_paths import research_paths
 from core.experiment_identity import get_current_experiment_identity
 from core.persistence import read_jsonl, iter_jsonl, append_jsonl, atomic_write_bytes, file_lock
 from core.research_sqlite import database_for_ledger, get_prediction_by_unique_key, update_prediction
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 
 logger = logging.getLogger(__name__)
 

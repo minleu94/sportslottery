@@ -23,7 +23,7 @@ import time
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from core.forward_evaluation_engine import (
     ForwardEvaluationEngine,
@@ -44,8 +44,15 @@ from core.settlement_engine import SettlementEngine
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger, compute_prediction_payload_hash
 from core.bet_validation import parse_aware_time
-from integrations.common.models import TaiwanLeg
-from integrations.odds.market_models import MarketAlignmentStatus, MarketBenchmarkEvidence, MarketOddsSnapshot
+from core.contracts.common import TaiwanLeg
+from core.contracts.market import (
+    MarketAlignmentStatus,
+    MarketBenchmarkEvidence,
+    MarketOddsSnapshot,
+    MarketSelectionIdentity,
+    TAIWAN_MARKET_TO_ODDS_API,
+    canonical_market_event_id,
+)
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
 from integrations.odds.the_odds_api import TheOddsApiClient
 
@@ -89,12 +96,7 @@ def _alignment_summary_from_scheduler_status(scheduler_status: Optional[Dict[str
 class MarketForwardPipeline:
     """End-to-end continuous market intelligence and prospective validation engine."""
 
-    _MARKET_TO_API = {
-        "不讓分": "h2h", "和局": "h2h", "獨贏": "h2h", "勝負": "h2h",
-        "moneyline": "h2h", "h2h": "h2h",
-        "讓分": "spreads", "讓球": "spreads", "spread": "spreads", "spreads": "spreads",
-        "大小": "totals", "大小分": "totals", "總分": "totals", "total": "totals", "totals": "totals",
-    }
+    _MARKET_TO_API = TAIWAN_MARKET_TO_ODDS_API
 
     def __init__(
         self,
@@ -108,6 +110,7 @@ class MarketForwardPipeline:
         evaluation_engine: Optional[ForwardEvaluationEngine] = None,
         summary_path: Optional[Path] = None,
         provider_capabilities: Optional[MarketProviderCapabilities] = None,
+        scheduler_status_provider: Optional[Callable[[], Dict[str, Any]]] = None,
     ):
         if odds_adapter is None or odds_client is None:
             default_adapter, default_client = build_default_market_providers(
@@ -131,6 +134,7 @@ class MarketForwardPipeline:
             self.settlement_engine.snapshot_logger = self.snapshot_logger
         self.evaluation_engine = evaluation_engine or ForwardEvaluationEngine()
         self.summary_path = summary_path or SUMMARY_PATH
+        self.scheduler_status_provider = scheduler_status_provider
         self.summary_path.parent.mkdir(parents=True, exist_ok=True)
 
     def resolve_target_leagues(self, leagues: Optional[List[str]] = None) -> List[str]:
@@ -222,11 +226,8 @@ class MarketForwardPipeline:
         ]
         matching_primaries = [
             quote for quote in provider_quotes
-            if quote.selection == primary.selection
-            and (
-                quote.line is None and primary.line is None
-                or quote.line is not None and primary.line is not None
-                and math.isclose(quote.line, primary.line, abs_tol=0.01)
+            if MarketSelectionIdentity(primary.market_type, primary.selection, primary.line).same_outcome(
+                MarketSelectionIdentity(quote.market_type, quote.selection, quote.line)
             )
         ]
 
@@ -258,19 +259,18 @@ class MarketForwardPipeline:
             if candidate.market_type == "MONEYLINE":
                 quote_times = list(same_book)
             elif candidate.market_type == "SPREAD" and candidate.line is not None:
-                opposing_selection = "away" if candidate.selection == "home" else "home"
+                identity = MarketSelectionIdentity(candidate.market_type, candidate.selection, candidate.line)
                 quote_times = [
                     item for item in same_book
-                    if (item.selection == candidate.selection and item.line is not None
-                        and math.isclose(item.line, candidate.line, abs_tol=0.01))
-                    or (item.selection == opposing_selection and item.line is not None
-                        and math.isclose(item.line, -candidate.line, abs_tol=0.01))
+                    if identity.same_outcome(MarketSelectionIdentity(item.market_type, item.selection, item.line))
+                    or identity.opposite_outcome(MarketSelectionIdentity(item.market_type, item.selection, item.line))
                 ]
             elif candidate.market_type == "TOTAL" and candidate.line is not None:
+                identity = MarketSelectionIdentity(candidate.market_type, candidate.selection, candidate.line)
                 quote_times = [
                     item for item in same_book
-                    if item.selection in {"over", "under"} and item.line is not None
-                    and math.isclose(item.line, candidate.line, abs_tol=0.01)
+                    if identity.same_outcome(MarketSelectionIdentity(item.market_type, item.selection, item.line))
+                    or identity.opposite_outcome(MarketSelectionIdentity(item.market_type, item.selection, item.line))
                 ]
             else:
                 quote_times = []
@@ -331,12 +331,9 @@ class MarketForwardPipeline:
             observed_at=primary.observed_at_utc,
         ) if sharp_quotes else None
         kickoff = parse_aware_time(primary.start_time_utc)
-        canonical_event_id = ":".join((
-            str(leg.sport or "").casefold(),
-            str(leg.league or "").casefold(),
-            str(primary.event_id),
-            kickoff.isoformat() if kickoff else "UNKNOWN_KICKOFF",
-        ))
+        canonical_event_id = canonical_market_event_id(
+            leg.sport, leg.league, primary.event_id, kickoff.isoformat() if kickoff else None,
+        )
         return MarketBenchmarkEvidence(
             taiwan_event_id=str(leg.event_id),
             taiwan_selection=str(leg.selection),
@@ -411,28 +408,30 @@ class MarketForwardPipeline:
         if primary.market_type == "SPREAD":
             if primary.selection not in {"home", "away"} or primary.line is None:
                 return None
-            opposing_selection = "away" if primary.selection == "home" else "home"
             opposing = next((
                 quote for quote in same_market
-                if quote.selection == opposing_selection
-                and quote.line is not None
-                and math.isclose(quote.line, -primary.line, abs_tol=0.01)
+                if MarketSelectionIdentity(primary.market_type, primary.selection, primary.line).opposite_outcome(
+                    MarketSelectionIdentity(quote.market_type, quote.selection, quote.line)
+                )
             ), None)
         elif primary.market_type == "TOTAL":
             if primary.selection not in {"over", "under"} or primary.line is None:
                 return None
-            opposing_selection = "under" if primary.selection == "over" else "over"
             opposing = next((
                 quote for quote in same_market
-                if quote.selection == opposing_selection
-                and quote.line is not None
-                and math.isclose(quote.line, primary.line, abs_tol=0.01)
+                if MarketSelectionIdentity(primary.market_type, primary.selection, primary.line).opposite_outcome(
+                    MarketSelectionIdentity(quote.market_type, quote.selection, quote.line)
+                )
             ), None)
         elif primary.market_type == "MONEYLINE":
             if primary.selection not in {"home", "away"}:
                 return None
-            opposing_selection = "away" if primary.selection == "home" else "home"
-            opposing = next((quote for quote in same_market if quote.selection == opposing_selection), None)
+            opposing = next((
+                quote for quote in same_market
+                if MarketSelectionIdentity(primary.market_type, primary.selection, primary.line).opposite_outcome(
+                    MarketSelectionIdentity(quote.market_type, quote.selection, quote.line)
+                )
+            ), None)
         else:
             return None
 
@@ -1112,11 +1111,11 @@ class MarketForwardPipeline:
 
         odds_status = self.odds_client.get_source_status()
         scheduler_status = None
-        try:
-            from core.market_scheduler import get_market_scheduler
-            scheduler_status = get_market_scheduler().get_status()
-        except Exception:
-            pass
+        if callable(self.scheduler_status_provider):
+            try:
+                scheduler_status = self.scheduler_status_provider()
+            except Exception:
+                logger.debug("Scheduler status provider is unavailable", exc_info=True)
 
         alignment_summary = _alignment_summary_from_scheduler_status(scheduler_status)
 

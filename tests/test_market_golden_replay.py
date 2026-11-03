@@ -13,7 +13,7 @@ from core.market_aligner import MarketAligner
 from core.market_forward_pipeline import MarketForwardPipeline
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger, compute_prediction_payload_hash
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 from integrations.odds.market_models import MarketOddsSnapshot
 
 
@@ -41,7 +41,7 @@ def test_offline_market_golden_replay_preserves_evidence_through_snapshot(tmp_pa
         "core.market_aligner",
         "core.market_fair_odds",
         "core.snapshot_logger",
-        "integrations.common.models",
+        "core.contracts.common",
     ):
         _fixed_datetime(monkeypatch, module_name, as_of)
 

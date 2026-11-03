@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core.profile_manager import DEFAULT_PROFILE_ID
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 from server import service_registry
 from server.auth import require_authenticated_session, verify_profile_ownership
 from server.schemas import DepositRequest, PlaceTicketRequest, SettleTicketRequest, WithdrawRequest

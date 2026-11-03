@@ -12,7 +12,7 @@ from typing import Callable, Mapping, Optional
 
 from core.bet_validation import parse_aware_time
 from core.identity.league_mapping import normalize_league_and_sport
-from integrations.common.models import TaiwanLeg
+from core.contracts.common import TaiwanLeg
 
 
 def candidate_rejection_reason(

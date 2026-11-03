@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from core.identity import GLOBAL_TEAM_REGISTRY
-from integrations.common.models import ModelQualityLabel, PredictionSignal, TaiwanLeg
+from core.contracts.common import ModelQualityLabel, PredictionSignal, TaiwanLeg
 
 logger = logging.getLogger(__name__)
 

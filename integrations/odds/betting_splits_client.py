@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from integrations.odds.market_models import (
+from core.contracts.market import (
     BettingSplitsSnapshot,
     MarketFreshnessStatus,
 )

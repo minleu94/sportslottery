@@ -7,14 +7,13 @@ from typing import Any
 
 from probability.calibration import inv_logit, logit
 from core.model_acceptance import acceptance_matches_signal
-from integrations.odds.market_models import MarketBenchmarkEvidence
+from core.contracts.market import MarketBenchmarkEvidence
+from core.contracts.probability import ProbabilityEdgeEvaluation
 
 
 def evaluate_evidence(engine: Any, leg: Any, signals: Any = None, opposing_odds: Any = None,
                       *, research_candidate: bool = False, direct_accepted_model: bool = False,
                       market_benchmark: Any = None):
-    from core.edge_engine import ProbabilityEdgeEvaluation
-
     odds = float(leg.taiwan_odds)
     if not math.isfinite(odds) or odds <= 1:
         raise ValueError("機率評估需要大於1的有限賠率。")

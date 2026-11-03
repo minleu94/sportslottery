@@ -23,6 +23,6 @@ def refresh_task_observation(data_root=None):
             raise ValueError("Unexpected scheduler response")
     except (OSError,ValueError,RuntimeError,subprocess.TimeoutExpired) as exc:
         record={"observed_at_utc":datetime.now(timezone.utc).isoformat(),"state":"UNKNOWN","error":str(exc)}
-    from core.research_pipeline import _write_json_atomic
+    from core.research_helpers import _write_json_atomic
     _write_json_atomic(research_paths(data_root)["root"] / "operations/task_status.json", record)
     return record

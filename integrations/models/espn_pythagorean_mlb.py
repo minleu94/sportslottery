@@ -23,7 +23,7 @@ from typing import Any, Dict, Optional
 import requests
 
 from core.identity import GLOBAL_TEAM_REGISTRY
-from integrations.common.models import PredictionSignal, TaiwanLeg
+from core.contracts.common import PredictionSignal, TaiwanLeg
 
 logger = logging.getLogger(__name__)
 

@@ -24,12 +24,12 @@ from core.edge_engine import EdgeEngine
 from core.line_movement import LineMovementTracker
 from core.model_registry import ModelRegistry
 from core.model_acceptance import acceptance_matches_signal
-from integrations.common.models import PredictionSignal, TaiwanLeg
+from core.contracts.common import PredictionSignal, TaiwanLeg
 from integrations.experts.playsport_crowd import PlaysportCrowdAdapter
 from integrations.experts.playsport_expert import PlaysportExpertAdapter
 from integrations.odds.betting_splits_client import BettingSplitsClient
 from integrations.odds.sharp_benchmark_odds import SharpBenchmarkOddsAdapter
-from integrations.odds.market_models import MarketBenchmarkEvidence
+from core.contracts.market import MarketBenchmarkEvidence
 
 logger = logging.getLogger(__name__)
 

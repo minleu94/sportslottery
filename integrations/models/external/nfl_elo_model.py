@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.identity import GLOBAL_TEAM_REGISTRY
 from core.persistence import atomic_write_bytes
-from integrations.common.models import PredictionSignal, TaiwanLeg
+from core.contracts.common import PredictionSignal, TaiwanLeg
 
 logger = logging.getLogger(__name__)
 

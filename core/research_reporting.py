@@ -10,11 +10,11 @@ from typing import Any
 
 from core.bet_validation import parse_aware_time
 from core.experiment_identity import get_current_experiment_identity
+from core.research_helpers import _read_json, _write_json_atomic
 
 
 class ResearchReportMixin:
     def _stage_report(self, stage_data: Path) -> dict[str, Any]:
-        from core.research_pipeline import _write_json_atomic, _read_json
         now = self.clock().astimezone(timezone.utc)
         since = now - timedelta(days=7)
         snapshots = self.snapshot_logger.get_all_snapshots()

@@ -101,6 +101,19 @@ def test_scheduler_status_estimates_regions_in_cycle_cost(tmp_path):
     assert reloaded.get_status()["last_cycle_summary"] == scheduler.last_cycle_summary
 
 
+def test_scheduler_injects_status_provider_into_market_pipeline(tmp_path):
+    pipeline = MagicMock()
+    pipeline.scheduler_status_provider = None
+    pipeline.odds_client.get_source_status.return_value = {
+        "operating_mode": "SYNTHETIC_FIXTURE",
+        "requests_remaining_est": 500,
+    }
+    scheduler = MarketScheduler(pipeline=pipeline, config_path=tmp_path / "scheduler-provider.json")
+
+    assert pipeline.scheduler_status_provider.__self__ is scheduler
+    assert pipeline.scheduler_status_provider()["enabled"] is True
+
+
 def test_scheduler_auto_market_budget_uses_full_configured_cap(tmp_path):
     mock_pipeline = MagicMock()
     mock_pipeline.odds_client.get_source_status.return_value = {
