@@ -73,7 +73,9 @@ pydantic==2.12.5
 pydantic_core==2.41.5
 Pygments==2.19.2
 pyparsing==3.2.3
+pystray==0.19.5
 pytest==8.4.2
+qrcode==8.2
 python-dateutil==2.9.0.post0
 python-multipart==0.0.32
 pytz==2025.2
