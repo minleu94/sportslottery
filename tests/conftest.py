@@ -1,7 +1,6 @@
 """Default suite stays offline; live network checks require an explicit opt-in.
 All tests run against isolated temporary databases to protect production war chest data.
 """
-import os
 import sqlite3
 from pathlib import Path
 import pytest
@@ -42,13 +41,17 @@ def isolate_database_for_tests(tmp_path_factory, monkeypatch):
     Production DB path (war_chest.sqlite3) is protected by a strict safety guard.
     """
     test_storage = tmp_path_factory.mktemp("test_storage")
-    test_db = test_storage / "war_chest.sqlite3"
-
-    # 1. Patch core.storage_config
     import core.storage_config as sc
-    monkeypatch.setattr(sc, "get_storage_root", lambda: test_storage)
-    monkeypatch.setattr(sc, "get_db_path", lambda: test_db)
-    monkeypatch.setattr(sc, "get_research_root", lambda: test_storage / "research_pipeline")
+    production_root = sc.resolve_storage_path_bundle().root
+    storage_paths = sc.resolve_storage_path_bundle(test_storage)
+    test_db = storage_paths.wallet_db
+    research_root = storage_paths.research_root
+
+    # 1. Patch the process storage bundle and its compatibility helpers.
+    monkeypatch.setattr(sc, "get_storage_path_bundle", lambda: storage_paths)
+    monkeypatch.setattr(sc, "get_storage_root", lambda: storage_paths.root)
+    monkeypatch.setattr(sc, "get_db_path", lambda: storage_paths.wallet_db)
+    monkeypatch.setattr(sc, "get_research_root", lambda: storage_paths.research_root)
 
     # 2. Patch core.profile_manager
     import core.profile_manager as pm
@@ -65,17 +68,30 @@ def isolate_database_for_tests(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(cwc, "DEFAULT_DB_PATH", test_db)
     monkeypatch.setattr(cwc, "get_db_path", lambda: test_db)
 
+    # Default research writers and SettlementEngine may be created without an
+    # explicit path. Redirect every import-time default into this test's bundle.
+    from core.research_paths import research_paths
+    import core.snapshot_logger as snapshot_logger
+    import core.shadow_parlay_logger as shadow_parlay_logger
+    import core.odds_watcher as odds_watcher
+    import core.line_movement as line_movement
+    import core.model_acceptance as model_acceptance
+    monkeypatch.setattr(snapshot_logger, "SNAPSHOT_FILE", research_paths(research_root)["snapshots"])
+    monkeypatch.setattr(shadow_parlay_logger, "PARLAY_SNAPSHOT_FILE", research_paths(research_root)["parlays"])
+    monkeypatch.setattr(odds_watcher, "ODDS_HISTORY_FILE", research_paths(research_root)["odds"])
+    monkeypatch.setattr(line_movement, "DEFAULT_ODDS_HISTORY_FILE", research_paths(research_root)["odds"])
+    monkeypatch.setattr(model_acceptance, "SNAPSHOT_PATH", research_paths(research_root)["snapshots"])
+
     # SettlementEngine may construct a shadow portfolio even when a test only
     # exercises research settlement. Keep its SQLite and default snapshot paths
     # isolated too; the production default is under the data Junction.
     import core.shadow_portfolio as csp
-    shadow_root = test_storage / "shadow"
-    monkeypatch.setattr(csp, "SHADOW_DIR", shadow_root)
-    monkeypatch.setattr(csp, "SHADOW_DB_PATH", shadow_root / "shadow_portfolio.sqlite")
+    monkeypatch.setattr(csp, "SHADOW_DIR", storage_paths.shadow_root)
+    monkeypatch.setattr(csp, "SHADOW_DB_PATH", storage_paths.shadow_db)
     monkeypatch.setattr(
         csp,
         "DEFAULT_SNAPSHOT_PATH",
-        test_storage / "research_pipeline" / "historical" / "prediction_snapshots.jsonl",
+        research_paths(research_root)["snapshots"],
     )
 
     # 5. Reset the API service registry so every service resolves the isolated test paths.
@@ -83,20 +99,27 @@ def isolate_database_for_tests(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(service_registry, "_profile_mgr", pm.ProfileManager(db_path=test_db))
     monkeypatch.setattr(service_registry, "_shared_services", None)
 
-    # 6. Safety guard on sqlite3.connect to block any connection to live production DB
+    # 6. Resolve SQLite paths through Junctions before blocking production data.
     orig_connect = sqlite3.connect
-    prod_data_markers = ["sportslottery_data", "sports_lottery_data"]
+    protected_roots = {
+        Path(sc.DEFAULT_DATA_DIR).resolve(),
+        Path(sc.DEFAULT_F_PATH).resolve(),
+        production_root,
+    }
 
     def guarded_connect(database, *args, **kwargs):
         db_str = str(database or "")
-        norm = os.path.abspath(db_str).lower() if db_str else ""
-        if "war_chest.sqlite3" in norm:
-            for marker in prod_data_markers:
-                if marker in norm:
-                    raise RuntimeError(
-                        f"FATAL: Test attempted to connect to production database: {database}! "
-                        "All tests must use isolated test database."
-                    )
+        if db_str.startswith("file:"):
+            db_str = db_str[5:].split("?", 1)[0]
+        if db_str and db_str != ":memory:":
+            from urllib.parse import unquote
+            db_str = unquote(db_str)
+            resolved = Path(db_str).expanduser().resolve()
+            if any(resolved == root or resolved.is_relative_to(root) for root in protected_roots):
+                raise RuntimeError(
+                    f"FATAL: Test attempted to connect to production data: {database}! "
+                    "All tests must use isolated temporary storage."
+                )
         return orig_connect(database, *args, **kwargs)
 
     monkeypatch.setattr(sqlite3, "connect", guarded_connect)

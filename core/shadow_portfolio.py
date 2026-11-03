@@ -29,14 +29,16 @@ from core.shadow_parlay_logger import compute_parlay_fingerprint
 from core.strategy_version import GOVERNANCE_RULES, STRATEGY_VERSION
 from core.experiment_identity import get_current_experiment_identity, validate_experiment_identity
 from core.research_paths import research_paths
+from core.storage_config import get_storage_path_bundle
 from core.persistence import iter_jsonl
 from core.research_sqlite import database_for_ledger, get_predictions_by_ids
 from core.snapshot_logger import compute_prediction_payload_hash
 
 logger = logging.getLogger(__name__)
 
-SHADOW_DIR = Path(__file__).resolve().parents[1] / "data" / "shadow"
-SHADOW_DB_PATH = SHADOW_DIR / "shadow_portfolio.sqlite"
+_STORAGE_PATHS = get_storage_path_bundle()
+SHADOW_DIR = _STORAGE_PATHS.shadow_root
+SHADOW_DB_PATH = _STORAGE_PATHS.shadow_db
 VIRTUAL_STAKE = GOVERNANCE_RULES["virtual_shadow_stake_ntd"]  # NT$10.0
 DEFAULT_SNAPSHOT_PATH = research_paths()["snapshots"]
 

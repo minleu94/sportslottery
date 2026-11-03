@@ -8,6 +8,8 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -20,6 +22,21 @@ RESEARCH_PIPELINE_CONFIG_FILE = CONFIG_DIR / "research_pipeline.yaml"
 
 DEFAULT_F_PATH = Path(r"F:\Min\Python\Project\SportsLottery_Data")
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
+
+
+@dataclass(frozen=True)
+class StoragePathBundle:
+    """Canonical absolute paths resolved once for the current process."""
+
+    root: Path
+    wallet_db: Path
+    research_root: Path
+    shadow_root: Path
+    shadow_db: Path
+
+
+_storage_paths_lock = threading.Lock()
+_storage_paths: Optional[StoragePathBundle] = None
 
 
 def get_fallback_user_data_dir() -> Path:
@@ -61,19 +78,43 @@ def get_configured_storage_root() -> Path:
     return user_fallback
 
 
+def resolve_storage_path_bundle(root: Optional[Path] = None) -> StoragePathBundle:
+    """Build one canonical path set without creating or migrating any data."""
+    resolved_root = Path(root or get_configured_storage_root()).expanduser().resolve()
+    research_root = (resolved_root / "research_pipeline").resolve()
+    shadow_root = (resolved_root / "shadow").resolve()
+    return StoragePathBundle(
+        root=resolved_root,
+        wallet_db=resolved_root / "war_chest.sqlite3",
+        research_root=research_root,
+        shadow_root=shadow_root,
+        shadow_db=shadow_root / "shadow_portfolio.sqlite",
+    )
+
+
+def get_storage_path_bundle() -> StoragePathBundle:
+    """Return the immutable active paths captured for this process."""
+    global _storage_paths
+    if _storage_paths is None:
+        with _storage_paths_lock:
+            if _storage_paths is None:
+                _storage_paths = resolve_storage_path_bundle()
+    return _storage_paths
+
+
 def get_storage_root() -> Path:
-    """Return the active base data directory."""
-    return get_configured_storage_root()
+    """Return the active base data directory resolved for this process."""
+    return get_storage_path_bundle().root
 
 
 def get_db_path() -> Path:
     """Return the active SQLite database path for war chest / wallet."""
-    return get_storage_root() / "war_chest.sqlite3"
+    return get_storage_path_bundle().wallet_db
 
 
 def get_research_root() -> Path:
     """Return the active research pipeline data root."""
-    return get_storage_root() / "research_pipeline"
+    return get_storage_path_bundle().research_root
 
 
 def get_storage_stats() -> Dict[str, Any]:

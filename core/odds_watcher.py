@@ -25,8 +25,9 @@ from core.persistence import append_jsonl
 
 logger = logging.getLogger(__name__)
 
-HISTORICAL_DIR = Path(__file__).resolve().parents[1] / "data" / "historical"
-ODDS_HISTORY_FILE = research_paths()["odds"]
+_RESEARCH_PATHS = research_paths()
+HISTORICAL_DIR = _RESEARCH_PATHS["root"] / "historical"
+ODDS_HISTORY_FILE = _RESEARCH_PATHS["odds"]
 
 
 class OddsWatcher:

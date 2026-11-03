@@ -144,6 +144,14 @@ API 回歸以 M2 原始 OpenAPI 所列的 38 組 path/method 為基準；新增 
 
 預設測試 fixture 也將 Shadow Portfolio SQLite 與快照路徑導向每次測試的暫存目錄，避免觸及正式 `data` Junction。CI 新增契約相容與依賴邊界測試。詳細規則見[共用契約與依賴邊界](04-shared-contracts.md)。
 
+## M6 實作紀錄
+
+新增不可變 `StoragePathBundle`，在程序第一次取得預設儲存路徑時解析並固定 wallet DB、research root 與 shadow DB 的絕對路徑。`get_storage_root()`、`get_db_path()` 與 `get_research_root()` 共用同一份 bundle。共用 research logger、odds history、模型接受閘門及 shadow portfolio 的預設路徑都取自此組路徑；明確傳入的 research run root 仍獨立保留。
+
+Research root 驗證現在會回傳已解析的 canonical root，包含經過 Windows `data` Junction 的實際目標。路徑解析不建立目錄。測試 fixture 將 wallet、shadow SQLite、模型接受快照及預設 JSONL writer 全部導向 pytest 暫存根目錄；SQLite safety guard 會先解析一般路徑與 `file:` URI，再拒絕落在 checkout `data` 或設定資料根下的連線。
+
+新增 `tests/test_storage_boundaries.py` 驗證 bundle 欄位、Junction alias 解析、預設 SQLite／JSONL 寫入隔離及正式資料路徑 guard。現有錢包交易與 SQLite 線上備份／復原測試繼續驗證交易及備份邊界。變更沒有搬遷 schema、複製快照或寫入正式 `data` Junction；存放設定在程序開始解析後變更時，新的預設路徑組會於重啟後生效。詳細設計見[儲存路徑與測試隔離](05-storage-boundaries.md)。
+
 ## 架構決策紀錄
 
 - [ADR-0001：漸進式 Modular Monolith](adr/0001-modular-monolith.md)

@@ -39,8 +39,9 @@ from core.contracts.common import TaiwanLeg
 
 logger = logging.getLogger(__name__)
 
-HISTORICAL_DIR = Path(__file__).resolve().parents[1] / "data" / "historical"
-SNAPSHOT_FILE = research_paths()["snapshots"]
+_RESEARCH_PATHS = research_paths()
+HISTORICAL_DIR = _RESEARCH_PATHS["root"] / "historical"
+SNAPSHOT_FILE = _RESEARCH_PATHS["snapshots"]
 
 
 class AuditFailureError(Exception):

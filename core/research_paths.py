@@ -16,14 +16,21 @@ PROTECTED_DIRS = ("cache", "historical", "wallet", "models", "model_state", "sna
 
 
 def resolve_research_data_root(data_root=None, config_path=None) -> Path:
-    config = Path(config_path or DEFAULT_CONFIG)
-    if not config.is_absolute():
-        config = PROJECT_ROOT / config
     if data_root is None:
-        payload = yaml.safe_load(config.read_text(encoding="utf-8")) if config.exists() else {}
-        if payload is not None and not isinstance(payload, dict):
-            raise ValueError("Research configuration must be a mapping.")
-        data_root = (payload or {}).get("data_root", "data/research_pipeline")
+        if config_path is None:
+            # Shared default paths come from the same process-frozen bundle as
+            # wallet and shadow storage. Explicit research runs still honor
+            # their own config file and remain a separate cohort.
+            from core.storage_config import get_storage_path_bundle
+            data_root = get_storage_path_bundle().research_root
+        else:
+            config = Path(config_path)
+            if not config.is_absolute():
+                config = PROJECT_ROOT / config
+            payload = yaml.safe_load(config.read_text(encoding="utf-8")) if config.exists() else {}
+            if payload is not None and not isinstance(payload, dict):
+                raise ValueError("Research configuration must be a mapping.")
+            data_root = (payload or {}).get("data_root", "data/research_pipeline")
     raw_root = Path(data_root)
     root = raw_root if raw_root.is_absolute() else (PROJECT_ROOT / raw_root)
     resolved_root = root.resolve()
@@ -35,7 +42,7 @@ def resolve_research_data_root(data_root=None, config_path=None) -> Path:
         protected = (production / name).resolve()
         if resolved_root == protected or resolved_root.is_relative_to(protected) or protected.is_relative_to(resolved_root):
             raise ValueError(f"Research root overlaps protected data: {protected}")
-    return root
+    return resolved_root
 
 
 def research_paths(data_root=None, config_path=None) -> dict[str, Path]:

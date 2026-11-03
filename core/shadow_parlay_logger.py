@@ -37,8 +37,9 @@ from core.research_sqlite import database_for_ledger, settle_parlays as settle_s
 
 logger = logging.getLogger(__name__)
 
-HISTORICAL_DIR = Path(__file__).resolve().parents[1] / "data" / "historical"
-PARLAY_SNAPSHOT_FILE = research_paths()["parlays"]
+_RESEARCH_PATHS = research_paths()
+HISTORICAL_DIR = _RESEARCH_PATHS["root"] / "historical"
+PARLAY_SNAPSHOT_FILE = _RESEARCH_PATHS["parlays"]
 
 MULTIPLIER_TIERS = [
     "10-25x",
