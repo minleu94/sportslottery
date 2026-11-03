@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -50,7 +51,7 @@ export const Sheet: React.FC<SheetProps> = ({
     bottom: "inset-x-0 bottom-0 max-h-[85vh] w-full border-t rounded-t-2xl animate-in slide-in-from-bottom duration-300",
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex">
       {/* Backdrop */}
       <div
@@ -92,6 +93,7 @@ export const Sheet: React.FC<SheetProps> = ({
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -156,31 +156,54 @@ _profile_mgr: Optional[ProfileManager] = None
 _snapshot_logger: Optional[PredictionSnapshotLogger] = None
 _metrics_engine: Optional[PerformanceMetricsEngine] = None
 _shadow_portfolio: Optional[ShadowPortfolioManager] = None
+_services_init_lock = threading.Lock()
 
 
 def get_services():
     global _odds_adapter, _signal_hub, _parlay_engine, _season_radar
     global _profile_mgr, _snapshot_logger, _metrics_engine, _shadow_portfolio
-    if _odds_adapter is None:
-        _odds_adapter = PlaysportOddsAdapter()
-        _signal_hub = SignalHub()
-        _parlay_engine = ParlayEngine(signal_hub=_signal_hub)
-        _season_radar = SeasonRadar()
-        _snapshot_logger = PredictionSnapshotLogger()
-        _metrics_engine = PerformanceMetricsEngine()
-        _shadow_portfolio = ShadowPortfolioManager()
-    if _profile_mgr is None:
-        _profile_mgr = ProfileManager()
-    return (
-        _odds_adapter,
-        _signal_hub,
-        _parlay_engine,
-        _season_radar,
-        _profile_mgr,
-        _snapshot_logger,
-        _metrics_engine,
-        _shadow_portfolio,
-    )
+    with _services_init_lock:
+        # The radar and legs endpoints can be the first API calls and arrive
+        # concurrently. Build the service bundle under one lock and publish it
+        # only after every component has initialized successfully.
+        if any(service is None for service in (
+            _odds_adapter,
+            _signal_hub,
+            _parlay_engine,
+            _season_radar,
+            _snapshot_logger,
+            _metrics_engine,
+            _shadow_portfolio,
+        )):
+            odds_adapter = PlaysportOddsAdapter()
+            signal_hub = SignalHub()
+            parlay_engine = ParlayEngine(signal_hub=signal_hub)
+            season_radar = SeasonRadar()
+            snapshot_logger = PredictionSnapshotLogger()
+            metrics_engine = PerformanceMetricsEngine()
+            shadow_portfolio = ShadowPortfolioManager()
+
+            _odds_adapter = odds_adapter
+            _signal_hub = signal_hub
+            _parlay_engine = parlay_engine
+            _season_radar = season_radar
+            _snapshot_logger = snapshot_logger
+            _metrics_engine = metrics_engine
+            _shadow_portfolio = shadow_portfolio
+
+        if _profile_mgr is None:
+            _profile_mgr = ProfileManager()
+
+        return (
+            _odds_adapter,
+            _signal_hub,
+            _parlay_engine,
+            _season_radar,
+            _profile_mgr,
+            _snapshot_logger,
+            _metrics_engine,
+            _shadow_portfolio,
+        )
 
 
 def get_wallet(profile_id: str = DEFAULT_PROFILE_ID) -> WeeklyWalletManager:
