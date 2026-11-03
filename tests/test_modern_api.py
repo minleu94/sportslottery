@@ -5,7 +5,8 @@ import hashlib
 import hmac
 import pytest
 from fastapi.testclient import TestClient
-import server.api as api_module
+from server.routers import research as research_routes
+from server import service_registry
 from server.api import app, _line_notifier
 from core.profile_manager import ProfileManager, hash_pin_code, verify_pin_code, PBKDF2_PREFIX
 from core.wallet import WeeklyWalletManager
@@ -325,7 +326,7 @@ def test_radar_and_legs():
     season_radar = MagicMock(get_radar_summary=lambda legs: [])
     services = (adapter, MagicMock(), MagicMock(), season_radar,
                 MagicMock(), MagicMock(), MagicMock(), MagicMock())
-    with patch("server.api.get_services", return_value=services):
+    with patch.object(service_registry, "get_services", return_value=services):
         res_radar = client.get("/api/radar")
         assert res_radar.status_code == 200
         r_data = res_radar.json()
@@ -355,10 +356,10 @@ def test_research_analytics(tmp_path):
     shadow_portfolio.get_portfolio_summary.return_value = {}
     services = (MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(),
                 snapshot_logger, metrics_engine, shadow_portfolio)
-    api_module._analytics_cache = None
-    api_module._analytics_cache_mtime = 0
-    api_module._analytics_cache_time = 0
-    with patch("server.api.get_services", return_value=services):
+    research_routes._analytics_cache = None
+    research_routes._analytics_cache_mtime = 0
+    research_routes._analytics_cache_time = 0
+    with patch.object(service_registry, "get_services", return_value=services):
         res = client.get("/api/research/analytics")
     assert res.status_code == 200
     data = res.json()

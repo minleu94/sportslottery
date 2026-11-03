@@ -2,7 +2,7 @@ import copy
 
 from core.parlay_engine import ParlaySearchResult
 from integrations.common.models import TaiwanLeg
-from server import api
+from server.routers import parlay as api
 
 
 class FakeSignalHub:
@@ -90,7 +90,7 @@ def test_parlay_response_reports_stage_timings(monkeypatch):
                 search_state={}, diagnostics={},
             )
 
-    monkeypatch.setattr(api, "get_services", lambda: (Adapter(), hub, Engine(), None, None, None, None, None))
+    monkeypatch.setattr("server.service_registry.get_services", lambda: (Adapter(), hub, Engine(), None, None, None, None, None))
     response = api._execute_parlay_search(api.ParlaySearchRequest(target_odds=3.0))
 
     assert response["performance"]["raw_legs_count"] == 1

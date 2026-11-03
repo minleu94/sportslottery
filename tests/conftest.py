@@ -65,13 +65,10 @@ def isolate_database_for_tests(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(cwc, "DEFAULT_DB_PATH", test_db)
     monkeypatch.setattr(cwc, "get_db_path", lambda: test_db)
 
-    # 5. Set server.api singleton profile manager to use test DB
-    try:
-        import server.api as sa
-        sa._profile_mgr = pm.ProfileManager(db_path=test_db)
-        sa._shadow_portfolio = None
-    except ImportError:
-        pass
+    # 5. Reset the API service registry so every service resolves the isolated test paths.
+    import server.service_registry as service_registry
+    monkeypatch.setattr(service_registry, "_profile_mgr", pm.ProfileManager(db_path=test_db))
+    monkeypatch.setattr(service_registry, "_shared_services", None)
 
     # 6. Safety guard on sqlite3.connect to block any connection to live production DB
     orig_connect = sqlite3.connect

@@ -12,7 +12,8 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 import pytest
 
-import server.api as api_module
+from server import service_registry
+from server.routers import market as market_routes
 from server.api import app
 from core.profile_manager import DEFAULT_PROFILE_ID, ProfileManager
 from integrations.odds.the_odds_api import TheOddsApiClient
@@ -55,12 +56,12 @@ def prevent_odds_api_requests(monkeypatch):
     monkeypatch.setattr(BettingSplitsClient, "get_betting_splits", lambda self, league: [])
     monkeypatch.setattr(PredictionSnapshotLogger, "get_all_snapshots", lambda self: [])
     monkeypatch.setattr(
-        api_module, "get_services",
+        service_registry, "get_services",
         lambda: (MagicMock(get_taiwan_legs=lambda leagues, **kwargs: []), MagicMock(),
                  MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()),
     )
     monkeypatch.setattr(
-        api_module, "get_market_scheduler",
+        market_routes, "get_market_scheduler",
         lambda: MagicMock(pipeline=MagicMock()),
     )
 
@@ -161,7 +162,7 @@ def test_get_market_research_summary():
     pipeline = MagicMock()
     pipeline.get_research_status_summary.return_value = summary
     with patch("core.market_forward_pipeline.MarketForwardPipeline", return_value=pipeline), patch(
-        "server.api.get_market_scheduler", return_value=MagicMock(get_status=lambda: {"enabled": False})
+        "server.routers.market.get_market_scheduler", return_value=MagicMock(get_status=lambda: {"enabled": False})
     ):
         resp = client.get("/api/market/research-summary")
     assert resp.status_code == 200
@@ -197,7 +198,7 @@ def test_post_market_pipeline_cycle():
         "status": "SUCCESS",
         "cycle_status": "NO_QUALIFIED_REAL_MARKET_DATA",
     }
-    with patch("server.api.get_market_scheduler", return_value=scheduler):
+    with patch("server.routers.market.get_market_scheduler", return_value=scheduler):
         resp = client.post("/api/market/pipeline/cycle?leagues=MLB")
         assert resp.status_code == 200
         data = resp.json()

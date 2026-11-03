@@ -1,0 +1,116 @@
+{
+  "/api/admin/players/delete": [
+    "POST"
+  ],
+  "/api/admin/players/reset_pin": [
+    "POST"
+  ],
+  "/api/admin/players/update": [
+    "POST"
+  ],
+  "/api/admin/players/{profile_id}": [
+    "DELETE"
+  ],
+  "/api/admin/players_overview": [
+    "GET"
+  ],
+  "/api/auth/me": [
+    "GET"
+  ],
+  "/api/health": [
+    "GET"
+  ],
+  "/api/legs": [
+    "GET"
+  ],
+  "/api/market/benchmark": [
+    "GET"
+  ],
+  "/api/market/config": [
+    "POST"
+  ],
+  "/api/market/evaluation": [
+    "GET"
+  ],
+  "/api/market/pipeline/cycle": [
+    "POST"
+  ],
+  "/api/market/pipeline/estimate-cost": [
+    "GET"
+  ],
+  "/api/market/research-summary": [
+    "GET"
+  ],
+  "/api/market/scheduler/config": [
+    "POST"
+  ],
+  "/api/market/scheduler/status": [
+    "GET"
+  ],
+  "/api/market/splits": [
+    "GET"
+  ],
+  "/api/market/status": [
+    "GET"
+  ],
+  "/api/market/the-odds/test-connection": [
+    "POST"
+  ],
+  "/api/parlays/search": [
+    "POST"
+  ],
+  "/api/profiles": [
+    "GET"
+  ],
+  "/api/profiles/login": [
+    "POST"
+  ],
+  "/api/profiles/logout": [
+    "POST"
+  ],
+  "/api/profiles/public_list": [
+    "GET"
+  ],
+  "/api/profiles/register": [
+    "POST"
+  ],
+  "/api/profiles/update": [
+    "POST"
+  ],
+  "/api/profiles/verify_pin": [
+    "POST"
+  ],
+  "/api/radar": [
+    "GET"
+  ],
+  "/api/research/analytics": [
+    "GET"
+  ],
+  "/api/system/storage_status": [
+    "GET"
+  ],
+  "/api/tickets": [
+    "GET"
+  ],
+  "/api/tickets/place": [
+    "POST"
+  ],
+  "/api/tickets/settle": [
+    "POST"
+  ],
+  "/api/wallet/deposit": [
+    "POST"
+  ],
+  "/api/wallet/ledger": [
+    "GET"
+  ],
+  "/api/wallet/status": [
+    "GET"
+  ],
+  "/api/wallet/withdraw": [
+    "POST"
+  ],
+  "/callback": [
+    "POST"
+  ]
+}

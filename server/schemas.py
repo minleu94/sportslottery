@@ -1,0 +1,111 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+from core.profile_manager import DEFAULT_PROFILE_ID
+
+
+class ParlaySearchRequest(BaseModel):
+    target_odds: float = Field(default=20.0, ge=2.0, le=5000.0)
+    min_odds: Optional[float] = None
+    max_odds: Optional[float] = None
+    tolerance: float = Field(default=0.25, ge=0.01, le=1.0)
+    min_legs: int = Field(default=2, ge=2, le=8)
+    max_legs: int = Field(default=6, ge=2, le=8)
+    alliances: Optional[List[str]] = None
+    signal_filter: str = Field(default="normal")  # normal, value_only, strict, wild
+    exclude_traps: bool = False
+    prefer_steam: bool = True
+    search_budget: int = Field(default=50000, ge=1000, le=1000000)
+    force_refresh: bool = False
+
+
+class DepositRequest(BaseModel):
+    profile_id: str = DEFAULT_PROFILE_ID
+    amount: float = Field(gt=0)
+    notes: str = ""
+
+
+class WithdrawRequest(BaseModel):
+    profile_id: str = DEFAULT_PROFILE_ID
+    amount: float = Field(gt=0)
+
+
+class PlaceTicketRequest(BaseModel):
+    profile_id: str = DEFAULT_PROFILE_ID
+    legs: List[Dict[str, Any]]
+    stake: float = Field(ge=10.0)
+    placed_odds: float = Field(gt=1.0)
+    recommendation_odds: Optional[float] = None
+    parlay_name: Optional[str] = "瘋狗串關"
+    notes: Optional[str] = "前端下注記錄"
+    idempotency_key: Optional[str] = None
+    client_request_id: Optional[str] = None
+    entry_mode: Optional[str] = None
+
+
+class SettleTicketRequest(BaseModel):
+    ticket_id: str
+    result: str  # WON, LOST, VOID
+    custom_payout: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class ProfileLoginRequest(BaseModel):
+    profile_id: str
+    pin_code: str
+
+
+class ProfileLoginByNameRequest(BaseModel):
+    identifier: str
+    pin_code: str
+
+
+class ProfileRegisterRequest(BaseModel):
+    name: str
+    weekly_play_cap: float = Field(default=200.0, gt=0)
+    pin_code: str = Field(default="0000")
+
+
+class ProfileUpdateRequest(BaseModel):
+    profile_id: str
+    name: Optional[str] = None
+    weekly_play_cap: Optional[float] = None
+    current_pin: str
+    new_pin: Optional[str] = None
+
+
+class AdminDeletePlayerRequest(BaseModel):
+    profile_id: str
+    admin_pin: Optional[str] = None
+
+
+class MarketKeyConfigRequest(BaseModel):
+    the_odds_api_key: str = Field(..., min_length=1, max_length=128, description="API Key for The Odds API")
+
+
+class MarketSchedulerConfigRequest(BaseModel):
+    enabled: Optional[bool] = Field(None, description="Toggle automated forward cycle scheduler on/off")
+    interval_seconds: Optional[int] = Field(None, ge=300, le=86400, description="Cadence interval in seconds (300~86400)")
+
+
+class TheOddsTestConnectionRequest(BaseModel):
+    fetch_sample: bool = False
+    sport_league: Optional[str] = None
+
+
+class AdminResetPinRequest(BaseModel):
+    profile_id: str
+    new_pin: str = "0000"
+    admin_pin: Optional[str] = None
+
+
+class AdminUpdatePlayerRequest(BaseModel):
+    profile_id: str
+    name: Optional[str] = None
+    weekly_play_cap: Optional[float] = None
+    new_pin: Optional[str] = None
+    admin_pin: Optional[str] = None
+
+__all__ = ['AdminDeletePlayerRequest', 'AdminResetPinRequest', 'AdminUpdatePlayerRequest', 'DepositRequest', 'MarketKeyConfigRequest', 'MarketSchedulerConfigRequest', 'ParlaySearchRequest', 'PlaceTicketRequest', 'ProfileLoginByNameRequest', 'ProfileLoginRequest', 'ProfileRegisterRequest', 'ProfileUpdateRequest', 'SettleTicketRequest', 'TheOddsTestConnectionRequest', 'WithdrawRequest']

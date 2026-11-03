@@ -116,6 +116,14 @@ M4/M5 應使用版本控制中的離線 fixture，不呼叫正式 Odds API。比
 - 不刪除另一套啟動入口、LINE 相容模組或打包檔，除非 M9 實際 smoke test 證明已無用途且可回退。
 - 不複製、遷移或寫入 `data` Junction 指向的正式目錄。
 
+## M3 實作紀錄
+
+`server.api` 現在只負責 FastAPI app、middleware、router 組裝、靜態資產與相容匯出。路由依責任位於 `server/routers/market.py`、`parlay.py`、`wallet.py`、`identity.py`、`research.py`、`line.py`；request model 移至 `server/schemas.py`，服務組裝移至 `server/service_registry.py`，排程 lifespan 移至 `server/lifecycle.py`。舊的 `server.api:app`、常用 handler、request model 與錢包 helper 匯入仍可使用。
+
+API 回歸以 M2 原始 OpenAPI 所列的 38 組 path/method 為基準；新增 `tests/test_api_contract.py` 檢查路徑、方法及關鍵 request model reference，`tests/test_service_registry.py` 檢查多執行緒只初始化一份完整服務與初始化失敗不發布半成品。API router 的整合回歸仍由既有 Auth、Admin、Wallet、Market、Scheduler 測試負責。
+
+詳細實作邊界見 [API 與生命週期](02-api-boundaries.md)。
+
 ## 架構決策紀錄
 
 - [ADR-0001：漸進式 Modular Monolith](adr/0001-modular-monolith.md)

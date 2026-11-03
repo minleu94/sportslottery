@@ -304,7 +304,7 @@ def test_api_scheduler_endpoints(test_client, tmp_path):
         "requests_remaining_est": 500,
     }
     scheduler = MarketScheduler(pipeline=mock_pipeline, config_path=tmp_path / "scheduler_api.json")
-    with patch("server.api.get_market_scheduler", return_value=scheduler), patch(
+    with patch("server.routers.market.get_market_scheduler", return_value=scheduler), patch(
         "core.market_scheduler.get_market_scheduler", return_value=scheduler
     ):
         _assert_api_scheduler_endpoints(test_client, scheduler)

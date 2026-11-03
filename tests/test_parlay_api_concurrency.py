@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
 
-from server import api
+from server.routers import parlay as api
 
 
 def _reset_search_controls():

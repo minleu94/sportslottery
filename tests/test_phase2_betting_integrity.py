@@ -27,7 +27,7 @@ from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
 from core.ticket_recorder import TicketRecorder
 from core.wallet import WeeklyWalletManager
 from integrations.common.models import TaiwanLeg
-import server.api as api_module
+from server import service_registry
 from server.api import app, get_recorder, get_wallet
 
 
@@ -37,10 +37,10 @@ def isolated_env(tmp_path: Path, monkeypatch):
     db_path = tmp_path / "sportslottery_phase2.db"
     prof_mgr = ProfileManager(db_path=db_path)
 
-    monkeypatch.setattr("server.api.get_wallet", lambda profile_id="default": WeeklyWalletManager(db_path=db_path, profile_id=profile_id))
-    monkeypatch.setattr("server.api.get_recorder", lambda profile_id="default": TicketRecorder(db_path=db_path, profile_id=profile_id))
-    monkeypatch.setattr("server.api.get_betting_service", lambda profile_id="default": BettingService(db_path=db_path, profile_id=profile_id))
-    monkeypatch.setattr("server.api._profile_mgr", prof_mgr)
+    monkeypatch.setattr(service_registry, "get_wallet", lambda profile_id="default": WeeklyWalletManager(db_path=db_path, profile_id=profile_id))
+    monkeypatch.setattr(service_registry, "get_recorder", lambda profile_id="default": TicketRecorder(db_path=db_path, profile_id=profile_id))
+    monkeypatch.setattr(service_registry, "get_betting_service", lambda profile_id="default": BettingService(db_path=db_path, profile_id=profile_id))
+    monkeypatch.setattr(service_registry, "_profile_mgr", prof_mgr)
     monkeypatch.setattr("core.profile_manager.DEFAULT_DB_PATH", db_path)
     monkeypatch.setattr("core.wallet.DEFAULT_DB_PATH", db_path)
 
