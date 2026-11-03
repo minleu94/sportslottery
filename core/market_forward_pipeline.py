@@ -32,7 +32,11 @@ from core.forward_evaluation_engine import (
     _validated_market_probabilities,
 )
 from core.market_aligner import MarketAligner
-from core.market_candidate_policy import candidate_rejection_reason, canonical_league_query_key
+from core.market_candidate_policy import (
+    allowed_scheduled_markets,
+    candidate_rejection_reason,
+    canonical_league_query_key,
+)
 from core.market_fair_odds import BookmakerQuote, MarketFairOddsEngine
 from core.market_provider_factory import (
     DEFAULT_MARKET_PROVIDER_CAPABILITIES,
@@ -168,13 +172,10 @@ class MarketForwardPipeline:
 
     def _allowed_scheduled_markets(self) -> set[str]:
         """Return markets both enabled by the client cap and schedule policy."""
-        cap = self._split_markets(getattr(self.odds_client, "markets", "h2h"))
-        if not cap:
-            cap = {"h2h"}
-        scheduled = getattr(self.odds_client, "scheduled_markets", "auto")
-        if not isinstance(scheduled, str) or scheduled.strip().casefold() in {"", "auto", "candidate", "candidate_driven"}:
-            return cap
-        return self._split_markets(scheduled) & cap
+        return allowed_scheduled_markets(
+            getattr(self.odds_client, "markets", "h2h"),
+            getattr(self.odds_client, "scheduled_markets", "auto"),
+        )
 
     def _candidate_rejection_reason(
         self,

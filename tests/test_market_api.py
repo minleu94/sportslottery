@@ -8,6 +8,7 @@ Milestone 6 Verification:
 - Tests /api/market/evaluation returns three-way forward evaluation report
 """
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 import pytest
@@ -94,6 +95,39 @@ def test_get_market_benchmark():
             if bm.get("matched_international_odds") is not None and bm.get("counterpart_odds") is None:
                 assert bm.get("fair_probability") is None
                 assert bm.get("theoretical_ev") is None
+
+
+@pytest.mark.parametrize(
+    ("legs", "expected_rejection"),
+    [
+        ([], None),
+        ([SimpleNamespace(
+            event_id="tw-1", league="MLB", sport="baseball", odds_status="LIVE",
+            is_synthetic=False, signal_evidence={}, start_time_utc=None,
+            home_team="Home", away_team="Away", selection="Home moneyline",
+            market="不讓分", side="主", line=None, taiwan_odds=1.9,
+        )], "INVALID_OR_MISSING_START_TIME"),
+    ],
+)
+def test_market_benchmark_skips_paid_odds_fetch_without_valid_candidates(
+    monkeypatch, legs, expected_rejection
+):
+    odds_client = MagicMock(markets="h2h,spreads", scheduled_markets="auto")
+    adapter = MagicMock(get_taiwan_legs=lambda leagues, **kwargs: legs)
+    monkeypatch.setattr(market_routes, "TheOddsApiClient", lambda: odds_client)
+    monkeypatch.setattr(
+        service_registry,
+        "get_services",
+        lambda: (adapter, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()),
+    )
+
+    data = market_routes.get_market_benchmark_comparison("MLB", False, {})
+
+    odds_client.fetch_market_odds.assert_not_called()
+    assert data["status"] == "SKIPPED_NO_VALID_CANDIDATES"
+    assert data["valid_candidate_count"] == 0
+    if expected_rejection:
+        assert data["candidate_rejection_counts"] == {expected_rejection: 1}
 
 
 def test_market_benchmark_counterpart_missing_fail_closed():

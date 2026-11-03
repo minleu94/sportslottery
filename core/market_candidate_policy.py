@@ -8,11 +8,30 @@ to request and compare an international quote.
 from __future__ import annotations
 
 import math
-from typing import Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional
 
 from core.bet_validation import parse_aware_time
 from core.identity.league_mapping import normalize_league_and_sport
 from core.contracts.common import TaiwanLeg
+
+
+def allowed_scheduled_markets(configured_markets: Any, scheduled_markets: Any) -> set[str]:
+    """Return the configured markets allowed by the schedule policy."""
+    if isinstance(configured_markets, str):
+        configured = {part.strip().casefold() for part in configured_markets.split(",") if part.strip()}
+    elif isinstance(configured_markets, (list, tuple, set)):
+        configured = {str(part).strip().casefold() for part in configured_markets if str(part).strip()}
+    else:
+        configured = set()
+    if not configured:
+        configured = {"h2h"}
+
+    if not isinstance(scheduled_markets, str) or scheduled_markets.strip().casefold() in {
+        "", "auto", "candidate", "candidate_driven"
+    }:
+        return configured
+    scheduled = {part.strip().casefold() for part in scheduled_markets.split(",") if part.strip()}
+    return scheduled & configured
 
 
 def candidate_rejection_reason(

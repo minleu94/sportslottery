@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import math
 import re
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -11,11 +12,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from core.app_meta import APP_BUILD
 from core.forward_evaluation_engine import ForwardEvaluationEngine
 from core.market_aligner import MarketAligner
+from core.market_candidate_policy import (
+    allowed_scheduled_markets,
+    candidate_rejection_reason,
+    canonical_league_query_key,
+)
 from core.market_fair_odds import MarketFairOddsEngine
 from core.market_scheduler import get_market_scheduler
 from core.scraper import ALLIANCE_MAP
 from core.snapshot_logger import PredictionSnapshotLogger
 from core.strategy_version import get_strategy_metadata
+from core.contracts.market import TAIWAN_MARKET_TO_ODDS_API
 from integrations.odds.betting_splits_client import BettingSplitsClient
 from integrations.odds.the_odds_api import SPORT_KEY_MAP, TheOddsApiClient
 from server import service_registry
@@ -212,14 +219,65 @@ def get_market_benchmark_comparison(
     odds_client = TheOddsApiClient()
     odds_adapter, signal_hub, _, _, _, _, _, _ = service_registry.get_services()
     raw_legs = odds_adapter.get_taiwan_legs([league], force_refresh=force_refresh)
-    int_odds = odds_client.fetch_market_odds(league, force_refresh=force_refresh)
+    allowed_markets = allowed_scheduled_markets(
+        getattr(odds_client, "markets", "h2h"),
+        getattr(odds_client, "scheduled_markets", "auto"),
+    )
+    allowed_market_csv = ",".join(sorted(allowed_markets))
+    rejection_counts: Counter[str] = Counter()
+    rejection_examples: Dict[str, List[Dict[str, Any]]] = {}
+    eligible_legs = []
+    for leg in raw_legs:
+        reason = candidate_rejection_reason(
+            leg,
+            league,
+            allowed_market_csv,
+            market_to_api=TAIWAN_MARKET_TO_ODDS_API,
+            query_key_resolver=lambda value: canonical_league_query_key(value, SPORT_KEY_MAP),
+        )
+        if reason:
+            rejection_counts[reason] += 1
+            examples = rejection_examples.setdefault(reason, [])
+            if len(examples) < 3:
+                examples.append({
+                    "event_id": str(getattr(leg, "event_id", "") or ""),
+                    "league": str(getattr(leg, "league", "") or ""),
+                })
+            continue
+        eligible_legs.append(leg)
+
+    if not eligible_legs:
+        return {
+            "league": league,
+            "status": "SKIPPED_NO_VALID_CANDIDATES",
+            "total_taiwan_legs": len(raw_legs),
+            "valid_candidate_count": 0,
+            "rejected_candidate_count": len(raw_legs),
+            "candidate_rejection_counts": dict(rejection_counts),
+            "candidate_rejection_examples": rejection_examples,
+            "matched_count": 0,
+            "unmatched_count": 0,
+            "stale_count": 0,
+            "benchmarks": [],
+            "as_of_utc": datetime.now(timezone.utc).isoformat(),
+        }
+
+    requested_markets = sorted({
+        TAIWAN_MARKET_TO_ODDS_API[str(leg.market or "").strip().casefold()]
+        for leg in eligible_legs
+    })
+    int_odds = odds_client.fetch_market_odds(
+        league,
+        markets=",".join(requested_markets),
+        force_refresh=force_refresh,
+    )
     aligner = MarketAligner()
 
     matched_results = []
     unmatched_count = 0
     stale_count = 0
 
-    for leg in raw_legs:
+    for leg in eligible_legs:
         leg_enriched = signal_hub.evaluate_taiwan_leg(leg)
         matched_cand, record = aligner.align_leg_with_candidates(leg_enriched, int_odds)
         if matched_cand and record.status.value == "MATCHED":
@@ -411,7 +469,12 @@ def get_market_benchmark_comparison(
 
     return {
         "league": league,
+        "status": "COMPLETED",
         "total_taiwan_legs": len(raw_legs),
+        "valid_candidate_count": len(eligible_legs),
+        "rejected_candidate_count": len(raw_legs) - len(eligible_legs),
+        "candidate_rejection_counts": dict(rejection_counts),
+        "candidate_rejection_examples": rejection_examples,
         "matched_count": len(matched_results),
         "unmatched_count": unmatched_count,
         "stale_count": stale_count,
