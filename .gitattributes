@@ -1,0 +1,4 @@
+# These checked-in HTTP response bodies are verified by byte-level SHA-256
+# manifests. Keep their captured line endings intact across platforms.
+/artifacts/research_completion_20261014/source_dom/*.html -text whitespace=cr-at-eol
+/tests/fixtures/playsport_public_sources_20261012/*.html -text whitespace=cr-at-eol

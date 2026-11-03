@@ -5,6 +5,7 @@ from core.research_operations import refresh_task_observation
 
 def test_scheduler_refresh_only_queries_owned_task_and_saves_receipt(tmp_path,monkeypatch):
     import core.research_operations as ops
+    monkeypatch.setattr(ops, "_windows_scheduler_supported", lambda: True)
     observed=[]
     def run(command,**kwargs):
         observed.append(command)
@@ -22,8 +23,21 @@ def test_scheduler_refresh_only_queries_owned_task_and_saves_receipt(tmp_path,mo
 
 def test_scheduler_query_failure_never_claims_success(tmp_path,monkeypatch):
     import core.research_operations as ops
+    monkeypatch.setattr(ops, "_windows_scheduler_supported", lambda: True)
     monkeypatch.setattr(ops.subprocess,"run",lambda *args,**kwargs:SimpleNamespace(returncode=1,stderr="Access denied",stdout=""))
     receipt=refresh_task_observation(tmp_path/"research")
     assert receipt["state"]=="UNKNOWN"
     assert "Access denied" in receipt["error"]
     assert "enabled" not in receipt
+
+
+def test_scheduler_observation_is_unavailable_off_windows(monkeypatch, tmp_path):
+    import core.research_operations as ops
+
+    monkeypatch.setattr(ops, "_windows_scheduler_supported", lambda: False)
+    receipt = refresh_task_observation(tmp_path / "research")
+
+    assert receipt == {
+        "state": "UNAVAILABLE",
+        "error": "Windows scheduler is unavailable on this platform.",
+    }
