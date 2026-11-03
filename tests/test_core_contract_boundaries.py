@@ -41,4 +41,4 @@ def test_research_and_market_helpers_do_not_import_their_orchestrators_back():
 def test_contract_modules_have_no_provider_dependencies():
     for path in (ROOT / "core" / "contracts").glob("*.py"):
         imported = _imports(path)
-        assert not any(module.startswith("integrations.") for module in imported)\n
+        assert not any(module.startswith("integrations.") for module in imported)

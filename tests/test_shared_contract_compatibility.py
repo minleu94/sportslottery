@@ -117,4 +117,4 @@ def test_market_contract_serialization_and_event_identity_remain_stable():
     ],
 )
 def test_market_selection_contract_enforces_opposing_line_semantics(left, right, matches):
-    assert left.opposite_outcome(right) is matches\n
+    assert left.opposite_outcome(right) is matches

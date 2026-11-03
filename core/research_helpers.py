@@ -237,4 +237,4 @@ def _leg_from_payload(row: dict[str, Any]) -> TaiwanLeg:
         PredictionSignal(**{key: value for key, value in signal.items() if key in signal_fields})
         for signal in payload.get("signals", []) if isinstance(signal, (dict, PredictionSignal))
     ]
-    return TaiwanLeg(**payload)\n
+    return TaiwanLeg(**payload)
