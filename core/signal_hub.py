@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import OrderedDict
 from pathlib import Path
+import threading
 from typing import Any, Dict, List, Optional
 import yaml
 
@@ -39,6 +41,7 @@ FAMILY_MARKET = "MARKET"
 FAMILY_HUMAN = "HUMAN"
 FAMILY_STATISTICAL_MODEL = "STATISTICAL_MODEL"
 FAMILY_FUNDAMENTAL = "FUNDAMENTAL_DATA"
+LEG_EVAL_CACHE_MAXSIZE = 512
 
 
 class SignalHub:
@@ -64,12 +67,14 @@ class SignalHub:
         self.config_path = config_path or CONFIG_PATH
         self.weights_config = self._load_weights_config()
         self.edge_engine = edge_engine or EdgeEngine(source_weights=self.weights_config.get("source_weights", {}))
-        self._leg_eval_cache: Dict[tuple, TaiwanLeg] = {}
+        self._leg_eval_cache: OrderedDict[tuple, TaiwanLeg] = OrderedDict()
+        self._leg_eval_cache_lock = threading.Lock()
         self._cache_epoch = 0
 
     def refresh(self) -> None:
         """Clear evaluation caches and refresh underlying adapters."""
-        self._leg_eval_cache.clear()
+        with self._leg_eval_cache_lock:
+            self._leg_eval_cache.clear()
         self._cache_epoch += 1
         if hasattr(self.model_registry, "refresh"):
             self.model_registry.refresh()
@@ -111,8 +116,12 @@ class SignalHub:
             leg.selection, getattr(leg, "side", None), getattr(leg, "line", None),
             float(leg.taiwan_odds or 0.0), getattr(leg, "odds_scraped_at", ""), benchmark_cache_key,
         )
-        if hasattr(self, "_leg_eval_cache") and cache_key in self._leg_eval_cache:
-            return self._leg_eval_cache[cache_key]
+        if hasattr(self, "_leg_eval_cache"):
+            with self._leg_eval_cache_lock:
+                cached = self._leg_eval_cache.get(cache_key)
+                if cached is not None:
+                    self._leg_eval_cache.move_to_end(cache_key)
+                    return cached
 
         signals: List[PredictionSignal] = []
 
@@ -211,7 +220,11 @@ class SignalHub:
 
         result = self.synthesize_signals_for_leg(leg, signals, market_benchmark=market_benchmark)
         if hasattr(self, "_leg_eval_cache"):
-            self._leg_eval_cache[cache_key] = result
+            with self._leg_eval_cache_lock:
+                self._leg_eval_cache[cache_key] = result
+                self._leg_eval_cache.move_to_end(cache_key)
+                while len(self._leg_eval_cache) > LEG_EVAL_CACHE_MAXSIZE:
+                    self._leg_eval_cache.popitem(last=False)
         return result
 
     def synthesize_signals_for_leg(

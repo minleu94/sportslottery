@@ -16,7 +16,7 @@ def test_search_diagnostics_cover_every_eligible_option():
     engine = ParlayEngine(signal_hub=object())
     diagnostics = {}
     result = engine.search_parlays(legs, min_odds=1.05, max_odds=500, signal_filter="wild",
-                                  diagnostics=diagnostics)
+                                  min_legs=2, diagnostics=diagnostics)
     assert diagnostics["quality_option_count"] == 6
     assert diagnostics["search_option_count"] == 6
     assert diagnostics["search_event_count"] == 2

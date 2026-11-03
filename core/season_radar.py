@@ -132,6 +132,7 @@ class SeasonRadar:
         check_live_espn: bool = False,
         evaluated_legs: Optional[List[Any]] = None,
         *args: Any,
+        force_refresh: bool = False,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """Determine radar status prioritizing Taiwan Sports Lottery market availability."""
@@ -217,7 +218,10 @@ class SeasonRadar:
                 try:
                     reader = getattr(self.espn, "fetch_live_events_with_status", None)
                     if callable(reader):
-                        schedule_observation = reader(info["espn_code"])
+                        try:
+                            schedule_observation = reader(info["espn_code"], force_refresh=force_refresh)
+                        except TypeError:
+                            schedule_observation = reader(info["espn_code"])
                         events = schedule_observation["events"]
                     else:
                         events = self.espn.fetch_live_events(info["espn_code"])

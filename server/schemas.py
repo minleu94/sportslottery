@@ -7,14 +7,15 @@ from core.profile_manager import DEFAULT_PROFILE_ID
 
 
 class ParlaySearchRequest(BaseModel):
-    target_odds: float = Field(default=20.0, ge=2.0, le=5000.0)
-    min_odds: Optional[float] = None
-    max_odds: Optional[float] = None
+    target_odds: Optional[float] = Field(default=20.0, ge=1.5, le=5000.0)
+    min_odds: Optional[float] = Field(default=None, ge=1.05, le=5000.0)
+    max_odds: Optional[float] = Field(default=None, ge=1.05, le=5000.0)
     tolerance: float = Field(default=0.25, ge=0.01, le=1.0)
-    min_legs: int = Field(default=2, ge=2, le=8)
-    max_legs: int = Field(default=6, ge=2, le=8)
+    min_legs: int = Field(default=1, ge=1, le=8)
+    max_legs: int = Field(default=6, ge=1, le=8)
     alliances: Optional[List[str]] = None
     signal_filter: str = Field(default="normal")  # normal, value_only, strict, wild
+    ranking_mode: str = Field(default="WIN_PROBABILITY")  # WIN_PROBABILITY or VALUE
     exclude_traps: bool = False
     prefer_steam: bool = True
     search_budget: int = Field(default=50000, ge=1000, le=1000000)

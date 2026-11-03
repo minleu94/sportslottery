@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import random
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -22,6 +23,11 @@ from core.research_paths import research_paths
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "config" / "model_acceptance.yaml"
 SNAPSHOT_PATH = research_paths()["snapshots"]
+
+_SETTLED_TRUE_RE = re.compile(rb'"is_settled"\s*:\s*true\b')
+_FORWARD_ELIGIBLE_RE = re.compile(rb'"forward_validation_eligible"\s*:\s*true\b')
+_QUALIFIED_STATUS_RE = re.compile(rb'"settlement_status"\s*:\s*"(?:WON|LOST)"')
+_ACCEPTANCE_SCHEMA_RE = re.compile(rb'"prediction_hash_schema"\s*:\s*(?:[4-9]|[1-9]\d{1,})\b')
 
 
 def _finite(value: Any) -> float | None:
@@ -388,96 +394,210 @@ class ModelAcceptanceGate:
         self.snapshot_path = Path(snapshot_path or SNAPSHOT_PATH)
         self.policy_path = Path(policy_path)
         self.policy = load_policy(self.policy_path)
-        self._rows_signature: tuple[int, int] | None = None
-        self._rows_cache: list[dict[str, Any]] = []
+        self._rows_signature: tuple[int, int, int] | None = None
+        # Keep only compact, already-validated model evidence. Holding every
+        # decoded snapshot here can multiply a multi-GB JSONL ledger in RSS.
+        self._evidence_by_scope: dict[tuple, list[dict[str, Any]]] | None = None
+        self._snapshot_row_count = 0
+        self._incomplete_market_rows: list[tuple[datetime, datetime]] = []
+        self._indexed_offset = 0
+        self._indexed_file_id: int | None = None
+        self._indexed_prefix_tail = b""
         self._status_cache: dict[tuple, dict[str, Any]] = {}
 
-    def _rows(self) -> list[dict[str, Any]]:
-        if not self.snapshot_path.exists():
+    def _load_evidence_index(self) -> None:
+        try:
+            stat = self.snapshot_path.stat()
+        except FileNotFoundError:
             self._rows_signature = None
-            self._rows_cache = []
+            self._evidence_by_scope = {}
+            self._snapshot_row_count = 0
+            self._incomplete_market_rows = []
+            self._indexed_offset = 0
+            self._indexed_file_id = None
+            self._indexed_prefix_tail = b""
             self._status_cache.clear()
-            return []
-        stat = self.snapshot_path.stat()
-        signature = (stat.st_mtime_ns, stat.st_size)
-        if signature != self._rows_signature:
-            self._rows_cache = read_snapshot_rows(self.snapshot_path)
-            self._rows_signature = signature
-            self._status_cache.clear()
-        return self._rows_cache
+            return
+        file_id = int(getattr(stat, "st_ino", 0) or 0)
+        rebuild = self._evidence_by_scope is None or file_id != self._indexed_file_id or stat.st_size < self._indexed_offset
+        start_offset = 0 if rebuild else self._indexed_offset
+
+        if not rebuild and stat.st_size == self._indexed_offset:
+            signature = (stat.st_mtime_ns, stat.st_size, file_id)
+            if signature == self._rows_signature:
+                return
+            rebuild = True
+            start_offset = 0
+        elif not rebuild and stat.st_size > self._indexed_offset:
+            # The normal writer only appends. Verify the old tail before using
+            # an incremental scan; atomic replacement or an in-place rewrite
+            # falls back to a complete streaming rebuild.
+            tail_length = len(self._indexed_prefix_tail)
+            with self.snapshot_path.open("rb") as check_stream:
+                if tail_length:
+                    check_stream.seek(self._indexed_offset - tail_length)
+                prefix_matches = check_stream.read(tail_length) == self._indexed_prefix_tail
+            if not prefix_matches:
+                rebuild = True
+                start_offset = 0
+
+        delta_by_scope: dict[tuple, list[dict[str, Any]]] = {}
+        delta_row_count = 0
+        delta_incomplete_rows: list[tuple[datetime, datetime]] = []
+        indexed_offset = start_offset
+        with self.snapshot_path.open("rb") as stream:
+            if start_offset:
+                stream.seek(start_offset)
+            for raw_line in stream:
+                indexed_offset += len(raw_line)
+                delta_row_count += 1
+                # Most historical rows are unresolved. Avoid decoding and
+                # hashing them; a valid acceptance row must contain all of
+                # these serialized values before JSON decoding.
+                if not (
+                    _SETTLED_TRUE_RE.search(raw_line)
+                    and _FORWARD_ELIGIBLE_RE.search(raw_line)
+                    and _QUALIFIED_STATUS_RE.search(raw_line)
+                    and _ACCEPTANCE_SCHEMA_RE.search(raw_line)
+                ):
+                    continue
+                try:
+                    snapshot = json.loads(raw_line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(snapshot, dict):
+                    continue
+
+                snapshot_time = _date(snapshot.get("snapshot_timestamp"))
+                settled_at = _date(snapshot.get("settled_at"))
+                event_start = _date(snapshot.get("event_start"))
+                if (snapshot_time is None or settled_at is None or event_start is None
+                        or snapshot_time >= event_start or settled_at < event_start
+                        or snapshot.get("is_settled") is not True
+                        or snapshot.get("settlement_status") not in {"WON", "LOST"}
+                        or snapshot.get("forward_validation_eligible") is not True
+                        or snapshot.get("prediction_hash_schema", 1) < 4):
+                    continue
+
+                identity = snapshot.get("experiment_identity")
+                if (not validate_experiment_identity(identity)
+                        or identity.get("strategy_version") != snapshot.get("strategy_version")
+                        or not isinstance(snapshot.get("strategy_metadata"), dict)
+                        or snapshot["strategy_metadata"].get("experiment_identity") != identity
+                        or snapshot.get("strategy_config_hashes") != identity.get("config_hashes")
+                        or snapshot.get("prediction_payload_hash") != compute_prediction_payload_hash(snapshot)):
+                    continue
+                if (snapshot.get("actual_outcome") is not (snapshot.get("settlement_status") == "WON")
+                        or not isinstance(snapshot.get("result_source"), str)
+                        or not snapshot.get("result_source").strip()
+                        or snapshot.get("result_source").strip().upper() in {"UNKNOWN", "MANUAL", "TEST", "FIXTURE"}):
+                    continue
+
+                outcome = 1 if snapshot.get("settlement_status") == "WON" else 0
+                market_probability = _normalized_market_probability(snapshot)
+                if market_probability is None:
+                    delta_incomplete_rows.append((snapshot_time, settled_at))
+                    continue
+
+                for prediction in snapshot.get("model_candidate_predictions", []):
+                    if not isinstance(prediction, dict):
+                        continue
+                    data_as_of = _date(prediction.get("data_as_of"))
+                    if (data_as_of is None or data_as_of > snapshot_time or data_as_of >= event_start
+                            or prediction.get("freshness_status") not in {"LIVE", "FRESH", "AGING"}):
+                        continue
+
+                    scope_key = (
+                        prediction.get("model_id"), prediction.get("model_version"),
+                        prediction.get("league"), prediction.get("market"),
+                        prediction.get("source_scope"), prediction.get("artifact_hash"),
+                        prediction.get("protocol_id"), prediction.get("protocol_hash"),
+                    )
+                    try:
+                        hash(scope_key)
+                    except TypeError:
+                        continue
+
+                    # evaluate_scope_evidence only needs these fields; do not
+                    # retain the full snapshot or the prediction's metadata.
+                    evidence = {
+                        "model_id": scope_key[0],
+                        "model_version": scope_key[1],
+                        "league": scope_key[2],
+                        "market": scope_key[3],
+                        "source_scope": scope_key[4],
+                        "artifact_hash": scope_key[5],
+                        "protocol_id": scope_key[6],
+                        "protocol_hash": scope_key[7],
+                        "raw_probability": prediction.get("raw_probability"),
+                        "prediction_timestamp": snapshot.get("snapshot_timestamp"),
+                        "event_id": snapshot.get("canonical_event_id") or snapshot.get("event_id"),
+                        "side": snapshot.get("side") or snapshot.get("pick"),
+                        "line": snapshot.get("line"),
+                        "event_start": snapshot.get("event_start"),
+                        "outcome": outcome,
+                        "market_probability": market_probability,
+                        "decimal_odds": snapshot.get("taiwan_odds"),
+                        "settled_at": snapshot.get("settled_at"),
+                        "settlement_status": snapshot.get("settlement_status"),
+                        "result_source": snapshot.get("result_source"),
+                    }
+                    delta_by_scope.setdefault(scope_key, []).append(evidence)
+
+        if rebuild:
+            self._evidence_by_scope = delta_by_scope
+            self._snapshot_row_count = delta_row_count
+            self._incomplete_market_rows = delta_incomplete_rows
+        else:
+            assert self._evidence_by_scope is not None
+            for scope_key, rows in delta_by_scope.items():
+                self._evidence_by_scope.setdefault(scope_key, []).extend(rows)
+            self._snapshot_row_count += delta_row_count
+            self._incomplete_market_rows.extend(delta_incomplete_rows)
+
+        self._indexed_offset = indexed_offset
+        self._indexed_file_id = file_id
+        tail_length = min(128, indexed_offset)
+        with self.snapshot_path.open("rb") as tail_stream:
+            if tail_length:
+                tail_stream.seek(indexed_offset - tail_length)
+                self._indexed_prefix_tail = tail_stream.read(tail_length)
+            else:
+                self._indexed_prefix_tail = b""
+        final_stat = self.snapshot_path.stat()
+        self._rows_signature = (
+            final_stat.st_mtime_ns, final_stat.st_size,
+            int(getattr(final_stat, "st_ino", 0) or 0),
+        )
+        self._status_cache.clear()
 
     def status(self, *, model_id: str, model_version: str, league: str, market: str,
                source_scope: str, artifact_hash: str, protocol_id: str, protocol_hash_value: str,
                as_of: str | None = None) -> dict[str, Any]:
         if as_of is not None and _date(as_of) is None:
             return {"accepted": False, "status": "INVALID_AS_OF", "reason": "as_of_must_be_timezone_aware"}
-        rows = self._rows()
+        self._load_evidence_index()
         cache_key = (
             model_id, model_version, league, market, source_scope,
             artifact_hash, protocol_id, protocol_hash_value, as_of
         )
         if cache_key in self._status_cache:
             return self._status_cache[cache_key].copy()
-        evidence = []
-        excluded_incomplete_market = 0
-        for snapshot in rows:
-            snapshot_time = _date(snapshot.get("snapshot_timestamp"))
-            settled_at = _date(snapshot.get("settled_at"))
-            event_start = _date(snapshot.get("event_start"))
-            requested_as_of = _date(as_of) if as_of else datetime.now(timezone.utc)
-            if (snapshot_time is None or settled_at is None or event_start is None or requested_as_of is None
-                    or snapshot_time >= event_start or settled_at < event_start
-                    or settled_at > requested_as_of or snapshot_time >= requested_as_of):
-                continue
-            if (snapshot.get("is_settled") is not True or snapshot.get("settlement_status") not in {"WON", "LOST"}
-                    or snapshot.get("forward_validation_eligible") is not True
-                    or snapshot.get("prediction_hash_schema", 1) < 4):
-                continue
-            identity = snapshot.get("experiment_identity")
-            if (not validate_experiment_identity(identity)
-                    or identity.get("strategy_version") != snapshot.get("strategy_version")
-                    or not isinstance(snapshot.get("strategy_metadata"), dict)
-                    or snapshot["strategy_metadata"].get("experiment_identity") != identity
-                    or snapshot.get("strategy_config_hashes") != identity.get("config_hashes")
-                    or snapshot.get("prediction_payload_hash") != compute_prediction_payload_hash(snapshot)):
-                continue
-            if (snapshot.get("actual_outcome") is not (snapshot.get("settlement_status") == "WON")
-                    or not isinstance(snapshot.get("result_source"), str)
-                    or not snapshot.get("result_source").strip()
-                    or snapshot.get("result_source").strip().upper() in {"UNKNOWN", "MANUAL", "TEST", "FIXTURE"}):
-                continue
-            outcome = 1 if snapshot.get("settlement_status") == "WON" else 0
-            market_probability = _normalized_market_probability(snapshot)
-            if market_probability is None:
-                excluded_incomplete_market += 1
-                continue
-            for prediction in snapshot.get("model_candidate_predictions", []):
-                if isinstance(prediction, Mapping):
-                    pred = dict(prediction)
-                    pred.update({"prediction_timestamp": snapshot.get("snapshot_timestamp"),
-                                 "event_id": snapshot.get("canonical_event_id") or snapshot.get("event_id"),
-                                 "side": snapshot.get("side") or snapshot.get("pick"),
-                                 "line": snapshot.get("line"),
-                                 "event_start": snapshot.get("event_start"),
-                                 "outcome": outcome, "market_probability": market_probability,
-                                 "decimal_odds": snapshot.get("taiwan_odds"),
-                                 "settled_at": snapshot.get("settled_at"),
-                                 "settlement_status": snapshot.get("settlement_status"),
-                                 "result_source": snapshot.get("result_source")})
-                    data_as_of = _date(pred.get("data_as_of"))
-                    snapshot_time = _date(pred.get("prediction_timestamp"))
-                    event_start = _date(snapshot.get("event_start"))
-                    if (data_as_of is None or snapshot_time is None or event_start is None
-                            or data_as_of > snapshot_time or data_as_of >= event_start
-                            or pred.get("freshness_status") not in {"LIVE", "FRESH", "AGING"}):
-                        continue
-                    evidence.append(pred)
+        evidence = (self._evidence_by_scope or {}).get((
+            model_id, model_version, league, market, source_scope,
+            artifact_hash, protocol_id, protocol_hash_value,
+        ), [])
+        requested_as_of = _date(as_of) if as_of else datetime.now(timezone.utc)
+        incomplete_market_count = sum(
+            1 for snapshot_time, settled_at in self._incomplete_market_rows
+            if snapshot_time < requested_as_of and settled_at <= requested_as_of
+        )
         result = evaluate_scope_evidence(evidence, model_id=model_id, model_version=model_version,
                                          league=league, market=market, source_scope=source_scope,
                                          artifact_hash=artifact_hash, protocol_id=protocol_id,
                                          protocol_hash_value=protocol_hash_value,
                                          policy=self.policy.get("gate", self.policy), as_of=as_of)
-        result["evidence_snapshot_count"] = len(rows)
-        result["incomplete_or_invalid_market_benchmark_excluded"] = excluded_incomplete_market
+        result["evidence_snapshot_count"] = self._snapshot_row_count
+        result["incomplete_or_invalid_market_benchmark_excluded"] = incomplete_market_count
         self._status_cache[cache_key] = result.copy()
         return result

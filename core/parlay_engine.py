@@ -22,7 +22,7 @@ from core.bet_validation import assess_leg, event_key
 from core.contracts.common import PredictionSignal, TaiwanLeg
 
 SEARCH_STATE_SCHEMA = "parlay-search-state-v1"
-SEARCH_VERSION = "fair-frontier-v1"
+SEARCH_VERSION = "fair-frontier-v2-ranking"
 
 
 class ParlaySearchResult(dict):
@@ -143,7 +143,7 @@ class ParlayEngine:
         max_odds: float = 500.0,
         target_odds: Optional[float] = None,
         tolerance: float = 0.20,
-        min_legs: int = 2,
+        min_legs: int = 1,
         max_legs: int = 6,
         max_matches_pool: int = 16,
         matches: Optional[List[Dict[str, Any]]] = None,
@@ -155,6 +155,7 @@ class ParlayEngine:
         resume_state: Optional[Dict[str, Any]] = None,
         deadline_monotonic: Optional[float] = None,
         scope_as_of: Any = None,
+        ranking_mode: str = "WIN_PROBABILITY",
     ) -> Dict[str, Any]:
         """Search exact legal combinations with a resumable fair frontier.
 
@@ -172,6 +173,7 @@ class ParlayEngine:
         min_legs = max(1, int(min_legs))
         max_legs = max(min_legs, int(max_legs))
         budget = max(1, int(search_budget))
+        ranking_mode = "VALUE" if str(ranking_mode).upper() == "VALUE" else "WIN_PROBABILITY"
         if scope_as_of is None:
             scope_as_of = datetime.now(timezone.utc).isoformat()
         elif hasattr(scope_as_of, "isoformat"):
@@ -258,12 +260,18 @@ class ParlayEngine:
         legs_by_id = {option_ids[eid][idx]: leg for eid in event_ids for idx, leg in enumerate(event_options[eid])}
         option_id_by_object = {id(leg): option_ids[eid][idx]
                                for eid in event_ids for idx, leg in enumerate(event_options[eid])}
+        use_precomputed_sharp = isinstance(self.sharp_edge_engine, SharpEdgeEngine)
+        sharp_results_by_option = ({
+            option_id: self.sharp_edge_engine.evaluate_leg_sharp_edge(leg)
+            for option_id, leg in legs_by_id.items()
+        } if use_precomputed_sharp else {})
         event_index_by_id = {eid: idx for idx, eid in enumerate(event_ids)}
 
         config_scope = {"min_odds": min_odds, "max_odds": max_odds, "target_odds": target_odds,
                         "tolerance": tolerance, "min_legs": min_legs, "max_legs": max_legs,
                         "signal_filter": signal_filter, "exclude_traps": exclude_traps,
                         "prefer_steam": prefer_steam, "scope_as_of": scope_as_of,
+                        "ranking_mode": ranking_mode,
                         "search_version": SEARCH_VERSION,
                         "normalized_input_pool": sorted((leg.to_dict() for leg in normalized_legs),
                                                          key=_stable_id),
@@ -305,14 +313,24 @@ class ParlayEngine:
         aggressive: List[Dict[str, Any]] = []
         moonshot: List[Dict[str, Any]] = []
         buckets = {"high_consensus": high_consensus, "aggressive": aggressive, "moonshot": moonshot}
-        rank_key = lambda x: (
-            x["min_evidence_score"],
-            x["parlay_expected_value"] + (0.15 * x.get("steam_count", 0)) - (0.25 * x.get("trap_count", 0)),
-            x["avg_evidence_score"],
-            x["total_independent_sources"],
-            -x["odds_distance"],
-            x["total_odds"],
-        )
+        def rank_key(candidate):
+            has_sharp = bool(candidate.get("has_sharp_benchmark"))
+            probability = (candidate.get("sharp_joint_probability") if has_sharp
+                           else candidate.get("joint_probability", 0.0)) or 0.0
+            value = (candidate.get("sharp_parlay_ev") if has_sharp
+                     else candidate.get("parlay_expected_value", -1.0))
+            value = value if value is not None else -1.0
+            evidence_tiebreakers = (
+                candidate.get("steam_count", 0) if prefer_steam else 0,
+                candidate["min_evidence_score"],
+                candidate["avg_evidence_score"],
+                candidate["total_independent_sources"],
+                -candidate["odds_distance"],
+                candidate["total_odds"],
+            )
+            if ranking_mode == "VALUE":
+                return (value, probability, *evidence_tiebreakers)
+            return (probability, value, *evidence_tiebreakers)
         def keep_top(items, combo):
             if any(row["candidate_id"] == combo["candidate_id"] for row in items):
                 return
@@ -340,9 +358,15 @@ class ParlayEngine:
             supports = sum((leg.signal_evidence or {}).get("non_market_supports", 0) for leg in leg_tuple)
             emojis = "".join((leg.signal_evidence or {}).get("agreement_emoji", "⚪") for leg in leg_tuple)
             corr = self.correlation_guard.evaluate_parlay(list(leg_tuple), total_odds=total_odds)
-            sharp_eval = self.sharp_edge_engine.evaluate_parlay_sharp_ev(
-                list(leg_tuple), total_odds=total_odds, correlation_penalty=corr.correlation_penalty
-            )
+            sharp_args: Dict[str, Any] = {
+                "total_odds": total_odds,
+                "correlation_penalty": corr.correlation_penalty,
+            }
+            if use_precomputed_sharp:
+                sharp_args["precomputed_leg_results"] = [
+                    sharp_results_by_option[option_id_by_object[id(leg)]] for leg in leg_tuple
+                ]
+            sharp_eval = self.sharp_edge_engine.evaluate_parlay_sharp_ev(list(leg_tuple), **sharp_args)
             target_mid = target_odds if target_odds is not None else (min_odds + max_odds) / 2.0
             # Every leg in this search pool already passed assess_leg at the
             # same scope_as_of above. Rechecking each leg for every candidate
@@ -555,7 +579,9 @@ class ParlayEngine:
             "search_complete": complete, "budget_exhausted": not complete and visited_this_call >= budget,
             "deadline_reached": not complete and deadline_monotonic is not None and time.monotonic() >= deadline_monotonic,
             "search_status": "BUDGET_EXHAUSTED" if (not complete and visited_this_call >= budget) else state["status"], "global_top_guarantee": complete,
-            "ranking_objective": "max evidence score, then expected value, average evidence, independent supports, target-odds proximity, total odds; top 12 per tier",
+            "ranking_objective": ("estimated EV first, then joint probability and evidence; top 12 per tier"
+                                  if ranking_mode == "VALUE" else
+                                  "joint probability first, then estimated EV and evidence; top 12 per tier"),
             "partial_result_interpretation": "Partial frontiers produce useful candidates but do not guarantee the global top candidates.",
             "min_legs": min_legs, "max_legs": max_legs, "effective_max_legs": max_length,
             "event_coverage": {"visited_events": covered_events, "total_events": len(event_ids),

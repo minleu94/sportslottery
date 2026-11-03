@@ -308,13 +308,13 @@ def test_bounded_topk_matches_bruteforce_full_search_ranking():
             support = sum(leg.signal_evidence["non_market_supports"] for leg in selected)
             joint = selected[0].signal_evidence["consensus_probability"] * selected[1].signal_evidence["consensus_probability"]
             target_distance = abs(total - 2.75)
-            rank = (min_score, round(joint * total - 1, 4), round(avg_score, 2), support,
-                    -round(target_distance, 2), round(total, 2))
+            rank = (round(joint, 6), round(joint * total - 1, 4), min_score,
+                    round(avg_score, 2), support, -round(target_distance, 2), round(total, 2))
             full.append(rank)
     expected = sorted(full, reverse=True)[:12]
     actual = [(
-        row["min_evidence_score"], row["parlay_expected_value"], row["avg_evidence_score"],
-        row["total_independent_sources"], -row["odds_distance"], row["total_odds"],
+        row["joint_probability"], row["parlay_expected_value"], row["min_evidence_score"],
+        row["avg_evidence_score"], row["total_independent_sources"], -row["odds_distance"], row["total_odds"],
     ) for row in results["high_consensus"]]
     assert actual == expected
 

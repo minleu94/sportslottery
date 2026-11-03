@@ -39,6 +39,8 @@ def search_parlays(
     req: ParlaySearchRequest,
     _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
 ):
+    if (req.min_odds is None) != (req.max_odds is None):
+        raise HTTPException(status_code=422, detail="min_odds 與 max_odds 必須同時提供。")
     request_key = hashlib.sha256(
         json.dumps(req.model_dump(), sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -114,8 +116,19 @@ def _execute_parlay_search(req: ParlaySearchRequest):
         raw_legs, selected_alliances, signal_hub, bypass_cache=req.force_refresh
     )
 
-    min_o = req.min_odds if req.min_odds is not None else round(req.target_odds * (1 - req.tolerance), 2)
-    max_o = req.max_odds if req.max_odds is not None else round(req.target_odds * (1 + req.tolerance), 2)
+    has_explicit_range = req.min_odds is not None and req.max_odds is not None
+    if has_explicit_range:
+        min_o = max(1.5, float(req.min_odds))
+        max_o = float(req.max_odds)
+        if max_o < min_o:
+            raise HTTPException(status_code=422, detail="max_odds 必須大於或等於 min_odds。")
+        engine_target_odds = None
+        response_target_odds = req.target_odds or round((min_o + max_o) / 2.0, 2)
+    else:
+        engine_target_odds = req.target_odds or 20.0
+        min_o = round(engine_target_odds * (1 - req.tolerance), 2)
+        max_o = round(engine_target_odds * (1 + req.tolerance), 2)
+        response_target_odds = engine_target_odds
 
     diagnostics: Dict[str, Any] = {}
     stage_started = time.perf_counter()
@@ -123,7 +136,7 @@ def _execute_parlay_search(req: ParlaySearchRequest):
         legs=enriched_legs,
         min_odds=max(1.5, min_o),
         max_odds=max_o,
-        target_odds=req.target_odds,
+        target_odds=engine_target_odds,
         tolerance=req.tolerance,
         signal_filter=req.signal_filter,
         exclude_traps=req.exclude_traps,
@@ -132,6 +145,7 @@ def _execute_parlay_search(req: ParlaySearchRequest):
         max_legs=req.max_legs,
         diagnostics=diagnostics,
         search_budget=req.search_budget,
+        ranking_mode=req.ranking_mode,
     )
     parlay_search_ms = (time.perf_counter() - stage_started) * 1000
 
@@ -183,7 +197,7 @@ def _execute_parlay_search(req: ParlaySearchRequest):
 
     stage_started = time.perf_counter()
     response = {
-        "target_odds": req.target_odds,
+        "target_odds": response_target_odds,
         "min_odds": min_o,
         "max_odds": max_o,
         "tolerance": req.tolerance,

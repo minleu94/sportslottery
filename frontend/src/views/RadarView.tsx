@@ -23,7 +23,17 @@ import {
   EyeOff,
   Scale,
   Zap,
+  RefreshCw,
 } from "lucide-react"
+
+interface RadarSnapshot {
+  cachedAt: number
+  leagues: RadarLeague[]
+  legs: Leg[]
+}
+
+const RADAR_CACHE_TTL_MS = 3 * 60 * 1000
+let radarSnapshot: RadarSnapshot | null = null
 
 export const RadarView: React.FC = () => {
   const { viewMode } = useUI()
@@ -36,24 +46,45 @@ export const RadarView: React.FC = () => {
   const [collapsedLeagues, setCollapsedLeagues] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshVersion, setRefreshVersion] = useState(0)
 
   useEffect(() => {
     let isMounted = true
-    async function loadData() {
+    async function loadData(forceRefresh: boolean) {
+      const cached = radarSnapshot
+      if (!forceRefresh && cached && Date.now() - cached.cachedAt < RADAR_CACHE_TTL_MS) {
+        setLeagues(cached.leagues)
+        setLegs(cached.legs)
+        setError(null)
+        setLoading(false)
+        return
+      }
       setLoading(true)
       setError(null)
       try {
-        const [radarData, legsData] = await Promise.all([
-          api.getRadar(),
-          api.getLegs(),
-        ])
+        const radarData = await api.getRadar(forceRefresh)
+        // The radar endpoint refreshes and writes the source cache first. Read
+        // the legs afterward so a manual refresh does not fetch each league twice.
+        const legsData = await api.getLegs()
         if (isMounted) {
-          setLeagues(radarData.radar || [])
-          setLegs(legsData.legs || [])
+          const nextSnapshot = {
+            cachedAt: Date.now(),
+            leagues: radarData.radar || [],
+            legs: legsData.legs || [],
+          }
+          radarSnapshot = nextSnapshot
+          setLeagues(nextSnapshot.leagues)
+          setLegs(nextSnapshot.legs)
         }
       } catch (err: any) {
         if (isMounted) {
-          setError(err.message || "載入盤口資料失敗")
+          if (radarSnapshot) {
+            setLeagues(radarSnapshot.leagues)
+            setLegs(radarSnapshot.legs)
+            setError(`更新失敗，先顯示上次資料：${err.message || "載入盤口資料失敗"}`)
+          } else {
+            setError(err.message || "載入盤口資料失敗")
+          }
         }
       } finally {
         if (isMounted) {
@@ -61,11 +92,11 @@ export const RadarView: React.FC = () => {
         }
       }
     }
-    loadData()
+    loadData(refreshVersion > 0)
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [refreshVersion])
 
   // Total open matches across all radar leagues
   const totalOpenMatches = leagues.reduce((sum, l) => sum + (l.taiwan_market_count || 0), 0)
@@ -240,6 +271,16 @@ export const RadarView: React.FC = () => {
             </span>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setRefreshVersion((version) => version + 1)}
+          disabled={loading}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:border-slate-300 disabled:opacity-60"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          更新盤口
+        </button>
 
         {/* Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">

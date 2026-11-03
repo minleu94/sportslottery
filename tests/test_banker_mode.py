@@ -74,6 +74,21 @@ def test_banker_mode_2_leg_search():
         assert combo["total_odds"] <= 4.0
 
 
+def test_banker_mode_defaults_to_one_leg():
+    engine = ParlayEngine()
+    legs = [
+        create_leg("E1", "洋基", "紅襪", "紅襪", 1.55, fair_prob=0.72),
+        create_leg("E2", "道奇", "巨人", "巨人", 1.60, fair_prob=0.70),
+    ]
+
+    diagnostics = {}
+    result = engine.search_parlays(legs, min_odds=1.5, max_odds=6.0, diagnostics=diagnostics)
+
+    assert diagnostics["min_legs"] == 1
+    candidates = result["high_consensus"] + result["aggressive"] + result["moonshot"]
+    assert any(candidate["legs_count"] == 1 for candidate in candidates)
+
+
 def test_banker_mode_bounds_enforcement():
     engine = ParlayEngine()
     leg1 = create_leg("E1", "A", "B", "B", 1.50, fair_prob=0.70)

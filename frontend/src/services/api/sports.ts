@@ -2,7 +2,11 @@ import { BASE_URL } from "./shared"
 import type { LegsResponse, ParlaySearchResponse, RadarResponse } from "@/types"
 export interface SearchParlaysParams {
 
-  target_odds: number
+  target_odds: number | null
+
+  min_odds?: number
+
+  max_odds?: number
 
   tolerance?: number
 
@@ -13,6 +17,8 @@ export interface SearchParlaysParams {
   alliances?: string[]
 
   signal_filter?: string
+
+  ranking_mode?: "WIN_PROBABILITY" | "VALUE"
 
   exclude_traps?: boolean
 

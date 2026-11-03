@@ -292,7 +292,8 @@ if active_tab == NAV_RADAR:
     else:
         try:
             radar_summary = season_radar.get_radar_summary(
-                taiwan_legs=radar_eligible_legs, check_live_espn=True, evaluated_legs=evaluated_candidates
+                taiwan_legs=radar_eligible_legs, check_live_espn=True, evaluated_legs=evaluated_candidates,
+                force_refresh=force_refresh,
             )
         except TypeError:
             try:
@@ -301,7 +302,8 @@ if active_tab == NAV_RADAR:
                 importlib.reload(core.season_radar)
                 season_radar = core.season_radar.SeasonRadar()
                 radar_summary = season_radar.get_radar_summary(
-                    taiwan_legs=radar_eligible_legs, check_live_espn=True, evaluated_legs=evaluated_candidates
+                    taiwan_legs=radar_eligible_legs, check_live_espn=True, evaluated_legs=evaluated_candidates,
+                    force_refresh=force_refresh,
                 )
             except Exception:
                 radar_summary = season_radar.get_radar_summary(
@@ -515,12 +517,10 @@ elif active_tab == NAV_PARLAY:
 
         if "銀行家模式" in odds_mode:
             target_odds_range = (1.5, 6.0)
-            target_val = 2.5
-            tolerance_val = 0.35
-            min_search_legs = 2
+            min_search_legs = 1
             max_search_legs = 3
-            st.info("💡 **低倍率銀行家模式**：以 2~3 關、總倍率約 1.5x ~ 6x 搜尋組合。較低倍率不代表命中率較高或風險較低；各關機率與 EV 仍受來源、資料完整度及未校準估計影響。")
-            st.caption(f"鎖定搜尋賠率：**{target_odds_range[0]:.1f}x ~ {target_odds_range[1]:.1f}x** (限定 2~3 關)")
+            st.info("💡 **低倍率銀行家模式**：搜尋 1~3 關、總倍率 1.5x ~ 6x；與其他模式使用相同排序，可優先看估計命中率或估計 EV。低倍率不代表已證實的高勝率。")
+            st.caption(f"搜尋賠率：**{target_odds_range[0]:.1f}x ~ {target_odds_range[1]:.1f}x** (1~3 關)")
         elif "指定目標倍率" in odds_mode:
             target_val = st.number_input("🎯 目標總倍率 (x)", min_value=1.5, max_value=500.0, value=20.0, step=1.0)
             tolerance_pct = st.slider("容許浮動範圍 (±%)", min_value=5, max_value=40, value=20, step=5)
@@ -567,6 +567,14 @@ elif active_tab == NAV_PARLAY:
                 )
                 if target_odds_range[1] <= 6.0:
                     max_search_legs = 3
+
+        recommendation_priority = st.radio(
+            "候選組合排序：",
+            ["高命中率優先", "值得買優先 (EV)"],
+            horizontal=True,
+            help="三種倍率模式共用排序。命中率與 EV 都是依目前資料計算的估計，不代表已驗證的實際勝率或收益。",
+        )
+        ranking_mode = "WIN_PROBABILITY" if recommendation_priority == "高命中率優先" else "VALUE"
 
     with col_p2:
         st.markdown("#### ② 選擇混串賽事與情報過濾")
@@ -649,7 +657,7 @@ elif active_tab == NAV_PARLAY:
         context_hash = hashlib.sha256(json.dumps({"quotes":quote_scope,"range":target_odds_range,
             "target":target_val,"tolerance":tolerance_val,"filter":signal_filter_code,
             "exclude_traps": filter_exclude_traps, "prefer_steam": filter_prefer_steam,
-            "min_legs":min_search_legs,"max_legs":max_search_legs,
+            "min_legs":min_search_legs,"max_legs":max_search_legs,"ranking_mode":ranking_mode,
             "identity":get_strategy_metadata().get("code_hash")},sort_keys=True,default=str).encode('utf-8')).hexdigest()
         saved_search = st.session_state.get("parlay_search_progress", {})
         continue_search = st.button("繼續同批資料的搜尋", disabled=not saved_search or saved_search.get("complete",True))
@@ -674,13 +682,14 @@ elif active_tab == NAV_PARLAY:
                 exclude_traps=filter_exclude_traps, prefer_steam=filter_prefer_steam,
                 min_legs=min_search_legs,max_legs=max_search_legs,diagnostics=search_diagnostics,search_budget=int(search_budget),
                 resume_state=saved_search.get("state") if reusable else None,scope_as_of=search_scope,
+                ranking_mode=ranking_mode,
             )
             state = parlay_results.search_state
             search_diagnostics.pop("resume_state", None)
             st.session_state["parlay_search_progress"] = {"context_hash":context_hash,"scope_as_of":search_scope,
                 "legs":enriched_legs,"state":state,"result":parlay_results,"diagnostics":search_diagnostics,
                 "complete":search_diagnostics["search_complete"]}
-        st.caption("續搜固定初次搜尋的同批情報；新盤口、過期或已開賽資料會重新開始。排名優先證據支持，其次為未驗證的估計EV。")
+        st.caption(f"續搜固定初次搜尋的同批情報；新盤口、過期或已開賽資料會重新開始。此排序：{'估計聯合命中率優先' if ranking_mode == 'WIN_PROBABILITY' else '估計 EV 優先'}；完整 Sharp 基準可用時採用 Sharp 機率／EV，否則採用啟發式估計。")
     checks = [assess_leg(leg) for leg in enriched_legs]
     ready_count = sum(check["is_ready"] for check in checks)
     raw_source_option_count = sum(int(candidate_source_statuses.get(str(aid), {}).get("option_count", 0) or 0)

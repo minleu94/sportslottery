@@ -26,6 +26,7 @@ interface ParlayViewProps {
 }
 
 type OddsMode = "banker" | "target" | "range"
+type RankingMode = "WIN_PROBABILITY" | "VALUE"
 type ParlayTiers = Record<ParlayTier, ParlayRecommendation[]>
 type ParlayPerformance = ParlaySearchPerformance
 
@@ -46,12 +47,14 @@ interface ParlaySearchCache {
   targetOdds: number
   tolerance: number
   minLegs: number
+  minLegsCustomized?: boolean
   maxLegs: number
   rangeMin: number
   rangeMax: number
   crossSport: boolean
   selectedAlliances: string[]
   signalFilter: string
+  rankingMode: RankingMode
   excludeTraps: boolean
   preferSteam: boolean
   activeTier: ParlayTier
@@ -102,8 +105,14 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   const [oddsMode, setOddsMode] = useState<OddsMode>(restoredSearch?.oddsMode ?? "banker")
   const [targetOdds, setTargetOdds] = useState<number>(restoredSearch?.targetOdds ?? 2.5)
   const [tolerance, setTolerance] = useState<number>(restoredSearch?.tolerance ?? 0.35)
-  const [minLegs, setMinLegs] = useState<number>(restoredSearch?.minLegs ?? 2)
+  const [minLegsCustomized, setMinLegsCustomized] = useState<boolean>(restoredSearch?.minLegsCustomized ?? false)
+  const [minLegs, setMinLegs] = useState<number>(
+    restoredSearch?.oddsMode === "banker" && !restoredSearch.minLegsCustomized
+      ? 1
+      : restoredSearch?.minLegs ?? (restoredSearch?.oddsMode === "target" || restoredSearch?.oddsMode === "range" ? 2 : 1),
+  )
   const [maxLegs, setMaxLegs] = useState<number>(restoredSearch?.maxLegs ?? 3)
+  const [rankingMode, setRankingMode] = useState<RankingMode>(restoredSearch?.rankingMode ?? "WIN_PROBABILITY")
 
   // Range Slider state (for Range mode)
   const [rangeMin, setRangeMin] = useState<number>(restoredSearch?.rangeMin ?? 1.8)
@@ -138,12 +147,14 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       targetOdds,
       tolerance,
       minLegs,
+      minLegsCustomized,
       maxLegs,
       rangeMin,
       rangeMax,
       crossSport,
       selectedAlliances,
       signalFilter,
+      rankingMode,
       excludeTraps,
       preferSteam,
       activeTier,
@@ -153,7 +164,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       searchComplete,
       diagnostics: searchDiagnostics,
     })
-  }, [oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax, crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam, activeTier, tiers, hasSearched, searchPerformance, searchComplete, searchDiagnostics])
+  }, [oddsMode, targetOdds, tolerance, minLegs, minLegsCustomized, maxLegs, rangeMin, rangeMax, crossSport, selectedAlliances, signalFilter, rankingMode, excludeTraps, preferSteam, activeTier, tiers, hasSearched, searchPerformance, searchComplete, searchDiagnostics])
 
   const allianceOptions = [
     { id: "1", label: "NBA 籃球" },
@@ -165,20 +176,21 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   ]
 
   const rangePresets = [
-    { label: "低倍率組合 (1.8x – 4.0x)", min: 1.8, max: 4.0, target: 2.5, minL: 2, maxL: 3, filter: "value_only" },
-    { label: "中低倍率組合 (4.0x – 10.0x)", min: 4.0, max: 10.0, target: 6.0, minL: 2, maxL: 4, filter: "value_only" },
-    { label: "進取策略 (10x – 25x)", min: 10.0, max: 25.0, target: 15.0, minL: 3, maxL: 5, filter: "normal" },
-    { label: "高倍進攻 (25x – 75x)", min: 25.0, max: 75.0, target: 40.0, minL: 4, maxL: 6, filter: "normal" },
-    { label: "登月串關 (75x – 200x)", min: 75.0, max: 200.0, target: 120.0, minL: 5, maxL: 7, filter: "normal" },
-    { label: "極限串關 (200x – 500x)", min: 200.0, max: 500.0, target: 300.0, minL: 6, maxL: 8, filter: "wild" },
+    { label: "低倍率組合 (1.8x – 4.0x)", min: 1.8, max: 4.0, minL: 2, maxL: 3, filter: "value_only" },
+    { label: "中低倍率組合 (4.0x – 10.0x)", min: 4.0, max: 10.0, minL: 2, maxL: 4, filter: "value_only" },
+    { label: "進取策略 (10x – 25x)", min: 10.0, max: 25.0, minL: 3, maxL: 5, filter: "normal" },
+    { label: "高倍進攻 (25x – 75x)", min: 25.0, max: 75.0, minL: 4, maxL: 6, filter: "normal" },
+    { label: "登月串關 (75x – 200x)", min: 75.0, max: 200.0, minL: 5, maxL: 7, filter: "normal" },
+    { label: "極限串關 (200x – 500x)", min: 200.0, max: 500.0, minL: 6, maxL: 8, filter: "wild" },
   ]
 
   function selectMode(mode: OddsMode) {
     setOddsMode(mode)
+    setMinLegsCustomized(false)
     if (mode === "banker") {
-      setTargetOdds(2.5)
-      setTolerance(0.35)
-      setMinLegs(2)
+      setTargetOdds(3.75)
+      setTolerance(0.20)
+      setMinLegs(1)
       setMaxLegs(3)
       setSignalFilter("value_only")
     } else if (mode === "target") {
@@ -199,8 +211,9 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   function applyPreset(preset: typeof rangePresets[0]) {
     setRangeMin(preset.min)
     setRangeMax(preset.max)
-    setTargetOdds(preset.target)
+    setTargetOdds((preset.min + preset.max) / 2)
     setMinLegs(preset.minL)
+    setMinLegsCustomized(true)
     setMaxLegs(preset.maxL)
     setSignalFilter(preset.filter)
   }
@@ -213,20 +226,23 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
     setSearchComplete(false)
     setSearchDiagnostics(null)
     writeParlaySearchCache({
-      oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax,
-      crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam,
+      oddsMode, targetOdds, tolerance, minLegs, minLegsCustomized, maxLegs, rangeMin, rangeMax,
+      crossSport, selectedAlliances, signalFilter, rankingMode, excludeTraps, preferSteam,
       activeTier, tiers, hasSearched: true, performance: null, searchComplete: false, diagnostics: null,
     })
 
     try {
       const alliances = crossSport ? undefined : selectedAlliances
       const res = await api.searchParlays({
-        target_odds: targetOdds,
+        target_odds: oddsMode === "target" ? targetOdds : null,
+        min_odds: oddsMode === "banker" ? 1.5 : oddsMode === "range" ? rangeMin : undefined,
+        max_odds: oddsMode === "banker" ? 6.0 : oddsMode === "range" ? rangeMax : undefined,
         tolerance: tolerance,
         min_legs: minLegs,
         max_legs: maxLegs,
         alliances: alliances,
         signal_filter: signalFilter,
+        ranking_mode: rankingMode,
         exclude_traps: excludeTraps,
         prefer_steam: preferSteam,
         search_budget: 60000,
@@ -257,8 +273,8 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       }
       setSearchDiagnostics(diagnostics)
       writeParlaySearchCache({
-        oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax,
-        crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam,
+        oddsMode, targetOdds, tolerance, minLegs, minLegsCustomized, maxLegs, rangeMin, rangeMax,
+        crossSport, selectedAlliances, signalFilter, rankingMode, excludeTraps, preferSteam,
         activeTier: nextActiveTier, tiers: res.tiers, hasSearched: true,
         performance: res.performance ?? null, searchComplete: res.search_complete, diagnostics,
       })
@@ -272,6 +288,11 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
 
   const currentList = tiers[activeTier] || []
   const allTiersList = [...tiers.high_consensus, ...tiers.aggressive, ...tiers.moonshot]
+  const searchRangeLabel = oddsMode === "banker"
+    ? "1.5~6.0x"
+    : oddsMode === "range"
+      ? `${rangeMin.toFixed(1)}~${rangeMax.toFixed(1)}x`
+      : `${targetOdds.toFixed(1)}x`
 
   return (
     <motion.div
@@ -316,7 +337,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                   低倍率銀行家模式
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  1.5x – 6x 搜尋範圍 · 2~3 關
+                  1.5x – 6x 搜尋範圍 · 1~3 關
                 </div>
               </button>
 
@@ -352,7 +373,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                   自訂賠率區間
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  6 大快捷區間 · 自由滑桿
+                  6 大快捷賠率區間
                 </div>
               </button>
             </div>
@@ -365,7 +386,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                   低倍率串關搜尋範圍
                 </div>
                 <p className="text-slate-600 dark:text-slate-400">
-                  以 2~3 關、總倍率約 1.5x ~ 6.0x 搜尋組合。較低倍率不代表命中率較高或風險較低；個別勝率與 EV 仍受來源、資料完整度及未校準估計影響。
+                  以 1~3 關、總倍率 1.5x ~ 6.0x 搜尋候選；與其他模式使用相同排序。較低倍率不代表已證實的高勝率，命中率與 EV 仍是估計值。
                 </p>
               </div>
             )}
@@ -416,19 +437,28 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                     )
                   })}
                 </div>
-                <div className="pt-2">
-                  <Slider
-                    min={1.5}
-                    max={500}
-                    step={0.5}
-                    value={targetOdds}
-                    onChange={setTargetOdds}
-                    label="目標中線賠率"
-                    displayValue={`${targetOdds.toFixed(1)} 倍`}
-                  />
+                <div className="pt-2 text-xs text-slate-500 dark:text-slate-400">
+                  目前搜尋區間：<span className="font-mono text-slate-700 dark:text-slate-300">{rangeMin.toFixed(1)}x ~ {rangeMax.toFixed(1)}x</span>
                 </div>
               </div>
             )}
+
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-3.5 space-y-1.5">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                三種模式共用的候選排序
+              </label>
+              <select
+                value={rankingMode}
+                onChange={(e) => setRankingMode(e.target.value as RankingMode)}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 w-full sm:max-w-sm cursor-pointer"
+              >
+                <option value="WIN_PROBABILITY">估計聯合命中率優先</option>
+                <option value="VALUE">估計 EV（值得買）優先</option>
+              </select>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                排名先看所選指標；資料齊全時採用 Sharp 基準，否則採用啟發式估計。結果不代表已驗證勝率或收益。
+              </p>
+            </div>
           </div>
 
           {/* STEP 2: Cross-Sport & Quality Filter Grid */}
@@ -493,9 +523,15 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                 <div className="flex items-center gap-2">
                   <select
                     value={minLegs}
-                    onChange={(e) => setMinLegs(Number(e.target.value))}
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
+                      setMinLegs(next)
+                      setMinLegsCustomized(true)
+                      if (maxLegs < next) setMaxLegs(next)
+                    }}
                     className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-mono w-full cursor-pointer"
                   >
+                    <option value={1}>最少 1 關</option>
                     <option value={2}>最少 2 關</option>
                     <option value={3}>最少 3 關</option>
                     <option value={4}>最少 4 關</option>
@@ -503,9 +539,18 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                   <span className="text-slate-400 text-xs">至</span>
                   <select
                     value={maxLegs}
-                    onChange={(e) => setMaxLegs(Number(e.target.value))}
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
+                      setMaxLegs(next)
+                      if (minLegs > next) {
+                        setMinLegs(next)
+                        setMinLegsCustomized(true)
+                      }
+                    }}
                     className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-mono w-full cursor-pointer"
                   >
+                    <option value={1}>最多 1 關</option>
+                    <option value={2}>最多 2 關</option>
                     <option value={3}>最多 3 關</option>
                     <option value={4}>最多 4 關</option>
                     <option value={5}>最多 5 關</option>
@@ -573,10 +618,10 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
               {searching ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>正在運算最佳期望值組合...</span>
+                  <span>{rankingMode === "WIN_PROBABILITY" ? "正在搜尋高命中率候選..." : "正在搜尋高估計 EV 候選..."}</span>
                 </>
               ) : (
-                <span>搜尋 {targetOdds.toFixed(1)}x 串關組合</span>
+                <span>搜尋 {searchRangeLabel} 候選組合</span>
               )}
             </Button>
           </div>

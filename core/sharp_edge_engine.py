@@ -47,6 +47,7 @@ class SharpEdgeEngine:
         legs: List[TaiwanLeg],
         total_odds: float,
         correlation_penalty: float = 0.0,
+        precomputed_leg_results: Optional[List[Optional[SharpComparisonResult]]] = None,
     ) -> Dict[str, Any]:
         """Evaluate a multi-leg parlay using Sharp de-vigged fair probabilities.
 
@@ -65,7 +66,9 @@ class SharpEdgeEngine:
                 "summary_badge": "Sharp 基準尚未取得",
             }
 
-        results = [self.evaluate_leg_sharp_edge(leg) for leg in legs]
+        results = (precomputed_leg_results if precomputed_leg_results is not None
+                   and len(precomputed_leg_results) == len(legs)
+                   else [self.evaluate_leg_sharp_edge(leg) for leg in legs])
         if any(result is None for result in results):
             return {
                 "has_sharp_benchmark": False,
