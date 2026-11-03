@@ -345,7 +345,7 @@ def test_research_analytics(tmp_path):
     from unittest.mock import MagicMock, patch
 
     snapshot_logger = MagicMock(log_path=tmp_path / "empty-snapshots.jsonl")
-    snapshot_logger.get_all_snapshots.return_value = []
+    snapshot_logger.iter_snapshots.return_value = iter([])
     metrics_engine = MagicMock()
     metrics_engine.forward_cohort.return_value = {}
     metrics_engine.evaluate_agreement_buckets.return_value = {}

@@ -135,7 +135,7 @@ def test_parlay_response_exposes_tier_and_hides_internal_raw_legs(monkeypatch):
 def test_research_responses_match_frontend_contract(monkeypatch, tmp_path):
     analytics = {
         "total_snapshots": 3,
-        "cohort": {"sample_size": 2},
+        "cohort": {"sample_size": 2, "observations": [], "audit": {"input_count": 3}},
         "agreement": {},
         "ev_data": {},
         "crowd_data": {},
@@ -172,7 +172,7 @@ def test_research_responses_match_frontend_contract(monkeypatch, tmp_path):
         lambda: (
             MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(),
             MagicMock(
-                get_all_snapshots=lambda: [1, 2, 3],
+                iter_snapshots=lambda: iter([1, 2, 3]),
                 log_path=tmp_path / "snapshots.jsonl",
             ),
             MagicMock(

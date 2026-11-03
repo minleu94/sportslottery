@@ -44,18 +44,21 @@ def get_research_analytics():
             return _analytics_cache
 
     try:
-        snaps = snapshot_logger.get_all_snapshots()
+        cohort = metrics_engine.forward_cohort(snapshot_logger.iter_snapshots())
     except Exception:
-        snaps = []
+        cohort = {"observations": [], "audit": {"input_count": 0}}
 
     try:
-        cohort = metrics_engine.forward_cohort(snaps)
-        agreement = metrics_engine.evaluate_agreement_buckets(snaps)
-        ev_data = metrics_engine.evaluate_ev_buckets(snaps)
-        crowd_data = metrics_engine.evaluate_crowd_buckets(snaps)
-        expert_data = metrics_engine.evaluate_expert_metrics(snaps)
+        # Every downstream metric scopes to this same validated, deduplicated
+        # cohort. Re-reading the full ledger for each metric only adds latency
+        # and peak memory use.
+        observations = cohort.get("observations", [])
+        agreement = metrics_engine.evaluate_agreement_buckets(observations)
+        ev_data = metrics_engine.evaluate_ev_buckets(observations)
+        crowd_data = metrics_engine.evaluate_crowd_buckets(observations)
+        expert_data = metrics_engine.evaluate_expert_metrics(observations)
     except Exception:
-        cohort, agreement, ev_data, crowd_data, expert_data = {}, {}, {}, {}, {}
+        agreement, ev_data, crowd_data, expert_data = {}, {}, {}, {}
 
     try:
         portfolio_summary = shadow_portfolio.get_portfolio_summary()
@@ -63,7 +66,7 @@ def get_research_analytics():
         portfolio_summary = {}
 
     result = {
-        "total_snapshots": len(snaps),
+        "total_snapshots": cohort.get("audit", {}).get("input_count", 0),
         "cohort": cohort,
         "agreement": agreement,
         "ev_data": ev_data,

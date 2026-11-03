@@ -349,6 +349,10 @@ def test_metrics_engine_buckets_and_insufficient_sample():
     assert "65-70%" in calib
     assert calib["65-70%"]["sample_size"] == 1
 
+    list_cohort = metrics.forward_cohort(dummy_snapshots)
+    streamed_cohort = metrics.forward_cohort(iter(dummy_snapshots))
+    assert streamed_cohort == list_cohort
+
 
 
 def test_shadow_ticket_win_loss_settlement(tmp_path):

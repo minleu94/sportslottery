@@ -27,7 +27,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from core.settlement.taiwan_rules import resolve_settlement_rule_id
 from core.strategy_version import STRATEGY_VERSION, get_strategy_metadata
@@ -542,6 +542,10 @@ class PredictionSnapshotLogger:
     def get_all_snapshots(self) -> List[Dict[str, Any]]:
         """Read a locked complete ledger; malformed rows fail with line numbers."""
         return read_jsonl(self.log_path)
+
+    def iter_snapshots(self) -> Iterator[Dict[str, Any]]:
+        """Stream snapshots without retaining the complete research ledger."""
+        return iter_jsonl(self.log_path)
 
     def settle_prediction(
         self,

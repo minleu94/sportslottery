@@ -18,6 +18,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -64,6 +65,9 @@ NGROK_CONFIG_FILE = ROOT_DIR / "config" / "ngrok_config.yaml"
 STATUS_FILE = ROOT_DIR / "data" / "line_bot_runtime.json"
 ICON_PATH = ROOT_DIR / "app_icon.ico"
 TRAY_LOG = ROOT_DIR / "data" / "tray_runtime.log"
+LOCAL_LOG_DIR = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "Sportslottery" / "logs"
+if os.environ.get("SPORTSLOTTERY_LOG_DIR", "").strip():
+    LOCAL_LOG_DIR = Path(os.environ["SPORTSLOTTERY_LOG_DIR"].strip())
 LOCK_PORT = 28501  # Socket port used to ensure single instance
 PORT = 8000
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
@@ -113,11 +117,22 @@ def find_ngrok() -> str:
 
 
 def log_tray(msg: str):
+    line = f"[{time.strftime('%X')}] {msg}\n"
     try:
         TRAY_LOG.parent.mkdir(parents=True, exist_ok=True)
         with open(TRAY_LOG, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%X')}] {msg}\n")
+            f.write(line)
+            f.flush()
+        return
+    except OSError as primary_error:
+        try:
+            LOCAL_LOG_DIR.mkdir(parents=True, exist_ok=True)
+            with open(LOCAL_LOG_DIR / "tray_runtime.log", "a", encoding="utf-8") as f:
+                f.write(f"{line.rstrip()} [primary log unavailable: {primary_error}]\n")
+        except OSError:
+            pass
     except Exception:
+        # Keep logging best-effort under test guards and unusual filesystem hooks.
         pass
 
 
@@ -250,6 +265,9 @@ class AppTrayManager:
 
     def _open_browser_when_ready(self, timeout: float = 35.0) -> None:
         """Poll FastAPI health check and automatically open browser."""
+        if os.environ.get("SPORTSLOTTERY_SKIP_BROWSER_OPEN", "").strip().lower() in {"1", "true", "yes", "on"}:
+            log_tray("SPORTSLOTTERY_SKIP_BROWSER_OPEN is active; no default browser window will be opened.")
+            return
         url = f"http://127.0.0.1:{PORT}"
         health_url = f"{url}/api/health"
         start_t = time.time()
@@ -269,20 +287,33 @@ class AppTrayManager:
         """Require the newly launched backend to answer, not a stale port owner."""
         deadline = time.monotonic() + timeout
         url = f"http://127.0.0.1:{PORT}/api/health"
+        last_response = "no HTTP response yet"
+        last_error = ""
         while time.monotonic() < deadline:
             if self.proc_api is None or self.proc_api.poll() is not None:
+                exit_code = self.proc_api.returncode if self.proc_api is not None else "unknown"
+                log_tray(f"FastAPI process exited before health verification; exit_code={exit_code}.")
                 return False
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": "sportslottery-tray/1.0"})
                 with urllib.request.urlopen(req, timeout=1.5) as resp:
                     payload = json.loads(resp.read().decode("utf-8"))
-                if resp.status == 200 and payload.get("app_build") == APP_BUILD:
+                response_status = payload.get("status")
+                response_build = payload.get("app_build")
+                last_response = (
+                    f"HTTP {resp.status}, status={response_status!r}, app_build={response_build!r}"
+                )
+                log_tray(f"FastAPI health response: {last_response}.")
+                if resp.status == 200 and response_status == "ok" and response_build == APP_BUILD:
                     log_tray(f"Current API build verified: {APP_BUILD}")
                     return True
-            except Exception:
-                pass
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
             time.sleep(0.4)
-        log_tray(f"API did not become ready with expected build {APP_BUILD}; tunnel will not start.")
+        log_tray(
+            f"API health verification failed; expected status='ok' and app_build={APP_BUILD!r}; "
+            f"last_response={last_response}; last_error={last_error or 'none'}. Tunnel will not start."
+        )
         return False
 
     def _start_tunnel(self, cloudflared_exe: str) -> None:
@@ -394,7 +425,12 @@ class AppTrayManager:
         self.is_running = False
         from core.bootstrap_security import network_access_enabled
 
-        self._network_access_allowed = network_access_enabled()
+        local_only_override = os.environ.get("SPORTSLOTTERY_LOCAL_ONLY", "").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        self._network_access_allowed = network_access_enabled() and not local_only_override
+        if local_only_override:
+            log_tray("SPORTSLOTTERY_LOCAL_ONLY is active; binding to loopback and skipping all public tunnels.")
         if not self._network_access_allowed:
             log_tray(
                 "Administrator bootstrap PIN is still active or could not be checked; "
@@ -442,8 +478,22 @@ class AppTrayManager:
 
         # 1. Start FastAPI server with structured output log
         server_log_path = ROOT_DIR / "data" / "server.log"
-        server_log_path.parent.mkdir(parents=True, exist_ok=True)
-        server_log_file = open(server_log_path, "a", encoding="utf-8")
+        try:
+            server_log_path.parent.mkdir(parents=True, exist_ok=True)
+            server_log_file = open(server_log_path, "a", encoding="utf-8")
+        except OSError as exc:
+            server_log_path = LOCAL_LOG_DIR / "server.log"
+            try:
+                server_log_path.parent.mkdir(parents=True, exist_ok=True)
+                server_log_file = open(server_log_path, "a", encoding="utf-8")
+                log_tray(f"Could not write data/server.log ({type(exc).__name__}: {exc}); using per-user log file.")
+            except OSError as fallback_error:
+                log_tray(
+                    "FastAPI log file could not be opened in the data or per-user log directory; "
+                    f"stopping launch: {type(fallback_error).__name__}: {fallback_error}"
+                )
+                self._status_text = "🔴 無法建立 FastAPI 診斷日誌"
+                return
 
         api_cmd = [
             python_bin,
@@ -464,6 +514,7 @@ class AppTrayManager:
             stdout=server_log_file,
             stderr=subprocess.STDOUT,
         )
+        server_log_file.flush()
         log_tray(f"FastAPI server started with PID: {self.proc_api.pid}")
 
         if not self._wait_for_current_api():

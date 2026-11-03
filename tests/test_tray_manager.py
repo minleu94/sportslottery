@@ -98,6 +98,31 @@ def test_local_only_startup_does_not_terminate_or_reuse_an_existing_api(tmp_path
     assert "停止現有 API" in app._status_text
 
 
+def test_local_only_environment_override_withholds_public_tunnel(tmp_path, monkeypatch):
+    import scripts.tray_manager as tray_manager
+
+    monkeypatch.setenv("SPORTSLOTTERY_LOCAL_ONLY", "1")
+    monkeypatch.setattr(tray_manager, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(tray_manager, "STATUS_FILE", tmp_path / "data" / "runtime.json")
+    monkeypatch.setattr(tray_manager, "TRAY_LOG", tmp_path / "data" / "tray.log")
+    monkeypatch.setattr(tray_manager, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(tray_manager, "find_python_executable", lambda gui=False: "python")
+    monkeypatch.setattr(tray_manager, "find_cloudflared", lambda: "cloudflared")
+    monkeypatch.setattr("core.bootstrap_security.network_access_enabled", lambda: True)
+
+    app = AppTrayManager()
+    with patch("scripts.tray_manager.subprocess.Popen") as popen, \
+         patch.object(app, "_wait_for_current_api", return_value=True), \
+         patch("scripts.tray_manager.threading.Thread"):
+        app.start_services()
+
+    assert app.is_running is True
+    assert app._network_access_allowed is False
+    command = popen.call_args.args[0]
+    assert command[command.index("--host") + 1] == "127.0.0.1"
+    assert "local-only" in (tmp_path / "data" / "tray.log").read_text(encoding="utf-8").lower()
+
+
 def test_restart_failure_notification_reports_failure():
     app = AppTrayManager()
     app.icon = MagicMock()

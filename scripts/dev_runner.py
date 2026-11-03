@@ -1,159 +1,150 @@
 # -*- coding: utf-8 -*-
-"""Development Mode Runner for Taiwan Sports Lottery System (v2.3.0 Dev).
+"""Development launcher for the local Sportslottery React and FastAPI app."""
 
-Ensures:
-1. Instant startup (~1.5s total)
-2. Stale port 8000 & 28501 cleanup
-3. Lightning-fast Vite compilation (~0.3s)
-4. Native Python resident execution in Windows System Tray
-5. Automatic browser launch & clear health verification
-6. Never abruptly crashes or closes window without explanation
-"""
+from __future__ import annotations
 
 import os
 import shutil
 import subprocess
 import sys
-import time
+import tempfile
+import traceback
+from datetime import datetime, timezone
 from pathlib import Path
-
-# Setup encoding
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 os.chdir(ROOT_DIR)
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-BANNER = r"""
-======================================================================
-  🇹🇼 台灣運彩「瘋狗流」開發即時模式 (v2.3.0 Dev)
-  ⚡ 免打包 · 極速編譯 · 電腦端 / 手機端 / LINE Bot 三合一同步
-======================================================================
-"""
+_local_app_data = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir())
+_configured_log_dir = os.environ.get("SPORTSLOTTERY_LOG_DIR", "").strip()
+LOG_DIR = Path(_configured_log_dir) if _configured_log_dir else _local_app_data / "Sportslottery" / "logs"
+STARTUP_LOG = LOG_DIR / "dev_runner.log"
+_startup_log_file = None
 
 
-def kill_stale_ports(ports=(8000, 28501)) -> None:
-    """Kill any process holding port 8000 or 28501."""
-    try:
-        import psutil
+class _DiagnosticStream:
+    """Write startup output to the log and, when available, the console."""
 
-        for conn in psutil.net_connections():
-            if conn.laddr and conn.laddr.port in ports and conn.pid:
-                try:
-                    p = psutil.Process(conn.pid)
-                    if p.pid != os.getpid():
-                        print(f"  - 終止舊進程 PID {p.pid} ({p.name()})...")
-                        p.terminate()
-                        p.wait(timeout=2.0)
-                except Exception:
-                    pass
-    except Exception:
-        for port in ports:
+    def __init__(self, console, logfile):
+        self.console = console
+        self.logfile = logfile
+
+    def write(self, value):
+        self.logfile.write(value)
+        self.logfile.flush()
+        if self.console is not None:
             try:
-                cmd = f'netstat -ano | findstr :{port}'
-                output = subprocess.check_output(cmd, shell=True, text=True, errors="ignore")
-                for line in output.strip().splitlines():
-                    parts = line.split()
-                    if len(parts) >= 5 and "LISTENING" in parts:
-                        pid = parts[-1]
-                        if pid.isdigit() and int(pid) != os.getpid():
-                            print(f"  - 終止舊進程 PID {pid}...")
-                            subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
+                self.console.write(value)
+                self.console.flush()
+            except Exception:
+                pass
+        return len(value)
+
+    def flush(self):
+        self.logfile.flush()
+        if self.console is not None:
+            try:
+                self.console.flush()
             except Exception:
                 pass
 
 
+def configure_startup_diagnostics() -> None:
+    """Keep errors from the hidden VBS launch available in a local log."""
+    global _startup_log_file
+    STARTUP_LOG.parent.mkdir(parents=True, exist_ok=True)
+    _startup_log_file = STARTUP_LOG.open("a", encoding="utf-8", buffering=1)
+    sys.stdout = _DiagnosticStream(sys.stdout, _startup_log_file)
+    sys.stderr = _DiagnosticStream(sys.stderr, _startup_log_file)
+    started_at = datetime.now(timezone.utc).isoformat()
+    print(f"[{started_at}] dev_runner starting; pid={os.getpid()}; python={sys.executable}")
+
+
+def _report_command_failure(label: str, result: subprocess.CompletedProcess) -> None:
+    output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part and part.strip())
+    print(f"  - [Error] {label} failed with exit code {result.returncode}.")
+    if output:
+        print(output[-12000:])
+
+
 def build_frontend() -> bool:
-    """Compile frontend React SPA with Vite."""
-    node_candidates = [
-        r"C:\Users\archi\AppData\Local\OpenAI\Codex\runtimes\cua_node\5c41f77a7900391c\bin\node.exe",
-        shutil.which("node"),
-    ]
-    node_exe = next((p for p in node_candidates if p and Path(p).exists()), None)
+    """Run the same TypeScript, Vite, and theme checks as the frontend build."""
+    node_exe = shutil.which("node")
+    frontend_dir = ROOT_DIR / "frontend"
+    tsc_script = frontend_dir / "node_modules" / "typescript" / "bin" / "tsc"
+    vite_script = frontend_dir / "node_modules" / "vite" / "bin" / "vite.js"
+    theme_check = frontend_dir / "scripts" / "check-theme-contract.mjs"
+
+    missing = [str(path.relative_to(ROOT_DIR)) for path in (tsc_script, vite_script, theme_check) if not path.is_file()]
     if not node_exe:
-        print("  - [Notice] 未偵測到 Node.js，直接沿用現有編譯版本。")
-        return True
+        print("  - [Error] Node.js was not found; refusing to serve an unverified or stale frontend build.")
+        return False
+    if missing:
+        print("  - [Error] Frontend build dependencies or checks are missing: " + ", ".join(missing))
+        return False
 
-    vite_script = ROOT_DIR / "frontend" / "node_modules" / "vite" / "bin" / "vite.js"
-    if not vite_script.exists():
-        print("  - [Notice] 未找到 vite.js，直接沿用現有編譯版本。")
-        return True
-
-    tsc_script = ROOT_DIR / "frontend" / "node_modules" / "typescript" / "bin" / "tsc"
-    if tsc_script.exists():
+    commands = (
+        ("TypeScript", [node_exe, str(tsc_script), "-b"]),
+        ("Vite", [node_exe, str(vite_script), "build"]),
+        ("Theme contract", [node_exe, str(theme_check)]),
+    )
+    for label, command in commands:
         try:
-            tsc_res = subprocess.run(
-                [node_exe, str(tsc_script), "-b"],
-                cwd=str(ROOT_DIR / "frontend"),
+            result = subprocess.run(
+                command,
+                cwd=str(frontend_dir),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=20.0,
+                timeout=120.0,
+                check=False,
             )
-            if tsc_res.returncode != 0:
-                print("  - [Error] TypeScript 編譯錯誤：\n" + (tsc_res.stdout or tsc_res.stderr).strip())
-                return False
-        except Exception as exc:
-            print(f"  - [Warning] TypeScript 檢查執行異常 ({exc})")
+        except subprocess.TimeoutExpired as exc:
+            print(f"  - [Error] {label} timed out after 120 seconds.")
+            output = exc.stdout or exc.stderr
+            if output:
+                print(str(output)[-12000:])
+            return False
+        except OSError as exc:
+            print(f"  - [Error] Could not run {label}: {type(exc).__name__}: {exc}")
+            return False
 
-    try:
-        res = subprocess.run(
-            [node_exe, str(vite_script), "build"],
-            cwd=str(ROOT_DIR / "frontend"),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=20.0,
-        )
-        if res.returncode == 0:
-            print("  - [OK] 前端 SPA 最新介面編譯成功！")
-            return True
-        else:
-            print("  - [Warning] 前端編譯警告：", res.stderr.strip()[:200])
-            return True
-    except Exception as exc:
-        print(f"  - [Warning] 前端編譯異常 ({exc})，將沿用現有檔案繼續啟動。")
-        return True
+        if result.returncode != 0:
+            _report_command_failure(label, result)
+            return False
+        print(f"  - [OK] {label} passed.")
+
+    print("  - [OK] React frontend build completed.")
+    return True
 
 
-def main():
+def main() -> int:
+    configure_startup_diagnostics()
+
     if "--build-only" in sys.argv:
-        print("[Build] 極速同步最新前端介面 (Vite Build)...")
-        ok = build_frontend()
-        sys.exit(0 if ok else 1)
+        print("[Build] Validating and compiling the React frontend.")
+        return 0 if build_frontend() else 1
 
-    print(BANNER)
+    print("\nSportslottery local development startup")
+    print("[1/2] Compiling frontend; existing port owners will not be terminated.")
+    if not build_frontend():
+        print(f"[Startup failed] Frontend build did not pass. See {STARTUP_LOG}.")
+        return 1
 
-    # 1. Port cleanup
-    print("[1/3] 檢查並釋放背景連接埠 (8000, 28501)...")
-    kill_stale_ports((8000, 28501))
-    time.sleep(0.3)
-
-    # 2. Frontend build
-    print("[2/3] 極速同步最新前端介面 (Vite Build)...")
-    build_frontend()
-
-    # 3. Launch service via AppTrayManager
-    print("[3/3] 正在以原生即時模式啟動決策台...")
-    print("  [PC 瀏覽器]  http://127.0.0.1:8000 (啟動後自動開啟)")
-    print("  [手機與公網] https://fifty-saddlebag-immortal.ngrok-free.dev")
-    print("  [LINE 機器人] Webhook 連線中")
-    print("\n" + "=" * 70)
-    print("  🟢 服務運行中！請保持此視窗開啟即可持續運作。")
-    print("  關閉此視窗或在右下角系統匣圖示點 Quit 即可結束。")
-    print("=" * 70 + "\n")
+    print("[2/2] Starting the Tray manager; FastAPI health and app build are verified before ready.")
+    print("  Local UI: http://127.0.0.1:8000")
+    print(f"  Startup diagnostics: {STARTUP_LOG}")
 
     from scripts.tray_manager import AppTrayManager
 
     app = AppTrayManager()
     try:
-        sys.exit(app.run())
+        return app.run()
     except KeyboardInterrupt:
-        print("\n[Shutting down] 正在安全停止服務...")
+        print("\n[Shutdown] Stopping Sportslottery services.")
         app.stop_services()
         if app._lock_sock:
             try:
@@ -165,22 +156,14 @@ def main():
                 app.icon.stop()
             except Exception:
                 pass
-        print("[Done] 服務已安全結束。")
-        sys.exit(0)
+        print("[Shutdown] Services stopped.")
+        return 0
     except Exception as exc:
-        print(f"\n❌ [ERROR] 服務異常：{exc}")
-        log_path = ROOT_DIR / "data" / "tray_runtime.log"
-        if log_path.exists():
-            print("\n最近的運行記錄 (data/tray_runtime.log)：")
-            try:
-                lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
-                print("\n".join(lines[-15:]))
-            except Exception:
-                pass
-        print("\n" + "=" * 70)
-        input("請按 Enter 鍵關閉視窗...")
-        sys.exit(1)
+        print(f"[Startup failed] {type(exc).__name__}: {exc}")
+        traceback.print_exc()
+        print(f"See startup diagnostics: {STARTUP_LOG}")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -20,7 +20,7 @@ import json
 import re
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from core.strategy_version import GOVERNANCE_RULES, STRATEGY_VERSION, get_strategy_metadata
 from core.experiment_identity import get_current_experiment_identity, validate_experiment_identity
@@ -105,15 +105,29 @@ def _observation_identity(snapshot: Dict[str, Any]) -> tuple[Optional[str], Opti
 
 
 def _scope_forward_snapshots(
-    snapshots: List[Dict[str, Any]], target_experiment_id: Optional[str] = None,
+    snapshots: Iterable[Dict[str, Any]], target_experiment_id: Optional[str] = None,
 ) -> tuple[List[Dict[str, Any]], str, Dict[str, int]]:
     if target_experiment_id is None:
         target_experiment_id = get_current_experiment_identity()["experiment_id"]
-    candidates = [s for s in snapshots if _is_forward_binary(s, target_experiment_id)]
-    valid_identities = [s for s in snapshots if validate_experiment_identity(s.get("experiment_identity"))]
     keyed: Dict[tuple, List[Dict[str, Any]]] = {}
+    input_count = 0
+    eligible_count = 0
     missing_key = 0
-    for snapshot in candidates:
+    valid_identity_count = 0
+    different_target_identity_count = 0
+    # Consume storage iterators once. Historical rows can contain large nested
+    # evidence payloads, so retaining the complete ledger needlessly multiplies
+    # the API's peak memory use.
+    for snapshot in snapshots:
+        input_count += 1
+        identity = snapshot.get("experiment_identity")
+        if validate_experiment_identity(identity):
+            valid_identity_count += 1
+            if identity.get("experiment_id") != target_experiment_id:
+                different_target_identity_count += 1
+        if not _is_forward_binary(snapshot, target_experiment_id):
+            continue
+        eligible_count += 1
         event_key, observation_key = _observation_identity(snapshot)
         if event_key is None or observation_key is None:
             missing_key += 1
@@ -135,18 +149,15 @@ def _scope_forward_snapshots(
         unique.append(rows[0])
     event_count = len({_observation_identity(row)[0] for row in unique})
     return unique, target_experiment_id, {
-        "input_count": len(snapshots),
-        "eligible_count": len(candidates),
+        "input_count": input_count,
+        "eligible_count": eligible_count,
         "unique_event_count": event_count,
         "observation_count": len(unique),
         "duplicate_retries_removed": duplicate_retries,
         "conflicting_observations_excluded": conflicts,
         "missing_observation_key_excluded": missing_key,
-        "legacy_or_invalid_identity_excluded": sum(
-            1 for s in snapshots if not validate_experiment_identity(s.get("experiment_identity"))),
-        "different_target_identity_excluded": sum(
-            1 for s in valid_identities
-            if s.get("experiment_identity", {}).get("experiment_id") != target_experiment_id),
+        "legacy_or_invalid_identity_excluded": input_count - valid_identity_count,
+        "different_target_identity_excluded": different_target_identity_count,
     }
 
 
@@ -191,7 +202,7 @@ class PerformanceMetricsEngine:
     """Evaluates forward prediction snapshots and generates segmented performance metrics."""
 
     @staticmethod
-    def forward_cohort(snapshots: List[Dict[str, Any]], target_experiment_id: Optional[str] = None) -> Dict[str, Any]:
+    def forward_cohort(snapshots: Iterable[Dict[str, Any]], target_experiment_id: Optional[str] = None) -> Dict[str, Any]:
         """Public shared cohort for UI, reports and evidence audits."""
         observations, identity, audit = _scope_forward_snapshots(snapshots, target_experiment_id)
         return {"observations": observations, "target_experiment_id": identity, "audit": audit}
