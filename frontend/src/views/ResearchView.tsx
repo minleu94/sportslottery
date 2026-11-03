@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { api } from "@/services/api"
+import type {
+  AlignmentSummary,
+  MarketCycleSummary,
+  MarketResearchSummary,
+  ResearchAnalyticsResponse,
+  ShadowPortfolioSummary,
+} from "@/types"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
@@ -23,8 +30,8 @@ import {
 } from "lucide-react"
 
 export const ResearchView: React.FC = () => {
-  const [data, setData] = useState<any>(null)
-  const [marketSummary, setMarketSummary] = useState<any>(null)
+  const [data, setData] = useState<ResearchAnalyticsResponse | null>(null)
+  const [marketSummary, setMarketSummary] = useState<MarketResearchSummary | null>(null)
   const [_loadingMarket, setLoadingMarket] = useState(true)
   const [_loadingAnalytics, setLoadingAnalytics] = useState(true)
   const [apiKeyInput, setApiKeyInput] = useState("")
@@ -158,16 +165,18 @@ export const ResearchView: React.FC = () => {
     }
   }
 
-  const portfolio = data?.shadow_portfolio || {}
-  const theOdds = marketSummary?.the_odds_api || {}
-  const snaps = marketSummary?.snapshots || {}
-  const fwd = marketSummary?.forward_evaluation || {}
+  const portfolio: ShadowPortfolioSummary = data?.shadow_portfolio || {}
+  const theOdds = marketSummary?.the_odds_api
+  const snaps = marketSummary?.snapshots
+  const fwd = marketSummary?.forward_evaluation
   const opMode = marketSummary?.live_status || theOdds?.operating_mode || "SYNTHETIC_FIXTURE"
   const sampleSize = fwd?.paired_sample_size || 0
   const eligibleEventCount = fwd?.sample_size || 0
-  const sched = marketSummary?.scheduler || {}
-  const alignment = marketSummary?.alignment || {}
-  const lastCycle = sched?.last_cycle_summary || {}
+  const sched = marketSummary?.scheduler
+  const alignment: AlignmentSummary = marketSummary?.alignment ?? { status: "UNKNOWN" }
+  const lastCycle: MarketCycleSummary = sched?.last_cycle_summary ?? {}
+  const realQuoteCount = lastCycle.real_market_quote_count ?? 0
+  const syntheticQuoteCount = lastCycle.synthetic_market_quote_count ?? 0
   const minSample = fwd?.minimum_sample_size || 30
   const rejectionSummary = [
     ...Object.entries(alignment?.candidate_rejection_counts || {})
@@ -329,9 +338,9 @@ export const ResearchView: React.FC = () => {
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
               <div className="text-slate-500 dark:text-slate-400">最近一輪國際盤口</div>
               <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
-                {lastCycle.real_market_quote_count > 0
-                  ? `真實報價 ${lastCycle.real_market_quote_count} · 完整市場 ${lastCycle.complete_market_benchmark_count ?? 0}`
-                  : lastCycle.synthetic_market_quote_count > 0 ? "只有合成報價" : "未知／尚未執行"}
+                {realQuoteCount > 0
+                  ? `真實報價 ${realQuoteCount} · 完整市場 ${lastCycle.complete_market_benchmark_count ?? 0}`
+                  : syntheticQuoteCount > 0 ? "只有合成報價" : "未知／尚未執行"}
               </div>
               <div className="mt-1 text-[10px] text-slate-500">
                 符合指定 Sharp 來源規則 {lastCycle.sharp_qualified_count ?? 0} · 最近扣點 {lastCycle.official_credits_consumed ?? "未取得官方記帳"}

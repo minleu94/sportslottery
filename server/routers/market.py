@@ -21,6 +21,12 @@ from integrations.odds.the_odds_api import SPORT_KEY_MAP, TheOddsApiClient
 from server import service_registry
 from server.auth import require_active_admin_session, verify_no_pending_password_change
 from server.formatters import clean_league_name
+from server.responses import (
+    ForwardEvaluationResponse,
+    LegsResponse,
+    MarketResearchSummaryResponse,
+    RadarResponse,
+)
 from server.schemas import MarketKeyConfigRequest, MarketSchedulerConfigRequest, TheOddsTestConnectionRequest
 
 logger = logging.getLogger("server.api")
@@ -42,7 +48,7 @@ def health_check():
     }
 
 
-@router.get("/api/radar")
+@router.get("/api/radar", response_model=RadarResponse)
 def get_radar(
     force_refresh: bool = False,
     _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
@@ -84,7 +90,7 @@ def get_market_intelligence_status():
     }
 
 
-@router.get("/api/market/research-summary")
+@router.get("/api/market/research-summary", response_model=MarketResearchSummaryResponse)
 def get_market_research_summary():
     """Retrieve unified Phase 4.5 operational and prospective verification summary."""
     from core.market_forward_pipeline import MarketForwardPipeline
@@ -429,7 +435,7 @@ def get_market_betting_splits(
     }
 
 
-@router.get("/api/market/evaluation")
+@router.get("/api/market/evaluation", response_model=ForwardEvaluationResponse)
 def get_forward_evaluation_report(
     scope: str = Query("GLOBAL", description="Evaluation scope or league"),
 ):
@@ -444,7 +450,7 @@ def get_forward_evaluation_report(
     return report.to_dict()
 
 
-@router.get("/api/legs")
+@router.get("/api/legs", response_model=LegsResponse)
 def get_legs(
     alliances: Optional[str] = Query(None, description="Comma-separated alliance IDs"),
     force_refresh: bool = False,

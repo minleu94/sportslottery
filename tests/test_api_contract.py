@@ -35,6 +35,29 @@ def test_openapi_keeps_existing_request_model_contracts():
         assert schema["$ref"] == f"#/components/schemas/{model_name}"
 
 
+def test_openapi_documents_react_facing_response_contracts():
+    paths = app.openapi()["paths"]
+    expected_models = {
+        ("/api/radar", "get"): "RadarResponse",
+        ("/api/legs", "get"): "LegsResponse",
+        ("/api/market/research-summary", "get"): "MarketResearchSummaryResponse",
+        ("/api/market/evaluation", "get"): "ForwardEvaluationResponse",
+        ("/api/research/analytics", "get"): "ResearchAnalyticsResponse",
+        ("/api/parlays/search", "post"): "ParlaySearchResponse",
+    }
+    for (path, method), model_name in expected_models.items():
+        schema = paths[path][method]["responses"]["200"]["content"]["application/json"]["schema"]
+        assert schema["$ref"] == f"#/components/schemas/{model_name}"
+
+    schemas = app.openapi()["components"]["schemas"]
+    assert {"event_id", "sport", "league", "market", "selection", "taiwan_odds"}.issubset(
+        schemas["TaiwanLegResponse"]["properties"]
+    )
+    assert {"candidate_id", "parlay_id", "tier", "legs", "joint_probability"}.issubset(
+        schemas["ParlayRecommendationResponse"]["properties"]
+    )
+
+
 def test_router_modules_do_not_import_the_composition_root():
     router_dir = Path(__file__).parents[1] / "server" / "routers"
     for path in router_dir.glob("*.py"):

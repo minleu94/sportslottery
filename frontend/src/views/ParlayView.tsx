@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { api } from "@/services/api"
-import type { ParlayRecommendation, WalletStatus } from "@/types"
+import type { ParlayRecommendation, ParlaySearchPerformance, ParlayTier, WalletStatus } from "@/types"
 import { cleanLeagueName } from "@/lib/utils"
 import { Slider } from "@/components/ui/Slider"
 import { Button } from "@/components/ui/Button"
@@ -30,18 +30,8 @@ interface ParlayViewProps {
 }
 
 type OddsMode = "banker" | "target" | "range"
-type ParlayTier = "high_consensus" | "aggressive" | "moonshot"
 type ParlayTiers = Record<ParlayTier, ParlayRecommendation[]>
-type ParlayPerformance = {
-  service_setup_ms: number
-  taiwan_fetch_ms: number
-  signal_enrichment_ms: number
-  parlay_search_ms: number
-  response_format_ms: number
-  total_ms: number
-  raw_legs_count: number
-  prepared_legs_cache_hit: boolean
-}
+type ParlayPerformance = ParlaySearchPerformance
 
 interface ParlaySearchCache {
   oddsMode: OddsMode

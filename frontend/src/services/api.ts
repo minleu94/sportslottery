@@ -1,4 +1,17 @@
-import type { Profile, RadarLeague, Ticket, WalletStatus, ParlayRecommendation } from "@/types"
+import type {
+  ForwardEvaluationReport,
+  Leg,
+  LegsResponse,
+  MarketCycleSummary,
+  MarketResearchSummary,
+  MarketSchedulerStatus,
+  ParlaySearchResponse,
+  Profile,
+  RadarResponse,
+  ResearchAnalyticsResponse,
+  Ticket,
+  WalletStatus,
+} from "@/types"
 
 
 
@@ -108,19 +121,7 @@ export const api = {
 
 
 
-  async getRadar(forceRefresh = false): Promise<{
-
-    radar: RadarLeague[]
-
-    status_counts: { GREEN: number; YELLOW: number; RED: number }
-
-    total_legs: number
-
-    source_status: any
-
-    as_of: string
-
-  }> {
+  async getRadar(forceRefresh = false): Promise<RadarResponse> {
 
     const res = await fetch(`${BASE_URL}/radar?force_refresh=${forceRefresh}`)
 
@@ -132,7 +133,7 @@ export const api = {
 
 
 
-  async getLegs(alliances?: string[], forceRefresh = false) {
+  async getLegs(alliances?: string[], forceRefresh = false): Promise<LegsResponse> {
 
     const qs = new URLSearchParams()
 
@@ -150,44 +151,7 @@ export const api = {
 
 
 
-  async searchParlays(params: SearchParlaysParams): Promise<{
-
-    target_odds: number
-
-    min_odds: number
-
-    max_odds: number
-
-    tiers: {
-
-      high_consensus: ParlayRecommendation[]
-
-      aggressive: ParlayRecommendation[]
-
-      moonshot: ParlayRecommendation[]
-
-    }
-
-    diagnostics: any
-
-    search_complete: boolean
-
-    total_combinations_searched: number
-
-    enriched_legs_count: number
-
-    performance?: {
-      service_setup_ms: number
-      taiwan_fetch_ms: number
-      signal_enrichment_ms: number
-      parlay_search_ms: number
-      response_format_ms: number
-      total_ms: number
-      raw_legs_count: number
-      prepared_legs_cache_hit: boolean
-    }
-
-  }> {
+  async searchParlays(params: SearchParlaysParams): Promise<ParlaySearchResponse> {
 
     const res = await fetch(`${BASE_URL}/parlays/search`, {
 
@@ -321,7 +285,7 @@ export const api = {
 
     profile_id: string
 
-    legs: any[]
+    legs: Leg[]
 
     stake: number
 
@@ -475,7 +439,7 @@ export const api = {
 
 
 
-  async getResearchAnalytics() {
+  async getResearchAnalytics(): Promise<ResearchAnalyticsResponse> {
 
     const res = await fetch(`${BASE_URL}/research/analytics`)
 
@@ -555,7 +519,7 @@ export const api = {
 
 
 
-  async getAuthMe(): Promise<{ success: boolean; profile: Profile; session: any }> {
+  async getAuthMe(): Promise<{ success: boolean; profile: Profile; session: Record<string, unknown> }> {
 
     const res = await fetch(`${BASE_URL}/auth/me`, {
 
@@ -778,7 +742,7 @@ export const api = {
     return res.json()
   },
 
-  async getMarketEvaluation(scope = "GLOBAL") {
+  async getMarketEvaluation(scope = "GLOBAL"): Promise<ForwardEvaluationReport> {
     const res = await fetch(`${BASE_URL}/market/evaluation?scope=${encodeURIComponent(scope)}`, {
       headers: authHeaders(),
     })
@@ -786,7 +750,7 @@ export const api = {
     return res.json()
   },
 
-  async getMarketResearchSummary() {
+  async getMarketResearchSummary(): Promise<MarketResearchSummary> {
     const res = await fetch(`${BASE_URL}/market/research-summary`, {
       headers: authHeaders(),
     })
@@ -807,7 +771,23 @@ export const api = {
     return res.json()
   },
 
-  async triggerMarketPipelineCycle(leagues?: string, forceRefresh = false) {
+  async triggerMarketPipelineCycle(leagues?: string, forceRefresh = false): Promise<{
+    status: string
+    cycle_status?: string
+    operation_status?: string
+    cycle_result?: {
+      snapshot_cycle?: MarketCycleSummary
+      durations_ms?: {
+        snapshot_and_fetch: number
+        settlement_scan: number
+        forward_evaluation: number
+        total: number
+      }
+    }
+    snapshot_cycle?: MarketCycleSummary
+    settlement_cycle?: Record<string, unknown>
+    evaluation_summary?: Record<string, unknown>
+  }> {
     const url = leagues
       ? `${BASE_URL}/market/pipeline/cycle?leagues=${encodeURIComponent(leagues)}&force_refresh=${forceRefresh}`
       : `${BASE_URL}/market/pipeline/cycle?force_refresh=${forceRefresh}`
@@ -819,7 +799,7 @@ export const api = {
     return res.json()
   },
 
-  async getMarketSchedulerStatus() {
+  async getMarketSchedulerStatus(): Promise<MarketSchedulerStatus> {
     const res = await fetch(`${BASE_URL}/market/scheduler/status`, {
       headers: authHeaders(),
     })
@@ -827,7 +807,16 @@ export const api = {
     return res.json()
   },
 
-  async testTheOddsConnection(fetchSample = false, sportLeague?: string) {
+  async testTheOddsConnection(fetchSample = false, sportLeague?: string): Promise<{
+    status: string
+    official_remaining?: number | null
+    requests_remaining?: number | null
+    requests_used?: number | null
+    credits_consumed?: number | null
+    latency_ms?: number | null
+    operating_mode?: string
+    error?: string | null
+  }> {
     const res = await fetch(`${BASE_URL}/market/the-odds/test-connection`, {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },

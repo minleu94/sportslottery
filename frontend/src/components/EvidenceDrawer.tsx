@@ -1,7 +1,7 @@
 import React from "react"
 import { Sheet } from "@/components/ui/Sheet"
 import { Badge } from "@/components/ui/Badge"
-import type { ParlayRecommendation, Leg } from "@/types"
+import type { ParlayRecommendation, Leg, PredictionSignal } from "@/types"
 import { cleanLeagueName } from "@/lib/utils"
 import { ShieldCheck, Users, Globe, Coins } from "lucide-react"
 
@@ -171,7 +171,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   <div className="pt-2 border-t border-slate-200 dark:border-slate-800/60 space-y-1">
                     <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">觸發信號：</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {leg.signals.map((sig: any, sIdx: number) => (
+                      {leg.signals.map((sig: PredictionSignal, sIdx: number) => (
                         <Badge key={sIdx} variant="secondary" className="text-[10px]">
                           {sig.source_name || sig.type || "Signal"}
                         </Badge>

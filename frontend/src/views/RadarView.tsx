@@ -578,7 +578,7 @@ export const RadarView: React.FC = () => {
                                     awayTeam={leg.away_team.slice(0, 3)}
                                     homeTeam={leg.home_team.slice(0, 3)}
                                     awayRatio={consensus}
-                                    voteCount={ev.vote_count}
+                                    voteCount={ev.vote_count ?? undefined}
                                   />
                                 </td>
                                 <td className="p-2.5 w-20 text-center">
@@ -715,7 +715,7 @@ export const RadarView: React.FC = () => {
                                 awayTeam={leg.away_team.slice(0, 3)}
                                 homeTeam={leg.home_team.slice(0, 3)}
                                 awayRatio={consensus}
-                                voteCount={votes}
+                                voteCount={votes ?? undefined}
                               />
                             </div>
                           </div>

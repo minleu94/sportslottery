@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 
 from server import service_registry
 from server.auth import require_active_admin_session
+from server.responses import ResearchAnalyticsResponse
 
 logger = logging.getLogger("server.api")
 _analytics_cache = None
@@ -21,7 +22,7 @@ router = APIRouter()
 
 
 
-@router.get("/api/research/analytics")
+@router.get("/api/research/analytics", response_model=ResearchAnalyticsResponse)
 def get_research_analytics():
     global _analytics_cache, _analytics_cache_mtime, _analytics_cache_time
     _, _, _, _, _, snapshot_logger, metrics_engine, shadow_portfolio = service_registry.get_services()

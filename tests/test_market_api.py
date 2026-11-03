@@ -152,7 +152,7 @@ def test_get_market_evaluation():
 
 def test_get_market_research_summary():
     summary = {
-        "live_status": {"status": "HEALTHY"},
+        "live_status": "SYNTHETIC_FIXTURE",
         "live_status_scope": "ODDS_API_SOURCE_STATUS_ONLY",
         "alignment": {"status": "NO_RECORDED_CYCLE"},
         "the_odds_api": {"status": "HEALTHY"},

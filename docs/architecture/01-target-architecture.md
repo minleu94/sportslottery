@@ -152,6 +152,14 @@ Research root 驗證現在會回傳已解析的 canonical root，包含經過 Wi
 
 新增 `tests/test_storage_boundaries.py` 驗證 bundle 欄位、Junction alias 解析、預設 SQLite／JSONL 寫入隔離及正式資料路徑 guard。現有錢包交易與 SQLite 線上備份／復原測試繼續驗證交易及備份邊界。變更沒有搬遷 schema、複製快照或寫入正式 `data` Junction；存放設定在程序開始解析後變更時，新的預設路徑組會於重啟後生效。詳細設計見[儲存路徑與測試隔離](05-storage-boundaries.md)。
 
+## M7 實作紀錄
+
+`/api/radar`、`/api/legs` 與 `/api/parlays/search` 現在將穩定 response 欄位公開到 OpenAPI。Response models 對已宣告欄位做型別驗證，並保留額外欄位以支援相容的增量擴充。串關回應明確包含 tier；供搜尋排序使用的 `raw_legs` 物件不再隨 UI response 傳回。
+
+React 的 Radar、串關與 Research 頁面使用共用的 response interfaces；Signal、market evidence、雷達賽事、排程摘要與前瞻統計不再依賴未定義的 `any` 欄位。`test_api_contract.py` 固定上述 OpenAPI response schema；新增離線 API contract tests 驗證 Radar／Legs／Parlay 實際 response 與前端欄位相容。CI 保留既有 TypeScript／Vite build。
+
+頁面仍明確分開呈現 API 連線、國際盤口及賽事配對；離線 fixture／CI 結果不宣稱即時市場已配對或模型優勢已驗證。詳細界面見[React 與 API response contracts](06-ui-api-contracts.md)。
+
 ## 架構決策紀錄
 
 - [ADR-0001：漸進式 Modular Monolith](adr/0001-modular-monolith.md)

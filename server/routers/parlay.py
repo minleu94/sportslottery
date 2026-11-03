@@ -17,6 +17,7 @@ from core.contracts.common import TaiwanLeg
 from server import service_registry
 from server.auth import verify_no_pending_password_change
 from server.formatters import clean_league_name
+from server.responses import ParlaySearchResponse
 from server.schemas import ParlaySearchRequest
 
 logger = logging.getLogger("server.api")
@@ -33,7 +34,7 @@ router = APIRouter()
 
 
 
-@router.post("/api/parlays/search")
+@router.post("/api/parlays/search", response_model=ParlaySearchResponse)
 def search_parlays(
     req: ParlaySearchRequest,
     _session: Optional[Dict[str, Any]] = Depends(verify_no_pending_password_change),
@@ -135,11 +136,15 @@ def _execute_parlay_search(req: ParlaySearchRequest):
     parlay_search_ms = (time.perf_counter() - stage_started) * 1000
 
     # Clean tier items
-    def format_parlays(items: List[Dict[str, Any]]):
+    def format_parlays(items: List[Dict[str, Any]], tier: str):
         formatted = []
         for p in items:
             p_copy = dict(p)
             p_copy["parlay_id"] = p.get("candidate_id") or p.get("parlay_id", "")
+            p_copy["tier"] = tier
+            # Search internals retain live objects for ranking/checkpointing;
+            # clients only need the already-normalized `legs` response field.
+            p_copy.pop("raw_legs", None)
             p_copy["expected_value"] = p.get("parlay_expected_value", 0.0)
             p_copy["parlay_ev_pct"] = p.get("parlay_ev_pct", round(p.get("parlay_expected_value", 0.0) * 100.0, 1))
             p_copy["sharp_parlay_ev_pct"] = p.get("sharp_parlay_ev_pct", 0.0)
@@ -183,9 +188,9 @@ def _execute_parlay_search(req: ParlaySearchRequest):
         "max_odds": max_o,
         "tolerance": req.tolerance,
         "tiers": {
-            "high_consensus": format_parlays(parlay_results.get("high_consensus", [])),
-            "aggressive": format_parlays(parlay_results.get("aggressive", [])),
-            "moonshot": format_parlays(parlay_results.get("moonshot", [])),
+            "high_consensus": format_parlays(parlay_results.get("high_consensus", []), "high_consensus"),
+            "aggressive": format_parlays(parlay_results.get("aggressive", []), "aggressive"),
+            "moonshot": format_parlays(parlay_results.get("moonshot", []), "moonshot"),
         },
         "diagnostics": diagnostics,
         "search_complete": diagnostics.get("search_complete", True),
