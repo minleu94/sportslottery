@@ -11,15 +11,28 @@ import urllib.request
 def pytest_addoption(parser):
     parser.addoption("--run-live", action="store_true", default=False,
                      help="run tests marked live that make real network requests")
+    parser.addoption("--run-local-data", action="store_true", default=False,
+                     help="run tests marked local_data that read developer-specific research data")
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "live: requires real network access")
+    config.addinivalue_line("markers", "local_data: reads developer-specific research files")
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--run-live"):
-        return
-    skip_live = pytest.mark.skip(reason="live network test; pass --run-live to opt in")
-    for item in items:
-        if "live" in item.keywords:
-            item.add_marker(skip_live)
+    if not config.getoption("--run-live"):
+        skip_live = pytest.mark.skip(reason="live network test; pass --run-live to opt in")
+        for item in items:
+            if "live" in item.keywords:
+                item.add_marker(skip_live)
+    if not config.getoption("--run-local-data"):
+        skip_local_data = pytest.mark.skip(
+            reason="developer-specific research data test; pass --run-local-data to opt in"
+        )
+        for item in items:
+            if "local_data" in item.keywords:
+                item.add_marker(skip_local_data)
 
 
 @pytest.fixture(autouse=True)

@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 from datetime import datetime
+import pytest
 
 from core.identity.league_mapping import normalize_league_and_sport
 from core.identity.team_alias import GLOBAL_TEAM_REGISTRY
@@ -63,6 +64,7 @@ def test_mls_exact_competition_identity_and_supported_routes():
     assert "soccer/MLS" in SettlementEngine.supported_result_coverage()
 
 
+@pytest.mark.local_data
 def test_mls_roster_ids_and_all_fifteen_playSport_pairs_match_exactly():
     scoreboard_manifest, scoreboard = _source("usa.1_scoreboard.json", 15)
     roster_manifest, roster = _source("usa.1_teams.json")
@@ -126,6 +128,7 @@ def test_mls_roster_ids_and_all_fifteen_playSport_pairs_match_exactly():
     assert roster_manifest["sha256"] == "81b1074e351834171d7c3ae67bf0a8c454bfc805d26446d9602d64f779ff9961"
 
 
+@pytest.mark.local_data
 def test_mls_history_feed_settles_90_minute_result_without_extra_time():
     # This test consumes a historical scoreboard fixture captured from an
     # actual date in usa.1's official calendar. It is intentionally separate

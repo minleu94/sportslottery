@@ -160,6 +160,14 @@ React 的 Radar、串關與 Research 頁面使用共用的 response interfaces�
 
 頁面仍明確分開呈現 API 連線、國際盤口及賽事配對；離線 fixture／CI 結果不宣稱即時市場已配對或模型優勢已驗證。詳細界面見[React 與 API response contracts](06-ui-api-contracts.md)。
 
+## M8 實作紀錄
+
+Import-boundary tests now keep `core/contracts` free of framework, provider, orchestration, and storage dependencies, and keep provider adapters from importing application pipelines, SignalHub, or server composition. CI installs only the exact Python lock and uses `npm ci`; a governance test checks the lock covers every direct requirement in `requirements.txt`, `pyproject.toml`, and its test/build groups.
+
+Default pytest execution blocks network calls, redirects default storage to an isolated test bundle, and rejects SQLite paths resolving through the project `data` alias. Tests that explicitly consume developer-specific research files use the `local_data` marker and require `--run-local-data`; CI does not enable that option. These checks protect the test boundary and do not constitute a backup or production-data recovery test.
+
+Detailed rules and the CI evidence are in [Dependency, lock-file, and test-data governance](07-governance.md).
+
 ## 架構決策紀錄
 
 - [ADR-0001：漸進式 Modular Monolith](adr/0001-modular-monolith.md)

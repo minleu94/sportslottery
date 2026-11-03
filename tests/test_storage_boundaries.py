@@ -42,6 +42,14 @@ def test_default_writers_use_the_isolated_process_bundle():
     assert read_jsonl(research["odds"]) == [{"event_id": "test-event", "odds": 1.91}]
 
 
+def test_default_test_storage_never_resolves_into_project_data():
+    paths = storage_config.get_storage_path_bundle()
+    project_data = (PROJECT_ROOT / "data").resolve()
+
+    assert paths.root.resolve() != project_data
+    assert not paths.root.resolve().is_relative_to(project_data)
+
+
 def test_test_sqlite_guard_rejects_project_data_alias_before_opening():
     target = PROJECT_ROOT / "data" / f"codex-guard-{uuid.uuid4().hex}.sqlite3"
 
