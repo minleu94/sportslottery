@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useCallback, useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { api } from "@/services/api"
 import type {
@@ -7,6 +7,7 @@ import type {
   MarketResearchSummary,
   ResearchAnalyticsResponse,
   ShadowPortfolioSummary,
+  JsonRecord,
 } from "@/types"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
@@ -29,11 +30,50 @@ import {
   Pause,
 } from "lucide-react"
 
+const ALIGNMENT_REASON_LABELS: Record<string, string> = {
+  MISSING_EVENT_ID: "缺少賽事識別碼",
+  TAIWAN_ODDS_NOT_FRESH: "台彩盤口不是新鮮報價",
+  SYNTHETIC_TAIWAN_ODDS: "台彩盤口為合成資料",
+  INVALID_OR_MISSING_START_TIME: "缺少有效開賽時間",
+  UNSUPPORTED_OR_MISMATCHED_LEAGUE: "聯賽不支援或不一致",
+  SPORT_LEAGUE_MISMATCH: "運動種類與聯賽不一致",
+  MISSING_TEAMS: "主客隊資料不完整",
+  MISSING_SELECTION: "缺少投注選項",
+  UNSUPPORTED_MARKET: "玩法不支援",
+  MARKET_NOT_ALLOWED: "玩法未列入目前查詢設定",
+  INVALID_SELECTION_SIDE: "投注方向無效",
+  MISSING_OR_INVALID_LINE: "缺少有效讓分／大小分線位",
+  INVALID_TAIWAN_ODDS: "台彩賠率無效",
+  DUPLICATE_CANDIDATE_LEG: "重複候選已略過",
+  TAIWAN_SOURCE_ERROR: "台彩資料來源讀取失敗",
+  ERR_INVALID_TAIWAN_LEG: "台彩候選欄位不完整",
+  ERR_LEAGUE_UNKNOWN: "無法識別聯賽",
+  ERR_EVENT_TIME_UNKNOWN: "賽事時間無法識別",
+  ERR_NO_INTERNATIONAL_QUOTES: "沒有國際報價",
+  ERR_TEAM_NOT_FOUND: "隊名無法配對",
+  ERR_MARKET_TYPE_MISMATCH: "玩法不一致",
+  ERR_LEAGUE_MISMATCH: "聯賽不一致",
+  ERR_TEAM_NOT_MATCHED: "主客隊不一致",
+  ERR_EVENT_TIME_MISMATCH: "開賽時間差距過大",
+  ERR_EVENT_TIME_AMBIGUOUS: "賽事時間配對有歧義",
+  ERR_MARKET_NOT_FOUND: "找不到相同玩法",
+  ERR_LINE_MISMATCH: "盤線不同",
+  ERR_ODDS_TIME_UNKNOWN: "國際報價時間未知",
+  ERR_ODDS_TIME_FUTURE: "國際報價時間異常",
+  ERR_STALE_ODDS: "國際報價已過期",
+}
+
+function alignmentReasonLabel(code: string) {
+  return ALIGNMENT_REASON_LABELS[code] || code.replaceAll("_", " ").toLowerCase()
+}
+
 export const ResearchView: React.FC = () => {
   const [data, setData] = useState<ResearchAnalyticsResponse | null>(null)
   const [marketSummary, setMarketSummary] = useState<MarketResearchSummary | null>(null)
-  const [_loadingMarket, setLoadingMarket] = useState(true)
-  const [_loadingAnalytics, setLoadingAnalytics] = useState(true)
+  const [loadingMarket, setLoadingMarket] = useState(true)
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true)
+  const [marketLoadError, setMarketLoadError] = useState<string | null>(null)
+  const [analyticsLoadError, setAnalyticsLoadError] = useState<string | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState("")
   const [showKeyForm, setShowKeyForm] = useState(false)
   const [submittingKey, setSubmittingKey] = useState(false)
@@ -42,25 +82,36 @@ export const ResearchView: React.FC = () => {
   const [testingConnection, setTestingConnection] = useState(false)
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "warning" | "error"; text: string } | null>(null)
 
-  useEffect(() => {
-    loadAnalytics()
+  const loadAnalytics = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoadingMarket(true)
+      setLoadingAnalytics(true)
+      setMarketLoadError(null)
+      setAnalyticsLoadError(null)
+    }
+    const [marketResult, analyticsResult] = await Promise.allSettled([
+      api.getMarketResearchSummary(),
+      api.getResearchAnalytics(),
+    ])
+    if (marketResult.status === "fulfilled") {
+      setMarketSummary(marketResult.value)
+    } else {
+      setMarketLoadError(marketResult.reason instanceof Error ? marketResult.reason.message : "無法讀取市場狀態")
+    }
+    if (analyticsResult.status === "fulfilled") {
+      setData(analyticsResult.value)
+    } else {
+      setAnalyticsLoadError(analyticsResult.reason instanceof Error ? analyticsResult.reason.message : "無法讀取研究指標")
+    }
+    setLoadingMarket(false)
+    setLoadingAnalytics(false)
   }, [])
 
-  async function loadAnalytics() {
-    api.getMarketResearchSummary()
-      .then((res) => {
-        setMarketSummary(res)
-        setLoadingMarket(false)
-      })
-      .catch(() => setLoadingMarket(false))
-
-    api.getResearchAnalytics()
-      .then((res) => {
-        setData(res)
-        setLoadingAnalytics(false)
-      })
-      .catch(() => setLoadingAnalytics(false))
-  }
+  useEffect(() => {
+    // The callback only updates state after the API promises settle.
+    // oxlint-disable-next-line react/set-state-in-effect -- async external data load
+    void loadAnalytics(false)
+  }, [loadAnalytics])
 
   async function handleSaveKey(e: React.FormEvent) {
     e.preventDefault()
@@ -77,6 +128,7 @@ export const ResearchView: React.FC = () => {
       setShowKeyForm(false)
       const updated = await api.getMarketResearchSummary()
       setMarketSummary(updated)
+      setMarketLoadError(null)
     } catch (err: any) {
       setFeedbackMsg({ type: "error", text: err.message || "儲存金鑰失敗" })
     } finally {
@@ -101,7 +153,10 @@ export const ResearchView: React.FC = () => {
         })
       }
       const updated = await api.getMarketResearchSummary().catch(() => null)
-      if (updated) setMarketSummary(updated)
+      if (updated) {
+        setMarketSummary(updated)
+        setMarketLoadError(null)
+      }
     } catch (err: any) {
       setFeedbackMsg({
         type: "error",
@@ -130,12 +185,7 @@ export const ResearchView: React.FC = () => {
           ? `✓ 同步及評估作業完成，取得合格真實盤口候選。${cycleDetails}${timing}`
           : `⚠ 同步及評估作業已執行完畢，但本輪沒有合格真實盤口，前瞻閉環尚未完成。${cycleDetails}${timing}`,
       })
-      const [resAnalytics, resMarket] = await Promise.all([
-        api.getResearchAnalytics().catch(() => null),
-        api.getMarketResearchSummary().catch(() => null),
-      ])
-      setData(resAnalytics)
-      setMarketSummary(resMarket)
+      await loadAnalytics()
     } catch (err: any) {
       setFeedbackMsg({ type: "error", text: err.message || "執行週期失敗" })
     } finally {
@@ -158,6 +208,7 @@ export const ResearchView: React.FC = () => {
       })
       const updated = await api.getMarketResearchSummary()
       setMarketSummary(updated)
+      setMarketLoadError(null)
     } catch (err: any) {
       setFeedbackMsg({ type: "error", text: err.message || "更新排程設定失敗" })
     } finally {
@@ -169,7 +220,7 @@ export const ResearchView: React.FC = () => {
   const theOdds = marketSummary?.the_odds_api
   const snaps = marketSummary?.snapshots
   const fwd = marketSummary?.forward_evaluation
-  const opMode = marketSummary?.live_status || theOdds?.operating_mode || "SYNTHETIC_FIXTURE"
+  const opMode = marketSummary?.live_status || theOdds?.operating_mode || "UNKNOWN"
   const sampleSize = fwd?.paired_sample_size || 0
   const eligibleEventCount = fwd?.sample_size || 0
   const sched = marketSummary?.scheduler
@@ -180,11 +231,20 @@ export const ResearchView: React.FC = () => {
   const minSample = fwd?.minimum_sample_size || 30
   const rejectionSummary = [
     ...Object.entries(alignment?.candidate_rejection_counts || {})
-      .map(([reason, count]) => `候選 ${reason} ${count}`),
+      .map(([reason, count]) => `候選 ${alignmentReasonLabel(reason)} ${count}`),
     ...Object.entries(alignment?.rejection_counts || {})
-      .map(([reason, count]) => `配對 ${reason} ${count}`),
+      .map(([reason, count]) => `配對 ${alignmentReasonLabel(reason)} ${count}`),
   ]
     .join(" · ")
+  const rejectionEntries = [
+    ...Object.entries(alignment?.candidate_rejection_counts || {}).map(([code, count]) => ({ code, count, kind: "候選" })),
+    ...Object.entries(alignment?.rejection_counts || {}).map(([code, count]) => ({ code, count, kind: "配對" })),
+  ].filter((entry) => entry.count > 0)
+  const marketUnavailableLabel = loadingMarket ? "載入中…" : marketLoadError ? "讀取失敗" : "未知"
+  const analyticsUnavailableLabel = loadingAnalytics ? "載入中…" : analyticsLoadError ? "讀取失敗" : "未知"
+  const snapshotCount = snaps?.total_count ?? data?.total_snapshots
+  const settledCount = snaps?.settled_count ?? data?.cohort?.resolved_count
+  const hasLastCycle = Boolean(sched?.last_cycle_summary)
 
   return (
     <motion.div
@@ -206,6 +266,31 @@ export const ResearchView: React.FC = () => {
         </p>
       </div>
 
+      {(loadingMarket || loadingAnalytics) && (
+        <div role="status" aria-live="polite" className="text-xs text-slate-500 dark:text-slate-400">
+          正在讀取研究資料；載入完成前不會把未知狀態當成 0。
+        </div>
+      )}
+      {(marketLoadError || analyticsLoadError) && (
+        <div role="alert" aria-live="assertive" className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+          <span>
+            {marketLoadError ? `市場狀態讀取失敗：${marketLoadError}` : null}
+            {marketLoadError && analyticsLoadError ? " · " : null}
+            {analyticsLoadError ? `研究指標讀取失敗：${analyticsLoadError}` : null}
+            {marketSummary || data ? "；畫面保留上次成功取得的資料。" : null}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void loadAnalytics()}
+            disabled={loadingMarket || loadingAnalytics}
+            className="h-7 shrink-0 text-xs"
+          >
+            重新載入
+          </Button>
+        </div>
+      )}
+
       {/* Global Market Intelligence & Continuous Forward Pipeline Banner */}
       <Card className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
         <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -215,7 +300,11 @@ export const ResearchView: React.FC = () => {
               <span>國際市場資料與前瞻驗證狀態</span>
             </CardTitle>
             <div className="flex items-center gap-2">
-              {opMode === "LIVE_VERIFIED" || opMode === "LIVE_API" ? (
+              {loadingMarket && !marketSummary ? (
+                <Badge variant="secondary" className="py-0.5 text-slate-400">載入 API 狀態中</Badge>
+              ) : marketLoadError && !marketSummary ? (
+                <Badge variant="red" className="py-0.5">API 狀態讀取失敗</Badge>
+              ) : opMode === "LIVE_VERIFIED" || opMode === "LIVE_API" ? (
                 <Badge variant="green" className="gap-1.5 py-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
                   API 曾成功連線；盤口配對另列
@@ -240,6 +329,8 @@ export const ResearchView: React.FC = () => {
                   <AlertTriangle className="w-3.5 h-3.5" />
                   API 連線異常 (降級展示)
                 </Badge>
+              ) : opMode === "UNKNOWN" ? (
+                <Badge variant="secondary" className="py-0.5 text-slate-400">API 狀態未知</Badge>
               ) : (
                 <Badge variant="secondary" className="gap-1.5 py-0.5 text-slate-400">
                   SYNTHETIC (合成展示模式)
@@ -261,10 +352,12 @@ export const ResearchView: React.FC = () => {
                 The Odds API
               </div>
               <div className="text-[11px] text-slate-400 truncate">
-                {theOdds?.key_masked ? `金鑰: ${theOdds.key_masked}` : "尚未配置 Key"}
+                {theOdds?.key_masked ? `金鑰: ${theOdds.key_masked}` : marketSummary ? "尚未配置 Key" : marketUnavailableLabel}
               </div>
               <div className="text-[10px] text-slate-400 truncate">
-                {!theOdds?.has_api_key
+                {!marketSummary
+                  ? marketUnavailableLabel
+                  : !theOdds?.has_api_key
                   ? "降級合成展示"
                   : theOdds?.last_successful_fetch_utc
                   ? `最近成功: ${new Date(theOdds.last_successful_fetch_utc).toLocaleTimeString()}`
@@ -279,13 +372,15 @@ export const ResearchView: React.FC = () => {
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                {theOdds?.requests_used_this_month || 0} / {theOdds?.monthly_budget || theOdds?.monthly_quota || 500}
+                {marketSummary
+                  ? `${theOdds?.requests_used_this_month ?? "—"} / ${theOdds?.monthly_budget ?? theOdds?.monthly_quota ?? "—"}`
+                  : marketUnavailableLabel}
               </div>
               <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium truncate tabular-nums">
-                官方剩餘: {theOdds?.official_remaining ?? theOdds?.requests_remaining_est ?? 500} Credits
+                官方剩餘: {marketSummary ? `${theOdds?.official_remaining ?? theOdds?.requests_remaining_est ?? "未知"} Credits` : marketUnavailableLabel}
               </div>
               <div className="text-[10px] text-slate-400 truncate">
-                日排程預算: {theOdds?.daily_schedulable_budget || 0} (手動保留 50)
+                日排程預算: {marketSummary ? `${theOdds?.daily_schedulable_budget ?? "未知"} (手動保留 50)` : marketUnavailableLabel}
               </div>
               <div className="text-[10px] text-slate-400 truncate tabular-nums">
                 最近扣點 {theOdds?.requests_last_consumed || 0} · 請求 {theOdds?.request_metrics?.api_requests || 0} · 快取命中 {theOdds?.request_metrics?.cache_hits || 0} · 合併 {theOdds?.request_metrics?.coalesced_requests || 0}
@@ -302,13 +397,13 @@ export const ResearchView: React.FC = () => {
                 <Database className="w-3.5 h-3.5 text-slate-400" />
               </div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                {snaps?.total_count || data?.total_snapshots || 0} / {snaps?.settled_count || 0}
+                {snapshotCount != null ? `${snapshotCount} / ${settledCount ?? "—"}` : marketUnavailableLabel}
               </div>
               <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium truncate">
-                有效前瞻: {snaps?.forward_eligible_count || 0}
+                有效前瞻: {snaps?.forward_eligible_count ?? (marketSummary ? "未知" : marketUnavailableLabel)}
               </div>
               <div className="text-[10px] text-slate-400 truncate">
-                歷史基線封存: {snaps?.legacy_unverified_count || 0} 筆
+                歷史基線封存: {snaps?.legacy_unverified_count ?? (marketSummary ? "未知" : marketUnavailableLabel)} 筆
               </div>
             </div>
 
@@ -319,17 +414,21 @@ export const ResearchView: React.FC = () => {
                 <span className="text-[11px] font-mono font-medium text-slate-400">門檻 {minSample}</span>
               </div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                {sampleSize} / {minSample}
+                {fwd ? `${sampleSize} / ${minSample}` : marketUnavailableLabel}
               </div>
               <div className="text-[11px] truncate">
                 <span className="text-slate-600 dark:text-slate-400 font-medium">
                   {fwd?.acceptance_gate_qualified
                     ? "Sharp 配對差異獲得統計支持，仍需人工審閱"
-                    : `未宣告優勢：${fwd?.statistical_evidence_status || fwd?.status || "尚未評估"}`}
+                    : fwd
+                      ? `未宣告優勢：${fwd.statistical_evidence_status || fwd.status || "尚未評估"}`
+                      : "前瞻評估狀態未知"}
                 </span>
               </div>
               <div className="text-[10px] text-slate-400 truncate">
-                Sharp 配對 {sampleSize} · 國際市場配對 {fwd?.market_paired_sample_size || 0} · 合格事件 {eligibleEventCount}
+                {fwd
+                  ? `Sharp 配對 ${sampleSize} · 國際市場配對 ${fwd.market_paired_sample_size ?? "未知"} · 合格事件 ${eligibleEventCount}`
+                  : "配對樣本未知"}
               </div>
             </div>
           </div>
@@ -343,25 +442,56 @@ export const ResearchView: React.FC = () => {
                   : syntheticQuoteCount > 0 ? "只有合成報價" : "未知／尚未執行"}
               </div>
               <div className="mt-1 text-[10px] text-slate-500">
-                符合指定 Sharp 來源規則 {lastCycle.sharp_qualified_count ?? 0} · 最近扣點 {lastCycle.official_credits_consumed ?? "未取得官方記帳"}
+                {hasLastCycle
+                  ? `符合指定 Sharp 來源規則 ${lastCycle.sharp_qualified_count ?? "未知"} · 最近扣點 ${lastCycle.official_credits_consumed ?? "未取得官方記帳"}`
+                  : "尚無排程週期記錄"}
               </div>
             </div>
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
               <div className="text-slate-500 dark:text-slate-400">台彩賽事與國際盤配對</div>
               <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
-                候選 {alignment.valid_candidate_count ?? 0} · 對齊 {alignment.real_matched_count ?? 0}
+                {alignment.status === "UNKNOWN" || alignment.status === "NO_RECORDED_CYCLE"
+                  ? "尚無配對週期資料"
+                  : `候選 ${alignment.valid_candidate_count ?? "未知"} · 對齊 ${alignment.real_matched_count ?? "未知"}`}
               </div>
-              <div className="mt-1 text-[10px] text-slate-500 truncate" title={rejectionSummary}>
-                {rejectionSummary || "沒有拒絕原因紀錄"}
-              </div>
+              {rejectionEntries.length > 0 ? (
+                <details className="mt-1 text-[10px] text-slate-500">
+                  <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+                    查看拒絕原因（{rejectionEntries.reduce((sum, entry) => sum + entry.count, 0)}）
+                  </summary>
+                  <ul className="mt-1 space-y-1 pl-3">
+                    {rejectionEntries.map(({ code, count, kind }) => {
+                      const example = alignment.rejection_examples?.[code]?.[0] as JsonRecord | undefined
+                      return (
+                        <li key={`${kind}-${code}`}>
+                          <span className="font-medium">{kind}：{alignmentReasonLabel(code)} × {count}</span>
+                          {example?.reason ? <span className="block pl-1">{String(example.reason)}</span> : null}
+                          {example?.taiwan_league || example?.taiwan_market ? (
+                            <span className="block pl-1">
+                              {String(example.taiwan_league || "")}{example.taiwan_market ? ` · ${String(example.taiwan_market)}` : ""}
+                              {example.taiwan_selection ? ` · ${String(example.taiwan_selection)}` : ""}
+                            </span>
+                          ) : null}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </details>
+              ) : (
+                <div className="mt-1 text-[10px] text-slate-500">
+                  {alignment.status === "UNKNOWN" || alignment.status === "NO_RECORDED_CYCLE"
+                    ? "尚無拒絕原因資料"
+                    : rejectionSummary || "最近週期沒有拒絕原因"}
+                </div>
+              )}
             </div>
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
               <div className="text-slate-500 dark:text-slate-400">前瞻資料品質與模型協定</div>
               <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
-                {fwd?.data_quality_status || "尚無資料品質狀態"}
+                {fwd?.data_quality_status || (marketSummary ? "尚無資料品質狀態" : marketUnavailableLabel)}
               </div>
               <div className="mt-1 text-[10px] text-slate-500 truncate">
-                {fwd?.evaluation_protocol_status || "尚無模型協定狀態"} · Brier 95% CI {fwd?.delta_brier_ci_95?.map((value: number) => value.toFixed(4)).join(" 至 ") || "尚無"}
+                {fwd?.evaluation_protocol_status || (marketSummary ? "尚無模型協定狀態" : marketUnavailableLabel)} · Brier 95% CI {fwd?.delta_brier_ci_95?.map((value: number) => value.toFixed(4)).join(" 至 ") || "尚無"}
               </div>
             </div>
           </div>
@@ -585,7 +715,7 @@ export const ResearchView: React.FC = () => {
         <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
           <div className="text-xs text-slate-500 dark:text-slate-400">歷史盤口快照總數</div>
           <div className="text-2xl font-black tabular-nums text-emerald-600 dark:text-emerald-400 font-mono mt-1">
-            {(snaps?.total_count || data?.total_snapshots || 0).toLocaleString()}
+            {snapshotCount != null ? snapshotCount.toLocaleString() : marketUnavailableLabel}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">獨立觀測樣本</div>
         </div>
@@ -593,17 +723,17 @@ export const ResearchView: React.FC = () => {
         <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
           <div className="text-xs text-slate-500 dark:text-slate-400">影子投組勝率</div>
           <div className="text-2xl font-black tabular-nums text-amber-500 dark:text-amber-400 font-mono mt-1">
-            {((portfolio?.win_rate || 0) * 100).toFixed(1)}%
+            {portfolio?.win_rate != null ? `${(portfolio.win_rate * 100).toFixed(1)}%` : analyticsUnavailableLabel}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">
-            {portfolio?.total_tickets || 0} 筆影子模擬單
+            {portfolio?.total_tickets != null ? `${portfolio.total_tickets} 筆影子模擬單` : analyticsUnavailableLabel}
           </div>
         </div>
 
         <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
           <div className="text-xs text-slate-500 dark:text-slate-400">影子投組 ROI</div>
           <div className="text-2xl font-black tabular-nums text-sky-600 dark:text-sky-400 font-mono mt-1">
-            {portfolio?.roi ? `${(portfolio.roi * 100).toFixed(1)}%` : "0.0%"}
+            {portfolio?.roi != null ? `${(portfolio.roi * 100).toFixed(1)}%` : analyticsUnavailableLabel}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">虛擬回測收益率</div>
         </div>
@@ -611,7 +741,7 @@ export const ResearchView: React.FC = () => {
         <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
           <div className="text-xs text-slate-500 dark:text-slate-400">前瞻族群追蹤</div>
           <div className="text-2xl font-black tabular-nums text-purple-600 dark:text-purple-400 font-mono mt-1">
-            {snaps?.settled_count || data?.cohort?.resolved_count || 0}
+            {settledCount != null ? settledCount : marketUnavailableLabel}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">已結算校準樣本</div>
         </div>
@@ -624,18 +754,18 @@ export const ResearchView: React.FC = () => {
           <CardHeader className="pb-3 border-b border-slate-200 dark:border-slate-800/80">
             <CardTitle className="text-base flex items-center gap-2">
               <Users className="w-4 h-4 text-sky-500" />
-              社群大眾投票分組校準
+              社群投票研究狀態
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              分析玩運彩社群公眾投票不同比例（如 50%、60%、70%）在真實開獎中的勝率與 EV 偏差。
+              比較票數比例與賽果前，必須先累積同玩法、賽前取得且可追溯的樣本；目前的介面指標不能單獨證明投票有預測力。
             </p>
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3 text-xs text-slate-700 dark:text-slate-300">
-              <div className="font-semibold text-emerald-600 dark:text-emerald-400 mb-1">統計觀察重點：</div>
+              <div className="font-semibold text-emerald-600 dark:text-emerald-400 mb-1">待驗證問題：</div>
               <ul className="list-disc list-inside space-y-1 text-slate-500 dark:text-slate-400">
-                <li>大眾選票 &gt; 70% 之熱門場次常具備降水效應。</li>
-                <li>逆向升水（莊家受熱反而調高賠率）往往為高風險陷阱。</li>
+                <li>熱門投票比例是否與同規格市場價格變化一致。</li>
+                <li>逆向升水只作觀察訊號；沒有前瞻比較前，不稱為陷阱或優勢。</li>
               </ul>
             </div>
           </CardContent>
@@ -651,12 +781,12 @@ export const ResearchView: React.FC = () => {
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Poisson 分佈足球模型、MLB Elo 動態評分與玩運彩殺手大神榜首信號之交叉驗證。
+              研究資料包括 Poisson／Elo 模型與專家訊號；各來源的賽前預測表現仍須分開評估。
             </p>
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3 text-xs text-slate-700 dark:text-slate-300">
               <div className="font-semibold text-amber-600 dark:text-amber-400 mb-1">多來源獨立支持原則：</div>
               <p className="text-slate-500 dark:text-slate-400">
-                當「大神推薦」、「大眾投票」與「模型估計」三者有 2 項以上同向支持時，串關成功率顯著提升。
+                多來源同向只表示支持訊號來源較多；目前尚無足夠前瞻樣本證明這會提高勝率或 EV。
               </p>
             </div>
           </CardContent>

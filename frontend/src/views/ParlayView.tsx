@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { api } from "@/services/api"
-import type { ParlayRecommendation, ParlaySearchPerformance, ParlayTier, WalletStatus } from "@/types"
+import type { JsonRecord, ParlayRecommendation, ParlaySearchPerformance, ParlayTier, WalletStatus } from "@/types"
 import { Slider } from "@/components/ui/Slider"
 import { Button } from "@/components/ui/Button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
@@ -29,6 +29,18 @@ type OddsMode = "banker" | "target" | "range"
 type ParlayTiers = Record<ParlayTier, ParlayRecommendation[]>
 type ParlayPerformance = ParlaySearchPerformance
 
+interface ParlaySearchDiagnostics {
+  normalized_option_count: number
+  ready_option_count: number
+  quality_option_count: number
+  quality_filtered_out_option_count: number
+  excluded_option_reasons: Record<string, number>
+  search_event_count: number
+  search_option_count: number
+  checked_combinations: number
+  odds_matching_combinations: number
+}
+
 interface ParlaySearchCache {
   oddsMode: OddsMode
   targetOdds: number
@@ -47,10 +59,26 @@ interface ParlaySearchCache {
   hasSearched: boolean
   performance: ParlayPerformance | null
   searchComplete: boolean
+  diagnostics: ParlaySearchDiagnostics | null
 }
 
 const PARLAY_CACHE_TTL_MS = 4 * 60 * 1000
 let parlaySearchCache: { expiresAt: number; state: ParlaySearchCache } | null = null
+
+const SEARCH_REASON_LABELS: Record<string, string> = {
+  ODDS_INVALID: "賠率無效",
+  ODDS_STALE: "盤口資料已過期",
+  ODDS_TIME_UNKNOWN: "盤口抓取時間未知",
+  ODDS_TIME_FUTURE: "盤口時間異常",
+  START_TIME_UNKNOWN: "開賽時間未知",
+  EVENT_STARTED: "賽事已開賽",
+  LINE_UNKNOWN: "讓分或大小門檻不完整",
+  MARKET_UNSUPPORTED: "玩法尚未支援",
+  EVENT_ID_UNKNOWN: "賽事識別不足",
+  EVENT_IDENTITY_INCOMPLETE: "主客隊識別不完整",
+  DUPLICATE_EVENT: "同場賽事不可重複串入",
+  INELIGIBLE_OR_INVALID_ODDS: "候選不符合資格或賠率無效",
+}
 
 function readParlaySearchCache(): ParlaySearchCache | null {
   if (!parlaySearchCache || Date.now() >= parlaySearchCache.expiresAt) {
@@ -98,6 +126,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   const [tiers, setTiers] = useState<ParlayTiers>(restoredSearch?.tiers ?? emptyParlayTiers())
   const [searchPerformance, setSearchPerformance] = useState<ParlayPerformance | null>(restoredSearch?.performance ?? null)
   const [searchComplete, setSearchComplete] = useState<boolean>(restoredSearch?.searchComplete ?? true)
+  const [searchDiagnostics, setSearchDiagnostics] = useState<ParlaySearchDiagnostics | null>(restoredSearch?.diagnostics ?? null)
 
   // Modals state
   const [selectedParlayForEvidence, setSelectedParlayForEvidence] = useState<ParlayRecommendation | null>(null)
@@ -122,8 +151,9 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       hasSearched,
       performance: searchPerformance,
       searchComplete,
+      diagnostics: searchDiagnostics,
     })
-  }, [oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax, crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam, activeTier, tiers, hasSearched, searchPerformance, searchComplete])
+  }, [oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax, crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam, activeTier, tiers, hasSearched, searchPerformance, searchComplete, searchDiagnostics])
 
   const allianceOptions = [
     { id: "1", label: "NBA 籃球" },
@@ -181,10 +211,11 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
     setHasSearched(true)
     setSearchPerformance(null)
     setSearchComplete(false)
+    setSearchDiagnostics(null)
     writeParlaySearchCache({
       oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax,
       crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam,
-      activeTier, tiers, hasSearched: true, performance: null, searchComplete: false,
+      activeTier, tiers, hasSearched: true, performance: null, searchComplete: false, diagnostics: null,
     })
 
     try {
@@ -212,11 +243,24 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       setActiveTier(nextActiveTier)
       setSearchPerformance(res.performance ?? null)
       setSearchComplete(res.search_complete)
+      const diagnosticRecord = (res.diagnostics ?? {}) as JsonRecord
+      const diagnostics: ParlaySearchDiagnostics = {
+        normalized_option_count: Number(diagnosticRecord.normalized_option_count ?? 0),
+        ready_option_count: Number(diagnosticRecord.ready_option_count ?? 0),
+        quality_option_count: Number(diagnosticRecord.quality_option_count ?? 0),
+        quality_filtered_out_option_count: Number(diagnosticRecord.quality_filtered_out_option_count ?? 0),
+        excluded_option_reasons: (diagnosticRecord.excluded_option_reasons as Record<string, number>) ?? {},
+        search_event_count: Number(diagnosticRecord.search_event_count ?? 0),
+        search_option_count: Number(diagnosticRecord.search_option_count ?? 0),
+        checked_combinations: Number(diagnosticRecord.checked_combinations ?? 0),
+        odds_matching_combinations: Number(diagnosticRecord.odds_matching_combinations ?? 0),
+      }
+      setSearchDiagnostics(diagnostics)
       writeParlaySearchCache({
         oddsMode, targetOdds, tolerance, minLegs, maxLegs, rangeMin, rangeMax,
         crossSport, selectedAlliances, signalFilter, excludeTraps, preferSteam,
         activeTier: nextActiveTier, tiers: res.tiers, hasSearched: true,
-        performance: res.performance ?? null, searchComplete: res.search_complete,
+        performance: res.performance ?? null, searchComplete: res.search_complete, diagnostics,
       })
     } catch (err: any) {
       setError(err.message || "搜尋串關失敗")
@@ -631,6 +675,26 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   可調整搜尋範圍或查看候選拒絕原因；若缺乏合格資料，先不產生組合是正常結果。
                 </p>
+                {searchDiagnostics && (
+                  <div className="mx-auto max-w-2xl rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-3 text-left text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+                    <div>
+                      台彩候選 {searchDiagnostics.normalized_option_count} · 通過賽事／時效檢查 {searchDiagnostics.ready_option_count} · 通過目前情報篩選 {searchDiagnostics.quality_option_count}
+                    </div>
+                    {searchDiagnostics.quality_filtered_out_option_count > 0 && (
+                      <div>有 {searchDiagnostics.quality_filtered_out_option_count} 筆通過基本檢查的候選，未通過目前情報篩選。</div>
+                    )}
+                    <div>
+                      已檢查 {searchDiagnostics.checked_combinations} 組 · 符合賠率區間 {searchDiagnostics.odds_matching_combinations} 組
+                    </div>
+                    {Object.entries(searchDiagnostics.excluded_option_reasons).length > 0 && (
+                      <ul className="list-disc pl-4">
+                        {Object.entries(searchDiagnostics.excluded_option_reasons).map(([reason, count]) => (
+                          <li key={reason}>{SEARCH_REASON_LABELS[reason] || reason.replaceAll("_", " ").toLowerCase()}：{count}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ) : (
