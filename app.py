@@ -492,7 +492,7 @@ if active_tab == NAV_RADAR:
 # -------------------------------------------------------------
 elif active_tab == NAV_PARLAY:
     st.markdown("### 🔥 瘋狗看盤決策台")
-    st.caption("設定目標總賠率，系統透過 Signal Hub (台灣盤口 + 大神榜 + 彩迷選票 + 開源模型) 自動搜尋最佳串關組合。")
+    st.caption("依台灣盤口、專家／社群訊號及模型資料搜尋候選組合；情報支持、機率估計與期望值是不同資訊，搜尋排序不代表已證明可獲利。")
     st.info("賠率決定派彩；1 ÷ 賠率是打平門檻。模型估計命中率、社群支持率與大神歷史勝率各有不同意思；HIGH 情報不對應固定勝率，正 EV 也取決於估計是否準確。")
 
     # Step 1: Target Multiplier & Signal Filter
@@ -502,7 +502,7 @@ elif active_tab == NAV_PARLAY:
         odds_mode = st.radio(
             "倍率與策略風格：",
             [
-                "🛡️ 穩健銀行家模式 (Banker: 1.5x ~ 6x 高勝率累積獎金池)",
+                "🛡️ 低倍率銀行家模式 (Banker: 1.5x ~ 6x 搜尋範圍)",
                 "🎯 指定目標倍率 (Target ±20%)",
                 "📊 自由賠率區間 (Range)",
             ],
@@ -513,14 +513,14 @@ elif active_tab == NAV_PARLAY:
         min_search_legs = 2
         max_search_legs = 6
 
-        if "穩健銀行家模式" in odds_mode:
+        if "銀行家模式" in odds_mode:
             target_odds_range = (1.5, 6.0)
             target_val = 2.5
             tolerance_val = 0.35
             min_search_legs = 2
             max_search_legs = 3
-            st.info("💡 **穩健銀行家模式 (Banker Mode)**：鎖定 2~3 關高勝率與正期望值 (+EV) 定海神針關卡，總倍率約 1.5x ~ 6x。兼具極高勝率與低風險，小額派彩全數撥入【保留儲備池】，細水長流穩健壯大每週戰力！")
-            st.caption(f"鎖定搜尋賠率：**{target_odds_range[0]:.1f}x ~ {target_odds_range[1]:.1f}x** (限定 2~3 關高勝率)")
+            st.info("💡 **低倍率銀行家模式**：以 2~3 關、總倍率約 1.5x ~ 6x 搜尋組合。較低倍率不代表命中率較高或風險較低；各關機率與 EV 仍受來源、資料完整度及未校準估計影響。")
+            st.caption(f"鎖定搜尋賠率：**{target_odds_range[0]:.1f}x ~ {target_odds_range[1]:.1f}x** (限定 2~3 關)")
         elif "指定目標倍率" in odds_mode:
             target_val = st.number_input("🎯 目標總倍率 (x)", min_value=1.5, max_value=500.0, value=20.0, step=1.0)
             tolerance_pct = st.slider("容許浮動範圍 (±%)", min_value=5, max_value=40, value=20, step=5)
@@ -533,8 +533,8 @@ elif active_tab == NAV_PARLAY:
             preset = st.radio(
                 "快捷區間：",
                 [
-                    "🛡️ 銀行家模式 (1.8x ~ 4.0x，2~3關高勝率)",
-                    "📈 穩中求勝 (4.0x ~ 10.0x，精選穩健)",
+                    "🛡️ 低倍率組合 (1.8x ~ 4.0x，2~3關)",
+                    "📈 中低倍率組合 (4.0x ~ 10.0x)",
                     "🔥 瘋狗起步 (10x ~ 25x)",
                     "🚀 瘋狗狂暴 (25x ~ 75x)",
                     "🌕 極限登月 (75x ~ 200x)",
@@ -589,7 +589,7 @@ elif active_tab == NAV_PARLAY:
             "🛡️ 外部情報品質門檻：",
             [
                 "normal (標準: 排除無外部情報之關卡)",
-                "value_only (價值優先: 僅限具備 +EV 正期望值或高勝率之關卡)",
+                "value_only (估計價值優先: 依可用 EV 與未校準機率條件篩選)",
                 "strict (嚴格: 僅限 2+ 獨立來源支持)",
                 "wild (狂野: 容許全部盤口)",
             ],
@@ -770,14 +770,14 @@ elif active_tab == NAV_PARLAY:
     bucket_choice = st.radio(
         "選擇組合風格：",
         [
-            f"🟢 共識較高 ({len(parlay_results['high_consensus'])} 組)",
+            f"🟢 情報支持較高 ({len(parlay_results['high_consensus'])} 組)",
             f"🟡 比較瘋 ({len(parlay_results['aggressive'])} 組)",
             f"🔴 極限 Moonshot ({len(parlay_results['moonshot'])} 組)",
         ],
         horizontal=True,
     )
 
-    if "共識較高" in bucket_choice:
+    if "情報支持較高" in bucket_choice:
         active_list = parlay_results["high_consensus"]
         category_desc = "情報支持程度較高的候選組合；這個分類不代表已驗證的高勝率，仍需查看每關的證據。"
     elif "比較瘋" in bucket_choice:
@@ -829,7 +829,7 @@ elif active_tab == NAV_PARLAY:
                 parlay_name_html = html_text(item.get("parlay_name", ""))
                 sharp_badge_html = ""
                 if item.get("has_sharp_benchmark") and item.get("is_positive_ev") and sharp_ev_pct is not None:
-                    sharp_badge_html = f"&nbsp; <span style='background:#1b5e20; color:#b9f6ca; border:1px solid #00e676; padding:2px 8px; border-radius:8px; font-weight:bold;'>🔥 國際去水正期望值 (+EV {sharp_ev_pct:+.1f}%)</span>"
+                    sharp_badge_html = f"&nbsp; <span style='background:#1b5e20; color:#b9f6ca; border:1px solid #00e676; padding:2px 8px; border-radius:8px; font-weight:bold;'>Sharp 資格來源估計 EV {sharp_ev_pct:+.1f}%（非已驗證收益）</span>"
                 elif item.get("has_sharp_benchmark") and sharp_ev_pct is not None:
                     badge_text = html_text(item.get("sharp_summary_badge", "⚪ 市場中性/負EV"))
                     sharp_badge_html = f"&nbsp; <span style='background:#2a2b36; color:#bdbdbd; padding:2px 8px; border-radius:8px; font-weight:bold;'>{badge_text} ({sharp_ev_pct:+.1f}%)</span>"
@@ -938,9 +938,9 @@ elif active_tab == NAV_PARLAY:
 
                         if isinstance(leg_ev_pct, (int, float)):
                             if leg_ev_pct > 0:
-                                ev_pill = f"<span style='background:#1b5e20; color:#b9f6ca; border:1px solid #00e676; padding:2px 7px; border-radius:6px; font-weight:bold;'>🔥 +EV {leg_ev_pct:+.1f}%</span>"
+                                ev_pill = f"<span style='background:#1b5e20; color:#b9f6ca; border:1px solid #00e676; padding:2px 7px; border-radius:6px; font-weight:bold;'>EV 估計 {leg_ev_pct:+.1f}%</span>"
                             else:
-                                ev_pill = f"<span style='background:#2d1b1b; color:#fca5a5; padding:2px 7px; border-radius:6px;'>EV {leg_ev_pct:+.1f}%</span>"
+                                ev_pill = f"<span style='background:#2d1b1b; color:#fca5a5; padding:2px 7px; border-radius:6px;'>EV 估計 {leg_ev_pct:+.1f}%</span>"
                         else:
                             ev_pill = "<span style='background:#1e202e; color:#94a3b8; padding:2px 7px; border-radius:6px;'>EV -</span>"
 

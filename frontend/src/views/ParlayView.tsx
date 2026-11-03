@@ -135,8 +135,8 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   ]
 
   const rangePresets = [
-    { label: "銀行家 (1.8x – 4.0x)", min: 1.8, max: 4.0, target: 2.5, minL: 2, maxL: 3, filter: "value_only" },
-    { label: "穩健推薦 (4.0x – 10.0x)", min: 4.0, max: 10.0, target: 6.0, minL: 2, maxL: 4, filter: "value_only" },
+    { label: "低倍率組合 (1.8x – 4.0x)", min: 1.8, max: 4.0, target: 2.5, minL: 2, maxL: 3, filter: "value_only" },
+    { label: "中低倍率組合 (4.0x – 10.0x)", min: 4.0, max: 10.0, target: 6.0, minL: 2, maxL: 4, filter: "value_only" },
     { label: "進取策略 (10x – 25x)", min: 10.0, max: 25.0, target: 15.0, minL: 3, maxL: 5, filter: "normal" },
     { label: "高倍進攻 (25x – 75x)", min: 25.0, max: 75.0, target: 40.0, minL: 4, maxL: 6, filter: "normal" },
     { label: "登月串關 (75x – 200x)", min: 75.0, max: 200.0, target: 120.0, minL: 5, maxL: 7, filter: "normal" },
@@ -242,10 +242,10 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <CardTitle className="text-base sm:text-lg flex items-center gap-2 font-semibold">
               <Flame className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              串關組合決策台 (1.5x – 500x 期望值搜尋)
+              串關組合研究台 (1.5x – 500x 賠率範圍)
             </CardTitle>
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              設定目標總賠率，系統將依市場情報與正期望值 (+EV) 自動配對
+              依目前資料與篩選條件搜尋候選；倍率、情報支持和勝率代表不同資訊，估計 EV 尚未證明可預測收益。
             </span>
           </div>
         </CardHeader>
@@ -269,10 +269,10 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
               >
                 <div className="flex items-center gap-2 font-medium text-sm text-slate-900 dark:text-slate-100">
                   <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  穩健銀行家模式
+                  低倍率銀行家模式
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  1.5x – 6x 高勝率 · 2~3 關定海神針
+                  1.5x – 6x 搜尋範圍 · 2~3 關
                 </div>
               </button>
 
@@ -318,10 +318,10 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs leading-relaxed space-y-1">
                 <div className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  穩健銀行家模式策略
+                  低倍率串關搜尋範圍
                 </div>
                 <p className="text-slate-600 dark:text-slate-400">
-                  鎖定 2~3 關高勝率與正期望值 (+EV) 關卡，總倍率約 1.5x ~ 6.0x。兼具高勝率與低風險，小額派彩全數撥入【保留儲備池】，穩健累積獲利戰力。
+                  以 2~3 關、總倍率約 1.5x ~ 6.0x 搜尋組合。較低倍率不代表命中率較高或風險較低；個別勝率與 EV 仍受來源、資料完整度及未校準估計影響。
                 </p>
               </div>
             )}
@@ -481,7 +481,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                   onChange={(e) => setSignalFilter(e.target.value)}
                   className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 w-full cursor-pointer"
                 >
-                  <option value="value_only">價值優先 (+EV 正期望值)</option>
+                  <option value="value_only">估計價值優先（含未校準機率條件）</option>
                   <option value="normal">標準 (排除無情報關卡)</option>
                   <option value="strict">嚴格 (2+ 獨立情報支持)</option>
                   <option value="wild">全量 (容納所有可能盤口)</option>
@@ -501,7 +501,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                       onChange={(e) => setExcludeTraps(e.target.checked)}
                       className="rounded text-emerald-600 focus:ring-0 cursor-pointer"
                     />
-                    <span>過濾莊家誘盤 (排除逆向升水)</span>
+                    <span>排除標記為逆向升水的候選</span>
                   </label>
                   <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
                     <input
@@ -510,7 +510,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                       onChange={(e) => setPreferSteam(e.target.checked)}
                       className="rounded text-emerald-600 focus:ring-0 cursor-pointer"
                     />
-                    <span>優先推薦資金跳水 (順勢跟隨)</span>
+                    <span>排序偏好賠率跳動訊號（不代表方向有效）</span>
                   </label>
                 </div>
               </div>
@@ -565,7 +565,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
               }`}
             >
               <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>高共識推薦</span>
+              <span>高情報支持</span>
               <span className="font-mono tabular-nums text-[10px] text-slate-500">
                 ({tiers.high_consensus.length})
               </span>
@@ -629,7 +629,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
               <CardContent className="space-y-2">
                 <h4 className="font-medium text-slate-800 dark:text-slate-200 text-sm">此分類暫無符合條件的組合</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  可嘗試調整目標賠率（如改為 1.8x ~ 4.0x 穩健銀行家模式）或放寬情報門檻重試。
+                  可調整搜尋範圍或查看候選拒絕原因；若缺乏合格資料，先不產生組合是正常結果。
                 </p>
               </CardContent>
             </Card>

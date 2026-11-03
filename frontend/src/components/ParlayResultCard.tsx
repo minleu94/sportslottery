@@ -65,7 +65,7 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
                   isPos ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"
                 }`}
               >
-                <span>{hasSharp ? "Sharp 基準 EV" : (parlayHasSynth ? "估計 EV（模擬）" : "估計 EV（未驗證）")}</span>
+                <span>{hasSharp ? "指定來源市場估計 EV" : (parlayHasSynth ? "估計 EV（模擬）" : "估計 EV（未驗證）")}</span>
                 <span>{isPos ? `+${evVal.toFixed(1)}%` : `${evVal.toFixed(1)}%`}</span>
               </div>
             )
@@ -84,6 +84,14 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
             ? Number(sharpLegEv)
             : (leg.expected_value_pct ?? (leg.expected_value ? leg.expected_value * 100 : null))
           const legProb = leg.consensus_probability ? (leg.consensus_probability * 100).toFixed(0) : null
+          const probabilityStatus = legEvidence.probability_status
+          const probabilityLabel = probabilityStatus === "MARKET_BASELINE_ONLY"
+            ? "市場隱含機率"
+            : probabilityStatus === "CALIBRATED_MODEL_ESTIMATE"
+              ? "已校準模型估計"
+              : probabilityStatus
+                ? "未校準模型估計"
+                : "未驗證機率估計"
           const isPos = Boolean(hasSharpLeg && legEv !== null && legEv > 0)
 
           return (
@@ -114,7 +122,7 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
                       }`}
                     >
                       {hasSharpLeg
-                        ? `Sharp 基準 EV ${legEv.toFixed(1)}%`
+                        ? `指定來源市場估計 EV ${legEv.toFixed(1)}%`
                         : isSynth ? `估計 EV ${legEv.toFixed(1)}%（模擬）` : `估計 EV ${legEv.toFixed(1)}%（未驗證）`}
                     </span>
                   )}
@@ -122,7 +130,7 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
                   {/* Leg Prob */}
                   {legProb && (
                     <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                      估計機率 {legProb}%
+                      {probabilityLabel} {legProb}%
                     </span>
                   )}
                 </div>
