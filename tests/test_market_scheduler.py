@@ -347,7 +347,15 @@ def _assert_api_scheduler_endpoints(test_client, scheduler):
     # The summary route normally constructs the full production pipeline and
     # reads local research files. Keep this endpoint contract test hermetic.
     with patch("core.market_forward_pipeline.MarketForwardPipeline") as pipeline_cls:
-        pipeline_cls.return_value.get_research_status_summary.return_value = {}
+        pipeline_cls.return_value.get_research_status_summary.return_value = {
+            "live_status": "SYNTHETIC_FIXTURE",
+            "live_status_scope": "ODDS_API_SOURCE_STATUS_ONLY",
+            "the_odds_api": {"status": "SYNTHETIC"},
+            "alignment": {"status": "NO_RECORDED_CYCLE"},
+            "snapshots": {"total_count": 0},
+            "forward_evaluation": {"sample_size": 0},
+            "as_of_utc": "2026-11-02T00:00:00+00:00",
+        }
         res_sum = test_client.get("/api/market/research-summary")
     assert res_sum.status_code == 200
     sum_data = res_sum.json()

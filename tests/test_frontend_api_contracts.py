@@ -1,3 +1,4 @@
+import threading
 from unittest.mock import MagicMock
 
 from core.contracts.common import TaiwanLeg
@@ -84,6 +85,11 @@ def test_parlay_response_exposes_tier_and_hides_internal_raw_legs(monkeypatch):
     signal_hub._cache_epoch = 0
     signal_hub.evaluate_taiwan_leg.side_effect = lambda item: item
     parlay_engine = MagicMock()
+    # Other concurrency tests intentionally replace this semaphore with a full
+    # queue. Give this response-shape test isolated search controls.
+    monkeypatch.setattr(parlay_routes, "_parlay_search_inflight", {})
+    monkeypatch.setattr(parlay_routes, "_parlay_search_capacity", threading.BoundedSemaphore(6))
+    monkeypatch.setattr(parlay_routes, "_parlay_search_slots", threading.BoundedSemaphore(2))
 
     def search_parlays(*, diagnostics, **_kwargs):
         diagnostics.update(search_status="COMPLETE", search_complete=True, evaluated_combinations=3)

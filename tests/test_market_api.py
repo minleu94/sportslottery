@@ -158,6 +158,7 @@ def test_get_market_research_summary():
         "the_odds_api": {"status": "HEALTHY"},
         "snapshots": {"total_count": 0},
         "forward_evaluation": {"sample_size": 0},
+        "as_of_utc": "2026-11-02T00:00:00+00:00",
     }
     pipeline = MagicMock()
     pipeline.get_research_status_summary.return_value = summary
