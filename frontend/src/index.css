@@ -18,6 +18,8 @@
     --accent: #059669;
     --accent-subtle: rgba(5, 150, 105, 0.08);
     --card-hover: #f8fafc;
+    --slider-track: #cbd5e1;
+    --heatmap-empty: #e2e8f0;
   }
 
   html.dark {
@@ -33,6 +35,8 @@
     --accent: #10b981;
     --accent-subtle: rgba(16, 185, 129, 0.1);
     --card-hover: #151d30;
+    --slider-track: #334155;
+    --heatmap-empty: #1e293b;
   }
 }
 

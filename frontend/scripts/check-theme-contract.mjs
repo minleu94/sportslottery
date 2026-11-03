@@ -23,4 +23,10 @@ if (!css.includes("color-scheme:light") || !css.includes("color-scheme:dark")) {
   throw new Error("Theme contract failed: native controls must follow the active light/dark theme.")
 }
 
-console.log("Theme contract verified: app-selected theme drives dark utilities and native controls.")
+for (const token of ["--slider-track", "--heatmap-empty"]) {
+  if ((css.match(new RegExp(`${token}:`, "g")) ?? []).length < 2) {
+    throw new Error(`Theme contract failed: ${token} must define both light and dark values.`)
+  }
+}
+
+console.log("Theme contract verified: app-selected theme drives dark utilities, native controls, and custom color tokens.")

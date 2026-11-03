@@ -173,7 +173,7 @@ export const EVHeatmapChart: React.FC<EVHeatmapChartProps> = ({ parlays, targetO
               {chartData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill={entry.count > 0 ? (entry.evPercent > 0 ? "#10b981" : "#475569") : "#e2e8f0"}
+                  fill={entry.count > 0 ? (entry.evPercent > 0 ? "#10b981" : "#475569") : "var(--heatmap-empty)"}
                 />
               ))}
             </Bar>
