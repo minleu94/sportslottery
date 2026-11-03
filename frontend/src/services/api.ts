@@ -45,7 +45,27 @@ export interface SearchParlaysParams {
 
 
 
-let cachedAuthToken: string | null = typeof window !== "undefined" ? localStorage.getItem("auth_session_token") : null
+const LEGACY_AUTH_TOKEN_KEY = "auth_session_token"
+
+function readLegacyAuthToken(): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    return localStorage.getItem(LEGACY_AUTH_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+function removeLegacyAuthToken(): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.removeItem(LEGACY_AUTH_TOKEN_KEY)
+  } catch {
+    // The in-memory token and HttpOnly cookie remain available when storage is disabled.
+  }
+}
+
+let cachedAuthToken: string | null = readLegacyAuthToken()
 
 
 
@@ -53,34 +73,23 @@ export function setAuthToken(token: string | null) {
 
   cachedAuthToken = token
 
-  if (typeof window !== "undefined") {
-
-    if (token) {
-
-      localStorage.setItem("auth_session_token", token)
-
-    } else {
-
-      localStorage.removeItem("auth_session_token")
-
-    }
-
-  }
+  // Keep legacy tokens in memory only; the server's HttpOnly cookie persists the session.
+  removeLegacyAuthToken()
 
 }
 
 
 
 export function getAuthToken(): string | null {
-
-  if (!cachedAuthToken && typeof window !== "undefined") {
-
-    cachedAuthToken = localStorage.getItem("auth_session_token")
-
-  }
-
   return cachedAuthToken
 
+}
+
+export class ApiRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = "ApiRequestError"
+  }
 }
 
 
@@ -367,13 +376,13 @@ export const api = {
 
 
 
-  async verifyPin(profileId: string, pinCode: string): Promise<{ success: boolean; token: string; profile: Profile }> {
+  async verifyPin(profileId: string, pinCode: string): Promise<{ success: boolean; token?: string; profile: Profile }> {
 
     const res = await fetch(`${BASE_URL}/profiles/verify_pin`, {
 
       method: "POST",
 
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Session-Mode": "cookie" },
 
       body: JSON.stringify({ profile_id: profileId, pin_code: pinCode }),
 
@@ -389,11 +398,7 @@ export const api = {
 
     const data = await res.json()
 
-    if (data.token) {
-
-      setAuthToken(data.token)
-
-    }
+    setAuthToken(data.token ?? null)
 
     return data
 
@@ -419,7 +424,7 @@ export const api = {
 
       method: "POST",
 
-      headers: authHeaders({ "Content-Type": "application/json" }),
+      headers: authHeaders({ "Content-Type": "application/json", "X-Session-Mode": "cookie" }),
 
       body: JSON.stringify(payload),
 
@@ -433,7 +438,9 @@ export const api = {
 
     }
 
-    return res.json()
+    const data = await res.json()
+    if (payload.new_pin) setAuthToken(data.token ?? null)
+    return data
 
   },
 
@@ -451,13 +458,13 @@ export const api = {
 
 
 
-  async loginProfile(identifier: string, pinCode: string): Promise<{ success: boolean; token: string; profile: Profile; message: string; requires_pin_change?: boolean; warning?: string }> {
+  async loginProfile(identifier: string, pinCode: string): Promise<{ success: boolean; token?: string; profile: Profile; message: string; requires_pin_change?: boolean; warning?: string }> {
 
     const res = await fetch(`${BASE_URL}/profiles/login`, {
 
       method: "POST",
 
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Session-Mode": "cookie" },
 
       body: JSON.stringify({ identifier, pin_code: pinCode }),
 
@@ -473,11 +480,7 @@ export const api = {
 
     const data = await res.json()
 
-    if (data.token) {
-
-      setAuthToken(data.token)
-
-    }
+    setAuthToken(data.token ?? null)
 
     return data
 
@@ -485,13 +488,13 @@ export const api = {
 
 
 
-  async registerProfile(name: string, weeklyPlayCap: number = 200, pinCode: string = "0000"): Promise<{ success: boolean; token: string; profile: Profile }> {
+  async registerProfile(name: string, weeklyPlayCap: number = 200, pinCode: string = "0000"): Promise<{ success: boolean; token?: string; profile: Profile }> {
 
     const res = await fetch(`${BASE_URL}/profiles/register`, {
 
       method: "POST",
 
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Session-Mode": "cookie" },
 
       body: JSON.stringify({ name, weekly_play_cap: weeklyPlayCap, pin_code: pinCode }),
 
@@ -507,11 +510,7 @@ export const api = {
 
     const data = await res.json()
 
-    if (data.token) {
-
-      setAuthToken(data.token)
-
-    }
+    setAuthToken(data.token ?? null)
 
     return data
 
@@ -531,7 +530,7 @@ export const api = {
 
       const err = await res.json().catch(() => ({}))
 
-      throw new Error(err.detail || "取得目前登入狀態失敗")
+      throw new ApiRequestError(err.detail || "取得目前登入狀態失敗", res.status)
 
     }
 

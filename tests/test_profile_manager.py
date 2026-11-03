@@ -48,6 +48,18 @@ def test_create_new_profile_and_pin_validation(tmp_path):
     assert len(profiles) == 2
 
 
+def test_profile_creation_enforces_name_and_count_limits(tmp_path, monkeypatch):
+    import core.profile_manager as profile_module
+
+    monkeypatch.setattr(profile_module, "MAX_PROFILE_COUNT", 2)
+    pm = ProfileManager(db_path=tmp_path / "limited_profiles.sqlite3")
+    pm.create_profile(name="玩家一", pin_code="1111")
+    with pytest.raises(ValueError, match="數量已達系統上限"):
+        pm.create_profile(name="玩家二", pin_code="2222")
+    with pytest.raises(ValueError, match="不可超過 64"):
+        pm.create_profile(name="x" * 65, pin_code="3333")
+
+
 def test_update_profile_pin_protection(tmp_path):
     db = tmp_path / "test_profiles.sqlite3"
     pm = ProfileManager(db_path=db)

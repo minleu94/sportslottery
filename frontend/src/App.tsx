@@ -12,7 +12,7 @@ import { SidebarDrawer } from "@/components/SidebarDrawer"
 import { MetricGuideModal } from "@/components/MetricGuideModal"
 import { SystemHealthModal } from "@/components/SystemHealthModal"
 import { StorageSettingsModal } from "@/components/StorageSettingsModal"
-import { api } from "@/services/api"
+import { api, ApiRequestError } from "@/services/api"
 import type { Profile, WalletStatus } from "@/types"
 
 function MainLayout() {
@@ -30,29 +30,35 @@ function MainLayout() {
 
   async function initApp() {
     try {
-      const savedToken = api.getAuthToken()
-      if (savedToken) {
-        try {
-          const meRes = await api.getAuthMe()
-          if (meRes.success && meRes.profile) {
-            setCurrentProfile(meRes.profile)
-            localStorage.setItem("auth_profile_id", meRes.profile.id)
-            const wRes = await api.getWalletStatus(meRes.profile.id)
-            setWalletStatus(wRes)
-            setLoading(false)
-            return
-          }
-        } catch (authErr) {
-          console.warn("Session token expired or invalid:", authErr)
+      let meRes
+      try {
+        meRes = await api.getAuthMe()
+      } catch (authErr) {
+        // A stale pre-cookie token may take precedence over a valid cookie.
+        // Clear it only after a definitive 401, then retry with the HttpOnly cookie.
+        if (authErr instanceof ApiRequestError && authErr.status === 401 && api.getAuthToken()) {
           api.setAuthToken(null)
-          localStorage.removeItem("auth_profile_id")
+          meRes = await api.getAuthMe()
+        } else {
+          throw authErr
         }
       }
 
-      // If no valid saved session, keep currentProfile null so LoginGate is rendered
-      setCurrentProfile(null)
+      if (meRes.success && meRes.profile) {
+        // /auth/me refreshes the HttpOnly cookie before the legacy local token is removed.
+        api.setAuthToken(null)
+        setCurrentProfile(meRes.profile)
+        localStorage.setItem("auth_profile_id", meRes.profile.id)
+        const wRes = await api.getWalletStatus(meRes.profile.id)
+        setWalletStatus(wRes)
+        return
+      }
     } catch (err) {
       console.error("初始化失敗:", err)
+      if (err instanceof ApiRequestError && err.status === 401) {
+        api.setAuthToken(null)
+        localStorage.removeItem("auth_profile_id")
+      }
       setCurrentProfile(null)
     } finally {
       setLoading(false)

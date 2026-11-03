@@ -42,6 +42,12 @@ jobs:
       - name: Build Python Wheel
         run: python -m pip wheel --no-deps --no-build-isolation --wheel-dir "${{ runner.temp }}/sportslottery-wheelhouse" .
 
+      - name: Check release version consistency
+        run: python scripts/check_version_consistency.py
+
+      - name: Enforce tracked-file policy
+        run: python scripts/check_tracked_file_policy.py
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -53,7 +59,17 @@ jobs:
         run: |
           cd frontend
           npm ci
+          npm run lint
           npm run build
 
       - name: Run Full Offline Test Suite
-        run: python -m pytest tests -v --basetemp "${{ runner.temp }}/sportslottery-pytest-tmp"
+        run: python -m pytest tests -v --junitxml="${{ runner.temp }}/sportslottery-junit.xml" --basetemp "${{ runner.temp }}/sportslottery-pytest-tmp"
+
+      - name: Upload offline test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-${{ matrix.os }}
+          path: ${{ runner.temp }}/sportslottery-junit.xml
+          if-no-files-found: ignore
+          retention-days: 30

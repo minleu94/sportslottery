@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -15,6 +16,8 @@ logger = logging.getLogger("server.api")
 _line_notifier = LineNotifier()
 
 router = APIRouter()
+MAX_LINE_WEBHOOK_BODY_BYTES = 1024 * 1024
+MAX_LINE_WEBHOOK_EVENTS = 100
 
 
 
@@ -25,7 +28,19 @@ async def line_webhook_callback(
     x_line_signature: Optional[str] = Header(None, alias="X-Line-Signature"),
 ):
     """Webhook callback endpoint for LINE Messaging API with mandatory cryptographic signature verification."""
-    body_bytes = await request.body()
+    declared_length = request.headers.get("content-length")
+    try:
+        if declared_length is not None and int(declared_length) > MAX_LINE_WEBHOOK_BODY_BYTES:
+            raise HTTPException(status_code=413, detail="LINE webhook payload is too large.")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid Content-Length header.")
+
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_LINE_WEBHOOK_BODY_BYTES:
+            raise HTTPException(status_code=413, detail="LINE webhook payload is too large.")
+        body.extend(chunk)
+    body_bytes = bytes(body)
     secret = str(_line_notifier.config.get("channel_secret") or "").strip()
     is_test_mode = os.environ.get("ALLOW_INSECURE_LINE_WEBHOOK", "").lower() in ("1", "true", "yes")
 
@@ -45,11 +60,15 @@ async def line_webhook_callback(
         logger.debug("LINE webhook running in test mode (ALLOW_INSECURE_LINE_WEBHOOK=true).")
 
     try:
-        data = await request.json()
+        data = json.loads(body_bytes)
     except Exception:
         return Response(content="Invalid JSON", status_code=400)
 
+    if not isinstance(data, dict) or not isinstance(data.get("events", []), list):
+        return Response(content="Invalid webhook event list", status_code=400)
     events = data.get("events", [])
+    if len(events) > MAX_LINE_WEBHOOK_EVENTS:
+        raise HTTPException(status_code=413, detail="LINE webhook contains too many events.")
     if events:
         background_tasks.add_task(process_line_events, events)
     return {"status": "ok", "events_processed": len(events)}

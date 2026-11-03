@@ -14,6 +14,9 @@ Sportslottery 是一套本機運彩研究與注單記錄工具，用賽事資料
 - [目前狀況與已知限制](docs/STATUS.md)：只說明目前有效的狀況，不記錄歷程或待辦計畫。
 - [變更紀錄](CHANGELOG.md)：用簡短日期條目記錄已完成的改動。
 - [架構索引](docs/architecture/README.md)：架構概觀、模組邊界與 ADR。
+- [Repository 治理與品質閘門](docs/REPOSITORY_GOVERNANCE.md)：版本、發布、資料與保留政策。
+- [CI 驗收證據](docs/QUALITY_GATES.md)：離線測試涵蓋範圍及真實資料驗收界線。
+- [安全性政策](SECURITY.md)：安全邊界、必須成立的授權條件與回報方式。
 - [來源能力矩陣](docs/SOURCE_CAPABILITY_MATRIX.md)：來源整合能力及資料契約。
 - [台灣運彩結算規則](docs/TAIWAN_SETTLEMENT_RULES.md)：玩法與結算規則。
 - [研究流程](docs/research_pipeline.md)：影子研究流程與執行方式。

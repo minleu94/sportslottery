@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
+from ui.html_safety import html_text
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -139,7 +140,7 @@ def render_sidebar_navigation() -> None:
                             <span>👤 當前登入玩家</span>
                             <span style="color:#a855f7; font-weight:600;">PIN 保護</span>
                         </div>
-                        <div style="font-size:1.15rem; font-weight:bold; color:var(--text-primary); margin-top:2px;">{active_profile['name']}</div>
+                        <div style="font-size:1.15rem; font-weight:bold; color:var(--text-primary); margin-top:2px;">{html_text(active_profile['name'])}</div>
                         <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.82rem;">
                             <span style="color:#38bdf8;">💵 可用: NT$ {ws['weekly_wallet_balance']:,.0f}</span>
                             <span style="color:#4ade80;">🏆 儲備: NT$ {ws['prize_pool']:,.1f}</span>

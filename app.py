@@ -30,6 +30,7 @@ from core.bet_validation import assess_leg, REASON_LABELS
 from core.parlay_engine import ParlayEngine
 from core.performance_metrics import PerformanceMetricsEngine
 from ui.metric_format import metric_number
+from ui.html_safety import html_text
 from core.scraper import ALLIANCE_MAP, PlaysportScraper
 from core.season_radar import SeasonRadar
 from core.shadow_portfolio import ShadowPortfolioManager
@@ -476,11 +477,11 @@ if active_tab == NAV_RADAR:
                             lm_suffix = f" <span style='color:#fbbf24; font-size:0.80rem;'>⚠️升水({lm.get('delta_odds'):+.2f})</span>"
 
                         if isinstance(leg_ev, (int, float)) and leg_ev > 0:
-                            opt_strs.append(f"<b><code>{leg.market} {leg.selection}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#4ade80; font-size:0.85rem;'>🔥 +EV {leg_ev:+.1f}%</span>)")
+                            opt_strs.append(f"<b><code>{html_text(leg.market)} {html_text(leg.selection)}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#4ade80; font-size:0.85rem;'>🔥 +EV {leg_ev:+.1f}%</span>)")
                         elif prob >= 0.55 and leg.taiwan_odds <= 2.0:
-                            opt_strs.append(f"<b><code>{leg.market} {leg.selection}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#60a5fa; font-size:0.85rem;'>🛡️ {prob*100:.0f}%</span>)")
+                            opt_strs.append(f"<b><code>{html_text(leg.market)} {html_text(leg.selection)}</code></b> ({leg.taiwan_odds}{lm_suffix} <span style='color:#60a5fa; font-size:0.85rem;'>🛡️ {prob*100:.0f}%</span>)")
                         else:
-                            opt_strs.append(f"<code>{leg.market} {leg.selection}</code> ({leg.taiwan_odds}{lm_suffix})")
+                            opt_strs.append(f"<code>{html_text(leg.market)} {html_text(leg.selection)}</code> ({leg.taiwan_odds}{lm_suffix})")
                     if opt_strs:
                         st.markdown("<div style='font-size:0.9rem; color:#bbb; margin-top:2px;'>盤口選項： " + " · ".join(opt_strs) + "</div>", unsafe_allow_html=True)
                     st.markdown("<hr style='margin: 8px 0; border-color: #2d2f3f;'>", unsafe_allow_html=True)
@@ -825,11 +826,12 @@ elif active_tab == NAV_PARLAY:
                 readiness_color = "#00c853" if current_readiness["is_ready"] else "#d32f2f"
 
                 sharp_ev_pct = item.get("sharp_parlay_ev_pct")
+                parlay_name_html = html_text(item.get("parlay_name", ""))
                 sharp_badge_html = ""
                 if item.get("has_sharp_benchmark") and item.get("is_positive_ev") and sharp_ev_pct is not None:
                     sharp_badge_html = f"&nbsp; <span style='background:#1b5e20; color:#b9f6ca; border:1px solid #00e676; padding:2px 8px; border-radius:8px; font-weight:bold;'>🔥 國際去水正期望值 (+EV {sharp_ev_pct:+.1f}%)</span>"
                 elif item.get("has_sharp_benchmark") and sharp_ev_pct is not None:
-                    badge_text = item.get("sharp_summary_badge", "⚪ 市場中性/負EV")
+                    badge_text = html_text(item.get("sharp_summary_badge", "⚪ 市場中性/負EV"))
                     sharp_badge_html = f"&nbsp; <span style='background:#2a2b36; color:#bdbdbd; padding:2px 8px; border-radius:8px; font-weight:bold;'>{badge_text} ({sharp_ev_pct:+.1f}%)</span>"
 
                 st.markdown(
@@ -838,7 +840,7 @@ elif active_tab == NAV_PARLAY:
                         <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;'>
                             <div>
                                 <span style='background:#ff9100; color:white; padding:3px 8px; border-radius:12px; font-weight:bold;'>No.{idx}</span> &nbsp;
-                                <span style='font-size:1.25rem; font-weight:bold;'>{item['parlay_name']}</span> &nbsp;
+                                <span style='font-size:1.25rem; font-weight:bold;'>{parlay_name_html}</span> &nbsp;
                                 <span style='font-size:1.35rem; font-weight:900; color:#00e676;'>{item['total_odds']} 倍</span> &nbsp;
                                 <span style='background:{readiness_color}; color:white; padding:2px 8px; border-radius:8px; font-weight:bold;'>{readiness_label}</span>
                                 {sharp_badge_html}
@@ -876,11 +878,11 @@ elif active_tab == NAV_PARLAY:
 
                 if weakest_leg:
                     w_ev = weakest_leg.get("signal_evidence", {})
-                    w_badge = w_ev.get("agreement_badge") or "⚪ INSUFFICIENT"
+                    w_badge = html_text(w_ev.get("agreement_badge") or "⚪ INSUFFICIENT")
                     st.markdown(
                         f"""
                         <div style='background: #2a1b1b; border: 1px solid #d32f2f; border-radius: 6px; padding: 6px 12px; margin-bottom: 10px; font-size: 0.88rem;'>
-                            ⚠️ <b>最脆弱關卡提醒 (Weakest Leg)</b>：【{weakest_leg.get('league')}】{weakest_leg.get('away_team')} vs {weakest_leg.get('home_team')} ➔ <code>{weakest_leg.get('selection')}</code>
+                            ⚠️ <b>最脆弱關卡提醒 (Weakest Leg)</b>：【{html_text(weakest_leg.get('league'))}】{html_text(weakest_leg.get('away_team'))} vs {html_text(weakest_leg.get('home_team'))} ➔ <code>{html_text(weakest_leg.get('selection'))}</code>
                             &nbsp;|&nbsp; 訊號等級：<b>{w_badge}</b> (外部獨立支援群組數: {min_support})
                         </div>
                         """,
@@ -924,7 +926,7 @@ elif active_tab == NAV_PARLAY:
                 if mobile_card_view:
                     for leg_idx, leg in enumerate(item["legs"], start=1):
                         sig_ev = leg.get("signal_evidence", {})
-                        badge = sig_ev.get("agreement_badge") or "⚪ INSUFFICIENT"
+                        badge = html_text(sig_ev.get("agreement_badge") or "⚪ INSUFFICIENT")
                         support_count = sig_ev.get("independent_support_count", sig_ev.get("support_count", 0))
                         sharp_fair_p = sig_ev.get("sharp_fair_probability")
                         sharp_fair_str = probability_label(sharp_fair_p) if sharp_fair_p is not None else "去水未成"
@@ -943,13 +945,13 @@ elif active_tab == NAV_PARLAY:
                             ev_pill = "<span style='background:#1e202e; color:#94a3b8; padding:2px 7px; border-radius:6px;'>EV -</span>"
 
                         lm = sig_ev.get("line_movement") or {}
-                        lm_badge_html = lm.get("badge_html", "")
+                        lm_badge_html = f"<span style='background:#1e202e; color:#94a3b8; padding:2px 7px; border-radius:5px;'>{html_text(lm.get('text_label') or '➖ 盤口平穩')}</span>"
 
-                        leg_lg = leg.get("league", "")
-                        leg_st = leg.get("start_time", "")
-                        leg_away = leg.get("away_team", "")
-                        leg_home = leg.get("home_team", "")
-                        leg_sel = leg.get("selection", "")
+                        leg_lg = html_text(leg.get("league", ""))
+                        leg_st = html_text(leg.get("start_time", ""))
+                        leg_away = html_text(leg.get("away_team", ""))
+                        leg_home = html_text(leg.get("home_team", ""))
+                        leg_sel = html_text(leg.get("selection", ""))
 
                         st.markdown(
                             f"""
@@ -1129,11 +1131,11 @@ elif active_tab == NAV_PARLAY:
                                 f"""
                                 <div style='background:#1a1c29; border:1px solid #33384c; border-radius:8px; padding:12px; margin:8px 0;'>
                                     <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;'>
-                                        <span style='font-size:1.05rem; font-weight:bold; color:#f8fafc;'>{rr_sim['grade_badge']}</span>
+                                        <span style='font-size:1.05rem; font-weight:bold; color:#f8fafc;'>{html_text(rr_sim['grade_badge'])}</span>
                                         <span style='font-size:0.95rem; color:#cbd5e1;'>總注數：<b>{rr_sim['total_combinations']} 注</b> · 總成本：<b style='color:#fbbf24;'>NT$ {rr_sim['total_stake']:.0f}</b></span>
                                     </div>
                                     <div style='margin-top:6px; font-size:0.88rem; color:#94a3b8;'>
-                                        {rr_sim['grade_desc']}
+                                        {html_text(rr_sim['grade_desc'])}
                                     </div>
                                     <div style='display:flex; gap:12px; margin-top:10px; flex-wrap:wrap;'>
                                         <div style='background:#0f172a; padding:8px 12px; border-radius:6px; flex:1; min-width:130px;'>
@@ -1219,7 +1221,7 @@ elif active_tab == NAV_PARLAY:
                         max_stake=50.0,
                     )
                     kelly_note = (
-                        f"📐 <b>凱利注碼建議</b>：<span style='color:#4ade80; font-weight:bold;'>1/4 凱利 NT$ {kelly_res['quarter_kelly_stake']:.0f}</span> / <span style='color:#60a5fa;'>1/8 凱利 NT$ {kelly_res['eighth_kelly_stake']:.0f}</span> &nbsp;<span style='color:#94a3b8;'>({kelly_res['advice']})</span>"
+                        f"📐 <b>凱利注碼建議</b>：<span style='color:#4ade80; font-weight:bold;'>1/4 凱利 NT$ {kelly_res['quarter_kelly_stake']:.0f}</span> / <span style='color:#60a5fa;'>1/8 凱利 NT$ {kelly_res['eighth_kelly_stake']:.0f}</span> &nbsp;<span style='color:#94a3b8;'>({html_text(kelly_res['advice'])})</span>"
                         if kelly_res["has_edge"]
                         else "📐 <b>凱利注碼建議</b>：<span style='color:#f87171;'>NT$ 10</span> (無正EV/未獲優勢，維持最低注娛樂防守)"
                     )
@@ -1237,11 +1239,17 @@ elif active_tab == NAV_PARLAY:
                         qr_data_url = generate_qr_code_data_url(slip_payload["compact_code"])
                         col_qr1, col_qr2 = st.columns([1, 2])
                         with col_qr1:
-                            st.markdown(f"<div style='text-align:center;'><img src='{qr_data_url}' style='width:150px; height:150px; border-radius:8px; border:2px solid #ff4b4b; background:#fff; padding:4px;'><br><span style='font-size:0.8rem; color:#aaa;'>門市店員掃碼出單</span></div>", unsafe_allow_html=True)
+                            st.markdown(f"<div style='text-align:center;'><img src='{html_text(qr_data_url)}' style='width:150px; height:150px; border-radius:8px; border:2px solid #ff4b4b; background:#fff; padding:4px;'><br><span style='font-size:0.8rem; color:#aaa;'>門市店員掃碼出單</span></div>", unsafe_allow_html=True)
                         with col_qr2:
                             st.markdown("**📋 彩券行店員出票對照清單：**")
                             for l in slip_payload["legs"]:
-                                st.markdown(f"• 賽事編號 **#{l['event_id']}** [{l['league']}] ➔ `{l['market']}` | 選擇：`<b>{l['selection']}</b>` (賠率 {l['odds']:.2f})", unsafe_allow_html=True)
+                                st.markdown(
+                                    f"<div>• 賽事編號 <strong>#{html_text(l['event_id'])}</strong> "
+                                    f"[{html_text(l['league'])}] ➔ <code>{html_text(l['market'])}</code> "
+                                    f"| 選擇：<code>{html_text(l['selection'])}</code> "
+                                    f"(賠率 {float(l['odds']):.2f})</div>",
+                                    unsafe_allow_html=True,
+                                )
                             st.caption(f"組合型式：{slip_payload['parlay_name']} | 建議注金：NT$ {stake_per_bet:.0f}")
                             if line_notifier.is_configured():
                                 if st.button("📲 一鍵推播 QR 投注單至手機 LINE", key=f"push_line_qr_{item_key}"):
@@ -1499,12 +1507,16 @@ elif active_tab == NAV_WALLET:
 
                     # Live settlement check on legs
                     t_eval = ts_engine.evaluate_ticket(ot)
-                    st.markdown(f"<div style='font-size:0.92rem; font-weight:bold; color:#ffb74d; margin-bottom:6px;'>📊 賽果對獎狀態：{t_eval['summary']}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:0.92rem; font-weight:bold; color:#ffb74d; margin-bottom:6px;'>📊 賽果對獎狀態：{html_text(t_eval['summary'])}</div>", unsafe_allow_html=True)
                     for leg, le in zip(ot["legs"], t_eval["legs_eval"]):
                         st_icon = "✅" if le["status"] == "WON" else "❌" if le["status"] == "LOST" else "⚪" if le["status"] in ("VOID", "PUSH") else "🔴" if le["status"] == "IN_PROGRESS" else "⏳"
-                        score_badge = f"<span style='background:#1e202e; color:#4ade80; padding:1px 6px; border-radius:4px; font-weight:bold;'>比分 {le['score']}</span>" if le.get("score") else ""
+                        score_badge = f"<span style='background:#1e202e; color:#4ade80; padding:1px 6px; border-radius:4px; font-weight:bold;'>比分 {html_text(le['score'])}</span>" if le.get("score") else ""
                         st.markdown(
-                            f"• {st_icon} **[{leg.get('league')}]** {leg.get('away_team')} vs {leg.get('home_team')} ➔ `<b>{leg.get('selection')}</b>` (賠率: {leg.get('odds')}) {score_badge} &nbsp; <span style='font-size:0.85rem; color:#aaa;'>— {le['reason']}</span>",
+                            f"<div>• {st_icon} <strong>[{html_text(leg.get('league'))}]</strong> "
+                            f"{html_text(leg.get('away_team'))} vs {html_text(leg.get('home_team'))} ➔ "
+                            f"<code>{html_text(leg.get('selection'))}</code> "
+                            f"(賠率: {html_text(leg.get('odds'))}) {score_badge} &nbsp; "
+                            f"<span style='font-size:0.85rem; color:#aaa;'>— {html_text(le['reason'])}</span></div>",
                             unsafe_allow_html=True,
                         )
 
@@ -1647,11 +1659,11 @@ elif active_tab == NAV_WALLET:
                         f"""
                         <div class='settled-ticket-card {card_status_cls}'>
                             <div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>
-                                <span style='font-size:0.82rem; color:#94a3b8;'>📅 {dt_str} · #{stt['id'][:8]}</span>
+                                <span style='font-size:0.82rem; color:#94a3b8;'>📅 {html_text(dt_str)} · #{html_text(str(stt['id'])[:8])}</span>
                                 <span style='font-size:0.86rem; font-weight:bold;'>{status_badge}</span>
                             </div>
                             <div style='font-size:0.95rem; font-weight:bold; color:#f8fafc; margin-bottom:6px;'>
-                                🎯 {stt.get('sports_summary', '混串組合')}
+                                🎯 {html_text(stt.get('sports_summary', '混串組合'))}
                             </div>
                             <div style='display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; background:#0f121d; padding:8px 10px; border-radius:6px; font-size:0.82rem;'>
                                 <div>實注倍率：<b style='color:#fbbf24;'>{stt.get('placed_odds') or stt['total_odds']}x</b></div>
@@ -1661,7 +1673,7 @@ elif active_tab == NAV_WALLET:
                             </div>
                             <div style='display:flex; justify-content:space-between; margin-top:6px; font-size:0.75rem; color:#64748b;'>
                                 <span>CLV: {clv_str}</span>
-                                <span>備註: {stt.get('notes') or '-'}</span>
+                                <span>備註: {html_text(stt.get('notes') or '-')}</span>
                             </div>
                         </div>
                         """,

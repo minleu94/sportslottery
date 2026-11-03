@@ -80,16 +80,25 @@ def render_terminal_qr(url: str) -> None:
         print(f"   [QR 碼產生略過: {exc}]")
 
 
-def print_mobile_banner(lan_ip: str, tailscale_ip: str | None, port: int = 8000, qr_target: str = "auto") -> str:
+def print_mobile_banner(
+    lan_ip: str,
+    tailscale_ip: str | None,
+    port: int = 8000,
+    qr_target: str = "auto",
+    network_access_allowed: bool = True,
+) -> str:
     """Print welcoming console banner with URLs and QR code.
     
     Returns the primary mobile target URL.
     """
     lan_url = f"http://{lan_ip}:{port}"
-    ts_url = f"http://{tailscale_ip}:{port}" if tailscale_ip else None
+    ts_url = f"http://{tailscale_ip}:{port}" if tailscale_ip and network_access_allowed else None
     local_url = f"http://localhost:{port}"
 
-    if qr_target == "tailscale" and ts_url:
+    if not network_access_allowed:
+        primary_url = local_url
+        qr_label = "本機設定網址 (管理員 PIN 變更後才能開放網路連線)"
+    elif qr_target == "tailscale" and ts_url:
         primary_url = ts_url
         qr_label = "Tailscale 遠端連線網址 (出門在外 4G/5G 可連)"
     elif qr_target == "local" or not ts_url:
@@ -105,7 +114,8 @@ def print_mobile_banner(lan_ip: str, tailscale_ip: str | None, port: int = 8000,
     print(" 🐕 台灣運彩「瘋狗流」高倍串關決策台 — 行動端極致體驗 (iPhone Mobile Hub)")
     print(line_sep)
     print("\n 📶 連線位址 (Direct Access URLs):")
-    print(f"   • 家用 Wi-Fi 內網:     {lan_url}")
+    if network_access_allowed:
+        print(f"   • 家用 Wi-Fi 內網:     {lan_url}")
     if ts_url:
         print(f"   • Tailscale 全球遠端: {ts_url}")
     print(f"   • 本機電腦瀏覽器:     {local_url}")
@@ -133,14 +143,23 @@ def main() -> int:
     if not args.dry_run and args.port != 8000:
         parser.error("手機、桌面與 LINE 共用 Port 8000；請勿另外指定服務埠。")
 
+    from core.bootstrap_security import network_access_enabled
+
+    can_access_network = network_access_enabled()
     lan_ip, tailscale_ip = detect_network_ips()
-    primary_url = print_mobile_banner(lan_ip, tailscale_ip, port=args.port, qr_target=args.qr_target)
+    primary_url = print_mobile_banner(
+        lan_ip, tailscale_ip, port=args.port, qr_target=args.qr_target,
+        network_access_allowed=can_access_network,
+    )
 
     if args.dry_run:
         return 0
 
-    print("\n📱 行動端、LINE Bot 與桌面網頁共用同一個服務與公開網址。")
-    print("   即將啟動系統匣服務管理器，請從系統匣複製 HTTPS 手機網址。\n")
+    if can_access_network:
+        print("\n📱 行動端、LINE Bot 與桌面網頁共用同一個服務與公開網址。")
+        print("   即將啟動系統匣服務管理器，請從系統匣複製 HTTPS 手機網址。\n")
+    else:
+        print("\n🔒 目前是首次設定本機模式。變更管理員 PIN 並重新啟動後，才會開放區網與 HTTPS 通道。\n")
     from scripts.tray_manager import AppTrayManager
     return AppTrayManager().run()
 

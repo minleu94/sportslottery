@@ -82,5 +82,16 @@ def test_ci_uses_locked_offline_suite_and_storage_boundary_checks():
     assert "npm ci" in workflow
     assert "python -m pip wheel --no-deps --no-build-isolation" in workflow
     assert "python -m pytest tests -v" in workflow
+    assert "scripts/check_version_consistency.py" in workflow
+    assert "scripts/check_tracked_file_policy.py" in workflow
+    assert "npm run lint" in workflow
+    assert "--junitxml=" in workflow
     assert "--run-live" not in workflow
     assert "--run-local-data" not in workflow
+
+
+def test_release_workflow_validates_tag_version_and_main_ancestry_before_builds():
+    workflow = (ROOT / ".github" / "workflows" / "build_releases.yml").read_text(encoding="utf-8")
+    assert "validate_release_tag.py" in workflow
+    assert "needs: validate-release" in workflow
+    assert "fetch-depth: 0" in workflow

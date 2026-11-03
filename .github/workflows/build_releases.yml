@@ -7,15 +7,44 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  validate-release:
+    name: Validate package version and release ancestry
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check package versions
+        run: python scripts/check_version_consistency.py
+
+      - name: Validate release tag when building a release
+        env:
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: python scripts/validate_release_tag.py
+
   build-windows:
     name: Build Windows 11 Installer
+    needs: validate-release
+    permissions:
+      contents: write
     runs-on: windows-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -73,10 +102,15 @@ jobs:
 
   build-macos:
     name: Build macOS DMG Installer
+    needs: validate-release
+    permissions:
+      contents: write
     runs-on: macos-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5

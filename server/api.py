@@ -6,9 +6,11 @@ import logging
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -59,17 +61,73 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
-if cors_env:
-    cors_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
-    cors_origin_regex = None
-else:
-    cors_origins = [
-        "http://localhost:5173", "http://127.0.0.1:5173",
-        "http://localhost:8000", "http://127.0.0.1:8000",
-        "http://localhost:3000", "http://127.0.0.1:3000",
-    ]
-    cors_origin_regex = r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$|^https://[a-zA-Z0-9-]+\.(trycloudflare\.com|ngrok-free\.app|ngrok\.app|ngrok\.io)(:\d+)?$"
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+
+
+def _normalize_origin(value: str | None) -> str | None:
+    """Return a canonical HTTP(S) origin, rejecting paths and wildcard forms."""
+    if not value or "*" in value:
+        return None
+    try:
+        parsed = urlsplit(value.strip())
+        scheme = parsed.scheme.lower()
+        if (
+            scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        host = parsed.hostname.lower()
+        if ":" in host:
+            host = f"[{host}]"
+        port = parsed.port
+        if port is not None and not (scheme == "http" and port == 80) and not (scheme == "https" and port == 443):
+            host = f"{host}:{port}"
+        return f"{scheme}://{host}"
+    except ValueError:
+        return None
+
+
+def _load_cors_origins(raw_origins: str) -> list[str]:
+    """Load exact trusted browser origins; credentialed wildcard CORS is forbidden."""
+    if not raw_origins.strip():
+        return list(DEFAULT_CORS_ORIGINS)
+    origins: list[str] = []
+    for entry in raw_origins.split(","):
+        value = entry.strip()
+        if not value:
+            continue
+        normalized = _normalize_origin(value)
+        if normalized is None:
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS must contain exact http(s) origins without paths or wildcards."
+            )
+        if normalized not in origins:
+            origins.append(normalized)
+    if not origins:
+        raise ValueError("CORS_ALLOWED_ORIGINS must contain at least one exact origin.")
+    return origins
+
+
+cors_origins = _load_cors_origins(os.environ.get("CORS_ALLOWED_ORIGINS", ""))
+cors_origin_regex = None
+CSRF_EXEMPT_PUBLIC_PATHS = {
+    "/api/profiles/register",
+    "/api/profiles/login",
+    "/api/profiles/verify_pin",
+    "/callback",  # LINE requests have their own HMAC signature verification.
+}
 
 app.add_middleware(
     CORSMiddleware,
@@ -77,11 +135,42 @@ app.add_middleware(
     allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Session-Token", "X-Line-Signature"],
+    allow_headers=["Authorization", "Content-Type", "X-Session-Token", "X-Session-Mode", "X-Line-Signature"],
 )
 
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
+    unsafe_method = request.method.upper() not in {"GET", "HEAD", "OPTIONS"}
+    has_legacy_header_token = bool(
+        request.headers.get("authorization") or request.headers.get("x-session-token")
+    )
+    origin = request.headers.get("origin")
+    if (
+        unsafe_method
+        and request.url.path not in CSRF_EXEMPT_PUBLIC_PATHS
+        and request.cookies.get("auth_session_token")
+        and not has_legacy_header_token
+    ):
+        if not origin:
+            referer = request.headers.get("referer", "")
+            try:
+                parsed_referer = urlsplit(referer)
+                if parsed_referer.scheme and parsed_referer.netloc:
+                    origin = f"{parsed_referer.scheme}://{parsed_referer.netloc}"
+            except ValueError:
+                origin = None
+        if not origin:
+            return JSONResponse(status_code=403, content={"detail": "Request origin is required."})
+        normalized_origin = _normalize_origin(origin)
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip()
+        scheme = forwarded_proto.lower() if forwarded_proto else request.url.scheme.lower()
+        request_host = request.headers.get("host", "")
+        same_origin = _normalize_origin(f"{scheme}://{request_host}")
+        if normalized_origin is None or (
+            normalized_origin not in cors_origins and normalized_origin != same_origin
+        ):
+            return JSONResponse(status_code=403, content={"detail": "Untrusted request origin."})
+
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"

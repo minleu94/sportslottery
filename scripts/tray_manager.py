@@ -208,25 +208,6 @@ def kill_proc_tree(proc: Optional[subprocess.Popen]) -> None:
             pass
 
 
-def kill_stale_port(port: int) -> None:
-    """Terminate any stale process listening on the specified port on Windows."""
-    if sys.platform != "win32":
-        return
-    try:
-        cmd = f'netstat -ano | findstr :{port}'
-        output = subprocess.check_output(cmd, shell=True, text=True, errors="ignore")
-        current_pid = os.getpid()
-        for line in output.strip().splitlines():
-            parts = line.split()
-            if len(parts) >= 5 and "LISTENING" in parts:
-                pid = parts[-1]
-                if pid.isdigit() and int(pid) != current_pid:
-                    log_tray(f"Terminating stale process holding port {port} (PID {pid})...")
-                    subprocess.run(["taskkill", "/F", "/T", "/PID", pid], capture_output=True, creationflags=CREATE_NO_WINDOW)
-    except Exception as exc:
-        log_tray(f"Error checking/killing stale port {port}: {exc}")
-
-
 class AppTrayManager:
     """Coordinates FastAPI backend, Cloudflare single tunnel, and System Tray."""
 
@@ -239,6 +220,7 @@ class AppTrayManager:
         self._status_text: str = "⏳ 服務啟動中..."
         self._tunnel_url: Optional[str] = None
         self._webhook_url: Optional[str] = None
+        self._network_access_allowed: bool = False
 
     def acquire_single_instance(self) -> bool:
         """Prevent multiple instances of tray manager using a loopback socket."""
@@ -305,6 +287,10 @@ class AppTrayManager:
 
     def _start_tunnel(self, cloudflared_exe: str) -> None:
         """Launch public tunnel (ngrok static domain prioritized, cloudflared as fallback) and auto-register LINE webhook."""
+        if not self._network_access_allowed:
+            log_tray("Public tunnel withheld until the default administrator PIN is changed.")
+            return
+
         ngrok_cfg = load_ngrok_config()
         domain = ngrok_cfg.get("domain", "").strip()
         authtoken = ngrok_cfg.get("authtoken", "").strip()
@@ -312,11 +298,6 @@ class AppTrayManager:
 
         # 1. Prioritize ngrok static domain if configured
         if ngrok_exe and domain:
-            # Terminate any stray previous ngrok instance to prevent ERR_NGROK_334
-            if sys.platform == "win32":
-                subprocess.run(["taskkill", "/F", "/IM", "ngrok.exe"], capture_output=True, creationflags=CREATE_NO_WINDOW)
-            time.sleep(0.5)
-
             clean_domain = domain.replace("https://", "").replace("http://", "").rstrip("/")
             if authtoken and not authtoken.startswith("填寫"):
                 try:
@@ -411,6 +392,14 @@ class AppTrayManager:
     def start_services(self) -> None:
         """Launch the verified modern backend, then expose it through one tunnel."""
         self.is_running = False
+        from core.bootstrap_security import network_access_enabled
+
+        self._network_access_allowed = network_access_enabled()
+        if not self._network_access_allowed:
+            log_tray(
+                "Administrator bootstrap PIN is still active or could not be checked; "
+                "starting local-only until it is changed."
+            )
         if STATUS_FILE.exists():
             try:
                 STATUS_FILE.unlink(missing_ok=True)
@@ -420,24 +409,34 @@ class AppTrayManager:
         python_bin = find_python_executable(gui=False)
         cloudflared_exe = find_cloudflared()
 
-        # Check if port is already active with our current build
+        # Check if port is already active with our current build.
         if is_port_in_use(PORT):
+            verified_api = False
             try:
                 req = urllib.request.Request(f"http://127.0.0.1:{PORT}/api/health", headers={"User-Agent": "sportslottery-tray/1.0"})
                 with urllib.request.urlopen(req, timeout=1.5) as resp:
                     payload = json.loads(resp.read().decode("utf-8"))
                 if resp.status == 200 and payload.get("app_build") == APP_BUILD:
-                    log_tray(f"Existing verified FastAPI found on port {PORT} (build {APP_BUILD}). Reusing active service.")
-                    self.is_running = True
-                    self._status_text = "🟢 新版網頁正常"
-                    threading.Thread(target=self._start_tunnel, args=(cloudflared_exe,), daemon=True).start()
-                    threading.Thread(target=self._open_browser_when_ready, daemon=True).start()
+                    verified_api = True
+                    if self._network_access_allowed:
+                        log_tray(f"Existing verified FastAPI found on port {PORT} (build {APP_BUILD}). Reusing active service.")
+                        self.is_running = True
+                        self._status_text = "🟢 新版網頁正常"
+                        threading.Thread(target=self._start_tunnel, args=(cloudflared_exe,), daemon=True).start()
+                        threading.Thread(target=self._open_browser_when_ready, daemon=True).start()
+                        return
+                    self._status_text = "🔴 本機設定尚未完成；請先停止現有 API，再重新啟動"
+                    log_tray(
+                        "A verified API already owns the port while bootstrap access is local-only; "
+                        "refusing to assume its bind address or terminate it."
+                    )
                     return
             except Exception:
                 pass
-            log_tray(f"Port {PORT} is occupied by unverified/stale process. Terminating old port owner...")
-            kill_stale_port(PORT)
-            time.sleep(0.6)
+            if not verified_api:
+                self._status_text = "🔴 連接埠已被其他服務使用；未停止該服務"
+                log_tray(f"Port {PORT} is occupied by an unverified process; refusing to terminate it.")
+                return
 
         log_tray(f"Starting FastAPI on port {PORT} via: {python_bin}")
 
@@ -452,7 +451,7 @@ class AppTrayManager:
             "uvicorn",
             "server.api:app",
             "--host",
-            "0.0.0.0",
+            "0.0.0.0" if self._network_access_allowed else "127.0.0.1",
             "--port",
             str(PORT),
             "--log-level",
@@ -474,6 +473,12 @@ class AppTrayManager:
             return
 
         self.is_running = True
+        if not self._network_access_allowed:
+            self._status_text = "🟡 本機模式：變更管理員 PIN 並重新啟動以開放網路連線"
+            log_tray("Local-only mode active; change the admin PIN locally and restart to enable LAN/tunnel access.")
+            threading.Thread(target=self._open_browser_when_ready, daemon=True).start()
+            return
+
         self._status_text = "🟡 新版網頁正常 (公網通道連線中)"
 
         # 2. Start the tunnel only after verifying this process owns the expected API.
@@ -493,9 +498,6 @@ class AppTrayManager:
         self.proc_tunnel = None
         self._tunnel_url = None
         self._webhook_url = None
-        if sys.platform == "win32":
-            subprocess.run(["taskkill", "/F", "/IM", "ngrok.exe"], capture_output=True, creationflags=CREATE_NO_WINDOW)
-            subprocess.run(["taskkill", "/F", "/IM", "cloudflared.exe"], capture_output=True, creationflags=CREATE_NO_WINDOW)
         if STATUS_FILE.exists():
             try:
                 STATUS_FILE.unlink(missing_ok=True)
@@ -513,7 +515,12 @@ class AppTrayManager:
         self.start_services()
         if self.icon:
             self.icon.update_menu()
-            self.icon.notify("決策台與對外通道已成功重新啟動！", "瘋狗流 v2.3.0 Dev")
+            if not self.is_running:
+                self.icon.notify(f"服務未能啟動：{self._status_text}", "瘋狗流 v2.3.0 Dev")
+            elif self._network_access_allowed:
+                self.icon.notify("決策台與服務已重新啟動。", "瘋狗流 v2.3.0 Dev")
+            else:
+                self.icon.notify("決策台已在本機模式重新啟動；變更管理員 PIN 後再重啟即可開放網路連線。", "瘋狗流 v2.3.0 Dev")
 
     def get_lan_url(self) -> str:
         """Detect local machine LAN IP."""
@@ -533,12 +540,19 @@ class AppTrayManager:
 
     def open_mobile_browser(self) -> None:
         """Open public HTTPS tunnel URL or LAN URL in browser."""
+        if not self._network_access_allowed:
+            self.open_web_browser()
+            return
         info = get_runtime_info()
         url = info.get("tunnel_url") or self.get_lan_url()
         webbrowser.open(url)
 
     def copy_public_url(self) -> None:
         """Copy public Cloudflare or ngrok HTTPS URL to clipboard."""
+        if not self._network_access_allowed:
+            if self.icon:
+                self.icon.notify("首次設定期間只開放本機；請先變更管理員 PIN，再重新啟動服務。", "瘋狗流 v2.3.0 Dev")
+            return
         info = get_runtime_info()
         url = info.get("tunnel_url")
 
@@ -552,6 +566,10 @@ class AppTrayManager:
 
     def copy_lan_url(self) -> None:
         """Copy local network Wi-Fi URL to clipboard."""
+        if not self._network_access_allowed:
+            if self.icon:
+                self.icon.notify("首次設定期間只開放本機連線；變更管理員 PIN 並重啟後即可使用區網。", "瘋狗流 v2.3.0 Dev")
+            return
         url = self.get_lan_url()
         copy_to_clipboard(url)
         if self.icon:
@@ -598,7 +616,9 @@ class AppTrayManager:
             time.sleep(3.0)
             a_alive = self.proc_api and self.proc_api.poll() is None
             t_alive = self.proc_tunnel and self.proc_tunnel.poll() is None
-            if a_alive and t_alive:
+            if a_alive and not self._network_access_allowed:
+                self._status_text = "🟡 本機模式運行中 (未開放 LAN / Tunnel)"
+            elif a_alive and t_alive:
                 self._status_text = "🟢 服務正常運行中 (LINE + Web + Mobile)"
             elif a_alive:
                 self._status_text = "🟡 網頁正常 (公網通道連線中)"
@@ -625,10 +645,10 @@ class AppTrayManager:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("🌐 開啟決策台 (電腦端瀏覽器)", lambda: self.open_web_browser(), default=True),
             pystray.MenuItem("📱 開啟手機端網頁 (預設瀏覽器)", lambda: self.open_mobile_browser()),
-            pystray.MenuItem("📋 複製手機公網網址 (HTTPS)", lambda: self.copy_public_url()),
-            pystray.MenuItem("📶 複製手機區網網址 (Wi-Fi)", lambda: self.copy_lan_url()),
-            pystray.MenuItem("💬 複製 LINE Webhook 網址", lambda: self.copy_webhook_url()),
-            pystray.MenuItem("🤖 重新連動 LINE Webhook", lambda: threading.Thread(target=self.rebind_line_webhook, daemon=True).start()),
+            pystray.MenuItem("📋 複製手機公網網址 (HTTPS)", lambda: self.copy_public_url(), enabled=self._network_access_allowed),
+            pystray.MenuItem("📶 複製手機區網網址 (Wi-Fi)", lambda: self.copy_lan_url(), enabled=self._network_access_allowed),
+            pystray.MenuItem("💬 複製 LINE Webhook 網址", lambda: self.copy_webhook_url(), enabled=self._network_access_allowed),
+            pystray.MenuItem("🤖 重新連動 LINE Webhook", lambda: threading.Thread(target=self.rebind_line_webhook, daemon=True).start(), enabled=self._network_access_allowed),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("🔄 重新啟動服務 (Web + LINE + Tunnel)", lambda: threading.Thread(target=self.restart_services, daemon=True).start()),
             pystray.MenuItem("❌ 停止並退出服務 (Quit)", self.on_quit),
@@ -661,10 +681,18 @@ class AppTrayManager:
 
         try:
             time.sleep(1.0)
-            self.icon.notify(
-                "瘋狗流 v2.3.0 Dev 3-in-1 服務已啟動！\n已在右下角系統匣常駐，並已開啟決策台。\n右鍵點擊圖示可查看狀態或複製手機網址。",
-                "台灣運彩 瘋狗流 (v2.3.0 Dev)",
-            )
+            if not self.is_running:
+                self.icon.notify(f"服務未能啟動：{self._status_text}", "台灣運彩 瘋狗流")
+            elif self._network_access_allowed:
+                self.icon.notify(
+                    "瘋狗流 v2.3.0 Dev 服務已啟動；請從系統匣查看網路服務狀態。",
+                    "台灣運彩 瘋狗流 (v2.3.0 Dev)",
+                )
+            else:
+                self.icon.notify(
+                    "決策台已在本機模式啟動；變更管理員 PIN 並重啟後才能使用 LAN 或 Tunnel。",
+                    "台灣運彩 瘋狗流 (v2.3.0 Dev)",
+                )
         except Exception as exc:
             log_tray(f"Notify error: {exc}")
 

@@ -110,13 +110,16 @@ def main():
     print("   每週限額 NT$ 200 | 模型為實驗估計 | 公開推牌需逐場核對")
     print("=" * 60)
 
+    bind_host = "127.0.0.1"
+    print("🔒 傳統 Streamlit 介面僅接受本機連線；行動端請使用系統匣 FastAPI 服務。")
+
     cmd = [
         sys.executable,
         "-m",
         "streamlit",
         "run",
         str(APP_PATH),
-        "--server.address=0.0.0.0",
+        f"--server.address={bind_host}",
         "--server.port=8501",
         "--server.headless=false",
         "--browser.gatherUsageStats=false",

@@ -25,9 +25,12 @@ artifacts/optimization_*/recovery*/
 dist/
 build/
 *.egg-info/
+.wheelhouse/
 
 # Virtual environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/

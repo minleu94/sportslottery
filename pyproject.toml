@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sportslottery"
-version = "2.0.1"
+dynamic = ["version"]
 description = "Local sports odds research and ticket tracking application"
 requires-python = ">=3.11,<3.13"
 dependencies = [
@@ -27,6 +27,9 @@ sportslottery = "sportslottery_bootstrap:main"
 
 [tool.setuptools]
 py-modules = ["app", "main", "launcher", "sportslottery_bootstrap"]
+
+[tool.setuptools.dynamic]
+version = {attr = "core.app_meta.APP_VERSION"}
 
 [tool.setuptools.packages.find]
 where = ["."]

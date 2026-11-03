@@ -67,7 +67,7 @@ def test_whole_parlay_replay_reads_sealed_probabilities_and_leg_snapshot_refs(tm
     records, _, candidate = ticket(tmp_path, monkeypatch)
     replay = replay_parlay_recommendation(candidate)
     assert replay["integrity_valid"] is True
-    assert replay["forward_validation_eligible"] is True
+    assert replay["forward_validation_eligible"] is True, replay["exclusion_reasons"]
     assert replay["math_consistent"] is True
     assert replay["original_total_odds"] == 16
     assert replay["breakeven_probability"] == 1 / 16

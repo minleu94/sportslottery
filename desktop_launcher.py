@@ -36,14 +36,29 @@ def get_base_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def build_streamlit_cli_args(app_path: Path) -> list[str]:
+    """Build a loopback-only Streamlit command for the legacy desktop UI."""
+    return [
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.address=127.0.0.1",
+        "--server.port=8501",
+        "--server.headless=true",
+        "--browser.gatherUsageStats=false",
+        "--global.developmentMode=false",
+    ]
+
+
 def ensure_streamlit_environment(base_dir: Path):
     """Ensure ~/.streamlit/credentials.toml and config exist to prevent prompts and telemetry."""
     content_creds = "[general]\nemail = ''\n"
     content_config = """[server]
+address = "127.0.0.1"
 port = 8501
 headless = true
-enableCORS = false
-enableXsrfProtection = false
+enableCORS = true
+enableXsrfProtection = true
 
 [browser]
 gatherUsageStats = false
@@ -155,15 +170,7 @@ def main():
     try:
         from streamlit.web import cli as stcli
 
-        sys.argv = [
-            "streamlit",
-            "run",
-            str(app_path),
-            "--server.port=8501",
-            "--server.headless=true",
-            "--browser.gatherUsageStats=false",
-            "--global.developmentMode=false",
-        ]
+        sys.argv = build_streamlit_cli_args(app_path)
         sys.exit(stcli.main())
     except KeyboardInterrupt:
         print("\n系統已安全停止。祝您投注愉快！")

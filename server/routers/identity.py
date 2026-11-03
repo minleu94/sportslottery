@@ -24,11 +24,21 @@ from server.schemas import (
     ProfileRegisterRequest,
     ProfileUpdateRequest,
 )
-from server.security import get_client_ip, log_security_event, login_rate_limiter
+from server.security import (
+    get_client_ip,
+    log_security_event,
+    login_rate_limiter,
+    registration_rate_limiter,
+)
 
 logger = logging.getLogger("server.api")
 
 router = APIRouter()
+
+
+def _include_legacy_session_token(request: Request) -> bool:
+    """Preserve bearer-token responses unless a client explicitly selects cookie-only auth."""
+    return request.headers.get("x-session-mode", "").strip().lower() != "cookie"
 
 
 
@@ -78,22 +88,24 @@ def profile_login(
     """Authenticate by player name or profile ID with rate limiting, lockout, and HttpOnly cookie."""
     ip = get_client_ip(request)
     ident = str(req.identifier or "").strip()
+    _, _, _, _, profile_mgr, _, _, _ = service_registry.get_services()
+    target_profile = profile_mgr.get_profile(ident) or profile_mgr.get_profile_by_name(ident)
+    rate_ident = str(target_profile.get("id")) if target_profile else ident
 
     # 1. Anti-brute-force check
-    lock_rem = login_rate_limiter.check_rate_limit(ident, ip)
+    lock_rem = login_rate_limiter.check_rate_limit(rate_ident, ip)
     if lock_rem is not None:
         log_security_event("LOGIN_ATTEMPT_LOCKED", ident, ip, {"retry_after": lock_rem})
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"【安全鎖定】登入嘗試失敗次數過多，帳號或IP已暫時鎖定，請於 {lock_rem} 秒後再試。",
+            detail=f"【安全鎖定】登入嘗試過多，帳號或來源 IP 已暫時鎖定，請於 {lock_rem} 秒後再試。",
             headers={"Retry-After": str(lock_rem)},
         )
 
-    _, _, _, _, profile_mgr, _, _, _ = service_registry.get_services()
     success, profile, msg = profile_mgr.verify_login(ident, req.pin_code)
 
     if not success or not profile:
-        fail_cnt, is_locked, lock_sec = login_rate_limiter.record_failure(ident, ip)
+        fail_cnt, is_locked, lock_sec = login_rate_limiter.record_failure(rate_ident, ip)
         log_security_event("LOGIN_FAILED", ident, ip, {"fail_count": fail_cnt, "locked": is_locked})
         if is_locked:
             raise HTTPException(
@@ -108,7 +120,7 @@ def profile_login(
         )
 
     # Success: reset rate limiter
-    login_rate_limiter.record_success(ident, ip)
+    login_rate_limiter.record_success(rate_ident, ip)
     log_security_event("LOGIN_SUCCESS", ident, ip, {"profile_id": profile["id"]})
     token = session_manager.create_session(profile)
 
@@ -131,14 +143,16 @@ def profile_login(
 
     p_dict = dict(profile)
     p_dict.pop("pin_code", None)
-    return {
+    result = {
         "success": True,
-        "token": token,
         "profile": p_dict,
         "message": msg,
         "requires_pin_change": requires_pin_change,
         "warning": "【安全警告】管理員帳號目前使用預設弱 PIN 碼 (0000)，請立即修改為自訂安全密碼！" if requires_pin_change else None,
     }
+    if _include_legacy_session_token(request):
+        result["token"] = token
+    return result
 
 
 @router.post("/api/profiles/logout")
@@ -152,14 +166,34 @@ def profile_logout(
 
 
 @router.get("/api/auth/me")
-def get_auth_me(session: Dict[str, Any] = Depends(require_any_authenticated_session)):
+def get_auth_me(
+    request: Request,
+    response: Response,
+    session: Dict[str, Any] = Depends(require_any_authenticated_session),
+):
     _, _, _, _, profile_mgr, _, _, _ = service_registry.get_services()
     profile = profile_mgr.get_profile(session.get("profile_id"))
     if not profile:
         raise HTTPException(status_code=404, detail="找不到目前登入者的 Profile。")
     p_dict = dict(profile)
     p_dict.pop("pin_code", None)
-    return {"success": True, "profile": p_dict, "session": session}
+    token = session.get("token")
+    if token:
+        is_secure = (request.url.scheme == "https") or (
+            request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip().lower() == "https"
+        )
+        response.set_cookie(
+            key="auth_session_token",
+            value=token,
+            max_age=SESSION_TTL_SECONDS,
+            httponly=True,
+            samesite="lax",
+            secure=is_secure,
+            path="/",
+        )
+    public_session = dict(session)
+    public_session.pop("token", None)
+    return {"success": True, "profile": p_dict, "session": public_session}
 
 
 @router.post("/api/profiles/register")
@@ -168,6 +202,14 @@ def profile_register(
     request: Request,
     response: Response,
 ):
+    ip = get_client_ip(request)
+    allowed, retry_after = registration_rate_limiter.check_and_record(ip)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="註冊次數過多，請稍後再試。",
+            headers={"Retry-After": str(retry_after)},
+        )
     _, _, _, _, profile_mgr, _, _, _ = service_registry.get_services()
     try:
         new_prof = profile_mgr.create_profile(
@@ -188,7 +230,10 @@ def profile_register(
         )
         p_dict = dict(new_prof)
         p_dict.pop("pin_code", None)
-        return {"success": True, "token": token, "profile": p_dict}
+        result = {"success": True, "profile": p_dict}
+        if _include_legacy_session_token(request):
+            result["token"] = token
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -254,13 +299,15 @@ def verify_profile_pin(
 
     p_dict = dict(profile)
     p_dict.pop("pin_code", None)
-    return {
+    result = {
         "success": True,
-        "token": token,
         "profile": p_dict,
         "requires_pin_change": requires_pin_change,
         "warning": "【安全警告】管理員帳號目前使用預設弱 PIN 碼 (0000)，請立即修改為自訂安全密碼！" if requires_pin_change else None,
     }
+    if _include_legacy_session_token(request):
+        result["token"] = token
+    return result
 
 
 @router.post("/api/profiles/update")
@@ -277,9 +324,25 @@ def update_profile(
             detail="【安全限制】管理員使用預設密碼 0000，必須設定新密碼（剛好 8 位純數字）。",
         )
     _, _, _, _, profile_mgr, _, _, _ = service_registry.get_services()
+    ip = get_client_ip(request)
+    lock_rem = login_rate_limiter.check_rate_limit(req.profile_id, ip)
+    if lock_rem is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"【安全鎖定】PIN 碼嘗試過多，請於 {lock_rem} 秒後再試。",
+            headers={"Retry-After": str(lock_rem)},
+        )
     is_valid = profile_mgr.verify_pin(profile_id=req.profile_id, pin_code=req.current_pin)
     if not is_valid:
+        fail_cnt, is_locked, lock_sec = login_rate_limiter.record_failure(req.profile_id, ip)
+        if is_locked:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"【安全鎖定】PIN 碼嘗試過多，請於 {lock_sec} 秒後再試。",
+                headers={"Retry-After": str(lock_sec)},
+            )
         raise HTTPException(status_code=401, detail="目前 PIN 碼驗證失敗。")
+    login_rate_limiter.record_success(req.profile_id, ip)
 
     try:
         updated = profile_mgr.update_profile(
@@ -311,8 +374,9 @@ def update_profile(
 
         res = {"success": True, "profile": p_dict}
         if new_token:
-            res["token"] = new_token
             res["message"] = "PIN 碼已更新，其他裝置已強制登出。"
+            if _include_legacy_session_token(request):
+                res["token"] = new_token
         return res
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -403,9 +467,15 @@ def admin_delete_player_post(
 @router.post("/api/admin/players/reset_pin")
 def admin_reset_player_pin(
     req: AdminResetPinRequest,
+    request: Request,
     session: Optional[Dict[str, Any]] = Depends(get_current_session_optional),
 ):
     _, _, _, _, profile_mgr, _, _, _ = service_registry.get_services()
+    if req.profile_id == DEFAULT_PROFILE_ID:
+        raise HTTPException(
+            status_code=400,
+            detail="管理員 PIN 請由本人帳號設定流程變更。",
+        )
     is_admin = bool(session and session.get("profile_id") == DEFAULT_PROFILE_ID)
 
     if is_admin:
@@ -415,6 +485,14 @@ def admin_reset_player_pin(
                 detail="【安全限制】管理員使用預設密碼 0000，必須先變更為 8 位純數字密碼方可操作管理功能。",
             )
     else:
+        ip = get_client_ip(request)
+        lock_rem = login_rate_limiter.check_rate_limit(DEFAULT_PROFILE_ID, ip)
+        if lock_rem is not None:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"【安全鎖定】管理員 PIN 嘗試過多，請於 {lock_rem} 秒後再試。",
+                headers={"Retry-After": str(lock_rem)},
+            )
         # If not authenticated as admin via session, verify admin_pin against Archie (default profile)
         if session and not req.admin_pin:
             raise HTTPException(status_code=403, detail="【權限不足】僅系統管理者可重設玩家 PIN 碼。")
@@ -425,8 +503,16 @@ def admin_reset_player_pin(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="【安全限制】管理員使用預設密碼 0000，必須先登入變更為 8 位純數字密碼方可授權重設。",
             )
-        if not profile_mgr.verify_pin("default", req.admin_pin):
+        if not profile_mgr.verify_pin(DEFAULT_PROFILE_ID, req.admin_pin):
+            fail_cnt, is_locked, lock_sec = login_rate_limiter.record_failure(DEFAULT_PROFILE_ID, ip)
+            if is_locked:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=f"【安全鎖定】管理員 PIN 嘗試過多，請於 {lock_sec} 秒後再試。",
+                    headers={"Retry-After": str(lock_sec)},
+                )
             raise HTTPException(status_code=401, detail="【管理員密碼驗證失敗】輸入的管理員密碼不正確。")
+        login_rate_limiter.record_success(DEFAULT_PROFILE_ID, ip)
 
     try:
         updated = profile_mgr.admin_reset_pin(

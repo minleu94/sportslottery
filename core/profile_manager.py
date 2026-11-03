@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 import re
 import secrets
 import sqlite3
@@ -27,6 +28,11 @@ DEFAULT_PROFILE_NAME = "主帳號"
 DEFAULT_WEEKLY_CAP = 200.0
 DEFAULT_PIN_CODE = "0000"
 PBKDF2_PREFIX = "pbkdf2:sha256:100000:"
+MAX_PROFILE_NAME_LENGTH = 64
+try:
+    MAX_PROFILE_COUNT = max(1, int(os.environ.get("SPORTSLOTTERY_MAX_PROFILES", "100")))
+except (TypeError, ValueError):
+    MAX_PROFILE_COUNT = 100
 
 
 def get_now_iso() -> str:
@@ -250,11 +256,29 @@ class ProfileManager:
         return True, profile, "驗證成功。"
 
     def is_default_admin_pin(self) -> bool:
-        """Check if the default admin profile is still using the weak default 0000 PIN."""
+        """Require a PIN change for the default PIN or an unverifiable admin credential."""
         default_p = self.get_profile(DEFAULT_PROFILE_ID)
         if not default_p:
-            return False
+            return True
         stored = str(default_p.get("pin_code", "")).strip()
+        if stored.startswith(PBKDF2_PREFIX):
+            try:
+                parts = stored.split(":")
+                if (
+                    len(parts) != 5
+                    or parts[0] != "pbkdf2"
+                    or parts[1] != "sha256"
+                    or int(parts[2]) != 100000
+                    or len(bytes.fromhex(parts[3])) != 16
+                    or len(bytes.fromhex(parts[4])) != 32
+                ):
+                    return True
+            except (ValueError, IndexError):
+                return True
+        elif not re.fullmatch(r"\d{8}", stored):
+            # Legacy plaintext admin credentials are accepted only in the valid
+            # eight-digit form; empty, truncated, or malformed DB values fail closed.
+            return True
         return verify_pin_code(DEFAULT_PIN_CODE, stored)
 
     def get_token_version(self, profile_id: str) -> int:
@@ -313,6 +337,8 @@ class ProfileManager:
         name_str = str(name).strip()
         if not name_str:
             raise ValueError("玩家名稱不可為空。")
+        if len(name_str) > MAX_PROFILE_NAME_LENGTH:
+            raise ValueError(f"玩家名稱不可超過 {MAX_PROFILE_NAME_LENGTH} 個字元。")
         try:
             cap = float(weekly_play_cap)
         except (TypeError, ValueError, OverflowError) as exc:
@@ -331,6 +357,9 @@ class ProfileManager:
             existing = conn.execute("SELECT id FROM profiles WHERE name = ?", (name_str,)).fetchone()
             if existing:
                 raise ValueError(f"已存在名為「{name_str}」的玩家 Profile，請使用不同名稱。")
+            profile_count = int(conn.execute("SELECT COUNT(*) FROM profiles").fetchone()[0])
+            if profile_count >= MAX_PROFILE_COUNT:
+                raise ValueError(f"Profile 數量已達系統上限 ({MAX_PROFILE_COUNT})。")
 
             conn.execute(
                 """INSERT INTO profiles (id, name, weekly_play_cap, pin_code, created_at, updated_at)
@@ -368,6 +397,8 @@ class ProfileManager:
             name_str = str(new_name).strip()
             if not name_str:
                 raise ValueError("玩家名稱不可為空。")
+            if len(name_str) > MAX_PROFILE_NAME_LENGTH:
+                raise ValueError(f"玩家名稱不可超過 {MAX_PROFILE_NAME_LENGTH} 個字元。")
             target_name = name_str
 
         target_cap = float(profile["weekly_play_cap"])
@@ -526,6 +557,8 @@ class ProfileManager:
             name_str = str(new_name).strip()
             if not name_str:
                 raise ValueError("玩家名稱不可為空。")
+            if len(name_str) > MAX_PROFILE_NAME_LENGTH:
+                raise ValueError(f"玩家名稱不可超過 {MAX_PROFILE_NAME_LENGTH} 個字元。")
             target_name = name_str
 
         target_cap = float(profile["weekly_play_cap"])

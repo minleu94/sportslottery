@@ -53,32 +53,32 @@ class SettleTicketRequest(BaseModel):
 
 
 class ProfileLoginRequest(BaseModel):
-    profile_id: str
-    pin_code: str
+    profile_id: str = Field(..., min_length=1, max_length=128)
+    pin_code: str = Field(..., min_length=1, max_length=8)
 
 
 class ProfileLoginByNameRequest(BaseModel):
-    identifier: str
-    pin_code: str
+    identifier: str = Field(..., min_length=1, max_length=128)
+    pin_code: str = Field(..., min_length=1, max_length=8)
 
 
 class ProfileRegisterRequest(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=64)
     weekly_play_cap: float = Field(default=200.0, gt=0)
-    pin_code: str = Field(default="0000")
+    pin_code: str = Field(default="0000", min_length=4, max_length=4)
 
 
 class ProfileUpdateRequest(BaseModel):
-    profile_id: str
-    name: Optional[str] = None
+    profile_id: str = Field(..., min_length=1, max_length=128)
+    name: Optional[str] = Field(None, max_length=64)
     weekly_play_cap: Optional[float] = None
-    current_pin: str
-    new_pin: Optional[str] = None
+    current_pin: str = Field(..., min_length=1, max_length=8)
+    new_pin: Optional[str] = Field(None, min_length=4, max_length=8)
 
 
 class AdminDeletePlayerRequest(BaseModel):
-    profile_id: str
-    admin_pin: Optional[str] = None
+    profile_id: str = Field(..., min_length=1, max_length=128)
+    admin_pin: Optional[str] = Field(None, min_length=1, max_length=8)
 
 
 class MarketKeyConfigRequest(BaseModel):
@@ -96,16 +96,16 @@ class TheOddsTestConnectionRequest(BaseModel):
 
 
 class AdminResetPinRequest(BaseModel):
-    profile_id: str
-    new_pin: str = "0000"
-    admin_pin: Optional[str] = None
+    profile_id: str = Field(..., min_length=1, max_length=128)
+    new_pin: str = Field("0000", min_length=4, max_length=4)
+    admin_pin: Optional[str] = Field(None, min_length=1, max_length=8)
 
 
 class AdminUpdatePlayerRequest(BaseModel):
-    profile_id: str
-    name: Optional[str] = None
+    profile_id: str = Field(..., min_length=1, max_length=128)
+    name: Optional[str] = Field(None, max_length=64)
     weekly_play_cap: Optional[float] = None
-    new_pin: Optional[str] = None
-    admin_pin: Optional[str] = None
+    new_pin: Optional[str] = Field(None, min_length=4, max_length=8)
+    admin_pin: Optional[str] = Field(None, min_length=1, max_length=8)
 
 __all__ = ['AdminDeletePlayerRequest', 'AdminResetPinRequest', 'AdminUpdatePlayerRequest', 'DepositRequest', 'MarketKeyConfigRequest', 'MarketSchedulerConfigRequest', 'ParlaySearchRequest', 'PlaceTicketRequest', 'ProfileLoginByNameRequest', 'ProfileLoginRequest', 'ProfileRegisterRequest', 'ProfileUpdateRequest', 'SettleTicketRequest', 'TheOddsTestConnectionRequest', 'WithdrawRequest']

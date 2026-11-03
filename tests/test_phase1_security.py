@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 
 from server.api import app, _line_notifier
 from server.auth import session_manager
-from server.security import login_rate_limiter
+from server.security import login_rate_limiter, registration_rate_limiter
 from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
 
 
@@ -27,8 +27,10 @@ from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
 def reset_security_state():
     """Ensure rate limiter and session states are cleanly reset between tests."""
     login_rate_limiter.reset()
+    registration_rate_limiter.reset()
     yield
     login_rate_limiter.reset()
+    registration_rate_limiter.reset()
 
 
 # =====================================================================
@@ -101,6 +103,16 @@ def test_line_webhook_explicit_test_mode(monkeypatch):
     finally:
         if orig_secret is not None:
             _line_notifier.config["channel_secret"] = orig_secret
+
+
+def test_line_webhook_rejects_oversized_and_excess_event_payloads(monkeypatch):
+    monkeypatch.setenv("ALLOW_INSECURE_LINE_WEBHOOK", "true")
+    client = TestClient(app)
+    too_large = client.post("/callback", content=b" " * (1024 * 1024 + 1))
+    assert too_large.status_code == 413
+
+    too_many_events = client.post("/callback", json={"events": [{}] * 101})
+    assert too_many_events.status_code == 413
 
 
 # =====================================================================
@@ -229,6 +241,7 @@ def test_admin_weak_pin_warning_and_strong_passphrase(tmp_path):
         login_8digit = client.post(
             "/api/profiles/login",
             json={"identifier": "default", "pin_code": admin_8digit},
+            headers={"Origin": "http://testserver"},
         )
         assert login_8digit.status_code == 200
         assert login_8digit.json()["requires_pin_change"] is False
@@ -239,6 +252,7 @@ def test_admin_weak_pin_warning_and_strong_passphrase(tmp_path):
         reg_res = client.post(
             "/api/profiles/register",
             json={"name": player_name, "weekly_play_cap": 200, "pin_code": "1234"},
+                headers={"Origin": "http://testserver"},
         )
         assert reg_res.status_code == 200
         player_data = reg_res.json()["profile"]
@@ -465,6 +479,13 @@ def test_session_lifecycle_httponly_cookie_and_revocation():
     me_res = cookie_client.get("/api/auth/me")
     assert me_res.status_code == 200
     assert me_res.json()["profile"]["id"] == pid
+    assert "token" not in me_res.json()["session"]
+
+    migration_client = TestClient(app)
+    migrated_me = migration_client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert migrated_me.status_code == 200
+    assert "HttpOnly" in migrated_me.headers.get("set-cookie", "")
+    assert "token" not in migrated_me.json()["session"]
 
     # 3. Updating PIN must revoke all previous session tokens across all devices
     update_res = client.post(
@@ -528,11 +549,13 @@ def test_cors_configuration():
         headers={
             "Origin": "http://localhost:5173",
             "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "content-type,x-session-mode",
         },
     )
     assert res_allowed.status_code == 200
     assert res_allowed.headers.get("access-control-allow-origin") == "http://localhost:5173"
     assert res_allowed.headers.get("access-control-allow-credentials") == "true"
+    assert "x-session-mode" in res_allowed.headers.get("access-control-allow-headers", "").lower()
     # Never wildcard with credentials
     assert res_allowed.headers.get("access-control-allow-origin") != "*"
 
@@ -545,3 +568,129 @@ def test_cors_configuration():
         },
     )
     assert res_disallowed.headers.get("access-control-allow-origin") is None
+
+
+def test_cookie_authenticated_mutations_require_a_trusted_origin():
+    suffix = uuid.uuid4().hex[:6]
+    client = TestClient(app)
+    reg = client.post(
+        "/api/profiles/register",
+        json={"name": f"csrf-player-{suffix}", "pin_code": "1234"},
+    )
+    assert reg.status_code == 200
+    pid = reg.json()["profile"]["id"]
+    payload = {"profile_id": pid, "current_pin": "1234", "name": f"renamed-{suffix}"}
+
+    blocked = client.post(
+        "/api/profiles/update",
+        json=payload,
+        headers={"Origin": "https://attacker.example"},
+    )
+    assert blocked.status_code == 403
+
+    missing_origin = client.post("/api/profiles/update", json=payload)
+    assert missing_origin.status_code == 403
+
+    same_origin = client.post(
+        "/api/profiles/update",
+        json=payload,
+        headers={"Origin": "http://testserver"},
+    )
+    assert same_origin.status_code == 200
+
+
+def test_cookie_only_auth_hides_tokens_without_breaking_legacy_clients():
+    suffix = uuid.uuid4().hex[:6]
+    cookie_client = TestClient(app)
+    cookie_headers = {"Origin": "http://testserver", "X-Session-Mode": "cookie"}
+
+    registered = cookie_client.post(
+        "/api/profiles/register",
+        json={"name": f"cookie-player-{suffix}", "pin_code": "1234"},
+        headers=cookie_headers,
+    )
+    assert registered.status_code == 200
+    assert "token" not in registered.json()
+    assert "HttpOnly" in registered.headers.get("set-cookie", "")
+    profile_id = registered.json()["profile"]["id"]
+
+    login = cookie_client.post(
+        "/api/profiles/login",
+        json={"identifier": profile_id, "pin_code": "1234"},
+        headers=cookie_headers,
+    )
+    assert login.status_code == 200
+    assert "token" not in login.json()
+
+    updated = cookie_client.post(
+        "/api/profiles/update",
+        json={"profile_id": profile_id, "current_pin": "1234", "new_pin": "5678"},
+        headers=cookie_headers,
+    )
+    assert updated.status_code == 200
+    assert "token" not in updated.json()
+    assert "HttpOnly" in updated.headers.get("set-cookie", "")
+    assert cookie_client.get("/api/auth/me").status_code == 200
+
+    legacy_client = TestClient(app)
+    legacy_login = legacy_client.post(
+        "/api/profiles/login",
+        json={"identifier": profile_id, "pin_code": "5678"},
+    )
+    assert legacy_login.status_code == 200
+    assert legacy_login.json().get("token")
+
+
+def test_public_registration_has_a_per_source_limit(monkeypatch):
+    from server.routers import identity
+    from server.security import RegistrationRateLimiter
+
+    monkeypatch.setattr(identity, "registration_rate_limiter", RegistrationRateLimiter(max_requests=1))
+    client = TestClient(app)
+    first = client.post("/api/profiles/register", json={"name": f"first-{uuid.uuid4().hex[:6]}", "pin_code": "1234"})
+    second = client.post(
+        "/api/profiles/register",
+        json={"name": f"second-{uuid.uuid4().hex[:6]}", "pin_code": "1234"},
+        headers={"Origin": "http://testserver"},
+    )
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.headers.get("retry-after")
+
+
+def test_admin_pin_recovery_is_rate_limited():
+    pm = ProfileManager()
+    pm.admin_reset_pin(DEFAULT_PROFILE_ID, new_pin_code="88776655")
+    try:
+        client = TestClient(app)
+        for _ in range(4):
+            response = client.post(
+                "/api/admin/players/reset_pin",
+                json={"profile_id": "missing-player", "new_pin": "1111", "admin_pin": "00000000"},
+            )
+            assert response.status_code == 401
+        locked = client.post(
+            "/api/admin/players/reset_pin",
+            json={"profile_id": "missing-player", "new_pin": "1111", "admin_pin": "00000000"},
+        )
+        assert locked.status_code == 429
+        assert locked.headers.get("retry-after")
+    finally:
+        pm.admin_reset_pin(DEFAULT_PROFILE_ID, new_pin_code="0000")
+
+
+def test_admin_reset_route_cannot_downgrade_the_default_admin_pin():
+    pm = ProfileManager()
+    pm.admin_reset_pin(DEFAULT_PROFILE_ID, new_pin_code="88776655")
+    try:
+        token = session_manager.create_session(pm.get_profile(DEFAULT_PROFILE_ID))
+        client = TestClient(app)
+        response = client.post(
+            "/api/admin/players/reset_pin",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"profile_id": DEFAULT_PROFILE_ID, "new_pin": "0000"},
+        )
+        assert response.status_code == 400
+        assert pm.is_default_admin_pin() is False
+    finally:
+        pm.admin_reset_pin(DEFAULT_PROFILE_ID, new_pin_code="0000")

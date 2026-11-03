@@ -9,6 +9,7 @@ import streamlit as st
 from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
 from core.wallet import WeeklyWalletManager
 from ui.theme import inject_theme, inject_mobile_numeric_keypad_enforcer
+from ui.html_safety import html_text
 
 
 def render_line_binding_card(profile: Dict[str, Any]) -> None:
@@ -20,9 +21,9 @@ def render_line_binding_card(profile: Dict[str, Any]) -> None:
         else "<span style='color:#f59e0b; font-weight:bold;'>⚠️ 尚未連動 LINE 帳號</span>"
     )
 
-    p_name = profile.get("name", "玩家")
-    p_pin = profile.get("pin_code", "0000")
-    bind_cmd = f"綁定 {p_name} {p_pin}"
+    p_name = html_text(profile.get("name", "玩家"))
+    pin_digits = 8 if profile.get("id") == DEFAULT_PROFILE_ID else 4
+    bind_cmd = html_text(f"綁定 {profile.get('name', '玩家')} <{pin_digits} 位 PIN>")
 
     st.markdown(
         f"""
@@ -47,7 +48,7 @@ def render_line_binding_card(profile: Dict[str, Any]) -> None:
             </div>
             <div class="line-step">
                 <div class="line-step-num">3</div>
-                <div>收到機器人回覆「🎉 綁定成功」後，日後所有 LINE 查詢與投注紀錄將全自動同步至<b>【{p_name}】</b>的專屬空間！</div>
+                <div>收到機器人回覆「🎉 綁定成功」後，日後所有 LINE 查詢與投注紀錄將全自動同步至<b>【{p_name}】</b>的專屬空間！請將提示文字替換成您自己的 PIN。</div>
             </div>
         </div>
         """,
@@ -59,11 +60,11 @@ def render_line_binding_card(profile: Dict[str, Any]) -> None:
             f"""
             | LINE 指令 | 說明 | 範例 |
             | :--- | :--- | :--- |
-            | **`{bind_cmd}`** | 將目前 LINE 帳號與玩家 Profile 綁定 | `綁定 {p_name} {p_pin}` |
+            | **`綁定 <玩家名稱> <PIN>`** | 將目前 LINE 帳號與玩家 Profile 綁定 | `綁定 玩家名稱 PIN` |
             | **`我的狀態`** 或 **`餘額`** | 查看本週錢包餘額與中獎儲備池 | `我的狀態` |
             | **`今日推薦`** 或 **`今日開盤`** | 取得當日高 EV 瘋狗串關與單關雷達 | `今日推薦` |
             | **`查戰績`** | 查詢個人注單歷史盈虧與過關明細 | `查戰績` |
-            | **`改密碼 <舊PIN> <新PIN>`** | 於 LINE 線上修改 4 位數 PIN 碼 | `改密碼 {p_pin} 1234` |
+            | **`改密碼 <舊PIN> <新PIN>`** | 於 LINE 線上修改 PIN 碼 | `改密碼 舊PIN 新PIN` |
             | **`預算 <金額>`** | 調整每週娛樂預算上限 | `預算 300` |
             | **`解綁`** | 解除此 LINE 帳號與 Profile 的連動 | `解綁` |
             """
@@ -120,7 +121,7 @@ def render_profile_view(
             <div class="profile-badge-card">
                 <div class="p-label">當前登入身分</div>
                 <div class="p-name">
-                    👤 【{profile['name']}】
+                    👤 【{html_text(profile['name'])}】
                     <span class="p-tag">PIN 碼防護中</span>
                 </div>
             </div>
@@ -140,7 +141,7 @@ def render_profile_view(
         <div class='mobile-wallet-grid'>
             <div class='mobile-wallet-card card-blue'>
                 <div class='m-label'>👤 玩家名稱</div>
-                <div class='m-value'>{profile['name']}</div>
+                <div class='m-value'>{html_text(profile['name'])}</div>
                 <div class='m-sub'>PIN 防護中</div>
             </div>
             <div class='mobile-wallet-card card-amber'>
@@ -170,6 +171,7 @@ def render_profile_view(
 
     # Tabs for Settings and Creation (Archie sees all players, others see only self)
     is_admin = profile.get("id") == DEFAULT_PROFILE_ID
+    pin_digits = 8 if is_admin else 4
     if is_admin:
         tab_edit, tab_admin_all, tab_create = st.tabs([
             "⚙️ 編輯我的設定",
@@ -184,13 +186,13 @@ def render_profile_view(
 
     with tab_edit:
         st.markdown(f"#### 🔒 修改「{profile['name']}」的個人設定")
-        st.caption("預設 PIN 碼為 `0000`。修改名稱、每週金額或設定新 PIN 碼前，請先輸入當前 4 位數 PIN 碼進行身分確認。")
+        st.caption("一般玩家使用 4 位數 PIN，管理員使用 8 位數 PIN。首次設定時目前 PIN 為 `0000`。")
 
         with st.form("edit_profile_form"):
             current_pin = st.text_input(
-                "🔑 輸入目前 4 位數 PIN 碼",
+                f"🔑 輸入目前 PIN 碼 ({pin_digits} 位；首次設定為 0000)",
                 type="password",
-                max_chars=4,
+                max_chars=pin_digits,
                 placeholder="0000",
                 help="預設為 0000",
                 autocomplete="one-time-code",
@@ -204,13 +206,13 @@ def render_profile_view(
                 step=50.0,
                 help="每週刷新時允許進入戰場的最大金額",
             )
-            change_pin = st.checkbox("🔒 變更為新的 4 位數 PIN 碼")
+            change_pin = st.checkbox(f"🔒 變更為新的 {pin_digits} 位數 PIN 碼")
             c_p1, c_p2 = st.columns(2)
             with c_p1:
                 new_pin1 = st.text_input(
-                    "新 PIN 碼 (4 位數字)",
+                    f"新 PIN 碼 ({pin_digits} 位數字)",
                     type="password",
-                    max_chars=4,
+                    max_chars=pin_digits,
                     disabled=not change_pin,
                     autocomplete="one-time-code",
                 )
@@ -218,7 +220,7 @@ def render_profile_view(
                 new_pin2 = st.text_input(
                     "再次確認新 PIN 碼",
                     type="password",
-                    max_chars=4,
+                    max_chars=pin_digits,
                     disabled=not change_pin,
                     autocomplete="one-time-code",
                 )
@@ -240,8 +242,8 @@ def render_profile_view(
                         "new_weekly_play_cap": new_cap,
                     }
                     if change_pin:
-                        if not new_pin1 or not re.fullmatch(r"\d{4}", new_pin1):
-                            st.error("新 PIN 碼必須為 4 位純數字（例如：1234）！")
+                        if not new_pin1 or not re.fullmatch(rf"\d{{{pin_digits}}}", new_pin1):
+                            st.error(f"新 PIN 碼必須為 {pin_digits} 位純數字！")
                             st.stop()
                         if new_pin1 != new_pin2:
                             st.error("兩次輸入的新 PIN 碼不一致，請重新檢查！")

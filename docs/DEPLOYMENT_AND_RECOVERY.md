@@ -16,7 +16,7 @@ the editable configuration and research records.
 
 ```powershell
 py -m venv C:\SportsLottery\venv
-C:\SportsLottery\venv\Scripts\python.exe -m pip install .\dist\sportslottery-2.0.1-py3-none-any.whl
+C:\SportsLottery\venv\Scripts\python.exe -m pip install .\dist\sportslottery-2.3.0-py3-none-any.whl
 $env:SPORTSLOTTERY_WORKSPACE = 'C:\SportsLottery\workspace'
 C:\SportsLottery\venv\Scripts\sportslottery.exe --workspace $env:SPORTSLOTTERY_WORKSPACE research-pipeline --dry-run
 ```

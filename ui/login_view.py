@@ -8,6 +8,7 @@ import streamlit as st
 
 from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID, DEFAULT_PIN_CODE
 from ui.theme import inject_theme, inject_mobile_numeric_keypad_enforcer
+from ui.html_safety import html_text
 
 
 def verify_profile_login(
@@ -105,7 +106,7 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
         st.markdown(
             """
             <div style="font-size: 0.92rem; color: var(--text-secondary); margin-bottom: 12px;">
-                請輸入您的玩家名稱與 <b>4 位數 PIN 碼</b> 登入。<br>
+                一般玩家使用 <b>4 位數 PIN</b>，管理員使用 <b>8 位數 PIN</b> 登入。<br>
                 為保障成員隱私，系統不設下拉名單，請手動輸入您的名稱（嚴格區分大小寫）。
             </div>
             """,
@@ -120,12 +121,14 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
             key="login_name_input",
         )
 
+        login_target_profile = next((p for p in all_profiles if p["name"] == login_name.strip()), None)
+        login_pin_digits = 8 if login_target_profile and login_target_profile["id"] == DEFAULT_PROFILE_ID else 4
         login_pin = st.text_input(
-            "🔑 輸入 4 位數 PIN 碼：",
+            f"🔑 輸入 {login_pin_digits} 位數 PIN 碼：",
             type="password",
-            max_chars=4,
+            max_chars=login_pin_digits,
             placeholder="預設為 0000",
-            help="限 4 位純數字。預設初始 PIN 碼為 0000",
+            help=f"一般玩家為 4 位、管理員為 8 位純數字。首次設定 PIN 為 0000。",
             key="login_pin_input",
             autocomplete="one-time-code",
         )
@@ -154,7 +157,7 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
             if not clean_name:
                 st.error("請輸入玩家名稱！")
             elif not clean_pin:
-                st.error("請輸入 4 位數 PIN 碼（預設為 0000）！忘記密碼請聯絡管理員 Archie。")
+                st.error(f"請輸入 {login_pin_digits} 位數 PIN 碼（首次設定為 0000）！忘記密碼請聯絡管理員。")
             else:
                 # STRICT CASE-SENSITIVE MATCH
                 target_profile = next((p for p in all_profiles if p["name"] == clean_name), None)
@@ -265,8 +268,8 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
         st.markdown(
             """
             <div style="font-size: 0.92rem; color: var(--text-secondary); margin-bottom: 12px;">
-                🔒 <b>變更個人 4 位數安全 PIN 碼</b><br>
-                輸入目前舊 PIN 碼確認身分（預設為 0000），即可設定專屬的新 PIN 碼。
+                🔒 <b>變更個人安全 PIN 碼</b><br>
+                一般玩家使用 4 位數 PIN；管理員使用 8 位數 PIN。首次設定時目前 PIN 為 0000。
             </div>
             """,
             unsafe_allow_html=True,
@@ -279,10 +282,12 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
                 help="請輸入您欲修改密碼的玩家名稱，需完全符合大小寫",
                 key="change_pin_name_field",
             )
+            target_profile = next((p for p in all_profiles if p["name"] == chg_name.strip()), None)
+            pin_digits = 8 if target_profile and target_profile["id"] == DEFAULT_PROFILE_ID else 4
             chg_old_pin = st.text_input(
                 "🔑 目前的舊 PIN 碼",
                 type="password",
-                max_chars=4,
+                max_chars=pin_digits,
                 placeholder="預設為 0000",
                 help="預設為 0000",
                 key="chg_old_pin_field",
@@ -291,10 +296,10 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
             col_np1, col_np2 = st.columns(2)
             with col_np1:
                 chg_new_pin1 = st.text_input(
-                    "🔑 新的 4 位數 PIN 碼",
+                    f"🔑 新的 {pin_digits} 位數 PIN 碼",
                     type="password",
-                    max_chars=4,
-                    placeholder="請輸入 4 位數字",
+                    max_chars=pin_digits,
+                    placeholder=f"請輸入 {pin_digits} 位數字",
                     key="chg_new_pin1_field",
                     autocomplete="one-time-code",
                 )
@@ -302,7 +307,7 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
                 chg_new_pin2 = st.text_input(
                     "🔑 再次確認新 PIN 碼",
                     type="password",
-                    max_chars=4,
+                    max_chars=pin_digits,
                     placeholder="再輸入一次相同數字",
                     key="chg_new_pin2_field",
                     autocomplete="one-time-code",
@@ -349,6 +354,7 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
             clean_new2 = chg_new_pin2.strip()
 
             target_profile = next((p for p in all_profiles if p["name"] == clean_name), None)  # STRICT CASE-SENSITIVE
+            pin_digits = 8 if target_profile and target_profile["id"] == DEFAULT_PROFILE_ID else 4
 
             if not clean_name:
                 st.error("請輸入玩家名稱！")
@@ -356,8 +362,8 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
                 st.error("❌ 找不到此玩家名稱！請確認大小寫與拼字是否完全相符。")
             elif not clean_old:
                 st.error("請輸入當前的舊 PIN 碼進行驗證（預設為 0000）！忘記密碼請聯絡管理員 Archie。")
-            elif not clean_new1 or not re.fullmatch(r"\d{4}", clean_new1):
-                st.error("新 PIN 碼必須為 4 位純數字（例如：1234、8888）！")
+            elif not clean_new1 or not re.fullmatch(rf"\d{{{pin_digits}}}", clean_new1):
+                st.error(f"新 PIN 碼必須為 {pin_digits} 位純數字！")
             elif clean_new1 != clean_new2:
                 st.error("兩次輸入的新 PIN 碼不一致，請重新檢查！")
             else:
@@ -387,7 +393,7 @@ def render_user_auth_header(profile_mgr: ProfileManager, active_profile: Dict[st
         f"""
         <div style="display:flex; justify-content:space-between; align-items:center; background:var(--card-bg); border:1px solid var(--card-border); border-radius:8px; padding:8px 12px; margin-bottom:8px; flex-wrap:wrap; gap:6px; box-shadow:var(--card-shadow);">
             <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:0.90rem; color:var(--text-primary);">👤 玩家：<b style="color:var(--color-blue);">{active_profile['name']}</b></span>
+                <span style="font-size:0.90rem; color:var(--text-primary);">👤 玩家：<b style="color:var(--color-blue);">{html_text(active_profile['name'])}</b></span>
                 <span style="background:var(--color-green-bg); border:1px solid var(--color-green-border); padding:2px 8px; border-radius:4px; font-size:0.75rem; color:var(--color-green); font-weight:600;">週限 NT$ {active_profile['weekly_play_cap']:.0f}</span>
             </div>
             <span style="font-size:0.75rem; color:var(--color-purple); font-weight:600;">🔒 PIN 保護</span>
