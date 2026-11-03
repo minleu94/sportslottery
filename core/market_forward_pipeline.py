@@ -32,17 +32,22 @@ from core.forward_evaluation_engine import (
     _validated_market_probabilities,
 )
 from core.market_aligner import MarketAligner
+from core.market_candidate_policy import candidate_rejection_reason, canonical_league_query_key
 from core.market_fair_odds import BookmakerQuote, MarketFairOddsEngine
+from core.market_provider_factory import (
+    DEFAULT_MARKET_PROVIDER_CAPABILITIES,
+    MarketProviderCapabilities,
+    build_default_market_providers,
+)
 from core.persistence import iter_jsonl
 from core.settlement_engine import SettlementEngine
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger, compute_prediction_payload_hash
 from core.bet_validation import parse_aware_time
-from core.identity.league_mapping import normalize_league_and_sport
 from integrations.common.models import TaiwanLeg
 from integrations.odds.market_models import MarketAlignmentStatus, MarketBenchmarkEvidence, MarketOddsSnapshot
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
-from integrations.odds.the_odds_api import SPORT_KEY_MAP, TheOddsApiClient
+from integrations.odds.the_odds_api import TheOddsApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -102,9 +107,18 @@ class MarketForwardPipeline:
         settlement_engine: Optional[SettlementEngine] = None,
         evaluation_engine: Optional[ForwardEvaluationEngine] = None,
         summary_path: Optional[Path] = None,
+        provider_capabilities: Optional[MarketProviderCapabilities] = None,
     ):
-        self.odds_adapter = odds_adapter or PlaysportOddsAdapter()
-        self.odds_client = odds_client or TheOddsApiClient()
+        if odds_adapter is None or odds_client is None:
+            default_adapter, default_client = build_default_market_providers(
+                taiwan=odds_adapter is None,
+                international=odds_client is None,
+            )
+        else:
+            default_adapter, default_client = None, None
+        self.odds_adapter = odds_adapter if odds_adapter is not None else default_adapter
+        self.odds_client = odds_client if odds_client is not None else default_client
+        self.provider_capabilities = provider_capabilities or DEFAULT_MARKET_PROVIDER_CAPABILITIES
         self.signal_hub = signal_hub or SignalHub()
         self.aligner = aligner or MarketAligner()
         self.fair_engine = fair_engine or MarketFairOddsEngine()
@@ -129,42 +143,16 @@ class MarketForwardPipeline:
         except Exception:
             return ["MLB", "NBA", "NFL", "SOCCER"]
 
-    @staticmethod
-    def _candidate_query_key(league: str) -> Optional[str]:
+    def _candidate_query_key(self, league: str) -> Optional[str]:
         """Resolve only leagues the configured Odds API client can query."""
-        raw = str(league or "").strip()
-        key = SPORT_KEY_MAP.get(raw.upper()) or SPORT_KEY_MAP.get(raw.lower())
-        if key:
-            return key
-        # The adapter uses provider-facing aliases for a few canonical league names.
-        canonical_aliases = {
-            "PREMIER": "EPL",
-            "LALIGA": "LALIGA",
-            "CHAMPIONS": "CHAMPIONS_LEAGUE",
-        }
-        if raw.upper() in canonical_aliases:
-            return SPORT_KEY_MAP.get(canonical_aliases[raw.upper()])
-        canonical, _ = normalize_league_and_sport(raw)
-        alias = canonical_aliases.get(canonical)
-        return SPORT_KEY_MAP.get(alias) if alias else None
+        return canonical_league_query_key(league, self.provider_capabilities.sport_key_map)
 
-    @classmethod
-    def _api_query_league(cls, league: str) -> Optional[str]:
+    def _api_query_league(self, league: str) -> Optional[str]:
         """Return a concrete client-supported league label for a sport key."""
-        key = cls._candidate_query_key(league)
+        key = self._candidate_query_key(league)
         if not key:
             return None
-        preferred = {
-            "baseball_mlb": "MLB",
-            "basketball_nba": "NBA",
-            "americanfootball_nfl": "NFL",
-            "soccer_epl": "EPL",
-            "soccer_spain_la_liga": "LALIGA",
-            "soccer_uefa_champs_league": "CHAMPIONS_LEAGUE",
-            "soccer_germany_bundesliga": "BUNDESLIGA",
-            "soccer_italy_serie_a": "SERIE_A",
-        }
-        return preferred.get(key)
+        return self.provider_capabilities.preferred_league_labels.get(key)
 
     @staticmethod
     def _split_markets(value: Any) -> set[str]:
@@ -184,80 +172,20 @@ class MarketForwardPipeline:
             return cap
         return self._split_markets(scheduled) & cap
 
-    @classmethod
     def _candidate_rejection_reason(
-        cls,
+        self,
         leg: TaiwanLeg,
         query_league: str,
         target_markets: str,
     ) -> Optional[str]:
-        """Return why a Taiwan leg cannot produce a comparable Odds API query."""
-        if not str(leg.event_id or "").strip():
-            return "MISSING_EVENT_ID"
-        if str(getattr(leg, "odds_status", "UNKNOWN") or "UNKNOWN").upper() not in {"LIVE", "FRESH"}:
-            return "TAIWAN_ODDS_NOT_FRESH"
-        if bool(getattr(leg, "is_synthetic", False)) or bool((getattr(leg, "signal_evidence", None) or {}).get("is_synthetic")):
-            return "SYNTHETIC_TAIWAN_ODDS"
-        if parse_aware_time(leg.start_time_utc) is None:
-            return "INVALID_OR_MISSING_START_TIME"
-        leg_key = cls._candidate_query_key(leg.league)
-        target_label = str(query_league or "").strip().upper()
-        target_key = cls._candidate_query_key(query_league)
-        if not target_key or not leg_key:
-            return "UNSUPPORTED_OR_MISMATCHED_LEAGUE"
-        if target_label == "SOCCER":
-            if not leg_key.startswith("soccer_") or str(leg.league or "").strip().upper() == "SOCCER":
-                return "UNSUPPORTED_OR_MISMATCHED_LEAGUE"
-        elif target_key != leg_key:
-            return "UNSUPPORTED_OR_MISMATCHED_LEAGUE"
-
-        key_to_sport = {
-            "baseball": "baseball",
-            "basketball": "basketball",
-            "americanfootball": "football",
-            "soccer": "soccer",
-        }
-        expected_sport = key_to_sport.get(leg_key.split("_")[0])
-        supplied_sport = str(leg.sport or "").strip().casefold().replace(" ", "")
-        sport_aliases = {"americanfootball": "football", "football": "football"}
-        supplied_sport = sport_aliases.get(supplied_sport, supplied_sport)
-        if not expected_sport or supplied_sport != expected_sport:
-            return "SPORT_LEAGUE_MISMATCH"
-
-        if not str(leg.home_team or "").strip() or not str(leg.away_team or "").strip():
-            return "MISSING_TEAMS"
-        if str(leg.home_team).strip() in {"主隊", "主队"} or str(leg.away_team).strip() in {"客隊", "客队"}:
-            return "MISSING_TEAMS"
-        if not str(leg.selection or "").strip():
-            return "MISSING_SELECTION"
-
-        api_market = cls._MARKET_TO_API.get(str(leg.market or "").strip().casefold())
-        if not api_market:
-            return "UNSUPPORTED_MARKET"
-        requested = cls._split_markets(target_markets)
-        if api_market not in requested:
-            return "MARKET_NOT_ALLOWED"
-        side = str(leg.side or "").strip().casefold()
-        valid_sides = {
-            "h2h": {"主", "客", "和", "home", "away", "draw"},
-            "spreads": {"主", "客", "home", "away"},
-            "totals": {"大", "小", "大分", "小分", "over", "under"},
-        }
-        if side not in valid_sides[api_market]:
-            return "INVALID_SELECTION_SIDE"
-        if api_market in {"spreads", "totals"}:
-            try:
-                if leg.line is None or not math.isfinite(float(leg.line)):
-                    return "MISSING_OR_INVALID_LINE"
-            except (TypeError, ValueError, OverflowError):
-                return "MISSING_OR_INVALID_LINE"
-        try:
-            odds = float(leg.taiwan_odds)
-        except (TypeError, ValueError, OverflowError):
-            return "INVALID_TAIWAN_ODDS"
-        if not math.isfinite(odds) or odds <= 1.0:
-            return "INVALID_TAIWAN_ODDS"
-        return None
+        """Compatibility wrapper around the separately testable candidate policy."""
+        return candidate_rejection_reason(
+            leg,
+            query_league,
+            target_markets,
+            market_to_api=self._MARKET_TO_API,
+            query_key_resolver=self._candidate_query_key,
+        )
 
     @staticmethod
     def _quote_freshness(observed_times: List[Optional[str]]) -> str:

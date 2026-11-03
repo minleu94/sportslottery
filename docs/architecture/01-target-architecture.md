@@ -124,6 +124,16 @@ API 回歸以 M2 原始 OpenAPI 所列的 38 組 path/method 為基準；新增 
 
 詳細實作邊界見 [API 與生命週期](02-api-boundaries.md)。
 
+## M4 實作紀錄
+
+`MarketForwardPipeline` 保留既有呼叫入口；候選資格規則移到 `core/market_candidate_policy.py`，由 orchestration 傳入市場映射與聯賽查詢解析器。國際查詢的 provider league capability 由建構時可注入的 `MarketProviderCapabilities` 提供。預設 Playsport／Odds API adapter 只在相容入口缺少 provider 時，透過 `core/market_provider_factory.py` 建立；兩個 provider 都已注入時不建立預設 client。
+
+市場流程維持「資格檢查 → 依有效候選查詢 → 事件／玩法／線位／時間對齊 → 建立完整市場基準 → 將基準傳入 SignalHub → 寫入 snapshot」的順序。`tests/fixtures/market/mlb_moneyline_replay.json` 與 `tests/test_market_golden_replay.py` 以固定時間離線回放此路徑，並檢查有效候選、真實匹配、公允機率、EV、來源資格、snapshot 資格及 hash 對應欄位。混合有效與過期候選的回歸測試確認過期項目不會進入對齊、SignalHub 或 snapshot。
+
+目前 golden fixture 證明的是 MLB 兩向不讓分的離線流程；它不替代即時來源或其他聯賽的環境驗收。Spread、Total、足球三向盤的市場數學另由既有離線整合測試覆蓋。回退 M4 可只回退程式及測試提交；沒有改寫既有 snapshots 或正式資料。
+
+詳細邊界見 [市場資料邊界與離線回放](03-market-boundaries.md)。
+
 ## 架構決策紀錄
 
 - [ADR-0001：漸進式 Modular Monolith](adr/0001-modular-monolith.md)

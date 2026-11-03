@@ -1,0 +1,61 @@
+{
+  "case_id": "mlb-moneyline-complete-market-v1",
+  "as_of_utc": "2026-11-02T12:00:00+00:00",
+  "kickoff_utc": "2026-11-02T15:00:00+00:00",
+  "league": "MLB",
+  "target_markets": "h2h",
+  "taiwan_leg": {
+    "sport": "baseball",
+    "event_id": "playsport-golden-001",
+    "league": "MLB",
+    "market": "不讓分",
+    "selection": "洛杉磯道奇不讓分勝",
+    "side": "主",
+    "line": null,
+    "taiwan_odds": 2.0,
+    "home_team": "洛杉磯道奇",
+    "away_team": "聖地牙哥教士",
+    "odds_status": "LIVE"
+  },
+  "international_quotes": [
+    {
+      "source_id": "the_odds_api:pinnacle",
+      "source_type": "BOOKMAKER",
+      "event_id": "odds-api-golden-001",
+      "league": "MLB",
+      "home_team": "Los Angeles Dodgers",
+      "away_team": "San Diego Padres",
+      "market_type": "MONEYLINE",
+      "selection": "home",
+      "decimal_odds": 1.9,
+      "line": null,
+      "is_synthetic": false
+    },
+    {
+      "source_id": "the_odds_api:pinnacle",
+      "source_type": "BOOKMAKER",
+      "event_id": "odds-api-golden-001",
+      "league": "MLB",
+      "home_team": "Los Angeles Dodgers",
+      "away_team": "San Diego Padres",
+      "market_type": "MONEYLINE",
+      "selection": "away",
+      "decimal_odds": 2.1,
+      "line": null,
+      "is_synthetic": false
+    }
+  ],
+  "expected": {
+    "valid_candidate_count": 1,
+    "unique_candidate_event_count": 1,
+    "real_matched_count": 1,
+    "complete_market_benchmark_count": 1,
+    "sharp_qualified_count": 1,
+    "fair_probability": 0.525,
+    "taiwan_implied_probability": 0.5,
+    "expected_value": 0.05,
+    "snapshot_forward_validation_eligible": true,
+    "snapshot_settlement_status": "PENDING",
+    "market_source_qualification": "SHARP_QUALIFIED"
+  }
+}

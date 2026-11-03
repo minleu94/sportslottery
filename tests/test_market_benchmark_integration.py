@@ -343,3 +343,65 @@ def test_pipeline_injects_validated_market_evidence_before_snapshot(tmp_path: Pa
     snapshot_leg = snapshot_logger.log_snapshot.call_args.args[0]
     assert snapshot_leg.signal_evidence["market_fair_probability"] == pytest.approx(0.525)
     assert snapshot_leg.expected_value == pytest.approx(0.525 * leg.taiwan_odds - 1.0)
+
+
+def test_stale_candidate_in_a_mixed_batch_never_reaches_alignment_or_snapshot(tmp_path: Path):
+    now = datetime.now(timezone.utc)
+    valid = _leg()
+    invalid = _leg()
+    invalid.event_id = "stale-taiwan-quote"
+    invalid.odds_status = "STALE_CACHE"
+    adapter = MagicMock()
+    adapter.get_taiwan_legs.return_value = [valid, invalid]
+    client = MagicMock(
+        scheduled_markets="h2h", markets="h2h", regions="us",
+        sharp_qualified_books=["pinnacle"],
+    )
+    client.get_source_status.return_value = {
+        "requests_used_this_month": 0,
+        "request_metrics": {"api_requests": 0, "cache_hits": 0, "coalesced_requests": 0},
+    }
+    client.fetch_market_odds.return_value = []
+    unmatched = MarketAlignmentRecord(
+        status=MarketAlignmentStatus.UNMATCHED,
+        taiwan_event_id=valid.event_id,
+        taiwan_league=valid.league,
+        taiwan_market=valid.market,
+        taiwan_selection=valid.selection,
+        taiwan_side=valid.side,
+        taiwan_line=valid.line,
+        international_event_id=None,
+        international_source_id=None,
+        international_market_type=None,
+        international_selection=None,
+        international_line=None,
+        aligned_at_utc=now.isoformat(),
+        rejection_code="ERR_NO_INTERNATIONAL_QUOTES",
+    )
+    aligner = MagicMock()
+    aligner.align_leg_with_candidates.side_effect = lambda item, quotes: (None, unmatched)
+    hub = MagicMock()
+    hub.evaluate_taiwan_leg.side_effect = lambda item: item
+    logger = MagicMock()
+    logger.log_snapshot.return_value = {"forward_validation_eligible": False}
+    pipeline = MarketForwardPipeline(
+        odds_adapter=adapter,
+        odds_client=client,
+        signal_hub=hub,
+        aligner=aligner,
+        snapshot_logger=logger,
+        settlement_engine=MagicMock(),
+        evaluation_engine=MagicMock(),
+        summary_path=tmp_path / "summary.json",
+    )
+
+    result = pipeline.run_market_snapshot_cycle(leagues=["NBA"])
+
+    assert result["total_legs_processed"] == 2
+    assert result["valid_candidate_count"] == 1
+    assert result["candidate_rejection_counts"]["TAIWAN_ODDS_NOT_FRESH"] == 1
+    client.fetch_market_odds.assert_called_once()
+    aligner.align_leg_with_candidates.assert_called_once()
+    assert aligner.align_leg_with_candidates.call_args.args[0] is valid
+    hub.evaluate_taiwan_leg.assert_called_once_with(valid)
+    logger.log_snapshot.assert_called_once_with(valid)
