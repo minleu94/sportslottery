@@ -55,7 +55,7 @@ The static AST import scan excludes tests, artifacts, and frontend code. Package
 
 ## Milestones and commit evidence
 
-All milestones below are ancestors of the closeout starting checkout. The final integrated CI run exercises the resulting tree, including follow-up fixes.
+The M1–M9 implementation commits and pre-closeout follow-ups are in the closeout starting checkout. The validation and CI-stability follow-ups are listed with M9; the final integrated CI run exercises that complete tree.
 
 | Milestone | Commit | Result |
 | --- | --- | --- |
@@ -67,9 +67,13 @@ All milestones below are ancestors of the closeout starting checkout. The final 
 | M6 storage boundaries | `fc7cf4137fae2e11dfa578b5560b65e34ef41ef7` | Complete; CI run `41564548717` passed |
 | M7 typed UI/API contracts | `17d8dc02c3d49f7a56b86461f7b83f89806f3fbe`, CI follow-up `fb10b5cfe06f5fd09eeb3fdcd795e82eb471d18e` | Complete; final integrated CI passed |
 | M8 governance | `c4062336974912b62feb9dccad14cf7a49fa00ab` | Complete; CI run `41567316915` passed |
-| M9 delivery and regression | `1fa3cd5d15210937ac6cb8157d2147be1eb306f6` plus follow-ups `dadeeda18948f23535bee59d1e56eaeb04877262`, `458919edfce9eb2d3c594269ac47c25608e3d846`, `dbd4364d3668b4122d8d45af8f709530df24ffad` | Complete; [CI run `41574278277`](https://github.com/minleu94/sportslottery/actions/runs/41574278277) passed on Windows and Ubuntu |
+| M9 delivery and regression | `1fa3cd5d15210937ac6cb8157d2147be1eb306f6` plus follow-ups `dadeeda18948f23535bee59d1e56eaeb04877262`, `458919edfce9eb2d3c594269ac47c25608e3d846`, `dbd4364d3668b4122d8d45af8f709530df24ffad`, `06c9a1720d2e72922788f0d84fca4428f0c54e3d`, `876dcf7164a9fc57d0c10ea94d8544ffa0f5caa9` | Complete; [final CI run `41578348749`](https://github.com/minleu94/sportslottery/actions/runs/41578348749) passed on Windows and Ubuntu |
 
-The final pre-closeout GitHub Actions run built the Python wheel, installed the locked Python and npm dependencies, built the TypeScript/Vite frontend, and ran the full offline `tests` tree on both platforms. Each platform reported **628 passed, 18 skipped, 1 warning**. The skipped tests require explicit local-data or live-network opt-in and were intentionally not enabled in CI.
+The final closeout GitHub Actions run (`41578348749`, commit `876dcf7`) built the Python wheel, installed the locked Python and npm dependencies, built the TypeScript/Vite frontend, and ran the full offline `tests` tree on both platforms. Ubuntu reported **629 passed, 18 skipped, 1 warning**; Windows reported **629 passed, 18 skipped, 1 warning**. The skipped tests require explicit local-data or live-network opt-in and were intentionally not enabled in CI. The run also reports non-blocking GitHub Actions runtime and runner-image deprecation notices.
+
+The preceding closeout run (`41577493800`) reported **628 passed, 1 failed, 18 skipped**; the failure was a single timing assertion at 50.96 ms against a 50 ms limit. The measurement was a single SQLite read on a hosted runner. The test now measures five calls and gates the median against the same latency limit; the full test file passed locally, and the corrected test passed in the final cross-platform run. This changes test measurement only, not application runtime behavior.
+
+The earlier integrated run (`41574278277`) reported **628 passed, 18 skipped, 1 warning** on both platforms. The skipped tests require explicit local-data or live-network opt-in and were intentionally not enabled in CI.
 
 For this closeout, the local Windows sandbox completed **577 passed, 18 skipped** in the offline suite after excluding the six `TestClient` modules (`test_line_webhook_server`, `test_market_api`, `test_market_scheduler`, `test_modern_api`, `test_phase1_security`, and `test_phase2_betting_integrity`). The unfiltered local run reached the first loopback-backed `TestClient` and was stopped when that sandbox blocked its socket setup; this was an environment limitation, not a test assertion failure. Hosted Windows and Ubuntu CI ran those modules in the full suite.
 
