@@ -14,6 +14,21 @@ from PyInstaller.utils.hooks import collect_data_files, copy_metadata, collect_s
 block_cipher = None
 PROJECT_ROOT = Path(SPECPATH).resolve()
 
+# Only ship reviewed, repository-owned configuration. A directory-level bundle
+# also captures ignored developer files such as API keys and tunnel credentials.
+SAFE_CONFIG_FILES = (
+    'evidence_weights.yaml',
+    'expert_sources.yaml',
+    'model_acceptance.yaml',
+    'models.yaml',
+    'ngrok_config.example.yaml',
+    'odds_api.example.yaml',
+    'research_pipeline.yaml',
+    'result_coverage_evidence.yaml',
+    'source_registry.yaml',
+    'storage_config.yaml',
+)
+
 # 1. Collect Streamlit & third-party data files and metadata
 datas = []
 datas += collect_data_files('streamlit')
@@ -28,11 +43,15 @@ except Exception:
 datas += [
     ('app.py', '.'),
     ('pages', 'pages'),
-    ('config', 'config'),
     ('core', 'core'),
     ('integrations', 'integrations'),
     ('probability', 'probability'),
     ('ui', 'ui'),
+]
+datas += [
+    (str(PROJECT_ROOT / 'config' / name), 'config')
+    for name in SAFE_CONFIG_FILES
+    if (PROJECT_ROOT / 'config' / name).is_file()
 ]
 
 if (PROJECT_ROOT / 'app_icon.ico').exists():
@@ -42,7 +61,6 @@ if (PROJECT_ROOT / 'app_icon.ico').exists():
 hiddenimports = [
     'streamlit',
     'streamlit.web.cli',
-    'streamlit.runtime.scriptrunner.magic_expressions',
     'altair',
     'pydeck',
     'tornado',

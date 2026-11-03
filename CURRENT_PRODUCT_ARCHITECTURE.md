@@ -1,3 +1,7 @@
+# 歷史產品架構說明
+
+> 本文件記錄先前版本與特定本機環境的產品描述，保留作歷史參考。現行程式架構、依賴方向、測試與儲存契約，請以[docs/architecture/README.md](docs/architecture/README.md)列出的文件為準；本文中的「目前」用語不保證對應現行 `dev`。
+
 # 台灣運彩「瘋狗流」10~500倍 高倍串關決策系統
 # 目前產品真實架構、資料流與完成度審查報告 (CURRENT_PRODUCT_ARCHITECTURE.md)
 

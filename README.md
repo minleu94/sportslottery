@@ -24,9 +24,10 @@ python -m pip install -r requirements-lock.txt
 
 主頁「記錄已購買注單」只更新本機帳本。搜尋、畫面與記錄都使用同一資料核對：盤口須在 15 分鐘內、尚未開賽、時間含時區、玩法與盤線完整。同一提交重試只扣一次；人工歷史補記另行標示。
 
-### 📘 完整功能手冊與 Agent 移交指南 (必讀)
-> 🚨 **給接手 Agent 與開發者**：本專案已建立最詳盡的架構、LINE Bot 全功能對照表、網絡拓撲與故障排查指南，請直接參閱：  
-> 👉 **[docs/AGENT_HANDOFF_AND_LINE_BOT_MANUAL.md](docs/AGENT_HANDOFF_AND_LINE_BOT_MANUAL.md)**
+### 📘 架構與開發文件
+目前架構、資料邊界、測試政策與 ADR 的文件順序，請從[架構文件索引](docs/architecture/README.md)開始。日期較早的操作手冊與審查文件保留作歷史／部署參考，不能替代目前架構文件。
+
+LINE Bot 與故障排查的歷史操作說明：[docs/AGENT_HANDOFF_AND_LINE_BOT_MANUAL.md](docs/AGENT_HANDOFF_AND_LINE_BOT_MANUAL.md)。
 
 ---
 
@@ -132,22 +133,20 @@ python scripts/tray_manager.py
  
 ---
  
-### ⚙️ ④「系統設定與資料存放」—— C 槽防磨損與資料庫管理
+### ⚙️ ④「系統設定與資料存放」
 側邊欄可進入專屬系統設定控制台：
-- **即時路徑監控**：即時查看資料存放實體路徑（預設 `F:\Min\Python\Project\SportsLottery_Data`）。
+- **即時路徑監控**：查看目前程序使用的資料根目錄；實際值由儲存設定決定。
 - **硬碟空間分析**：顯示磁碟可用容量與詳細檔案分佈（SQLite 帳本、串關紀錄、預測快照）。
 - **一鍵遷移路徑**：支援在 UI 上輸入任意新目錄並自動將現有資料安全複製遷移。
 - **排程與黑視窗控制**：檢視 Windows 排程器狀態，支援一鍵啟用/停用背景流水線，確認 `CREATE_NO_WINDOW` 無視窗旗標啟用。
  
 ---
  
-## 💾 資料存放與 C 槽 SSD 防磨損機制
- 
-為防止每 15 分鐘背景排程累積的龐大研究數據（如 `parlay_snapshots.jsonl` >600MB）過度耗損系統 C 槽 SSD 晶片壽命：
-- **物理外移**：所有動態資料、快照、日誌與 SQLite 帳本實體儲存於 `F:\Min\Python\Project\SportsLottery_Data`。
-- **NTFS Junction 重定向**：專案透過 Windows 原生交會點（Junction），將 C 槽的 `data/` 透明重定向至 F 槽。
-- **零磁區寫入**：所有高頻快照與日誌的物理寫入完全落在 F 槽，**C 槽維持 0 寫入**。
-- 詳細架構請參閱 [docs/STORAGE_AND_SSD_PROTECTION.md](docs/STORAGE_AND_SSD_PROTECTION.md)。
+## 💾 資料路徑與資料保護
+
+每個程序啟動時會解析儲存設定並固定 wallet、research 與 shadow store 的 canonical path。路徑可指向外接磁碟或經 Junction／Symlink 解析的位置；變更設定後需重啟程序。測試預設使用隔離暫存資料，不會開啟正式資料庫。
+
+這個開發工作站的 `data/` Junction 目前解析至 `F:\Min\Python\Project\SportsLottery_Data`；這只是本機路徑觀察，不代表所有部署都使用該磁碟，也不保證整台系統沒有其他 C 槽寫入。通用行為以[儲存邊界文件](docs/architecture/05-storage-boundaries.md)為準；[舊版 SSD／資料目錄說明](docs/STORAGE_AND_SSD_PROTECTION.md)保留作為特定主機歷史紀錄。
  
 ---
 
