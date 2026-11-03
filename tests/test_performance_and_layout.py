@@ -1,30 +1,44 @@
 """Automated tests for Profile performance, lazy tab execution, and mobile layout enhancements."""
 
+import statistics
 import time
 import pytest
 from core.profile_manager import ProfileManager, DEFAULT_PROFILE_ID
 from core.wallet import WeeklyWalletManager
 
 
-def test_profile_operation_latency_is_sub_10ms(tmp_path):
-    """Verify profile operations complete in less than 10ms to ensure zero-lag profile updates."""
+def test_profile_operations_have_bounded_median_latency(tmp_path):
+    """Check typical profile-operation latency without failing on one CI scheduling spike."""
     db_file = tmp_path / "test_perf_profile.db"
     pm = ProfileManager(db_path=db_file)
 
-    t0 = time.perf_counter()
-    prof = pm.get_or_default()
-    read_duration_ms = (time.perf_counter() - t0) * 1000.0
-    assert read_duration_ms < 50.0  # Well under threshold even in cold CI
+    def measure_median_ms(operation, repetitions=5):
+        durations = []
+        result = None
+        for _ in range(repetitions):
+            t0 = time.perf_counter()
+            result = operation()
+            durations.append((time.perf_counter() - t0) * 1000.0)
+        return statistics.median(durations), result
 
-    t0 = time.perf_counter()
-    ok, verified_prof, msg = pm.verify_login(prof["id"], "0000")
-    auth_duration_ms = (time.perf_counter() - t0) * 1000.0
+    read_duration_ms, prof = measure_median_ms(pm.get_or_default)
+    assert read_duration_ms < 50.0
+
+    auth_duration_ms, login_result = measure_median_ms(
+        lambda: pm.verify_login(prof["id"], "0000")
+    )
+    ok, verified_prof, msg = login_result
     assert ok is True
     assert auth_duration_ms < 50.0
 
-    t0 = time.perf_counter()
-    updated = pm.update_profile(profile_id=prof["id"], current_pin="0000", new_name="急速玩家", new_weekly_play_cap=300.0)
-    update_duration_ms = (time.perf_counter() - t0) * 1000.0
+    update_duration_ms, updated = measure_median_ms(
+        lambda: pm.update_profile(
+            profile_id=prof["id"],
+            current_pin="0000",
+            new_name="急速玩家",
+            new_weekly_play_cap=300.0,
+        )
+    )
     assert updated["name"] == "急速玩家"
     assert updated["weekly_play_cap"] == 300.0
     assert update_duration_ms < 100.0
