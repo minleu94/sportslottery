@@ -38,6 +38,12 @@ def test_complete_fresh_candidate_is_eligible(valid_leg):
     assert _reason(valid_leg) is None
 
 
+def test_started_candidate_is_rejected_before_market_query(valid_leg):
+    valid_leg.start_time_utc = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+
+    assert _reason(valid_leg) == "EVENT_STARTED"
+
+
 @pytest.mark.parametrize(
     ("field", "value", "expected"),
     [

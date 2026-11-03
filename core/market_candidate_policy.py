@@ -8,6 +8,7 @@ to request and compare an international quote.
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Optional
 
 from core.bet_validation import parse_aware_time
@@ -51,8 +52,11 @@ def candidate_rejection_reason(
         (getattr(leg, "signal_evidence", None) or {}).get("is_synthetic")
     ):
         return "SYNTHETIC_TAIWAN_ODDS"
-    if parse_aware_time(leg.start_time_utc) is None:
+    event_start = parse_aware_time(leg.start_time_utc)
+    if event_start is None:
         return "INVALID_OR_MISSING_START_TIME"
+    if event_start <= datetime.now(timezone.utc):
+        return "EVENT_STARTED"
 
     leg_key = query_key_resolver(leg.league)
     target_label = str(query_league or "").strip().upper()

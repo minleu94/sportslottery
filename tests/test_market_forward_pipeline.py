@@ -334,6 +334,21 @@ def test_empty_taiwan_candidates_skip_odds_api_query(tmp_path: Path):
     }
 
 
+def test_started_taiwan_candidates_skip_odds_api_query_and_snapshot(tmp_path: Path):
+    leg = _valid_candidate()
+    leg.start_time_utc = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    pipeline, odds_client = _candidate_gate_pipeline(tmp_path, {"NBA": [leg]})
+
+    result = pipeline.run_market_snapshot_cycle(leagues=["NBA"], automated=True)
+
+    odds_client.fetch_market_odds.assert_not_called()
+    pipeline.snapshot_logger.log_snapshot.assert_not_called()
+    diag = result["league_query_diagnostics"]["NBA"]
+    assert diag["valid_candidate_count"] == 0
+    assert diag["skip_reason_counts"] == {"EVENT_STARTED": 1}
+    assert diag["estimated_credits"] == 0
+
+
 @pytest.mark.parametrize(
     ("status", "synthetic", "reason"),
     [
