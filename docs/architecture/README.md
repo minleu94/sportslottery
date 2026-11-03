@@ -1,35 +1,34 @@
-# Architecture documentation index
+# 架構文件索引
 
-This index defines the authority order for current implementation and engineering decisions.
+本索引列出目前維護的架構與工程規則。實際執行行為以程式碼為準；文件描述責任邊界與長期契約。
 
-## Current source of truth
+## 主要入口
 
-1. [Final validation and known limits](08-final-validation.md) records the latest code-level architecture measurements and offline acceptance evidence.
-2. [Target architecture](01-target-architecture.md) defines the modular-monolith boundaries and dependency direction.
-3. [Boundary documents](#domain-and-platform-boundaries) and [ADRs](#architecture-decisions) describe the current implementation contracts and accepted trade-offs.
-4. [Discovery baseline](00-discovery.md) is a historical comparison captured at `831e048aeda578c98c4ffaa44d805e9329d0b6ec`; its code references and module counts describe that baseline, not current `dev`.
+- [目前架構概觀](01-target-architecture.md)
+- [目前專案狀況](../STATUS.md)
+- [維運指南](../DEPLOYMENT_AND_RECOVERY.md)
+- [朋友安裝指南](../INSTALL_FOR_FRIENDS.md)
 
-When a dated audit, handoff manual, or local operations note conflicts with these documents and the code, use the current code and the documents above. Historical material remains in place for context and is not silently treated as current behavior.
+## 邊界與契約
 
-## Domain and platform boundaries
+- [API 路由與服務生命週期](02-api-boundaries.md)
+- [市場資料邊界與離線回放](03-market-boundaries.md)
+- [共享契約與依賴邊界](04-shared-contracts.md)
+- [儲存路徑與測試隔離](05-storage-boundaries.md)
+- [React 與 API 回應契約](06-ui-api-contracts.md)
+- [依賴、鎖檔與測試資料治理](07-governance.md)
 
-- [API routers and service lifecycle](02-api-boundaries.md)
-- [Market intelligence and offline replay](03-market-boundaries.md)
-- [Shared contracts and import boundaries](04-shared-contracts.md)
-- [Storage paths and test isolation](05-storage-boundaries.md)
-- [React and API response contracts](06-ui-api-contracts.md)
-- [Dependency, lock-file, and test-data governance](07-governance.md)
+## 架構決策
 
-## Architecture decisions
+- [ADR-0001：漸進式模組單體](adr/0001-modular-monolith.md)
+- [ADR-0002：資料與相容性邊界](adr/0002-data-and-compatibility-boundaries.md)
+- [ADR-0003：市場證據與前瞻 cohort](adr/0003-market-evidence-boundary.md)
 
-- [ADR-0001: Modular monolith and incremental migration](adr/0001-modular-monolith.md)
-- [ADR-0002: Data and compatibility boundaries](adr/0002-data-and-compatibility-boundaries.md)
-- [ADR-0003: Market evidence and forward-evaluation cohorts](adr/0003-market-evidence-boundary.md)
+長期規則另見[來源能力矩陣](../SOURCE_CAPABILITY_MATRIX.md)、[台灣運彩結算規則](../TAIWAN_SETTLEMENT_RULES.md)、[模型接受與校準規則](../MODEL_ACCEPTANCE_AND_CALIBRATION.md)及[影子評估治理規則](../SHADOW_EVALUATION_GOVERNANCE.md)。
 
-## Related operational and historical references
+## 其他工程參考
 
-- [README](../../README.md): user-facing feature and development entry point.
-- [Historical product architecture](../../CURRENT_PRODUCT_ARCHITECTURE.md): retained for prior-version context.
-- [LINE handoff and operations manual](../AGENT_HANDOFF_AND_LINE_BOT_MANUAL.md): retained as operational reference; confirm commands against current code before use.
-- [Local storage deployment note](../STORAGE_AND_SSD_PROTECTION.md): specific Windows host history, not a portable storage contract.
-- [Source capability matrix](../SOURCE_CAPABILITY_MATRIX.md): source-specific capability evidence; live availability still requires runtime checks.
+- [串關搜尋完整性](../PARLAY_SEARCH_COMPLETENESS.md)
+- [Playsport 來源身份診斷](../PLAYSport_SOURCE_HEALTH.md)
+- [CLV 與建議重播](../clv_and_recommendation_replay.md)
+- [研究流程](../research_pipeline.md)

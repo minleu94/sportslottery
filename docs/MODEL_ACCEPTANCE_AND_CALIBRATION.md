@@ -17,9 +17,3 @@ Shadow portfolio tickets store the experiment identity, prediction snapshot refe
 ## Calibration fitting API
 
 `probability.calibration.fit_multiclass_temperature` and `apply_multiclass_temperature` provide normalized multiclass temperature scaling. `core.model_calibration.fit_chronological_temperature` requires a separate earlier training split and later evaluation split, checks the date boundary, fits only on training probabilities/outcomes, and returns the training cutoff and sample counts with heldout calibrated vectors. The Taiwan runtime gate uses the corresponding binary temperature transform for one selected outcome.
-
-## Frozen historical audit
-
-Run `python -m scripts.build_model_acceptance_calibration_audit` to rebuild the audit from immutable predictions in `artifacts/model_validation_review_20261013_luna/`. It fits temperatures on the `validation` split and evaluates on the locked `holdout` split, independently for each league and forecast variant. Outputs go to `artifacts/model_acceptance_calibration_audit_20261013/`.
-
-The generated audit keeps the source files' hashes and source experiment identity as provenance. That identity describes the frozen historical pipeline and does not claim to represent current production code. The B365 results are historical external benchmarks, not Taiwan forward evidence. They therefore do not change runtime acceptance.

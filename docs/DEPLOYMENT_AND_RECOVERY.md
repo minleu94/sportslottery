@@ -1,4 +1,6 @@
-# Deployment and recovery
+# 維運指南：研究流程、排程、備份與復原
+
+本文件供開發與維護者使用，涵蓋 wheel 安裝、研究排程、備份、復原與版本發布。朋友使用安裝包請看 [朋友安裝指南](INSTALL_FOR_FRIENDS.md)。
 
 This project can run from a source checkout or from the installed wheel. The
 scheduled research pipeline is wallet-free and writes to its configured
@@ -141,3 +143,16 @@ backup. Freeze source/config edits during the operation; arbitrary external
 writers that do not use the shared locks cannot be guaranteed consistent.
 The restore command always requires a new destination and checks the declared
 inventory and file hashes before publishing it.
+
+## 發布安裝包
+
+GitHub Actions 工作流程位於 .github/workflows/build_releases.yml。推送 v* 格式的 tag 會建立 Windows 安裝版、Windows 免安裝版與 macOS DMG，並附加到 GitHub Release。安裝包目前使用 desktop_launcher.py 啟動 Streamlit 桌面介面。
+
+發布前先確認版本號、程式碼與工作流程；建立版本標籤後推送：
+
+    git tag vX.Y.Z
+    git push origin vX.Y.Z
+
+確認 GitHub Actions 成功並檢查 Release 附件後，再把 Releases 頁面提供給使用者。不要把尚未完成的 Actions artifact 當作正式版本。
+
+Windows 本機打包可使用 packaging/windows/build_windows.ps1 -Version X.Y.Z。本機若未安裝 Inno Setup，腳本只會產生免安裝 ZIP；跨平台 Release 建置以 GitHub Actions 為準。
