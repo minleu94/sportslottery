@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react"
+import React, { createContext, useContext, useEffect, useLayoutEffect, useState } from "react"
 
 export type ThemeMode = "dark" | "light" | "system"
 export type ViewMode = "cards" | "compact"
@@ -14,36 +14,45 @@ interface UIContextType {
 
 const UIContext = createContext<UIContextType | undefined>(undefined)
 
+function readStoredTheme(): ThemeMode {
+  try {
+    const stored = localStorage.getItem("sportslottery_theme")
+    return stored === "dark" || stored === "light" || stored === "system" ? stored : "system"
+  } catch {
+    return "system"
+  }
+}
+
+function resolveTheme(theme: ThemeMode, systemPrefersDark: boolean): "dark" | "light" {
+  return theme === "system" ? (systemPrefersDark ? "dark" : "light") : theme
+}
+
 export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    return (localStorage.getItem("sportslottery_theme") as ThemeMode) || "system"
-  })
+  const [theme, setThemeState] = useState<ThemeMode>(readStoredTheme)
 
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     return (localStorage.getItem("sportslottery_view_mode") as ViewMode) || "cards"
   })
 
-  const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("dark")
+  const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">(() => {
+    return resolveTheme(theme, window.matchMedia("(prefers-color-scheme: dark)").matches)
+  })
 
   // Handle system theme matching
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
 
     function updateResolvedTheme() {
-      if (theme === "system") {
-        setResolvedTheme(mediaQuery.matches ? "dark" : "light")
-      } else {
-        setResolvedTheme(theme)
-      }
+      setResolvedTheme(resolveTheme(theme, mediaQuery.matches))
     }
 
     updateResolvedTheme()
-    mediaQuery.addEventListener("change", updateResolvedTheme)
+    if (theme === "system") mediaQuery.addEventListener("change", updateResolvedTheme)
     return () => mediaQuery.removeEventListener("change", updateResolvedTheme)
   }, [theme])
 
-  // Sync class on root document element
-  useEffect(() => {
+  // Apply before paint so a saved theme never flashes the OS theme on mobile.
+  useLayoutEffect(() => {
     const root = document.documentElement
     if (resolvedTheme === "dark") {
       root.classList.add("dark")
@@ -52,11 +61,16 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       root.classList.add("light")
       root.classList.remove("dark")
     }
+    root.dataset.theme = resolvedTheme
   }, [resolvedTheme])
 
   function setTheme(t: ThemeMode) {
     setThemeState(t)
-    localStorage.setItem("sportslottery_theme", t)
+    try {
+      localStorage.setItem("sportslottery_theme", t)
+    } catch {
+      // Theme still applies for the current session when storage is unavailable.
+    }
   }
 
   function setViewMode(v: ViewMode) {

@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
+/* Tailwind v4 defaults `dark:` to the OS preference. Make it follow the
+   app's persisted theme choice so every viewport uses the same mode. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
+    color-scheme: light;
     --bg-main: #f8fafc;
     --bg-surface: #ffffff;
     --bg-raised: #f1f5f9;
@@ -16,6 +21,7 @@
   }
 
   html.dark {
+    color-scheme: dark;
     --bg-main: #0b0f17;
     --bg-surface: #111726;
     --bg-raised: #1a2234;
