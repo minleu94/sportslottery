@@ -1,6 +1,8 @@
 """Default suite stays offline; live network checks require an explicit opt-in.
 All tests run against isolated temporary databases to protect production war chest data.
 """
+import builtins
+import os
 import sqlite3
 from pathlib import Path
 import pytest
@@ -48,7 +50,7 @@ def reject_unmarked_network_calls(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def isolate_database_for_tests(tmp_path_factory, monkeypatch):
+def isolate_database_for_tests(tmp_path_factory, monkeypatch, request):
     """
     Ensure all tests run against a temporary isolated database and NEVER touch production DB.
     Production DB path (war_chest.sqlite3) is protected by a strict safety guard.
@@ -59,6 +61,28 @@ def isolate_database_for_tests(tmp_path_factory, monkeypatch):
     storage_paths = sc.resolve_storage_path_bundle(test_storage)
     test_db = storage_paths.wallet_db
     research_root = storage_paths.research_root
+    model_cache_root = storage_paths.root / "model-cache"
+
+    # Cache defaults must follow runtime configuration rather than path values
+    # captured in Python default arguments at module-import time. Redirect every
+    # built-in model adapter into this test run's isolated storage.
+    import integrations.models.espn_poisson_soccer as espn_poisson
+    import integrations.models.espn_pythagorean_mlb as espn_pythagorean
+    import integrations.models.penaltyblog_soccer_model as penaltyblog_soccer
+    import integrations.models.pybaseball_mlb_model as pybaseball_mlb
+    import integrations.models.external.fivethirtyeight_mlb_elo as elo_538
+    import integrations.models.external.penaltyblog_dixon_coles as penaltyblog_dc
+    import core.line_notifier as line_notifier
+    monkeypatch.setattr(espn_poisson, "CACHE_DIR", str(model_cache_root / "espn-poisson"))
+    monkeypatch.setattr(espn_pythagorean, "CACHE_DIR", str(model_cache_root / "espn-mlb"))
+    monkeypatch.setattr(espn_pythagorean, "MLB_CACHE_FILE", str(model_cache_root / "espn-mlb" / "standings.json"))
+    monkeypatch.setattr(penaltyblog_soccer, "CACHE_DIR", str(model_cache_root / "penaltyblog-soccer"))
+    monkeypatch.setattr(pybaseball_mlb, "CACHE_DIR", str(model_cache_root / "pybaseball-mlb"))
+    monkeypatch.setattr(pybaseball_mlb, "MLB_CACHE_FILE", str(model_cache_root / "pybaseball-mlb" / "standings.json"))
+    monkeypatch.setattr(elo_538, "CACHE_DIR", str(model_cache_root / "538-mlb"))
+    monkeypatch.setattr(elo_538, "ELO_CACHE_FILE", str(model_cache_root / "538-mlb" / "elo.json"))
+    monkeypatch.setattr(penaltyblog_dc, "CACHE_DIR", str(model_cache_root / "penaltyblog-dixon-coles"))
+    monkeypatch.setattr(line_notifier, "CONFIG_PATH", storage_paths.root / "test-config" / "line_notifier.yaml")
 
     # 1. Patch the process storage bundle and its compatibility helpers.
     monkeypatch.setattr(sc, "get_storage_path_bundle", lambda: storage_paths)
@@ -119,6 +143,42 @@ def isolate_database_for_tests(tmp_path_factory, monkeypatch):
         Path(sc.DEFAULT_F_PATH).resolve(),
         production_root,
     }
+
+    # Fail closed if an ordinary test tries to read or write the developer's
+    # formal research files. Only a test explicitly marked local_data and run
+    # with --run-local-data may read them; writes stay prohibited in all modes.
+    allow_local_data_read = (
+        request.config.getoption("--run-local-data")
+        and request.node.get_closest_marker("local_data") is not None
+    )
+
+    def guard_formal_path(file, *, writing=False):
+        if isinstance(file, int):
+            return
+        try:
+            resolved = Path(os.fsdecode(os.fspath(file))).expanduser().resolve()
+        except (TypeError, ValueError, OSError):
+            return
+        if any(resolved == root or resolved.is_relative_to(root) for root in protected_roots):
+            if not (allow_local_data_read and not writing):
+                raise RuntimeError(
+                    f"FATAL: Test attempted to access formal research data: {file}. "
+                    "Use an isolated fixture or explicitly opt in to a local_data read."
+                )
+
+    original_builtin_open = builtins.open
+    original_path_open = Path.open
+
+    def guarded_builtin_open(file, mode="r", *args, **kwargs):
+        guard_formal_path(file, writing=any(flag in mode for flag in "wax+"))
+        return original_builtin_open(file, mode, *args, **kwargs)
+
+    def guarded_path_open(path, mode="r", *args, **kwargs):
+        guard_formal_path(path, writing=any(flag in mode for flag in "wax+"))
+        return original_path_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", guarded_builtin_open)
+    monkeypatch.setattr(Path, "open", guarded_path_open)
 
     def guarded_connect(database, *args, **kwargs):
         db_str = str(database or "")

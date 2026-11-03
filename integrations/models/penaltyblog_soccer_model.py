@@ -44,9 +44,9 @@ LEAGUE_CODE_MAP = {
 class PenaltyblogSoccerAdapter:
     """Evaluates soccer TaiwanLeg betting options using real stats Poisson models."""
 
-    def __init__(self, cache_dir: str = CACHE_DIR):
+    def __init__(self, cache_dir: Optional[str] = None):
         self.version = getattr(pb, "__version__", "1.12.2")
-        self.cache_dir = cache_dir
+        self.cache_dir = CACHE_DIR if cache_dir is None else cache_dir
         self._league_caches: Dict[str, Dict[str, Dict[str, float]]] = {}
         self.session = requests.Session()
         self.session.headers.update({

@@ -89,8 +89,8 @@ class FiveThirtyEightMLBEloAdapter:
         "live_calibration": "2026 current season calibrated via MLB Stats API standings and probable starting pitchers",
     }
 
-    def __init__(self, cache_file: str = ELO_CACHE_FILE):
-        self.cache_file = cache_file
+    def __init__(self, cache_file: Optional[str] = None):
+        self.cache_file = ELO_CACHE_FILE if cache_file is None else cache_file
         self._elo_ratings: Dict[str, float] = dict(BASE_MLB_ELO)
         self._calibrate_with_current_standings()
 

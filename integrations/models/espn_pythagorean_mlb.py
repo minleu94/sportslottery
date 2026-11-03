@@ -44,9 +44,9 @@ class ESPNPythagoreanMLBModel:
     INDEPENDENCE_GROUP = "ESPN_SEASON_STATS"
     ENGINE_NAME = "ESPN Pythagorean Expectation (Local Fallback)"
 
-    def __init__(self, cache_file: str = MLB_CACHE_FILE):
+    def __init__(self, cache_file: Optional[str] = None):
         self.version = "1.0.0"
-        self.cache_file = cache_file
+        self.cache_file = MLB_CACHE_FILE if cache_file is None else cache_file
         self._stats_cache: Optional[Dict[str, Dict[str, Any]]] = None
         self._cache_meta: Dict[str, Any] = {"source_status": "UNKNOWN", "observed_at": None, "season": None}
         self.session = requests.Session()

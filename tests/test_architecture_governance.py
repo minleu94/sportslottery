@@ -80,8 +80,7 @@ def test_ci_uses_locked_offline_suite_and_storage_boundary_checks():
     assert "pip install -r requirements-lock.txt" in workflow
     assert "pip install -r requirements.txt" not in workflow
     assert "npm ci" in workflow
+    assert "python -m pip wheel --no-deps --no-build-isolation" in workflow
+    assert "python -m pytest tests -v" in workflow
     assert "--run-live" not in workflow
     assert "--run-local-data" not in workflow
-    assert "tests/test_mls_espn_integration.py" in workflow
-    assert "tests/test_storage_boundaries.py" in workflow
-    assert "tests/test_architecture_governance.py" in workflow

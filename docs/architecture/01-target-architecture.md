@@ -1,6 +1,6 @@
 # Sportslottery 目標架構與遷移圖
 
-**狀態：** M2 決策基線；按 M3–M9 驗證後更新
+**狀態：** M3–M9 程式已完成；M9 等待雙平台 CI 交付驗收
 **依據：** [架構盤點](00-discovery.md)；目前實作仍以既有目錄為準。
 
 ## 設計目標
@@ -164,9 +164,17 @@ React 的 Radar、串關與 Research 頁面使用共用的 response interfaces�
 
 Import-boundary tests now keep `core/contracts` free of framework, provider, orchestration, and storage dependencies, and keep provider adapters from importing application pipelines, SignalHub, or server composition. CI installs only the exact Python lock and uses `npm ci`; a governance test checks the lock covers every direct requirement in `requirements.txt`, `pyproject.toml`, and its test/build groups.
 
-Default pytest execution blocks network calls, redirects default storage to an isolated test bundle, and rejects SQLite paths resolving through the project `data` alias. Tests that explicitly consume developer-specific research files use the `local_data` marker and require `--run-local-data`; CI does not enable that option. These checks protect the test boundary and do not constitute a backup or production-data recovery test.
+Default pytest execution blocks network calls, redirects default storage and model caches to isolated temporary paths, and rejects SQLite and file-open paths resolving through the project `data` area. Tests that explicitly consume developer-specific research files use the `local_data` marker and require `--run-local-data`; CI does not enable that option. These checks protect the test boundary and do not constitute a backup or production-data recovery test.
 
 Detailed rules and the CI evidence are in [Dependency, lock-file, and test-data governance](07-governance.md).
+
+## M9 實作紀錄
+
+CI now builds the Python wheel, installs the exact Python lock, runs `npm ci` and the production frontend build, then executes the complete offline `tests` tree on Windows and Ubuntu. The launcher smoke tests invoke only `main.py --help` and `sportslottery_bootstrap.py --help`, so they verify entry-point wiring without starting Streamlit, the API, or a tunnel.
+
+Model adapters resolve default cache paths at construction time, allowing the test harness to redirect them into isolated storage. The LINE webhook notifier is lazy, so importing the ASGI app does not load the developer's untracked LINE configuration. The file-access guard rejects reads and writes under the formal `data` roots; explicitly opted-in `local_data` tests may read, but never write, those files.
+
+The local Windows sandbox cannot create asyncio's internal loopback socket pair, so local validation ran the remaining offline suite (573 passed, 18 skipped) and excluded the six FastAPI `TestClient` modules. CI does not exclude those tests and remains the cross-platform acceptance gate. Detailed policy is in [Dependency, lock-file, and test-data governance](07-governance.md).
 
 ## 架構決策紀錄
 

@@ -41,8 +41,14 @@ def test_single_instance_held_directly_opens_browser():
         mock_open.assert_called_once_with(f"http://127.0.0.1:{PORT}")
 
 
-def test_ngrok_command_includes_pooling_flag():
+def test_ngrok_command_includes_pooling_flag(tmp_path, monkeypatch):
     """Verify that ngrok launch includes --pooling-enabled to prevent ERR_NGROK_334 on re-runs."""
+    import scripts.tray_manager as tray_manager
+
+    monkeypatch.setattr(tray_manager, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(tray_manager, "STATUS_FILE", tmp_path / "data" / "line_bot_runtime.json")
+    monkeypatch.setattr(tray_manager, "TRAY_LOG", tmp_path / "data" / "tray_runtime.log")
+    (tmp_path / "data").mkdir()
     app = AppTrayManager()
     with patch("scripts.tray_manager.find_ngrok", return_value="ngrok.exe"), \
          patch("scripts.tray_manager.load_ngrok_config", return_value={"domain": "test-domain.ngrok-free.dev"}), \

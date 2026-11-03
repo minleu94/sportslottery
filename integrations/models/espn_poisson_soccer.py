@@ -63,9 +63,9 @@ class ESPNPoissonSoccerFallback:
     INDEPENDENCE_GROUP = "ESPN_SEASON_STATS"
     ENGINE_NAME = "ESPN Soccer Standings Poisson (Local Fallback)"
 
-    def __init__(self, cache_dir: str = CACHE_DIR):
+    def __init__(self, cache_dir: Optional[str] = None):
         self.version = "1.0.0"
-        self.cache_dir = cache_dir
+        self.cache_dir = CACHE_DIR if cache_dir is None else cache_dir
         self._league_caches: Dict[str, Dict[str, Dict[str, float]]] = {}
         self._cache_meta: Dict[str, Dict[str, Any]] = {}
         self._parse_audit: Dict[str, Any] = {}

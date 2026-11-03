@@ -17,8 +17,8 @@ def test_data_root_isolates_adapter_caches_state_and_acceptance_ledger(tmp_path)
         root / "cache" / "models" / "penaltyblog_dixon_coles"
     )
     assert registry._instances["live_mlb_elo"].state_file == root / "model_state" / "live_mlb_elo.json"
-    assert not (Path(__file__).resolve().parents[1] / "data" / "live_mlb_elo_state.json").exists() or (
-        registry._instances["live_mlb_elo"].state_file != Path(__file__).resolve().parents[1] / "data" / "live_mlb_elo_state.json"
+    assert registry._instances["live_mlb_elo"].state_file != (
+        Path(__file__).resolve().parents[1] / "data" / "live_mlb_elo_state.json"
     )
 
 

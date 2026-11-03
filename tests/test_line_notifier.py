@@ -260,7 +260,12 @@ def test_format_parlay_leg_clean_league_and_sport():
     assert "大小分 [2.5] ➔ 【小】(1.68x)" in rendered2
 
 
-def test_line_notifier_qr_flow():
+def test_line_notifier_qr_flow(monkeypatch, tmp_path):
+    import core.line_notifier as line_notifier
+
+    # QR artifacts and tunnel status are test outputs, not application data.
+    monkeypatch.setattr(line_notifier, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(line_notifier, "load_active_runtime", lambda _path: {})
     notifier = LineNotifier()
     combo = {
         "parlay_name": "3 串 1",

@@ -31,6 +31,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 # 1. test_soccer_current_season_present
+@pytest.mark.local_data
 def test_soccer_current_season_present():
     """Verify that 2025-2026 and 2026-2027 season match records are present in the soccer dataset."""
     cache_file = PROJECT_ROOT / "data" / "cache" / "real_matches_eng.1.json"
@@ -52,6 +53,7 @@ def test_soccer_current_season_present():
 
 
 # 2. test_soccer_data_freshness_gate
+@pytest.mark.local_data
 def test_soccer_data_freshness_gate():
     """Verify data_age_days and freshness_status are computed and enforced."""
     adapter = PenaltyblogDixonColesAdapter()
@@ -79,6 +81,7 @@ def test_soccer_data_freshness_gate():
 
 
 # 3. test_stale_model_not_high_quality
+@pytest.mark.local_data
 def test_stale_model_not_high_quality():
     """If training data is stale relative to prediction date (> 45 days), signal cannot be high quality."""
     adapter = PenaltyblogDixonColesAdapter()
@@ -111,6 +114,7 @@ def test_stale_model_not_high_quality():
 
 
 # 4. test_mlb_current_season_stats
+@pytest.mark.local_data
 def test_mlb_current_season_stats():
     """MLB model metadata must list season 2026, team_stats_source, and latest_game_date."""
     adapter = FiveThirtyEightMLBEloAdapter()
@@ -136,6 +140,7 @@ def test_mlb_current_season_stats():
 
 
 # 5. test_mlb_pitcher_claim_is_real
+@pytest.mark.local_data
 def test_mlb_pitcher_claim_is_real():
     """If no probable pitchers are verified, must flag NO_LIVE_PITCHER_ADJUSTMENT."""
     adapter = FiveThirtyEightMLBEloAdapter()

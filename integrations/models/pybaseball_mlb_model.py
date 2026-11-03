@@ -31,9 +31,9 @@ LEAGUE_AVG_RUNS = 4.45
 class PybaseballMLBAdapter:
     """Evaluates MLB TaiwanLeg betting options using real team stats and Pythagorean expectations."""
 
-    def __init__(self, cache_file: str = MLB_CACHE_FILE):
+    def __init__(self, cache_file: Optional[str] = None):
         self.version = "2.2.7"
-        self.cache_file = cache_file
+        self.cache_file = MLB_CACHE_FILE if cache_file is None else cache_file
         self._stats_cache: Optional[Dict[str, Dict[str, float]]] = None
         self.session = requests.Session()
         self.session.headers.update({

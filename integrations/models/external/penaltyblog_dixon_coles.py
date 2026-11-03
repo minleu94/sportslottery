@@ -145,9 +145,9 @@ class PenaltyblogDixonColesAdapter:
     LICENSE = "MIT"
     MODEL_CACHE_MAXSIZE = MODEL_CACHE_MAXSIZE
 
-    def __init__(self, cache_dir: str = CACHE_DIR):
+    def __init__(self, cache_dir: Optional[str] = None):
         self.version = getattr(pb, "__version__", "1.12.2")
-        self.cache_dir = cache_dir
+        self.cache_dir = CACHE_DIR if cache_dir is None else cache_dir
         self.min_matches_required = MIN_MATCHES_REQUIRED
         self.min_team_appearances = MIN_TEAM_APPEARANCES
         self._cache_meta: Dict[str, Dict[str, Any]] = {}

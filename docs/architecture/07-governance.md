@@ -15,8 +15,10 @@ When upgrading dependencies, update the direct declaration, resolve the complete
 
 ## Offline CI and local research data
 
-Default pytest runs are offline. The root autouse fixture blocks `requests` and `urllib` network entry points, routes default SQLite/JSONL writers to pytest-owned temporary storage, and guards SQLite paths after resolving Junction aliases. Storage-boundary tests verify both temporary default paths and rejection of the project `data` alias before opening SQLite.
+Default pytest runs are offline. The root autouse fixture blocks `requests` and `urllib` network entry points, routes default SQLite/JSONL writers and model caches to pytest-owned temporary storage, and guards SQLite plus Python `open`/`Path.open` paths after resolving Junction aliases. The guard rejects writes in all modes; only a test marked `local_data` and explicitly run with `--run-local-data` may read from the formal data roots. Storage-boundary and runtime-smoke tests verify temporary default paths and rejection before opening formal files.
 
 Tests marked `local_data` read developer-specific files and are skipped by default. A developer can explicitly run them with `--run-local-data`; CI must not pass this option. Tests marked `live` similarly require `--run-live`. CI checks both opt-in flags remain absent and includes the network and storage boundary tests.
 
-The M8 CI matrix provides offline code and fixture evidence. It does not read a developer's formal data directory, call live providers, or prove production-data recovery.
+CI builds the Python wheel, uses the exact Python lock and `npm ci`, builds the frontend, then runs the entire `tests` directory on Windows and Ubuntu. It never passes `--run-live` or `--run-local-data`. Launcher help smoke tests exit before starting long-running services. The webhook app defers loading local LINE configuration until a request needs it.
+
+The CI matrix provides offline code and fixture evidence. It does not read a developer's formal data directory, call live providers, or prove production-data recovery. Local Windows sandbox runs may need to omit `TestClient` modules because this sandbox blocks the loopback socket pair asyncio uses; hosted CI runs the complete suite, including those modules.

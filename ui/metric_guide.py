@@ -175,10 +175,12 @@ def local_source_evidence(root: Path | None = None) -> list[dict[str, Any]]:
     })
 
     # Keep older production-era files visible only as historical references.
-    legacy_sources = [
-        ("舊版留存：英超訓練資料（歷史參考）", ROOT_DIR / "data" / "cache" / "real_matches_eng.1.json", "matches"),
-        ("舊版留存：MLB Elo 狀態（歷史參考）", ROOT_DIR / "data" / "live_mlb_elo_state.json", "history"),
-    ]
+    legacy_sources = []
+    if supplied_root.resolve() == ROOT_DIR.resolve():
+        legacy_sources = [
+            ("舊版留存：英超訓練資料（歷史參考）", ROOT_DIR / "data" / "cache" / "real_matches_eng.1.json", "matches"),
+            ("舊版留存：MLB Elo 狀態（歷史參考）", ROOT_DIR / "data" / "live_mlb_elo_state.json", "history"),
+        ]
     for label, path, field in legacy_sources:
         if not path.exists():
             continue

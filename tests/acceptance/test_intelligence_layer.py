@@ -535,6 +535,7 @@ def test_penaltyblog_real_fit_normalizes_football_data_aliases_and_keeps_draw(tm
 
 
 # 9. Test Penaltyblog Dixon-Coles predicts with sufficient match data
+@pytest.mark.local_data
 def test_penaltyblog_dixon_coles_predicts_with_sufficient_data():
     adapter = PenaltyblogDixonColesAdapter()
     leg = TaiwanLeg(

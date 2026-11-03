@@ -13,6 +13,7 @@ import hashlib
 import logging
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Dict
 
@@ -38,7 +39,27 @@ logging.basicConfig(
 logger = logging.getLogger("line_webhook")
 
 app = FastAPI(title="Sportslottery LINE Bot Webhook")
-notifier = LineNotifier()
+
+
+class _LazyLineNotifier:
+    """Load local LINE credentials only when a request actually needs them."""
+
+    def __init__(self):
+        self._instance: LineNotifier | None = None
+        self._lock = threading.Lock()
+
+    def _get_instance(self) -> LineNotifier:
+        if self._instance is None:
+            with self._lock:
+                if self._instance is None:
+                    self._instance = LineNotifier()
+        return self._instance
+
+    def __getattr__(self, name: str):
+        return getattr(self._get_instance(), name)
+
+
+notifier = _LazyLineNotifier()
 
 # Mount static folder for serving QR code PNGs
 (ROOT_DIR / "static" / "qr").mkdir(parents=True, exist_ok=True)

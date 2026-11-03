@@ -26,6 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 # 1. test_production_contains_no_synthetic_training_data
+@pytest.mark.local_data
 def test_production_contains_no_synthetic_training_data():
     """Production directory (data/cache, data/historical) must have ZERO synthetic match data."""
     cache_dir = PROJECT_ROOT / "data" / "cache"
@@ -49,6 +50,7 @@ def test_production_contains_no_synthetic_training_data():
 
 
 # 2. test_soccer_training_matches_are_real
+@pytest.mark.local_data
 def test_soccer_training_matches_are_real():
     """Soccer historical match records must contain genuine dates, teams, scores, and not be randomly generated."""
     from integrations.models.external.penaltyblog_dixon_coles import PenaltyblogDixonColesAdapter
@@ -73,6 +75,7 @@ def test_soccer_training_matches_are_real():
 
 
 # 3. test_soccer_training_dates_precede_prediction (Leakage Guard)
+@pytest.mark.local_data
 def test_soccer_training_dates_precede_prediction():
     """Leakage Guard: Dixon-Coles model must ONLY fit on matches strictly before prediction date."""
     from integrations.models.external.penaltyblog_dixon_coles import PenaltyblogDixonColesAdapter
@@ -152,6 +155,7 @@ def test_local_reimplementation_not_labeled_external():
 
 
 # 8. test_model_input_provenance_logged
+@pytest.mark.local_data
 def test_model_input_provenance_logged():
     """Model evaluation must log full ModelInputProvenance metadata."""
     from integrations.models.external.penaltyblog_dixon_coles import PenaltyblogDixonColesAdapter
