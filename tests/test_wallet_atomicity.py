@@ -71,6 +71,36 @@ def test_idempotency_key_rejects_different_bet_payload(tmp_path):
     assert wallet.get_status()["weekly_wallet_balance"] == 170
 
 
+def test_idempotency_keys_are_profile_scoped_and_migrate_legacy_index(tmp_path):
+    db, wallet, recorder = setup_wallet(tmp_path)
+    legs = [{"event_id": "e1", "selection": "home", "market": "不讓分"}]
+    first = recorder.place_ticket(legs, 30, 2, idempotency_key="shared-client-key")
+
+    # Simulate a database created by the former database-wide uniqueness rule.
+    with sqlite3.connect(db) as conn:
+        conn.execute("DROP INDEX ux_tickets_profile_idempotency_key")
+        conn.execute(
+            "CREATE UNIQUE INDEX ux_tickets_idempotency_key "
+            "ON tickets(idempotency_key) WHERE idempotency_key IS NOT NULL"
+        )
+
+    # Reinitialization migrates the index. A different profile can now reuse
+    # the same client key without receiving the first profile's ticket.
+    migrated_recorder = TicketRecorder(wallet=wallet, db_path=db)
+    second_wallet = WeeklyWalletManager(db_path=db, profile_id="profile-two")
+    second_wallet.deposit_external(200)
+    second_recorder = TicketRecorder(wallet=second_wallet, db_path=db)
+    second = second_recorder.place_ticket(legs, 30, 2, idempotency_key="shared-client-key")
+
+    assert second["ticket_id"] != first["ticket_id"]
+    assert second["profile_id"] == "profile-two"
+    assert migrated_recorder.get_ticket(first["ticket_id"])["profile_id"] == wallet.profile_id
+    assert wallet.get_status()["weekly_wallet_balance"] == 170
+    assert second_wallet.get_status()["weekly_wallet_balance"] == 170
+    assert len(migrated_recorder.list_tickets()) == 1
+    assert len(second_recorder.list_tickets()) == 1
+
+
 def test_concurrent_stakes_cannot_exceed_weekly_budget(tmp_path):
     _, wallet, recorder = setup_wallet(tmp_path)
 

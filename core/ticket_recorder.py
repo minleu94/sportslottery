@@ -72,7 +72,10 @@ class TicketRecorder:
                                        ("profile_id", "TEXT NOT NULL DEFAULT 'default'")):
                     if name not in columns:
                         conn.execute(f"ALTER TABLE tickets ADD COLUMN {name} {sql_type}")
-                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_tickets_idempotency_key ON tickets(idempotency_key) WHERE idempotency_key IS NOT NULL")
+                # A client key identifies one retry within its profile. Retire
+                # the legacy database-wide index so profiles can reuse keys.
+                conn.execute("DROP INDEX IF EXISTS ux_tickets_idempotency_key")
+                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_tickets_profile_idempotency_key ON tickets(profile_id, idempotency_key) WHERE idempotency_key IS NOT NULL")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets(created_at)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_week_str ON tickets(week_str)")
@@ -161,7 +164,10 @@ class TicketRecorder:
             # Resolve retries before recommendation freshness checks: a successful
             # earlier submission remains successful even after kickoff.
             if idempotency_key is not None:
-                existing = conn.execute("SELECT * FROM tickets WHERE idempotency_key=?", (idempotency_key,)).fetchone()
+                existing = conn.execute(
+                    "SELECT * FROM tickets WHERE profile_id=? AND idempotency_key=?",
+                    (self.profile_id, idempotency_key),
+                ).fetchone()
                 if existing:
                     result = self._ticket_dict(existing)
                     same_bet = (
