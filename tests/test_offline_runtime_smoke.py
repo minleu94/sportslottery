@@ -59,6 +59,23 @@ def test_webhook_app_import_does_not_load_local_line_credentials():
     assert result.returncode == 0, result.stderr
 
 
+def test_tray_manager_import_does_not_initialize_display_backend():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; import scripts.tray_manager; assert 'pystray' not in sys.modules",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 @pytest.mark.parametrize("launcher", ["main.py", "sportslottery_bootstrap.py"])
 def test_launcher_help_exits_without_starting_application(launcher: str):
     result = subprocess.run(

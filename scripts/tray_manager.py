@@ -28,8 +28,6 @@ from typing import Any, Dict, Optional
 import requests
 import yaml
 from PIL import Image
-import pystray
-from pystray import Icon, Menu, MenuItem
 
 
 def get_project_root() -> Path:
@@ -235,7 +233,7 @@ class AppTrayManager:
     def __init__(self):
         self.proc_api: Optional[subprocess.Popen] = None
         self.proc_tunnel: Optional[subprocess.Popen] = None
-        self.icon: Optional[Icon] = None
+        self.icon: Optional[Any] = None
         self._lock_sock: Optional[socket.socket] = None
         self.is_running: bool = False
         self._status_text: str = "⏳ 服務啟動中..."
@@ -607,7 +605,7 @@ class AppTrayManager:
             else:
                 self._status_text = "🔴 服務異常中斷"
 
-    def on_quit(self, icon: Icon, item: Any) -> None:
+    def on_quit(self, icon: Any, item: Any) -> None:
         """Handle Quit menu item."""
         log_tray("Quit menu clicked by user.")
         self.stop_services()
@@ -618,20 +616,22 @@ class AppTrayManager:
                 pass
         icon.stop()
 
-    def build_menu(self) -> Menu:
+    def build_menu(self) -> Any:
         """Create tray context menu."""
-        return Menu(
-            MenuItem(lambda text: self._status_text, None, enabled=False),
-            Menu.SEPARATOR,
-            MenuItem("🌐 開啟決策台 (電腦端瀏覽器)", lambda: self.open_web_browser(), default=True),
-            MenuItem("📱 開啟手機端網頁 (預設瀏覽器)", lambda: self.open_mobile_browser()),
-            MenuItem("📋 複製手機公網網址 (HTTPS)", lambda: self.copy_public_url()),
-            MenuItem("📶 複製手機區網網址 (Wi-Fi)", lambda: self.copy_lan_url()),
-            MenuItem("💬 複製 LINE Webhook 網址", lambda: self.copy_webhook_url()),
-            MenuItem("🤖 重新連動 LINE Webhook", lambda: threading.Thread(target=self.rebind_line_webhook, daemon=True).start()),
-            Menu.SEPARATOR,
-            MenuItem("🔄 重新啟動服務 (Web + LINE + Tunnel)", lambda: threading.Thread(target=self.restart_services, daemon=True).start()),
-            MenuItem("❌ 停止並退出服務 (Quit)", self.on_quit),
+        import pystray
+
+        return pystray.Menu(
+            pystray.MenuItem(lambda text: self._status_text, None, enabled=False),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("🌐 開啟決策台 (電腦端瀏覽器)", lambda: self.open_web_browser(), default=True),
+            pystray.MenuItem("📱 開啟手機端網頁 (預設瀏覽器)", lambda: self.open_mobile_browser()),
+            pystray.MenuItem("📋 複製手機公網網址 (HTTPS)", lambda: self.copy_public_url()),
+            pystray.MenuItem("📶 複製手機區網網址 (Wi-Fi)", lambda: self.copy_lan_url()),
+            pystray.MenuItem("💬 複製 LINE Webhook 網址", lambda: self.copy_webhook_url()),
+            pystray.MenuItem("🤖 重新連動 LINE Webhook", lambda: threading.Thread(target=self.rebind_line_webhook, daemon=True).start()),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("🔄 重新啟動服務 (Web + LINE + Tunnel)", lambda: threading.Thread(target=self.restart_services, daemon=True).start()),
+            pystray.MenuItem("❌ 停止並退出服務 (Quit)", self.on_quit),
         )
 
     def run(self) -> int:
@@ -649,8 +649,10 @@ class AppTrayManager:
         t_mon.start()
 
         # Build pystray Icon
+        import pystray
+
         icon_img = self.load_tray_icon()
-        self.icon = Icon(
+        self.icon = pystray.Icon(
             name="sportslottery_tray",
             icon=icon_img,
             title="台灣運彩 瘋狗流 (v2.3.0 Dev 運行中)",
