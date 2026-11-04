@@ -14,7 +14,7 @@ class ParlaySearchRequest(BaseModel):
     min_legs: int = Field(default=1, ge=1, le=8)
     max_legs: int = Field(default=6, ge=1, le=8)
     alliances: Optional[List[str]] = None
-    signal_filter: str = Field(default="normal")  # normal, value_only, strict, wild
+    signal_filter: str = Field(default="normal")  # normal, value_only (exploration), credible_value_only, strict, wild
     ranking_mode: str = Field(default="WIN_PROBABILITY")  # WIN_PROBABILITY or VALUE
     exclude_traps: bool = False
     prefer_steam: bool = True

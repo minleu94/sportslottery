@@ -159,12 +159,16 @@ def _execute_parlay_search(req: ParlaySearchRequest):
             # Search internals retain live objects for ranking/checkpointing;
             # clients only need the already-normalized `legs` response field.
             p_copy.pop("raw_legs", None)
-            p_copy["expected_value"] = p.get("parlay_expected_value", 0.0)
-            p_copy["parlay_ev_pct"] = p.get("parlay_ev_pct", round(p.get("parlay_expected_value", 0.0) * 100.0, 1))
-            p_copy["sharp_parlay_ev_pct"] = p.get("sharp_parlay_ev_pct", 0.0)
-            p_copy["joint_probability"] = p.get("joint_probability", 0.0)
+            p_copy["expected_value"] = p.get("parlay_expected_value")
+            p_copy["parlay_ev_pct"] = p.get("parlay_ev_pct")
+            p_copy["sharp_parlay_ev_pct"] = p.get("sharp_parlay_ev_pct")
+            p_copy["joint_probability"] = p.get("joint_probability")
             p_copy["sharp_badge"] = p.get("sharp_badge", "")
             p_copy["is_positive_ev"] = p.get("is_positive_ev", False)
+            p_copy["parlay_expected_value_source"] = p.get("parlay_expected_value_source", "UNVALIDATED_ESTIMATE")
+            p_copy["credible_value_basis"] = p.get("credible_value_basis", False)
+            p_copy["credible_value_status"] = p.get("credible_value_status", "UNVERIFIED")
+            p_copy["joint_probability_sources"] = p.get("joint_probability_sources", [])
 
             # Ensure legs in parlay are dicts and have display_league & signal fields
             clean_legs = []
@@ -174,18 +178,23 @@ def _execute_parlay_search(req: ParlaySearchRequest):
                 sig = ld.get("signal_evidence") or {}
                 t_odds = float(ld.get("taiwan_odds") or ld.get("odds") or 1.0)
                 is_synth = bool(sig.get("is_market_synthetic") or sig.get("is_synthetic"))
-                prob = float(sig.get("consensus_probability") or sig.get("sharp_fair_probability") or sig.get("market_fair_probability") or (1.0 / t_odds if t_odds > 0 else 0.5))
-                leg_ev = sig.get("sharp_expected_value_pct")
-                if leg_ev is None and not is_synth:
-                    leg_ev = sig.get("expected_value_pct")
+                prob = sig.get("consensus_probability")
+                leg_ev = sig.get("expected_value_pct")
 
                 ld["is_market_synthetic"] = is_synth
+                # Keep the value paired with the same probability displayed on
+                # the leg. Sharp EV remains in signal_evidence and is labeled
+                # separately in the evidence drawer.
                 ld["expected_value_pct"] = None if is_synth else leg_ev
                 ld["consensus_probability"] = prob
                 ld["market_implied_pct"] = sig.get("market_implied_pct", round((1.0 / t_odds) * 100.0, 1) if t_odds > 0 else 0.0)
                 ld["agreement_badge"] = sig.get("agreement_badge", "")
-                ld["is_positive_ev"] = bool(not is_synth and leg_ev and leg_ev > 0)
-                ld["is_sharp_value_bet"] = bool(not is_synth and (sig.get("is_sharp_value_bet", False) or (leg_ev and leg_ev >= 5.0)))
+                ld["is_positive_ev"] = bool(not is_synth and sig.get("is_positive_ev", False))
+                ld["is_sharp_value_bet"] = bool(
+                    not is_synth
+                    and sig.get("market_source_qualification") == "SHARP_QUALIFIED"
+                    and sig.get("is_sharp_value_bet", False)
+                )
                 ld["crowd_desc"] = sig.get("crowd_desc", "")
                 ld["line_movement_label"] = (sig.get("line_movement") or {}).get("text_label", "")
                 clean_legs.append(ld)

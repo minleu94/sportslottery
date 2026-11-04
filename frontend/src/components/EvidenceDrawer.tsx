@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge"
 import type { ParlayRecommendation, Leg, PredictionSignal } from "@/types"
 import { cleanLeagueName } from "@/lib/utils"
 import { ShieldCheck, Users, Globe, Coins } from "lucide-react"
+import { getLegProbabilityInfo, getModelEstimateInfo, getParlayEvInfo, getParlayProbabilityInfo, getQualifiedMarketBenchmarkInfo, getTaiwanFairProbabilityInfo } from "@/lib/probabilityProvenance"
 
 interface EvidenceDrawerProps {
   open: boolean
@@ -17,6 +18,9 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
   parlay,
 }) => {
   if (!parlay) return null
+  const probabilityInfo = getParlayProbabilityInfo(parlay)
+  const evInfo = getParlayEvInfo(parlay)
+  const totalOdds = parlay.total_odds_exact ?? parlay.total_odds
 
   return (
     <Sheet
@@ -26,11 +30,11 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
         <div className="flex items-center gap-2">
           <span>推薦關卡情報與分析依據</span>
           <span className="text-xs font-mono font-medium text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            {parlay.total_odds.toFixed(2)}x
+            {totalOdds.toFixed(3)}x
           </span>
         </div>
       }
-      description={`組合名稱：${parlay.parlay_name} · 共 ${parlay.legs.length} 關`}
+      description={`${parlay.legs.length === 1 ? "單場" : `${parlay.legs.length} 串 1`} · 共 ${parlay.legs.length} 關`}
     >
       <div className="space-y-4">
         {/* Summary Card */}
@@ -38,16 +42,20 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400">總賠率與期望值</div>
           <div className="flex items-center justify-between">
             <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-              {parlay.total_odds.toFixed(2)} 倍
+              {totalOdds.toFixed(3)} 倍
             </span>
-            {parlay.expected_value !== undefined && parlay.expected_value !== null && (
-              <span className={`text-sm font-medium ${parlay.expected_value > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>
-                EV: {parlay.expected_value > 0 ? "+" : ""}{(parlay.expected_value * 100).toFixed(1)}%
+            <span className="text-right">
+              <span className={`block text-sm font-medium ${evInfo.credible && evInfo.value !== null && evInfo.value > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-700 dark:text-amber-300"}`}>
+                EV: {evInfo.value === null ? "無有效估計" : `${evInfo.value > 0 ? "+" : ""}${evInfo.value.toFixed(1)}%`}
               </span>
-            )}
+              <span className="block text-[10px] text-slate-500 dark:text-slate-400">{evInfo.label}</span>
+            </span>
+          </div>
+          <div className="text-xs text-slate-600 dark:text-slate-300">
+            {probabilityInfo.value === null ? "無有效估計" : `${parlay.legs.length === 1 ? "單場估計機率" : "估計聯合機率"} ${(probabilityInfo.value * 100).toFixed(1)}% · ${probabilityInfo.label}`}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            本組合已排除同場賽事衝突，賠率以台灣運彩最新官方開盤為準。
+            {probabilityInfo.validationLabel}。賠率以台灣運彩盤口為準；估計 EV 使用上方標示的機率來源。
           </p>
         </div>
 
@@ -62,6 +70,13 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
             const ev = leg.signal_evidence || {}
             const consensus = ev.consensus_ratio ? Math.round(ev.consensus_ratio * 100) : null
             const votes = ev.vote_count
+            const legProbability = getLegProbabilityInfo(leg)
+            const taiwanFair = getTaiwanFairProbabilityInfo(ev)
+            const marketBenchmark = getQualifiedMarketBenchmarkInfo(ev)
+            const modelEstimate = getModelEstimateInfo(ev)
+            const impliedProbability = typeof ev.market_implied_probability === "number"
+              ? ev.market_implied_probability
+              : leg.taiwan_odds > 1 ? 1 / leg.taiwan_odds : null
 
             return (
               <div
@@ -95,28 +110,42 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
 
                 {/* Evidence badges & indicators */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  {/* Market Fair Benchmark */}
+                  {/* Qualified external market benchmark */}
                   <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
                     <Globe className="w-4 h-4 text-emerald-500 shrink-0" />
                     <div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">國際去水公允</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">合格外部市場基準</div>
                       <div className="font-bold text-slate-800 dark:text-slate-200">
-                        {ev.is_market_synthetic ? (
-                          <div>
-                            <span className="text-slate-500">{ev.sharp_fair_probability ? `${(ev.sharp_fair_probability * 100).toFixed(1)}%` : "未對齊"}</span>
-                            <span className="text-[10px] text-slate-400 ml-1 font-mono">(模擬測試)</span>
-                          </div>
-                        ) : (
-                          <>
-                            {ev.sharp_fair_probability ? `${(ev.sharp_fair_probability * 100).toFixed(1)}%` : (ev.market_fair_probability ? `${(ev.market_fair_probability * 100).toFixed(1)}%` : "未對齊")}
-                            {ev.sharp_expected_value_pct !== undefined && ev.sharp_expected_value_pct !== null && (
-                              <span className={`text-[10px] ml-1 font-mono font-semibold ${ev.sharp_expected_value_pct > 0 ? "text-emerald-500" : "text-slate-400"}`}>
-                                ({ev.sharp_expected_value_pct > 0 ? "+" : ""}{ev.sharp_expected_value_pct.toFixed(1)}% EV)
-                              </span>
-                            )}
-                          </>
-                        )}
+                        {marketBenchmark.value === null ? "無有效估計" : `${(marketBenchmark.value * 100).toFixed(1)}% · ${marketBenchmark.label}`}
                       </div>
+                      <div className="text-[10px] text-slate-500">{marketBenchmark.validationLabel}</div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
+                    <ShieldCheck className="w-4 h-4 text-sky-500 shrink-0" />
+                    <div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">台彩完整盤口去水</div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200">{taiwanFair.value === null ? "無有效估計" : `${(taiwanFair.value * 100).toFixed(1)}%`}</div>
+                      <div className="text-[10px] text-slate-500">{taiwanFair.validationLabel}</div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
+                    <Coins className="w-4 h-4 text-amber-500 shrink-0" />
+                    <div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">台彩賠率隱含／損益兩平</div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200">{impliedProbability === null ? "無有效估計" : `${(impliedProbability * 100).toFixed(1)}%`}</div>
+                      <div className="text-[10px] text-slate-500">只表示損益平衡門檻，不是勝率</div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
+                    <ShieldCheck className="w-4 h-4 text-violet-500 shrink-0" />
+                    <div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">模型預測</div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200">{modelEstimate.value === null ? "無有效估計" : `${(modelEstimate.value * 100).toFixed(1)}% · ${modelEstimate.label}`}</div>
+                      <div className="text-[10px] text-slate-500">{modelEstimate.validationLabel}</div>
                     </div>
                   </div>
 
@@ -146,7 +175,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 flex items-center gap-2 shadow-xs">
                     <Users className="w-4 h-4 text-sky-500 dark:text-sky-400 shrink-0" />
                     <div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">大眾社群投票</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">大眾社群投票 · 非勝率</div>
                       <div className="font-bold text-slate-800 dark:text-slate-200">
                         {consensus !== null ? `${consensus}%` : "未開放"}
                         {votes ? <span className="text-[10px] text-slate-400 dark:text-slate-400 ml-1">({votes}票)</span> : null}
@@ -164,6 +193,10 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  本關機率：{legProbability.value === null ? "無有效估計" : `${(legProbability.value * 100).toFixed(1)}% · ${legProbability.label}`}（{legProbability.validationLabel}）
                 </div>
 
                 {/* Signals breakdown if any */}

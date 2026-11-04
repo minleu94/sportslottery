@@ -331,7 +331,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
               )}
             </div>
             <div className="text-slate-500 dark:text-slate-400 truncate mt-1">
-              排序：{rankingMode === "WIN_PROBABILITY" ? "估計聯合命中率優先" : "估計 EV 優先"} ·{" "}
+              排序：{rankingMode === "WIN_PROBABILITY" ? "估計聯合機率優先" : "估計 EV 優先"} ·{" "}
               {crossSport ? "全聯盟跨界混串" : `指定 ${selectedAlliances.length} 聯盟`}
             </div>
           </div>
@@ -525,8 +525,8 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                     onChange={(e) => setRankingMode(e.target.value as RankingMode)}
                     className="w-full min-w-0 min-h-[44px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                   >
-                    <option value="WIN_PROBABILITY">估計聯合命中率優先</option>
-                    <option value="VALUE">估計 EV（值得買）優先</option>
+                    <option value="WIN_PROBABILITY">估計聯合機率優先（未驗證）</option>
+                    <option value="VALUE">估計 EV 優先（來源見詳情）</option>
                   </select>
                 </div>
 
@@ -588,12 +588,16 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                     onChange={(e) => setSignalFilter(e.target.value)}
                     className="w-full min-w-0 min-h-[44px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                   >
-                    <option value="value_only">估計價值優先（含未校準機率）</option>
+                    <option value="value_only">探索候選（含低賠率／高估計機率）</option>
+                    <option value="credible_value_only">合格來源支持的正 EV</option>
                     <option value="normal">標準 (排除無情報關卡)</option>
                     <option value="strict">嚴格 (2+ 獨立情報支持)</option>
                     <option value="wild">全量 (容納所有可能盤口)</option>
                   </select>
                 </div>
+                <p className="pl-[4.25rem] text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                  探索候選或高估計機率不等於正 EV；來源與驗證狀態請看「分析依據」。
+                </p>
               </div>
             </div>
 
@@ -676,7 +680,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
               {searching ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>{rankingMode === "WIN_PROBABILITY" ? "正在搜尋高命中率候選..." : "正在搜尋高估計 EV 候選..."}</span>
+                  <span>{rankingMode === "WIN_PROBABILITY" ? "正在搜尋高估計機率候選..." : "正在搜尋高估計 EV 候選..."}</span>
                 </>
               ) : (
                 <span>搜尋 {searchRangeLabel} 候選組合</span>

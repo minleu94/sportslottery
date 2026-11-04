@@ -3,6 +3,7 @@ import { cleanLeagueName, cleanSelectionLabel } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { BookOpen, CheckCircle2, ChevronRight, TrendingDown } from "lucide-react"
+import { getLegProbabilityInfo, getParlayEvInfo, getParlayProbabilityInfo } from "@/lib/probabilityProvenance"
 
 interface ParlayResultCardProps {
   parlay: ParlayRecommendation
@@ -15,7 +16,9 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
   const legsCount = parlay.legs.length
   const rawName = (parlay.parlay_name || "").trim()
   const isGenericFoldName = !rawName || /^\d+\s*串\s*\d+$/i.test(rawName)
-  const displayTitle = isGenericFoldName ? `組合 #${index + 1}` : rawName
+  const displayTitle = isGenericFoldName
+    ? legsCount === 1 ? "單場推薦" : `組合 #${index + 1}`
+    : rawName
   const foldLabel = legsCount === 1 ? "單場 1 關" : `${legsCount} 串 1`
 
   const hasAnySteamLeg = parlay.legs?.some((l) => {
@@ -24,26 +27,16 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
   })
 
   const hasSharp = Boolean(parlay.has_sharp_benchmark)
-  const evVal = hasSharp
-    ? parlay.sharp_parlay_ev_pct
-    : (parlay.parlay_ev_pct ?? (parlay.expected_value != null ? parlay.expected_value * 100 : null))
+  const probabilityInfo = getParlayProbabilityInfo(parlay)
+  const evInfo = getParlayEvInfo(parlay)
+  const evVal = evInfo.value
+  const totalOdds = parlay.total_odds_exact ?? parlay.total_odds
   const parlayHasSynth = parlay.legs?.some(
     (l) => l.is_market_synthetic || (l.signal_evidence || {}).is_market_synthetic
   )
-  const isPosParlayEv = Boolean(hasSharp && !parlayHasSynth && evVal !== null && evVal !== undefined && evVal > 0)
-
-  const probTitle =
-    parlay.joint_probability_validation_status === "VALIDATED"
-      ? "已驗證聯合機率"
-      : legsCount === 1
-        ? "啟發式命中率（未驗證）"
-        : "啟發式聯合機率（未驗證）"
-
-  const evTitle = hasSharp
-    ? "指定來源市場估計 EV"
-    : parlayHasSynth
-      ? "估計 EV（模擬數據）"
-      : "估計 EV（未驗證）"
+  const isPosParlayEv = Boolean(evInfo.credible && !parlayHasSynth && evVal !== null && evVal > 0)
+  const lowQualityCount = parlay.legs.filter((leg) => String(leg.evidence_quality || leg.signal_evidence?.evidence_quality || "").toUpperCase() === "LOW").length
+  const insufficientCount = parlay.legs.filter((leg) => String(leg.evidence_quality || leg.signal_evidence?.evidence_quality || "").toUpperCase() === "INSUFFICIENT_SIGNAL").length
 
   return (
     <div className="rounded-xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-slate-900 overflow-hidden shadow-xs hover:border-slate-300 dark:hover:border-slate-600 transition-colors flex flex-col justify-between">
@@ -73,17 +66,20 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
 
             <div
               className="text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2 flex-wrap font-mono tabular-nums"
-              title={`${probTitle} · ${evTitle}${parlay.sharp_badge ? ` · ${parlay.sharp_badge}` : ""}`}
+              title={`${probabilityInfo.label} · ${probabilityInfo.validationLabel} · ${evInfo.label}${parlay.sharp_badge ? ` · ${parlay.sharp_badge}` : ""}`}
             >
-              {parlay.joint_probability != null ? (
+              {probabilityInfo.value != null ? (
                 <span>
-                  {legsCount === 1 ? "命中率" : "聯合命中率"}{" "}
+                  {legsCount === 1 ? "單場估計機率" : "估計聯合機率"}{" "}
                   <strong className="text-slate-900 dark:text-white font-semibold">
-                    {(parlay.joint_probability * 100).toFixed(1)}%
+                    {(probabilityInfo.value * 100).toFixed(1)}%
                   </strong>
+                  <span className="ml-1 text-[10px] text-slate-500 dark:text-slate-400">{probabilityInfo.label}</span>
                 </span>
-              ) : null}
-              {evVal !== null && evVal !== undefined && (
+              ) : (
+                <span className="text-amber-700 dark:text-amber-300">無有效估計</span>
+              )}
+              {evVal !== null && (
                 <>
                   <span className="text-slate-300 dark:text-slate-600">|</span>
                   <span
@@ -93,8 +89,7 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
                         : "text-slate-500 dark:text-slate-400"
                     }
                   >
-                    {hasSharp ? "Sharp EV" : "估計 EV"}{" "}
-                    {isPosParlayEv ? `+${evVal.toFixed(1)}%` : `${evVal.toFixed(1)}%`}
+                    {evInfo.label} {evVal > 0 ? "+" : ""}{evVal.toFixed(1)}%
                   </span>
                 </>
               )}
@@ -110,7 +105,7 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
                   : "text-slate-900 dark:text-white"
               }`}
             >
-              {Number.isFinite(parlay.total_odds) ? `${parlay.total_odds.toFixed(2)}x` : "—"}
+              {Number.isFinite(totalOdds) ? `${totalOdds.toFixed(3)}x` : "—"}
             </div>
             <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
               {legsCount === 1 ? "單場賠率" : "總賠率"}
@@ -118,23 +113,27 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
           </div>
         </div>
 
+        {(lowQualityCount > 0 || insufficientCount > 0) && (
+          <div className="mx-3 mt-2 rounded-lg border border-amber-300/70 bg-amber-50/80 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/70 dark:bg-amber-950/30 dark:text-amber-200">
+            情報品質偏低：{lowQualityCount > 0 ? `${lowQualityCount} 關 LOW` : ""}{lowQualityCount > 0 && insufficientCount > 0 ? "、" : ""}{insufficientCount > 0 ? `${insufficientCount} 關情報不足` : ""}。機率與 EV 僅供參考。
+          </div>
+        )}
+        {evVal !== null && evVal < 0 && (
+          <div className="mx-3 mt-2 rounded-lg border border-rose-300/70 bg-rose-50/80 px-3 py-2 text-xs text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-200">
+            目前估計為負 EV；此候選不代表有利投注。
+          </div>
+        )}
+
         {/* Distinct Inset Legs Track with Numbered Badges & Left Accent Bar */}
         <div className="p-3 space-y-2 bg-slate-50/70 dark:bg-slate-950/60">
           {parlay.legs.map((leg, legIndex) => {
-            const isSynth = Boolean(leg.is_market_synthetic || (leg.signal_evidence || {}).is_market_synthetic)
             const legEvidence = leg.signal_evidence || {}
             const lm = (legEvidence.line_movement || {}) as Record<string, unknown>
-            const sharpLegEv = legEvidence.sharp_expected_value_pct
-            const hasSharpLeg =
-              !isSynth &&
-              legEvidence.market_source_qualification === "SHARP_QUALIFIED" &&
-              sharpLegEv !== null &&
-              sharpLegEv !== undefined
-            const legEv = hasSharpLeg
-              ? Number(sharpLegEv)
-              : (leg.expected_value_pct ?? (leg.expected_value != null ? leg.expected_value * 100 : null))
-            const legProb = leg.consensus_probability != null ? (leg.consensus_probability * 100).toFixed(0) : null
-            const isPos = Boolean(hasSharpLeg && legEv !== null && legEv > 0)
+            const legEv = leg.expected_value_pct ?? (leg.expected_value != null ? leg.expected_value * 100 : null)
+            const legProbability = getLegProbabilityInfo(leg)
+            const legProb = legProbability.value !== null ? (legProbability.value * 100).toFixed(1) : null
+            const hasCredibleLegProbability = ["ACCEPTED_MODEL", "SHARP_MARKET", "INTERNATIONAL_MARKET"].includes(legProbability.source)
+            const isPos = Boolean(hasCredibleLegProbability && leg.is_positive_ev && legEv !== null && legEv > 0)
             const cleanedLeague = cleanLeagueName(leg.display_league || leg.league || leg.sport)
             const cleanedSelection = cleanSelectionLabel(leg.selection)
 
@@ -170,8 +169,8 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
                       </span>
 
                       {legProb && (
-                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                          · 機率 {legProb}%
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums" title={`${legProbability.label} · ${legProbability.validationLabel}`}>
+                          · 估計 {legProb}%
                         </span>
                       )}
 
@@ -183,7 +182,7 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
                               : "text-slate-400 dark:text-slate-500"
                           }`}
                         >
-                          · EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
+                          · 估計 EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
                         </span>
                       )}
 

@@ -77,7 +77,14 @@ def test_parlay_response_exposes_tier_and_hides_internal_raw_legs(monkeypatch):
         away_team="Away Team",
         home_team="Home Team",
         side="主",
-        signal_evidence={"is_market_synthetic": False},
+        signal_evidence={
+            "is_market_synthetic": False,
+            "probability_status": "MARKET_BASELINE_ONLY",
+            "consensus_probability": 0.65,
+            "expected_value_pct": -27.9,
+            "consensus_ratio": 0.92,
+            "vote_count": 120,
+        },
     )
     adapter = MagicMock(get_taiwan_legs=lambda *_args, **_kwargs: [leg])
     signal_hub = MagicMock()
@@ -98,10 +105,14 @@ def test_parlay_response_exposes_tier_and_hides_internal_raw_legs(monkeypatch):
                 "candidate_id": "candidate-1",
                 "legs_count": 2,
                 "parlay_name": "2 串 1",
-                "total_odds": 9.2,
-                "joint_probability": 0.12,
-                "parlay_expected_value": 0.104,
-                "parlay_ev_pct": 10.4,
+                "total_odds": 1.55,
+                "total_odds_exact": 1.554,
+                "joint_probability": 0.4485,
+                "parlay_expected_value": -0.30303,
+                "parlay_ev_pct": -30.3,
+                "credible_value_basis": False,
+                "credible_value_status": "UNVERIFIED",
+                "joint_probability_sources": ["UNVERIFIED_ESTIMATE", "UNVERIFIED_ESTIMATE"],
                 "has_sharp_benchmark": False,
                 "is_positive_ev": False,
                 "legs": [leg, leg],
@@ -128,6 +139,14 @@ def test_parlay_response_exposes_tier_and_hides_internal_raw_legs(monkeypatch):
     assert recommendation["tier"] == "high_consensus"
     assert recommendation["parlay_id"] == "candidate-1"
     assert recommendation["legs"][0]["event_id"] == "tw-event-parlay"
+    assert recommendation["legs_count"] == len(recommendation["legs"]) == 2
+    assert recommendation["total_odds_exact"] == 1.554
+    assert recommendation["joint_probability"] == 0.4485
+    assert recommendation["parlay_ev_pct"] == -30.3
+    assert recommendation["credible_value_status"] == "UNVERIFIED"
+    assert recommendation["legs"][0]["consensus_probability"] == 0.65
+    assert recommendation["legs"][0]["signal_evidence"]["consensus_ratio"] == 0.92
+    assert recommendation["legs"][0]["expected_value_pct"] == -27.9
     assert "raw_legs" not in recommendation
     assert body["performance"]["prepared_legs_cache_hit"] is False
 

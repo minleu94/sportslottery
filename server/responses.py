@@ -181,6 +181,7 @@ class ParlayRecommendationResponse(ExtensibleResponse):
     parlay_id: str
     parlay_name: str
     total_odds: float
+    total_odds_exact: Optional[float] = None
     legs_count: int
     tier: str
     legs: List[TaiwanLegResponse]
@@ -193,6 +194,10 @@ class ParlayRecommendationResponse(ExtensibleResponse):
     sharp_joint_probability: Optional[float] = None
     has_sharp_benchmark: Optional[bool] = None
     joint_probability_validation_status: Optional[str] = None
+    joint_probability_sources: List[str] = Field(default_factory=list)
+    parlay_expected_value_source: Optional[str] = None
+    credible_value_basis: Optional[bool] = None
+    credible_value_status: Optional[str] = None
     sharp_badge: Optional[str] = None
     is_positive_ev: Optional[bool] = None
     is_valid: Optional[bool] = None

@@ -102,3 +102,73 @@ def test_pruned_search_matches_independent_exhaustive_odds_counts():
                                                     signal_filter="wild",diagnostics=diagnostic)
     assert diagnostic["search_complete"]
     assert diagnostic["odds_matching_combinations"]==expected
+
+
+def _two_leg_case(*, accepted_model=False):
+    now = datetime.now(timezone.utc)
+    probabilities = (0.95, 0.98) if accepted_model else (0.65, 0.69)
+    odds = (1.11, 1.40)
+    qualities = ("LOW", "INSUFFICIENT_SIGNAL")
+    legs = []
+    for index, (price, probability) in enumerate(zip(odds, probabilities)):
+        evidence = {
+            "agreement": qualities[index],
+            "evidence_quality": qualities[index],
+            "probability_status": "CALIBRATED_MODEL_ESTIMATE" if accepted_model else "UNVALIDATED_MODEL_FUSION_ESTIMATE",
+            "consensus_probability": probability,
+            "market_implied_probability": 1 / price,
+            "vote_count": 120,
+            "consensus_ratio": 0.92,  # Crowd vote share must not be used as a win probability.
+        }
+        if accepted_model:
+            evidence["model_accepted_ids"] = [f"accepted-{index}"]
+            evidence["model_probability_calibrated"] = probability
+        legs.append(TaiwanLeg(
+            event_id=f"event-{index}", sport="baseball", league="MLB", market="不讓分",
+            selection=f"selection-{index}", taiwan_odds=price,
+            away_team=f"away-{index}", home_team=f"home-{index}", side="客",
+            odds_scraped_at=now.isoformat(), odds_status="FRESH",
+            start_time_utc=(now + timedelta(hours=1)).isoformat(),
+            evidence_quality=qualities[index], consensus_probability=probability,
+            signal_evidence=evidence,
+        ))
+    return legs
+
+
+def test_low_quality_155x_example_is_transparent_and_kept_in_exploration():
+    engine = ParlayEngine(signal_hub=object())
+    diagnostics = {}
+    results = engine.search_parlays(
+        _two_leg_case(), min_odds=1.5, max_odds=1.6, min_legs=2, max_legs=2,
+        signal_filter="value_only", ranking_mode="WIN_PROBABILITY", diagnostics=diagnostics,
+    )
+    candidates = results["aggressive"] + results["high_consensus"] + results["moonshot"]
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate["legs_count"] == 2
+    assert candidate["total_odds_exact"] == 1.554
+    assert candidate["joint_probability"] == 0.4485
+    assert candidate["parlay_ev_pct"] == -30.3
+    assert candidate["credible_value_basis"] is False
+    assert candidate["credible_value_status"] == "UNVERIFIED"
+    assert candidate["joint_probability_sources"] == ["UNVALIDATED_MODEL"] * 2
+    assert {leg["evidence_quality"] for leg in candidate["legs"]} == {"LOW", "INSUFFICIENT_SIGNAL"}
+    assert {leg["signal_evidence"]["agreement"] for leg in candidate["legs"]} == {"LOW", "INSUFFICIENT_SIGNAL"}
+
+
+def test_credible_value_filter_requires_positive_ev_from_qualified_basis():
+    engine = ParlayEngine(signal_hub=object())
+    unverified = engine.search_parlays(
+        _two_leg_case(), min_odds=1.5, max_odds=1.6, min_legs=2, max_legs=2,
+        signal_filter="credible_value_only",
+    )
+    assert not any(unverified.values())
+
+    accepted = engine.search_parlays(
+        _two_leg_case(accepted_model=True), min_odds=1.5, max_odds=1.6,
+        min_legs=2, max_legs=2, signal_filter="credible_value_only",
+    )
+    candidates = accepted["aggressive"] + accepted["high_consensus"] + accepted["moonshot"]
+    assert len(candidates) == 1
+    assert candidates[0]["credible_value_basis"] is True
+    assert candidates[0]["credible_value_status"] == "POSITIVE"

@@ -22,7 +22,7 @@ from core.bet_validation import assess_leg, event_key
 from core.contracts.common import PredictionSignal, TaiwanLeg
 
 SEARCH_STATE_SCHEMA = "parlay-search-state-v1"
-SEARCH_VERSION = "fair-frontier-v2-ranking"
+SEARCH_VERSION = "fair-frontier-v3-probability-transparency"
 
 
 class ParlaySearchResult(dict):
@@ -41,6 +41,38 @@ def _canonical_json(value: Any) -> str:
 
 def _stable_id(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _leg_probability_source(leg: TaiwanLeg) -> str:
+    """Classify the evidence behind the probability used by the parlay estimate."""
+    evidence = leg.signal_evidence or {}
+    if evidence.get("is_market_synthetic") or evidence.get("is_synthetic"):
+        return "UNAVAILABLE"
+    status = str(evidence.get("probability_status") or "").upper()
+    if status == "CALIBRATED_MODEL_ESTIMATE" and evidence.get("model_accepted_ids"):
+        return "ACCEPTED_MODEL"
+    if status in {"UNVALIDATED_MODEL_ESTIMATE", "UNVALIDATED_MODEL_FUSION_ESTIMATE"}:
+        return "UNVALIDATED_MODEL"
+    qualification = str(evidence.get("market_source_qualification") or "").upper()
+    benchmark_status = str(evidence.get("market_benchmark_status") or "").upper()
+    if qualification == "SHARP_QUALIFIED" and benchmark_status == "AVAILABLE" and evidence.get("sharp_fair_probability") is not None:
+        return "SHARP_MARKET"
+    if qualification == "INTERNATIONAL_MARKET" and benchmark_status == "AVAILABLE" and evidence.get("market_benchmark_fair_probability") is not None:
+        return "INTERNATIONAL_MARKET"
+    method = str(evidence.get("market_fair_method") or "").upper()
+    if method in {"COMPLETE_MARKET_PROPORTIONAL", "TWO_WAY_PROPORTIONAL"} and evidence.get("market_fair_probability") is not None:
+        return "TAIWAN_DEVIG"
+    try:
+        has_valid_odds = math.isfinite(float(leg.taiwan_odds or 0.0)) and float(leg.taiwan_odds or 0.0) > 1.0
+    except (TypeError, ValueError, OverflowError):
+        has_valid_odds = False
+    if evidence.get("market_implied_probability") is not None or has_valid_odds:
+        return "TAIWAN_BREAKEVEN"
+    return "UNAVAILABLE"
+
+
+def _has_credible_probability_basis(leg: TaiwanLeg) -> bool:
+    return _leg_probability_source(leg) in {"ACCEPTED_MODEL", "SHARP_MARKET", "INTERNATIONAL_MARKET"}
 
 
 class ParlayEngine:
@@ -210,11 +242,16 @@ class ParlayEngine:
             active = [leg for leg in ready if leg.evidence_quality in {"HIGH", "MED"}
                       and self._independent_valid_support_count(leg) >= 2]
         elif signal_filter == "value_only":
+            # Compatibility search: this is an exploration filter, not a
+            # positive-EV qualification. Banker and long-shot modes rely on it
+            # to retain low-odds/high-estimate candidates before model acceptance.
             active = [leg for leg in ready if (getattr(leg, "is_positive_ev", False)
                       or (leg.signal_evidence or {}).get("is_positive_ev")
                       or (leg.signal_evidence or {}).get("is_sharp_value_bet")
                       or (leg.signal_evidence or {}).get("expected_value", 0) > 0
                       or ((leg.signal_evidence or {}).get("consensus_probability", 0) >= 0.55 and leg.taiwan_odds <= 2.0))]
+        elif signal_filter == "credible_value_only":
+            active = [leg for leg in ready if _has_credible_probability_basis(leg)]
         elif signal_filter == "normal":
             active = [leg for leg in ready if leg.evidence_quality != "INSUFFICIENT_SIGNAL"]
         else:
@@ -367,6 +404,17 @@ class ParlayEngine:
                     sharp_results_by_option[option_id_by_object[id(leg)]] for leg in leg_tuple
                 ]
             sharp_eval = self.sharp_edge_engine.evaluate_parlay_sharp_ev(list(leg_tuple), **sharp_args)
+            probability_sources = [_leg_probability_source(leg) for leg in leg_tuple]
+            credible_value_basis = all(source in {"ACCEPTED_MODEL", "SHARP_MARKET", "INTERNATIONAL_MARKET"}
+                                       for source in probability_sources)
+            credible_ev = (sharp_eval.get("sharp_parlay_ev")
+                           if sharp_eval.get("has_sharp_benchmark") else corr.parlay_expected_value)
+            credible_value_status = (
+                "POSITIVE" if credible_value_basis and credible_ev is not None and credible_ev > 0 else
+                "NOT_POSITIVE" if credible_value_basis else "UNVERIFIED"
+            )
+            if signal_filter == "credible_value_only" and credible_value_status != "POSITIVE":
+                return {}
             target_mid = target_odds if target_odds is not None else (min_odds + max_odds) / 2.0
             # Every leg in this search pool already passed assess_leg at the
             # same scope_as_of above. Rechecking each leg for every candidate
@@ -379,7 +427,7 @@ class ParlayEngine:
             semantic_ids = [semantic_ids_by_object[id(leg)] for leg in leg_tuple]
             candidate_id = _stable_id(semantic_ids)
             return {"candidate_id": candidate_id, "legs_count": num_legs, "parlay_name": f"{num_legs} 串 1",
-                    "total_odds": round(total_odds, 2), "min_evidence_score": min_score,
+                    "total_odds": round(total_odds, 2), "total_odds_exact": round(total_odds, 6), "min_evidence_score": min_score,
                     "avg_evidence_score": round(avg_score, 2), "avg_support": round(avg_score, 2),
                     "total_independent_sources": supports, "joint_probability": round(corr.joint_probability, 6),
                     "naive_joint_probability": round(corr.naive_joint_probability, 6),
@@ -394,6 +442,10 @@ class ParlayEngine:
                     "joint_probability_validation_status": getattr(
                         corr, "joint_probability_validation_status", "UNVALIDATED_HEURISTIC"
                     ),
+                    "joint_probability_sources": probability_sources,
+                    "credible_value_basis": credible_value_basis,
+                    "credible_value_status": credible_value_status,
+                    "parlay_expected_value_source": ("QUALIFIED_EVIDENCE" if credible_value_basis else "UNVALIDATED_ESTIMATE"),
                     "value_legs_count": sharp_eval.get("value_legs_count", 0),
                     "sharp_badge": sharp_eval.get("summary_badge", ""),
                     "correlation_penalty": round(corr.correlation_penalty, 4),

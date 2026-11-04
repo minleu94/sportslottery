@@ -31,6 +31,16 @@ export interface LegSignalEvidence extends JsonRecord {
   sharp_expected_value_pct?: number | null
   sharp_fair_probability?: number | null
   market_fair_probability?: number | null
+  market_fair_method?: string
+  market_implied_probability?: number | null
+  market_benchmark_fair_probability?: number | null
+  market_benchmark_status?: string
+  probability_status?: string
+  calibration_status?: string
+  model_probability_calibrated?: number | null
+  model_candidate_probability_fused?: number | null
+  model_candidate_provenances?: JsonRecord[]
+  model_accepted_ids?: string[]
   market_source_qualification?: string
   vote_count?: number | null
   bet_percentage?: number | null
@@ -140,6 +150,7 @@ export interface ParlayRecommendation {
   parlay_id: string
   parlay_name: string
   total_odds: number
+  total_odds_exact?: number | null
   legs_count: number
   tier: ParlayTier
   legs: Leg[]
@@ -152,6 +163,10 @@ export interface ParlayRecommendation {
   sharp_joint_probability?: number | null
   has_sharp_benchmark?: boolean
   joint_probability_validation_status?: string
+  joint_probability_sources?: string[]
+  parlay_expected_value_source?: string
+  credible_value_basis?: boolean
+  credible_value_status?: string
   sharp_badge?: string
   is_positive_ev?: boolean
   is_valid?: boolean
