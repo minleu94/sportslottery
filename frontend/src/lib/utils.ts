@@ -23,7 +23,16 @@ export function cleanLeagueName(league?: string | null): string {
   const upper = s.toUpperCase()
   const leagueMap: Record<string, string> = {
     COLOMBIA_PRIMERA_A: "哥倫比亞甲級聯賽",
+    COSTA_RICA_PRIMERA: "哥斯大黎加甲級聯賽",
+    AFC_CHAMPIONS_LEAGUE_TWO: "亞洲冠軍二級聯賽",
+    ASIAN_CHAMPIONS_LEAGUE: "亞洲冠軍聯賽",
+    CONMEBOL_LIBERTADORES: "南美自由者盃",
     SAUDI_PRO_LEAGUE: "沙烏地職業聯賽",
+    PREMIER: "英格蘭超級聯賽",
+    LALIGA: "西班牙甲級聯賽",
+    CHAMPIONS: "歐洲冠軍聯賽",
+    CHAMPIONS_QUALIFYING: "歐冠資格賽",
+    MLS: "美國職業足球大聯盟",
     KBO: "韓國職棒 (KBO)",
     NBA: "美國職籃 (NBA)",
     WNBA: "美國女子職籃 (WNBA)",
@@ -41,8 +50,20 @@ export function cleanLeagueName(league?: string | null): string {
   if (leagueMap[upper]) {
     return leagueMap[upper]
   }
-  
+
+  // Deduplicate repeated leading region names (including 秘/祕 variant)
+  s = s.replace(/^秘魯祕魯|^祕魯秘魯/, "秘魯")
+  s = s.replace(/^([\u4e00-\u9fa5]{2,4})\1+/, "$1")
+
   return s || "綜合賽事"
+}
+
+export function cleanSelectionLabel(selection?: string | null): string {
+  if (!selection) return ""
+  return selection
+    .trim()
+    .replace(/\s*[([（]\s*@?\d+(?:\.\d+)?x?\s*[)\]）]\s*$/i, "")
+    .trim()
 }
 
 export function generateUUID(): string {

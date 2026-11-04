@@ -66,7 +66,7 @@ function MainLayout() {
   }
 
   useEffect(() => {
-    document.title = "🐕 瘋狗運彩 (MadDog Sports) - 智慧賠率與串關風控系統 (v2.3.0)"
+    document.title = "🐕 瘋狗運彩 (MadDog Sports) - 智慧賠率與串關風控系統 (v2.4.0)"
     const initTimer = window.setTimeout(() => void initApp(), 0)
     return () => window.clearTimeout(initTimer)
   }, [])
@@ -146,13 +146,18 @@ function MainLayout() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-4 relative z-10">
-        {/* Wallet Risk Governance Banner */}
-        <WalletBanner wallet={walletStatus} loading={loading} />
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3.5 relative z-10">
+        {/* Wallet Risk Governance Banner (Compact single-line status ribbon on non-wallet tabs) */}
+        <WalletBanner
+          wallet={walletStatus}
+          loading={loading}
+          compact={activeTab !== "wallet"}
+          onNavigateWallet={activeTab !== "wallet" ? () => setActiveTab("wallet") : undefined}
+        />
 
         {/* Tab Views */}
         <Suspense fallback={<div className="py-12 text-center text-slate-500">頁面載入中…</div>}>
-        <div className="pt-2">
+        <div className="pt-0.5">
           {activeTab === "radar" && <RadarView />}
           {activeTab === "parlay" && (
             <ParlayView
@@ -195,7 +200,7 @@ function MainLayout() {
 
       {/* Footer */}
       <footer className="border-t border-slate-200/80 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 py-6 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1 relative z-10">
-        <p>🐕 台灣運彩「瘋狗流」10~500倍 高倍串關決策輔助平台 · v2.3.0</p>
+        <p>🐕 台灣運彩「瘋狗流」10~500倍 高倍串關決策輔助平台 · v2.4.0</p>
         <p className="text-[11px] text-slate-400 dark:text-slate-500">
           理性投注，保護個人生活與資金。未成年人不得購買或兌領運動彩券。
         </p>

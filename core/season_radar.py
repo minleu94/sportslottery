@@ -283,4 +283,14 @@ class SeasonRadar:
                 "opportunity_badge": opp_badge,
             })
 
+        # Prioritize leagues with open markets today (GREEN), then active in-season leagues (YELLOW), then off-season (RED)
+        status_rank = {"GREEN": 0, "YELLOW": 1, "UNKNOWN": 2, "RED": 3}
+        summary.sort(
+            key=lambda item: (
+                status_rank.get(item.get("status"), 99),
+                -int(item.get("taiwan_market_count", 0)),
+                -int(item.get("espn_event_count", 0)),
+            )
+        )
+
         return summary

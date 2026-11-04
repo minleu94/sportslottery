@@ -241,7 +241,7 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess }) => {
           </h1>
           <div className="flex items-center justify-center gap-2 mt-1.5">
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
-              v2.3.0
+              v2.4.0
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400">成員專用登入 · 多玩家獨立娛樂資金池</span>
           </div>

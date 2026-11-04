@@ -340,158 +340,160 @@ export const ResearchView: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent className="pt-4 space-y-4">
-          {/* Operational Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {/* 1. Market Live Status */}
-            <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>The Odds API 連線</span>
-                <Activity className="w-3.5 h-3.5 text-slate-400" />
-              </div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono">
-                The Odds API
-              </div>
-              <div className="text-[11px] text-slate-400 truncate">
-                {theOdds?.key_masked ? `金鑰: ${theOdds.key_masked}` : marketSummary ? "尚未配置 Key" : marketUnavailableLabel}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate">
-                {!marketSummary
-                  ? marketUnavailableLabel
-                  : !theOdds?.has_api_key
-                  ? "降級合成展示"
-                  : theOdds?.last_successful_fetch_utc
-                  ? `最近成功: ${new Date(theOdds.last_successful_fetch_utc).toLocaleTimeString()}`
-                  : "等待連線測試或首次排程"}
-              </div>
-            </div>
-
-            {/* 2. Quota Usage Tracker */}
-            <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>本月配額 (500/月)</span>
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                {marketSummary
-                  ? `${theOdds?.requests_used_this_month ?? "—"} / ${theOdds?.monthly_budget ?? theOdds?.monthly_quota ?? "—"}`
-                  : marketUnavailableLabel}
-              </div>
-              <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium truncate tabular-nums">
-                官方剩餘: {marketSummary ? `${theOdds?.official_remaining ?? theOdds?.requests_remaining_est ?? "未知"} Credits` : marketUnavailableLabel}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate">
-                日排程預算: {marketSummary ? `${theOdds?.daily_schedulable_budget ?? "未知"} (手動保留 50)` : marketUnavailableLabel}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate tabular-nums">
-                最近扣點 {theOdds?.requests_last_consumed || 0} · 請求 {theOdds?.request_metrics?.api_requests || 0} · 快取命中 {theOdds?.request_metrics?.cache_hits || 0} · 合併 {theOdds?.request_metrics?.coalesced_requests || 0}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate tabular-nums">
-                失敗 {theOdds?.request_metrics?.request_failures || 0} · 配額略過 {theOdds?.request_metrics?.quota_skips || 0} · 退避略過 {theOdds?.request_metrics?.backoff_skips || 0}
-              </div>
-            </div>
-
-            {/* 3. Snapshots Accumulation */}
-            <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>歷史快照 / 已結算</span>
-                <Database className="w-3.5 h-3.5 text-slate-400" />
-              </div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                {snapshotCount != null ? `${snapshotCount} / ${settledCount ?? "—"}` : marketUnavailableLabel}
-              </div>
-              <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium truncate">
-                有效前瞻: {snaps?.forward_eligible_count ?? (marketSummary ? "未知" : marketUnavailableLabel)}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate">
-                歷史基線封存: {snaps?.legacy_unverified_count ?? (marketSummary ? "未知" : marketUnavailableLabel)} 筆
-              </div>
-            </div>
-
-            {/* 4. Forward Gate Status */}
-            <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>模型 / Sharp 配對事件 (N)</span>
-                <span className="text-[11px] font-mono font-medium text-slate-400">門檻 {minSample}</span>
-              </div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                {fwd ? `${sampleSize} / ${minSample}` : marketUnavailableLabel}
-              </div>
-              <div className="text-[11px] truncate">
-                <span className="text-slate-600 dark:text-slate-400 font-medium">
-                  {fwd?.acceptance_gate_qualified
-                    ? "Sharp 配對差異獲得統計支持，仍需人工審閱"
-                    : fwd
-                      ? `未宣告優勢：${fwd.statistical_evidence_status || fwd.status || "尚未評估"}`
-                      : "前瞻評估狀態未知"}
-                </span>
-              </div>
-              <div className="text-[10px] text-slate-400 truncate">
-                {fwd
-                  ? `Sharp 配對 ${sampleSize} · 國際市場配對 ${fwd.market_paired_sample_size ?? "未知"} · 合格事件 ${eligibleEventCount}`
-                  : "配對樣本未知"}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
-              <div className="text-slate-500 dark:text-slate-400">最近一輪國際盤口</div>
-              <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
-                {realQuoteCount > 0
-                  ? `真實報價 ${realQuoteCount} · 完整市場 ${lastCycle.complete_market_benchmark_count ?? 0}`
-                  : syntheticQuoteCount > 0 ? "只有合成報價" : "未知／尚未執行"}
-              </div>
-              <div className="mt-1 text-[10px] text-slate-500">
-                {hasLastCycle
-                  ? `符合指定 Sharp 來源規則 ${lastCycle.sharp_qualified_count ?? "未知"} · 最近扣點 ${lastCycle.official_credits_consumed ?? "未取得官方記帳"}`
-                  : "尚無排程週期記錄"}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
-              <div className="text-slate-500 dark:text-slate-400">台彩賽事與國際盤配對</div>
-              <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
-                {alignment.status === "UNKNOWN" || alignment.status === "NO_RECORDED_CYCLE"
-                  ? "尚無配對週期資料"
-                  : `候選 ${alignment.valid_candidate_count ?? "未知"} · 對齊 ${alignment.real_matched_count ?? "未知"}`}
-              </div>
-              {rejectionEntries.length > 0 ? (
-                <details className="mt-1 text-[10px] text-slate-500">
-                  <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
-                    查看拒絕原因（{rejectionEntries.reduce((sum, entry) => sum + entry.count, 0)}）
-                  </summary>
-                  <ul className="mt-1 space-y-1 pl-3">
-                    {rejectionEntries.map(({ code, count, kind }) => {
-                      const example = alignment.rejection_examples?.[code]?.[0] as JsonRecord | undefined
-                      return (
-                        <li key={`${kind}-${code}`}>
-                          <span className="font-medium">{kind}：{alignmentReasonLabel(code)} × {count}</span>
-                          {example?.reason ? <span className="block pl-1">{String(example.reason)}</span> : null}
-                          {example?.taiwan_league || example?.taiwan_market ? (
-                            <span className="block pl-1">
-                              {String(example.taiwan_league || "")}{example.taiwan_market ? ` · ${String(example.taiwan_market)}` : ""}
-                              {example.taiwan_selection ? ` · ${String(example.taiwan_selection)}` : ""}
-                            </span>
-                          ) : null}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </details>
-              ) : (
-                <div className="mt-1 text-[10px] text-slate-500">
-                  {alignment.status === "UNKNOWN" || alignment.status === "NO_RECORDED_CYCLE"
-                    ? "尚無拒絕原因資料"
-                    : rejectionSummary || "最近週期沒有拒絕原因"}
+          {/* Unified Hairline Operational Matrix (De-boxed) */}
+          <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/40 overflow-hidden divide-y divide-slate-200/70 dark:divide-slate-800/80">
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-200/70 dark:divide-slate-800/80">
+              {/* 1. Market Live Status */}
+              <div className="p-3.5 space-y-1">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>The Odds API 連線</span>
+                  <Activity className="w-3.5 h-3.5 text-slate-400" />
                 </div>
-              )}
-            </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3">
-              <div className="text-slate-500 dark:text-slate-400">前瞻資料品質與模型協定</div>
-              <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
-                {fwd?.data_quality_status || (marketSummary ? "尚無資料品質狀態" : marketUnavailableLabel)}
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                  The Odds API
+                </div>
+                <div className="text-xs text-slate-400 truncate">
+                  {theOdds?.key_masked ? `金鑰: ${theOdds.key_masked}` : marketSummary ? "尚未配置 Key" : marketUnavailableLabel}
+                </div>
+                <div className="text-xs text-slate-400 truncate">
+                  {!marketSummary
+                    ? marketUnavailableLabel
+                    : !theOdds?.has_api_key
+                    ? "降級合成展示"
+                    : theOdds?.last_successful_fetch_utc
+                    ? `最近成功: ${new Date(theOdds.last_successful_fetch_utc).toLocaleTimeString()}`
+                    : "等待連線測試或首次排程"}
+                </div>
               </div>
-              <div className="mt-1 text-[10px] text-slate-500 truncate">
-                {fwd?.evaluation_protocol_status || (marketSummary ? "尚無模型協定狀態" : marketUnavailableLabel)} · Brier 95% CI {fwd?.delta_brier_ci_95?.map((value: number) => value.toFixed(4)).join(" 至 ") || "尚無"}
+
+              {/* 2. Quota Usage Tracker */}
+              <div className="p-3.5 space-y-1">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>本月配額 (500/月)</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
+                  {marketSummary
+                    ? `${theOdds?.requests_used_this_month ?? "—"} / ${theOdds?.monthly_budget ?? theOdds?.monthly_quota ?? "—"}`
+                    : marketUnavailableLabel}
+                </div>
+                <div className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate tabular-nums">
+                  官方剩餘: {marketSummary ? `${theOdds?.official_remaining ?? theOdds?.requests_remaining_est ?? "未知"} Credits` : marketUnavailableLabel}
+                </div>
+                <div className="text-xs text-slate-400 truncate">
+                  日排程預算: {marketSummary ? `${theOdds?.daily_schedulable_budget ?? "未知"} (手動保留 50)` : marketUnavailableLabel}
+                </div>
+                <div className="text-xs text-slate-400 truncate tabular-nums">
+                  最近扣點 {theOdds?.requests_last_consumed || 0} · 請求 {theOdds?.request_metrics?.api_requests || 0} · 快取命中 {theOdds?.request_metrics?.cache_hits || 0} · 合併 {theOdds?.request_metrics?.coalesced_requests || 0}
+                </div>
+                <div className="text-xs text-slate-400 truncate tabular-nums">
+                  失敗 {theOdds?.request_metrics?.request_failures || 0} · 配額略過 {theOdds?.request_metrics?.quota_skips || 0} · 退避略過 {theOdds?.request_metrics?.backoff_skips || 0}
+                </div>
+              </div>
+
+              {/* 3. Snapshots Accumulation */}
+              <div className="p-3.5 space-y-1">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>歷史快照 / 已結算</span>
+                  <Database className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
+                  {snapshotCount != null ? `${snapshotCount} / ${settledCount ?? "—"}` : marketUnavailableLabel}
+                </div>
+                <div className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate">
+                  有效前瞻: {snaps?.forward_eligible_count ?? (marketSummary ? "未知" : marketUnavailableLabel)}
+                </div>
+                <div className="text-xs text-slate-400 truncate">
+                  歷史基線封存: {snaps?.legacy_unverified_count ?? (marketSummary ? "未知" : marketUnavailableLabel)} 筆
+                </div>
+              </div>
+
+              {/* 4. Forward Gate Status */}
+              <div className="p-3.5 space-y-1">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span>模型 / Sharp 配對事件 (N)</span>
+                  <span className="text-xs font-mono font-medium text-slate-400">門檻 {minSample}</span>
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
+                  {fwd ? `${sampleSize} / ${minSample}` : marketUnavailableLabel}
+                </div>
+                <div className="text-xs truncate">
+                  <span className="text-slate-600 dark:text-slate-400 font-medium">
+                    {fwd?.acceptance_gate_qualified
+                      ? "Sharp 配對差異獲得統計支持，仍需人工審閱"
+                      : fwd
+                        ? `未宣告優勢：${fwd.statistical_evidence_status || fwd.status || "尚未評估"}`
+                        : "前瞻評估狀態未知"}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400 truncate">
+                  {fwd
+                    ? `Sharp 配對 ${sampleSize} · 國際市場配對 ${fwd.market_paired_sample_size ?? "未知"} · 合格事件 ${eligibleEventCount}`
+                    : "配對樣本未知"}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/70 dark:divide-slate-800/80 text-xs">
+              <div className="p-3.5">
+                <div className="text-slate-500 dark:text-slate-400">最近一輪國際盤口</div>
+                <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                  {realQuoteCount > 0
+                    ? `真實報價 ${realQuoteCount} · 完整市場 ${lastCycle.complete_market_benchmark_count ?? 0}`
+                    : syntheticQuoteCount > 0 ? "只有合成報價" : "未知／尚未執行"}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {hasLastCycle
+                    ? `符合指定 Sharp 來源規則 ${lastCycle.sharp_qualified_count ?? "未知"} · 最近扣點 ${lastCycle.official_credits_consumed ?? "未取得官方記帳"}`
+                    : "尚無排程週期記錄"}
+                </div>
+              </div>
+              <div className="p-3.5">
+                <div className="text-slate-500 dark:text-slate-400">台彩賽事與國際盤配對</div>
+                <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                  {alignment.status === "UNKNOWN" || alignment.status === "NO_RECORDED_CYCLE"
+                    ? "尚無配對週期資料"
+                    : `候選 ${alignment.valid_candidate_count ?? "未知"} · 對齊 ${alignment.real_matched_count ?? "未知"}`}
+                </div>
+                {rejectionEntries.length > 0 ? (
+                  <details className="mt-1 text-xs text-slate-500">
+                    <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+                      查看拒絕原因（{rejectionEntries.reduce((sum, entry) => sum + entry.count, 0)}）
+                    </summary>
+                    <ul className="mt-1 space-y-1 pl-3">
+                      {rejectionEntries.map(({ code, count, kind }) => {
+                        const example = alignment.rejection_examples?.[code]?.[0] as JsonRecord | undefined
+                        return (
+                          <li key={`${kind}-${code}`}>
+                            <span className="font-medium">{kind}：{alignmentReasonLabel(code)} × {count}</span>
+                            {example?.reason ? <span className="block pl-1">{String(example.reason)}</span> : null}
+                            {example?.taiwan_league || example?.taiwan_market ? (
+                              <span className="block pl-1">
+                                {String(example.taiwan_league || "")}{example.taiwan_market ? ` · ${String(example.taiwan_market)}` : ""}
+                                {example.taiwan_selection ? ` · ${String(example.taiwan_selection)}` : ""}
+                              </span>
+                            ) : null}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </details>
+                ) : (
+                  <div className="mt-1 text-xs text-slate-500">
+                    {alignment.status === "UNKNOWN" || alignment.status === "NO_RECORDED_CYCLE"
+                      ? "尚無拒絕原因資料"
+                      : rejectionSummary || "最近週期沒有拒絕原因"}
+                  </div>
+                )}
+              </div>
+              <div className="p-3.5">
+                <div className="text-slate-500 dark:text-slate-400">前瞻資料品質與模型協定</div>
+                <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                  {fwd?.data_quality_status || (marketSummary ? "尚無資料品質狀態" : marketUnavailableLabel)}
+                </div>
+                <div className="mt-1 text-xs text-slate-500 truncate">
+                  {fwd?.evaluation_protocol_status || (marketSummary ? "尚無模型協定狀態" : marketUnavailableLabel)} · Brier 95% CI {fwd?.delta_brier_ci_95?.map((value: number) => value.toFixed(4)).join(" 至 ") || "尚無"}
+                </div>
               </div>
             </div>
           </div>
@@ -710,40 +712,48 @@ export const ResearchView: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Snapshot Stats Header Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
-          <div className="text-xs text-slate-500 dark:text-slate-400">歷史盤口快照總數</div>
-          <div className="text-2xl font-black tabular-nums text-emerald-600 dark:text-emerald-400 font-mono mt-1">
-            {snapshotCount != null ? snapshotCount.toLocaleString() : marketUnavailableLabel}
+      {/* Snapshot Stats Unified Hairline Matrix */}
+      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-200/70 dark:divide-slate-800/80 tabular-nums">
+          <div className="p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400">歷史盤口快照總數</div>
+            <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100 font-mono mt-1">
+              {snapshotCount != null ? snapshotCount.toLocaleString() : marketUnavailableLabel}
+            </div>
+            <div className="text-xs text-slate-400 mt-0.5">獨立觀測樣本</div>
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">獨立觀測樣本</div>
-        </div>
 
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
-          <div className="text-xs text-slate-500 dark:text-slate-400">影子投組勝率</div>
-          <div className="text-2xl font-black tabular-nums text-amber-500 dark:text-amber-400 font-mono mt-1">
-            {portfolio?.win_rate != null ? `${(portfolio.win_rate * 100).toFixed(1)}%` : analyticsUnavailableLabel}
+          <div className="p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400">影子投組勝率</div>
+            <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100 font-mono mt-1">
+              {portfolio?.win_rate != null ? `${(portfolio.win_rate * 100).toFixed(1)}%` : analyticsUnavailableLabel}
+            </div>
+            <div className="text-xs text-slate-400 mt-0.5">
+              {portfolio?.total_tickets != null ? `${portfolio.total_tickets} 筆影子模擬單` : analyticsUnavailableLabel}
+            </div>
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">
-            {portfolio?.total_tickets != null ? `${portfolio.total_tickets} 筆影子模擬單` : analyticsUnavailableLabel}
-          </div>
-        </div>
 
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
-          <div className="text-xs text-slate-500 dark:text-slate-400">影子投組 ROI</div>
-          <div className="text-2xl font-black tabular-nums text-sky-600 dark:text-sky-400 font-mono mt-1">
-            {portfolio?.roi != null ? `${(portfolio.roi * 100).toFixed(1)}%` : analyticsUnavailableLabel}
+          <div className="p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400">影子投組 ROI</div>
+            <div
+              className={`text-2xl font-semibold tabular-nums font-mono mt-1 ${
+                portfolio?.roi != null && portfolio.roi > 0
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-slate-900 dark:text-slate-100"
+              }`}
+            >
+              {portfolio?.roi != null ? `${(portfolio.roi * 100).toFixed(1)}%` : analyticsUnavailableLabel}
+            </div>
+            <div className="text-xs text-slate-400 mt-0.5">虛擬回測收益率</div>
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">虛擬回測收益率</div>
-        </div>
 
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
-          <div className="text-xs text-slate-500 dark:text-slate-400">前瞻族群追蹤</div>
-          <div className="text-2xl font-black tabular-nums text-purple-600 dark:text-purple-400 font-mono mt-1">
-            {settledCount != null ? settledCount : marketUnavailableLabel}
+          <div className="p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400">前瞻族群追蹤</div>
+            <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100 font-mono mt-1">
+              {settledCount != null ? settledCount : marketUnavailableLabel}
+            </div>
+            <div className="text-xs text-slate-400 mt-0.5">已結算校準樣本</div>
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">已結算校準樣本</div>
         </div>
       </div>
 

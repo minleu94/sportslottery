@@ -4,7 +4,7 @@ import { api } from "@/services/api"
 import type { JsonRecord, ParlayRecommendation, ParlaySearchPerformance, ParlayTier, WalletStatus } from "@/types"
 import { Slider } from "@/components/ui/Slider"
 import { Button } from "@/components/ui/Button"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Skeleton } from "@/components/ui/Skeleton"
 import { EvidenceDrawer } from "@/components/EvidenceDrawer"
 import { BetModal } from "@/components/BetModal"
@@ -18,6 +18,9 @@ import {
   Sliders,
   TrendingUp,
   Zap,
+  ChevronDown,
+  ChevronUp,
+  Search,
 } from "lucide-react"
 
 interface ParlayViewProps {
@@ -131,6 +134,9 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   const [hasSearched, setHasSearched] = useState<boolean>(restoredSearch?.hasSearched ?? false)
   const [error, setError] = useState<string | null>(null)
 
+  // Mobile collapsible filter panel: open initially before first search, auto-collapsed after search so results show on first screen
+  const [mobileFilterExpanded, setMobileFilterExpanded] = useState<boolean>(!(restoredSearch?.hasSearched ?? false))
+
   const [activeTier, setActiveTier] = useState<ParlayTier>(restoredSearch?.activeTier ?? "high_consensus")
   const [tiers, setTiers] = useState<ParlayTiers>(restoredSearch?.tiers ?? emptyParlayTiers())
   const [searchPerformance, setSearchPerformance] = useState<ParlayPerformance | null>(restoredSearch?.performance ?? null)
@@ -176,12 +182,12 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   ]
 
   const rangePresets = [
-    { label: "低倍率組合 (1.8x – 4.0x)", min: 1.8, max: 4.0, minL: 2, maxL: 3, filter: "value_only" },
-    { label: "中低倍率組合 (4.0x – 10.0x)", min: 4.0, max: 10.0, minL: 2, maxL: 4, filter: "value_only" },
-    { label: "進取策略 (10x – 25x)", min: 10.0, max: 25.0, minL: 3, maxL: 5, filter: "normal" },
-    { label: "高倍進攻 (25x – 75x)", min: 25.0, max: 75.0, minL: 4, maxL: 6, filter: "normal" },
-    { label: "登月串關 (75x – 200x)", min: 75.0, max: 200.0, minL: 5, maxL: 7, filter: "normal" },
-    { label: "極限串關 (200x – 500x)", min: 200.0, max: 500.0, minL: 6, maxL: 8, filter: "wild" },
+    { label: "低倍 (1.8–4x)", min: 1.8, max: 4.0, minL: 2, maxL: 3, filter: "value_only" },
+    { label: "中低 (4–10x)", min: 4.0, max: 10.0, minL: 2, maxL: 4, filter: "value_only" },
+    { label: "進取 (10–25x)", min: 10.0, max: 25.0, minL: 3, maxL: 5, filter: "normal" },
+    { label: "高倍 (25–75x)", min: 25.0, max: 75.0, minL: 4, maxL: 6, filter: "normal" },
+    { label: "登月 (75–200x)", min: 75.0, max: 200.0, minL: 5, maxL: 7, filter: "normal" },
+    { label: "極限 (200–500x)", min: 200.0, max: 500.0, minL: 6, maxL: 8, filter: "wild" },
   ]
 
   function selectMode(mode: OddsMode) {
@@ -222,6 +228,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
     setSearching(true)
     setError(null)
     setHasSearched(true)
+    setMobileFilterExpanded(false)
     setSearchPerformance(null)
     setSearchComplete(false)
     setSearchDiagnostics(null)
@@ -294,215 +301,336 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       ? `${rangeMin.toFixed(1)}~${rangeMax.toFixed(1)}x`
       : `${targetOdds.toFixed(1)}x`
 
+  const modeSummaryTitle =
+    oddsMode === "banker"
+      ? "銀行家 1.5~6.0x"
+      : oddsMode === "target"
+        ? `目標 ${targetOdds.toFixed(1)}x`
+        : `區間 ${rangeMin.toFixed(1)}~${rangeMax.toFixed(1)}x`
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18 }}
-      className="space-y-5"
+      className="space-y-3.5"
     >
-      {/* Control Panel Card */}
-      <Card className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
-        <CardHeader className="pb-3 border-b border-slate-200/80 dark:border-slate-800">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <CardTitle className="text-base sm:text-lg flex items-center gap-2 font-semibold">
+      {/* Mobile-Only Sticky Filter Summary Bar (Prevents long vertical scroll on mobile) */}
+      <div className="lg:hidden sticky top-[6.5rem] sm:top-28 z-30 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xs">
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-medium">
+                {modeSummaryTitle}
+              </span>
+              <span className="font-mono text-slate-600 dark:text-slate-300">
+                {minLegs === maxLegs ? `${minLegs} 關` : `${minLegs}~${maxLegs} 關`}
+              </span>
+              {preferSteam && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">· 偏好跳水</span>
+              )}
+            </div>
+            <div className="text-slate-500 dark:text-slate-400 truncate mt-1">
+              排序：{rankingMode === "WIN_PROBABILITY" ? "估計聯合命中率優先" : "估計 EV 優先"} ·{" "}
+              {crossSport ? "全聯盟跨界混串" : `指定 ${selectedAlliances.length} 聯盟`}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setMobileFilterExpanded((prev) => !prev)}
+              aria-expanded={mobileFilterExpanded}
+              aria-controls="parlay-filters"
+              className="px-2.5 py-1.5 min-h-[44px] rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            >
+              <span>{mobileFilterExpanded ? "收起條件" : "調整條件"}</span>
+              {mobileFilterExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            {!mobileFilterExpanded && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSearch}
+                disabled={searching}
+                aria-busy={searching}
+                className="text-xs px-3 py-1.5 min-h-[44px] gap-1 cursor-pointer"
+              >
+                {searching ? (
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+                ) : (
+                  <Search className="w-3.5 h-3.5" />
+                )}
+                <span>{searching ? "搜尋中" : "搜尋"}</span>
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main 12-Column Split Workbench */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* LEFT COLUMN: Sticky Parameter Control Panel with independent hover scroll & pinned bottom Search button */}
+        <div
+          id="parlay-filters"
+          className={`lg:col-span-4 lg:sticky lg:top-28 lg:max-h-[calc(100vh-8rem)] rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden ${
+            mobileFilterExpanded ? "flex flex-col" : "hidden lg:flex lg:flex-col"
+          }`}
+        >
+          {/* Compact Panel Header (Pinned Top) */}
+          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800/90 flex items-center justify-between gap-2 shrink-0">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 tracking-tight">
               <Flame className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              串關組合研究台 (1.5x – 500x 賠率範圍)
-            </CardTitle>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              依目前資料與篩選條件搜尋候選；倍率、情報支持和勝率代表不同資訊，估計 EV 尚未證明可預測收益。
+              <span>串關組合研究台</span>
+            </h2>
+            <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+              {searchRangeLabel}
             </span>
           </div>
-        </CardHeader>
 
-        <CardContent className="space-y-5 pt-4">
-          {/* STEP 1: Odds Mode Selector Tabs */}
-          <div className="space-y-2.5">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              1. 選擇策略風格與目標倍率
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <button
-                type="button"
-                onClick={() => selectMode("banker")}
-                className={`p-3.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                  oddsMode === "banker"
-                    ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs"
-                    : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 hover:border-slate-300 dark:hover:border-slate-700"
-                }`}
-              >
-                <div className="flex items-center gap-2 font-medium text-sm text-slate-900 dark:text-slate-100">
-                  <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  低倍率銀行家模式
-                </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  1.5x – 6x 搜尋範圍 · 1~3 關
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => selectMode("target")}
-                className={`p-3.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                  oddsMode === "target"
-                    ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs"
-                    : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 hover:border-slate-300 dark:hover:border-slate-700"
-                }`}
-              >
-                <div className="flex items-center gap-2 font-medium text-sm text-slate-900 dark:text-slate-100">
-                  <Target className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                  指定目標倍率
-                </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  自由設定目標倍率 (Target ±20%)
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => selectMode("range")}
-                className={`p-3.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                  oddsMode === "range"
-                    ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs"
-                    : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 hover:border-slate-300 dark:hover:border-slate-700"
-                }`}
-              >
-                <div className="flex items-center gap-2 font-medium text-sm text-slate-900 dark:text-slate-100">
-                  <Sliders className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                  自訂賠率區間
-                </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  6 大快捷賠率區間
-                </div>
-              </button>
-            </div>
-
-            {/* Banker Mode Explanation Banner */}
-            {oddsMode === "banker" && (
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs leading-relaxed space-y-1">
-                <div className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  低倍率串關搜尋範圍
-                </div>
-                <p className="text-slate-600 dark:text-slate-400">
-                  以 1~3 關、總倍率 1.5x ~ 6.0x 搜尋候選；與其他模式使用相同排序。較低倍率不代表已證實的高勝率，命中率與 EV 仍是估計值。
-                </p>
+          {/* Independently Scrollable Controls Body (Scrolls on mouse hover when content is tall) */}
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/90 lg:overflow-y-auto flex-1">
+            {/* Section 1: Odds Mode Selector (Preserving icons, subtitles, and Slider!) */}
+            <div className="p-3.5 space-y-2.5">
+              <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                1. 策略風格與目標倍率
               </div>
-            )}
 
-            {/* Target Mode Controls */}
-            {oddsMode === "target" && (
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 space-y-2.5">
-                <Slider
-                  min={1.5}
-                  max={500}
-                  step={0.5}
-                  value={targetOdds}
-                  onChange={setTargetOdds}
-                  label="目標總倍率 (x)"
-                  displayValue={`${targetOdds.toFixed(1)} 倍`}
-                />
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-1">
-                  <span>容許浮動範圍：±{(tolerance * 100).toFixed(0)}%</span>
-                  <span className="font-mono tabular-nums text-slate-700 dark:text-slate-300">
-                    搜尋區間：{(targetOdds * (1 - tolerance)).toFixed(1)}x ~ {(targetOdds * (1 + tolerance)).toFixed(1)}x
-                  </span>
-                </div>
+              <div className="grid grid-cols-3 gap-1.5 bg-slate-100/80 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/70 dark:border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => selectMode("banker")}
+                  aria-pressed={oddsMode === "banker"}
+                  className={`py-2 px-2 min-h-[44px] rounded-lg font-medium transition-colors flex flex-col items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                    oddsMode === "banker"
+                      ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-xs border border-slate-200/80 dark:border-slate-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>銀行家</span>
+                  </div>
+                  <span className="text-xs font-mono opacity-80">1.5~6x</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => selectMode("target")}
+                  aria-pressed={oddsMode === "target"}
+                  className={`py-2 px-2 min-h-[44px] rounded-lg font-medium transition-colors flex flex-col items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                    oddsMode === "target"
+                      ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-xs border border-slate-200/80 dark:border-slate-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <Target className="w-3.5 h-3.5" />
+                    <span>指定倍率</span>
+                  </div>
+                  <span className="text-xs font-mono opacity-80">±20%</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => selectMode("range")}
+                  aria-pressed={oddsMode === "range"}
+                  className={`py-2 px-2 min-h-[44px] rounded-lg font-medium transition-colors flex flex-col items-center gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                    oddsMode === "range"
+                      ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-xs border border-slate-200/80 dark:border-slate-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>自訂區間</span>
+                  </div>
+                  <span className="text-xs font-mono opacity-80">6 區間</span>
+                </button>
               </div>
-            )}
 
-            {/* Range Mode Presets */}
-            {oddsMode === "range" && (
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                  快捷區間選擇：
+              {oddsMode === "banker" && (
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-0.5">
+                  <span>低倍率穩健搜尋範圍</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300">1.5x ~ 6.0x (1~3 關)</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {rangePresets.map((preset, pIdx) => {
-                    const isSelected = rangeMin === preset.min && rangeMax === preset.max
-                    return (
-                      <button
-                        key={pIdx}
-                        type="button"
-                        onClick={() => applyPreset(preset)}
-                        className={`p-2 rounded-lg border text-left text-xs transition-colors cursor-pointer ${
-                          isSelected
-                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 font-medium"
-                            : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300"
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="pt-2 text-xs text-slate-500 dark:text-slate-400">
-                  目前搜尋區間：<span className="font-mono text-slate-700 dark:text-slate-300">{rangeMin.toFixed(1)}x ~ {rangeMax.toFixed(1)}x</span>
-                </div>
-              </div>
-            )}
+              )}
 
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-3.5 space-y-1.5">
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-                三種模式共用的候選排序
-              </label>
-              <select
-                value={rankingMode}
-                onChange={(e) => setRankingMode(e.target.value as RankingMode)}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 w-full sm:max-w-sm cursor-pointer"
-              >
-                <option value="WIN_PROBABILITY">估計聯合命中率優先</option>
-                <option value="VALUE">估計 EV（值得買）優先</option>
-              </select>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                排名先看所選指標；資料齊全時採用 Sharp 基準，否則採用啟發式估計。結果不代表已驗證勝率或收益。
-              </p>
-            </div>
-          </div>
-
-          {/* STEP 2: Cross-Sport & Quality Filter Grid */}
-          <div className="space-y-3 pt-3 border-t border-slate-200/80 dark:border-slate-800">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              2. 跨界混串與情報門檻
-            </div>
-
-            {/* Cross-sport switch */}
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <label className="flex items-center gap-2 text-xs font-medium text-slate-800 dark:text-slate-200 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={crossSport}
-                    onChange={(e) => setCrossSport(e.target.checked)}
-                    className="rounded text-emerald-600 focus:ring-0 w-4 h-4 cursor-pointer"
+              {oddsMode === "target" && (
+                <div className="space-y-2 pt-1">
+                  <Slider
+                    min={1.5}
+                    max={500}
+                    step={0.5}
+                    value={targetOdds}
+                    onChange={setTargetOdds}
+                    label="目標總倍率 (x)"
+                    displayValue={`${targetOdds.toFixed(1)} 倍`}
                   />
-                  <span>啟用全聯盟跨界混串 (NBA、MLB、足球、NFL、職棒混合)</span>
-                </label>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 ml-6">
-                  {crossSport
-                    ? "跨運動聯賽同時搜尋最佳賠率組合。"
-                    : "已切換為指定聯盟手動過濾模式。"}
-                </p>
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <span>容許浮動 ±{(tolerance * 100).toFixed(0)}%</span>
+                    <span className="font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                      {(targetOdds * (1 - tolerance)).toFixed(1)}x ~ {(targetOdds * (1 + tolerance)).toFixed(1)}x
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {oddsMode === "range" && (
+                <div className="space-y-2 pt-1">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {rangePresets.map((preset, pIdx) => {
+                      const isSelected = rangeMin === preset.min && rangeMax === preset.max
+                      return (
+                        <button
+                          key={pIdx}
+                          type="button"
+                          onClick={() => applyPreset(preset)}
+                          aria-pressed={isSelected}
+                          className={`p-2 min-h-[44px] rounded-lg border text-left text-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                            isSelected
+                              ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 font-medium"
+                              : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 flex justify-between">
+                    <span>目前搜尋區間</span>
+                    <span className="font-mono text-slate-700 dark:text-slate-300">
+                      {rangeMin.toFixed(1)}x ~ {rangeMax.toFixed(1)}x
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Section 2: Compact Horizontal Ranking, Separate Min/Max Legs & Quality Gate */}
+            <div className="p-3.5 space-y-2.5 text-xs">
+              <div className="font-semibold text-slate-800 dark:text-slate-200">
+                2. 候選排序與情報門檻
               </div>
+
+              <div className="space-y-2">
+                <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
+                  <label htmlFor="candidate-ranking" className="text-slate-600 dark:text-slate-400">
+                    候選排序
+                  </label>
+                  <select
+                    id="candidate-ranking"
+                    value={rankingMode}
+                    onChange={(e) => setRankingMode(e.target.value as RankingMode)}
+                    className="w-full min-w-0 min-h-[44px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 cursor-pointer font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  >
+                    <option value="WIN_PROBABILITY">估計聯合命中率優先</option>
+                    <option value="VALUE">估計 EV（值得買）優先</option>
+                  </select>
+                </div>
+
+                {/* Separate Min & Max Legs Dropdowns on a single compact row */}
+                <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
+                  <label htmlFor="minimum-legs" className="text-slate-600 dark:text-slate-400">
+                    過關腿數
+                  </label>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 w-full">
+                    <select
+                      id="minimum-legs"
+                      aria-label="最少過關關數"
+                      value={minLegs}
+                      onChange={(e) => {
+                        const next = Number(e.target.value)
+                        setMinLegs(next)
+                        setMinLegsCustomized(true)
+                        if (maxLegs < next) setMaxLegs(next)
+                      }}
+                      className="w-full min-w-0 min-h-[44px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-mono cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                    >
+                      <option value={1}>最少 1 關</option>
+                      <option value={2}>最少 2 關</option>
+                      <option value={3}>最少 3 關</option>
+                      <option value={4}>最少 4 關</option>
+                    </select>
+                    <span className="text-slate-400 text-center">~</span>
+                    <select
+                      aria-label="最多過關關數"
+                      value={maxLegs}
+                      onChange={(e) => {
+                        const next = Number(e.target.value)
+                        setMaxLegs(next)
+                        if (minLegs > next) {
+                          setMinLegs(next)
+                          setMinLegsCustomized(true)
+                        }
+                      }}
+                      className="w-full min-w-0 min-h-[44px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-mono cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                    >
+                      <option value={1}>最多 1 關</option>
+                      <option value={2}>最多 2 關</option>
+                      <option value={3}>最多 3 關</option>
+                      <option value={4}>最多 4 關</option>
+                      <option value={5}>最多 5 關</option>
+                      <option value={6}>最多 6 關</option>
+                      <option value={8}>最多 8 關</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
+                  <label htmlFor="candidate-signal-filter" className="text-slate-600 dark:text-slate-400">
+                    情報門檻
+                  </label>
+                  <select
+                    id="candidate-signal-filter"
+                    value={signalFilter}
+                    onChange={(e) => setSignalFilter(e.target.value)}
+                    className="w-full min-w-0 min-h-[44px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  >
+                    <option value="value_only">估計價值優先（含未校準機率）</option>
+                    <option value="normal">標準 (排除無情報關卡)</option>
+                    <option value="strict">嚴格 (2+ 獨立情報支持)</option>
+                    <option value="wild">全量 (容納所有可能盤口)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Cross-Sport & Line Movement Signal Checkboxes */}
+            <div className="p-3.5 space-y-2 text-xs">
+              <div className="font-semibold text-slate-800 dark:text-slate-200">
+                3. 跨界混串與賠率跳動訊號
+              </div>
+
+              <label className="flex items-center gap-2 min-h-[44px] py-1 text-slate-700 dark:text-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={crossSport}
+                  onChange={(e) => setCrossSport(e.target.checked)}
+                  className="rounded text-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+                />
+                <span>啟用全聯盟跨界混串 (NBA、MLB、足球混合)</span>
+              </label>
 
               {!crossSport && (
-                <div className="flex flex-wrap gap-1.5 ml-6 sm:ml-0">
+                <div className="flex flex-wrap gap-1.5 pl-5 pt-0.5">
                   {allianceOptions.map((a) => {
                     const isSelected = selectedAlliances.includes(a.id)
                     return (
                       <button
                         key={a.id}
                         type="button"
+                        aria-pressed={isSelected}
                         onClick={() => {
                           setSelectedAlliances((prev) =>
                             isSelected ? prev.filter((id) => id !== a.id) : [...prev, a.id]
                           )
                         }}
-                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                        className={`px-2 py-1 min-h-[44px] rounded-md text-xs font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
                           isSelected
                             ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                            : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                         }`}
                       >
                         {a.label}
@@ -511,109 +639,39 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                   })}
                 </div>
               )}
-            </div>
 
-            {/* Legs Range, Quality Filter, and Wind Controls */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-              {/* Legs Selection */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                  過關腿數 (Legs)
-                </label>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={minLegs}
-                    onChange={(e) => {
-                      const next = Number(e.target.value)
-                      setMinLegs(next)
-                      setMinLegsCustomized(true)
-                      if (maxLegs < next) setMaxLegs(next)
-                    }}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-mono w-full cursor-pointer"
-                  >
-                    <option value={1}>最少 1 關</option>
-                    <option value={2}>最少 2 關</option>
-                    <option value={3}>最少 3 關</option>
-                    <option value={4}>最少 4 關</option>
-                  </select>
-                  <span className="text-slate-400 text-xs">至</span>
-                  <select
-                    value={maxLegs}
-                    onChange={(e) => {
-                      const next = Number(e.target.value)
-                      setMaxLegs(next)
-                      if (minLegs > next) {
-                        setMinLegs(next)
-                        setMinLegsCustomized(true)
-                      }
-                    }}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 font-mono w-full cursor-pointer"
-                  >
-                    <option value={1}>最多 1 關</option>
-                    <option value={2}>最多 2 關</option>
-                    <option value={3}>最多 3 關</option>
-                    <option value={4}>最多 4 關</option>
-                    <option value={5}>最多 5 關</option>
-                    <option value={6}>最多 6 關</option>
-                    <option value={8}>最多 8 關</option>
-                  </select>
-                </div>
-              </div>
+              <label className="flex items-center gap-2 min-h-[44px] py-1 text-slate-700 dark:text-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={preferSteam}
+                  onChange={(e) => setPreferSteam(e.target.checked)}
+                        className="rounded text-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+                />
+                <span className={preferSteam ? "text-emerald-700 dark:text-emerald-400 font-medium" : ""}>
+                  排序偏好賠率跳動訊號（順勢跳水優先）
+                </span>
+              </label>
 
-              {/* Quality Filter Selector */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                  情報品質門檻
-                </label>
-                <select
-                  value={signalFilter}
-                  onChange={(e) => setSignalFilter(e.target.value)}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 w-full cursor-pointer"
-                >
-                  <option value="value_only">估計價值優先（含未校準機率條件）</option>
-                  <option value="normal">標準 (排除無情報關卡)</option>
-                  <option value="strict">嚴格 (2+ 獨立情報支持)</option>
-                  <option value="wild">全量 (容納所有可能盤口)</option>
-                </select>
-              </div>
-
-              {/* Smart Filters */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                  進階風控篩選
-                </label>
-                <div className="flex flex-col gap-1 pt-0.5">
-                  <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={excludeTraps}
-                      onChange={(e) => setExcludeTraps(e.target.checked)}
-                      className="rounded text-emerald-600 focus:ring-0 cursor-pointer"
-                    />
-                    <span>排除標記為逆向升水的候選</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={preferSteam}
-                      onChange={(e) => setPreferSteam(e.target.checked)}
-                      className="rounded text-emerald-600 focus:ring-0 cursor-pointer"
-                    />
-                    <span>排序偏好賠率跳動訊號（不代表方向有效）</span>
-                  </label>
-                </div>
-              </div>
+              <label className="flex items-center gap-2 min-h-[44px] py-1 text-slate-700 dark:text-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={excludeTraps}
+                  onChange={(e) => setExcludeTraps(e.target.checked)}
+                  className="rounded text-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+                />
+                <span>排除標記為逆向升水的候選</span>
+              </label>
             </div>
           </div>
 
-          {/* Search Trigger Button */}
-          <div className="pt-2 flex justify-end">
+          {/* Section 4: Sticky Pinned Bottom Search Action Button */}
+          <div className="p-3.5 bg-slate-50/90 dark:bg-slate-950/80 border-t border-slate-200/80 dark:border-slate-800 shrink-0">
             <Button
               variant="default"
               size="lg"
               onClick={handleSearch}
               disabled={searching}
-              className="w-full md:w-auto px-6 py-2 font-medium text-sm gap-2 cursor-pointer"
+              className="w-full min-h-[44px] py-2 font-medium text-sm gap-2 cursor-pointer"
             >
               {searching ? (
                 <>
@@ -625,140 +683,168 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
               )}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* EV Density Heatmap Area Chart */}
-      {hasSearched && allTiersList.length > 0 && (
-        <EVHeatmapChart parlays={allTiersList} targetOdds={targetOdds} />
-      )}
-
-      {error && (
-        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
         </div>
-      )}
 
-      {/* Results Section */}
-      {hasSearched && (
-        <div className="space-y-4">
-          {/* Tier Switcher Tabs */}
-          <div className="flex border-b border-slate-200 dark:border-slate-800 gap-1.5 pb-2 overflow-x-auto">
-            <button
-              onClick={() => setActiveTier("high_consensus")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
-                activeTier === "high_consensus"
-                  ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
-                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>高情報支持</span>
-              <span className="font-mono tabular-nums text-[10px] text-slate-500">
-                ({tiers.high_consensus.length})
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTier("aggressive")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
-                activeTier === "aggressive"
-                  ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
-                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              }`}
-            >
-              <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
-              <span>積極進攻</span>
-              <span className="font-mono tabular-nums text-[10px] text-slate-500">
-                ({tiers.aggressive.length})
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTier("moonshot")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
-                activeTier === "moonshot"
-                  ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
-                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-              }`}
-            >
-              <Zap className="w-3.5 h-3.5 text-slate-400" />
-              <span>高倍衝月</span>
-              <span className="font-mono tabular-nums text-[10px] text-slate-500">
-                ({tiers.moonshot.length})
-              </span>
-            </button>
-          </div>
-
-          {!searching && searchPerformance && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
-              <span>資料 {searchPerformance.taiwan_fetch_ms.toFixed(0)} ms</span>
-              <span>訊號 {searchPerformance.signal_enrichment_ms.toFixed(0)} ms</span>
-              <span>組合 {searchPerformance.parlay_search_ms.toFixed(0)} ms</span>
-              <span>總計 {searchPerformance.total_ms.toFixed(0)} ms</span>
-              <span>前處理快取 {searchPerformance.prepared_legs_cache_hit ? "命中" : "建立"}</span>
-            </div>
-          )}
-          {!searching && !searchComplete && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-              搜尋預算已用完；目前候選尚未保證涵蓋完整搜尋空間。
+        {/* RIGHT COLUMN: Live Results Stream & Heatmap (8 cols on Desktop) */}
+        <div className="lg:col-span-8 space-y-4">
+          {error && (
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-400 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
-          {/* Results List */}
-          {searching ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-56" />
-              ))}
-            </div>
-          ) : currentList.length === 0 ? (
-            <Card className="text-center py-10">
-              <CardContent className="space-y-2">
-                <h4 className="font-medium text-slate-800 dark:text-slate-200 text-sm">此分類暫無符合條件的組合</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  可調整搜尋範圍或查看候選拒絕原因；若缺乏合格資料，先不產生組合是正常結果。
+          {!hasSearched ? (
+            <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center space-y-3 shadow-xs">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                <Flame className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 max-w-md mx-auto">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  準備搜尋 {searchRangeLabel} 串關組合
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  於左側設定目標倍率、過關腿數與情報門檻後點擊「搜尋候選組合」，右側將即時列出符合條件的簽單與期望值分佈。
                 </p>
-                {searchDiagnostics && (
-                  <div className="mx-auto max-w-2xl rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-3 text-left text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
-                    <div>
-                      台彩候選 {searchDiagnostics.normalized_option_count} · 通過賽事／時效檢查 {searchDiagnostics.ready_option_count} · 通過目前情報篩選 {searchDiagnostics.quality_option_count}
-                    </div>
-                    {searchDiagnostics.quality_filtered_out_option_count > 0 && (
-                      <div>有 {searchDiagnostics.quality_filtered_out_option_count} 筆通過基本檢查的候選，未通過目前情報篩選。</div>
-                    )}
-                    <div>
-                      已檢查 {searchDiagnostics.checked_combinations} 組 · 符合賠率區間 {searchDiagnostics.odds_matching_combinations} 組
-                    </div>
-                    {Object.entries(searchDiagnostics.excluded_option_reasons).length > 0 && (
-                      <ul className="list-disc pl-4">
-                        {Object.entries(searchDiagnostics.excluded_option_reasons).map(([reason, count]) => (
-                          <li key={reason}>{SEARCH_REASON_LABELS[reason] || reason.replaceAll("_", " ").toLowerCase()}：{count}</li>
-                        ))}
-                      </ul>
-                    )}
+              </div>
+              <div className="pt-1">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleSearch}
+                  disabled={searching}
+                  className="text-xs px-5 py-2 cursor-pointer"
+                >
+                  立即搜尋 {searchRangeLabel} 候選組合
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Tier Switcher Bar + Inline Search Telemetry */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  <button
+                    onClick={() => setActiveTier("high_consensus")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      activeTier === "high_consensus"
+                        ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>高情報支持</span>
+                    <span className="font-mono tabular-nums text-xs text-slate-500">
+                      ({tiers.high_consensus.length})
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTier("aggressive")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      activeTier === "aggressive"
+                        ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
+                    <span>積極進攻</span>
+                    <span className="font-mono tabular-nums text-xs text-slate-500">
+                      ({tiers.aggressive.length})
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTier("moonshot")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      activeTier === "moonshot"
+                        ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5 text-slate-400" />
+                    <span>高倍衝月</span>
+                    <span className="font-mono tabular-nums text-xs text-slate-500">
+                      ({tiers.moonshot.length})
+                    </span>
+                  </button>
+                </div>
+
+                {!searching && searchPerformance && (
+                  <div className="flex flex-wrap gap-x-2.5 gap-y-1 text-xs text-slate-400 dark:text-slate-500 font-mono tabular-nums">
+                    {preferSteam && <span className="text-emerald-600 dark:text-emerald-400">跳水訊號加權</span>}
+                    <span>·</span>
+                    <span>總耗時 {searchPerformance.total_ms.toFixed(0)} ms</span>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <AnimatePresence>
-                {currentList.map((parlay, idx) => (
-                  <ParlayResultCard
-                    key={parlay.parlay_id || idx}
-                    parlay={parlay}
-                    index={idx}
-                    onShowEvidence={setSelectedParlayForEvidence}
-                    onPlaceBet={setSelectedParlayForBet}
-                  />
-                ))}
-              </AnimatePresence>
+              </div>
+
+              {!searching && !searchComplete && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                  搜尋預算已用完；目前候選尚未保證涵蓋完整搜尋空間。
+                </div>
+              )}
+
+              {/* Results Cards Grid */}
+              {searching ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-52" />
+                  ))}
+                </div>
+              ) : currentList.length === 0 ? (
+                <Card className="text-center py-10">
+                  <CardContent className="space-y-2">
+                    <h4 className="font-medium text-slate-800 dark:text-slate-200 text-sm">此分類暫無符合條件的組合</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      可調整搜尋範圍或查看候選拒絕原因；若缺乏合格資料，先不產生組合是正常結果。
+                    </p>
+                    {searchDiagnostics && (
+                      <div className="mx-auto max-w-2xl rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-3 text-left text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                        <div>
+                          台彩候選 {searchDiagnostics.normalized_option_count} · 通過賽事／時效檢查 {searchDiagnostics.ready_option_count} · 通過目前情報篩選 {searchDiagnostics.quality_option_count}
+                        </div>
+                        {searchDiagnostics.quality_filtered_out_option_count > 0 && (
+                          <div>有 {searchDiagnostics.quality_filtered_out_option_count} 筆通過基本檢查的候選，未通過目前情報篩選。</div>
+                        )}
+                        <div>
+                          已檢查 {searchDiagnostics.checked_combinations} 組 · 符合賠率區間 {searchDiagnostics.odds_matching_combinations} 組
+                        </div>
+                        {Object.entries(searchDiagnostics.excluded_option_reasons).length > 0 && (
+                          <ul className="list-disc pl-4">
+                            {Object.entries(searchDiagnostics.excluded_option_reasons).map(([reason, count]) => (
+                              <li key={reason}>{SEARCH_REASON_LABELS[reason] || reason.replaceAll("_", " ").toLowerCase()}：{count}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-start">
+                  <AnimatePresence>
+                    {currentList.map((parlay, idx) => (
+                      <ParlayResultCard
+                        key={parlay.parlay_id || idx}
+                        parlay={parlay}
+                        index={idx}
+                        onShowEvidence={setSelectedParlayForEvidence}
+                        onPlaceBet={setSelectedParlayForBet}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* EV Density Heatmap Area Chart below results */}
+              {allTiersList.length > 0 && (
+                <EVHeatmapChart parlays={allTiersList} targetOdds={targetOdds} />
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Modals & Drawers */}
       <EvidenceDrawer

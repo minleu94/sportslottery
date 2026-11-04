@@ -79,7 +79,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                     瘋狗流決策系統
                   </h2>
                   <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                    v2.3.0 · 系統選單
+                    v2.4.0 · 系統選單
                   </span>
                 </div>
               </div>

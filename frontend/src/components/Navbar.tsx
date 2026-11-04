@@ -94,7 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="text-emerald-600 dark:text-emerald-400 font-bold">瘋狗流</span> 決策台
                 </h1>
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/70 shrink-0">
-                  v2.3.0
+                  v2.4.0
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate max-w-[210px] sm:max-w-xs md:max-w-md xl:max-w-none">
