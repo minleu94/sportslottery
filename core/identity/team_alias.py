@@ -136,6 +136,8 @@ COLOMBIA_PRIMERA_A_TEAMS: List[CanonicalTeam] = [
     # artifacts/improvements_20261014/football_sources/manifest.json).
     CanonicalTeam("SOC_COL_PER", "soccer", "COLOMBIA_PRIMERA_A", "PER", "Deportivo Pereira", "佩雷拉體育", "佩雷拉體育", ["ESPN_TEAM_5486"]),
     CanonicalTeam("SOC_COL_JUN", "soccer", "COLOMBIA_PRIMERA_A", "JUN", "Atlético Junior", "青年體育會", "青年體育會", ["ESPN_TEAM_4815"]),
+    CanonicalTeam("SOC_COL_PAS", "soccer", "COLOMBIA_PRIMERA_A", "PAS", "Deportivo Pasto", "帕斯托體育", "帕斯托體育", ["Pasto", "ESPN_TEAM_5485"]),
+    CanonicalTeam("SOC_COL_JAG", "soccer", "COLOMBIA_PRIMERA_A", "COR", "Jaguares de Córdoba", "科爾多瓦美洲獅", "科爾多瓦美洲獅", ["Jaguares de Cordoba", "Jaguares", "ESPN_TEAM_10309"]),
 ]
 
 COSTA_RICA_PRIMERA_TEAMS: List[CanonicalTeam] = [
