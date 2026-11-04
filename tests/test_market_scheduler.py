@@ -44,7 +44,7 @@ def test_client(tmp_path):
         admin_check.stop()
 
 
-def test_compute_adaptive_interval_seconds():
+def test_compute_adaptive_interval_seconds(monkeypatch):
     """Verify Credit Budget-Aware cadence enforces 50-credit manual reserve and budget rules."""
     # 1. Quota safety pause / exhausted / <= 50 manual reserve -> 24h backoff (86400s)
     assert compute_adaptive_interval_seconds({"operating_mode": "QUOTA_SAFETY_PAUSE", "requests_remaining_est": 4}) == 86400
@@ -63,8 +63,15 @@ def test_compute_adaptive_interval_seconds():
     assert compute_adaptive_interval_seconds({"operating_mode": "SYNTHETIC_FIXTURE", "requests_remaining_est": 500}) == 14400
 
     # 5. Four leagues, two regions, one market each: use the observed 8-credit cycle cost.
+    # Freeze the month position so this quota-boundary assertion does not drift by date.
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 4, tzinfo=timezone.utc)
+
+    monkeypatch.setattr("core.market_scheduler.datetime", FrozenDateTime)
     assert compute_adaptive_interval_seconds(
-        {"operating_mode": "LIVE_API", "requests_remaining_est": 486},
+        {"operating_mode": "LIVE_API", "requests_remaining_est": 350},
         active_leagues=["MLB", "NBA", "NFL", "SOCCER"],
         markets_per_sport=1,
         region_count=2,
