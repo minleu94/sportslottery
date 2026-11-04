@@ -313,10 +313,10 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18 }}
-      className="space-y-3.5"
+      className="space-y-3"
     >
       {/* Mobile-Only Sticky Filter Summary Bar (Prevents long vertical scroll on mobile) */}
-      <div className="lg:hidden sticky top-[6.5rem] sm:top-28 z-30 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xs">
+      <div className="lg:hidden sticky top-[6.5rem] sm:top-28 z-30 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5 shadow-xs">
         <div className="flex items-center justify-between gap-2 text-xs">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -369,16 +369,16 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       </div>
 
       {/* Main 12-Column Split Workbench */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
         {/* LEFT COLUMN: Sticky Parameter Control Panel with independent hover scroll & pinned bottom Search button */}
         <div
           id="parlay-filters"
-          className={`lg:col-span-4 lg:sticky lg:top-28 lg:max-h-[calc(100vh-8rem)] rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden ${
+          className={`max-h-[calc(100dvh-16rem)] lg:col-span-4 lg:sticky lg:top-28 lg:h-[calc(100vh-8rem)] rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden ${
             mobileFilterExpanded ? "flex flex-col" : "hidden lg:flex lg:flex-col"
           }`}
         >
           {/* Compact Panel Header (Pinned Top) */}
-          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800/90 flex items-center justify-between gap-2 shrink-0">
+          <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800/90 flex items-center justify-between gap-2 shrink-0">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2 tracking-tight">
               <Flame className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>串關組合研究台</span>
@@ -389,9 +389,9 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
           </div>
 
           {/* Independently Scrollable Controls Body (Scrolls on mouse hover when content is tall) */}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/90 lg:overflow-y-auto flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-100 dark:divide-slate-800/90">
             {/* Section 1: Odds Mode Selector (Preserving icons, subtitles, and Slider!) */}
-            <div className="p-3.5 space-y-2.5">
+            <div className="p-2.5 space-y-2">
               <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                 1. 策略風格與目標倍率
               </div>
@@ -509,7 +509,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
             </div>
 
             {/* Section 2: Compact Horizontal Ranking, Separate Min/Max Legs & Quality Gate */}
-            <div className="p-3.5 space-y-2.5 text-xs">
+            <div className="p-2.5 space-y-2 text-xs">
               <div className="font-semibold text-slate-800 dark:text-slate-200">
                 2. 候選排序與情報門檻
               </div>
@@ -598,7 +598,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
             </div>
 
             {/* Section 3: Cross-Sport & Line Movement Signal Checkboxes */}
-            <div className="p-3.5 space-y-2 text-xs">
+            <div className="p-2.5 space-y-2 text-xs">
               <div className="font-semibold text-slate-800 dark:text-slate-200">
                 3. 跨界混串與賠率跳動訊號
               </div>
@@ -665,7 +665,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
           </div>
 
           {/* Section 4: Sticky Pinned Bottom Search Action Button */}
-          <div className="p-3.5 bg-slate-50/90 dark:bg-slate-950/80 border-t border-slate-200/80 dark:border-slate-800 shrink-0">
+          <div className="p-2.5 bg-slate-50/90 dark:bg-slate-950/80 border-t border-slate-200/80 dark:border-slate-800 shrink-0">
             <Button
               variant="default"
               size="lg"
