@@ -7,9 +7,7 @@ Fulfills Phase 16 Requirements:
 3. test_soccer_training_dates_precede_prediction (Leakage Guard)
 4. test_soccer_minimum_training_sample
 5. test_external_engine_provenance_category
-6. test_538_source_freshness
-7. test_local_reimplementation_not_labeled_external
-8. test_model_input_provenance_logged
+6. test_model_input_provenance_logged
 """
 
 from datetime import datetime, timezone
@@ -17,7 +15,6 @@ import json
 import os
 from pathlib import Path
 import pytest
-import yaml
 
 from core.identity import GLOBAL_TEAM_REGISTRY
 from integrations.common.models import PredictionSignal, TaiwanLeg
@@ -127,34 +124,7 @@ def test_external_engine_provenance_category():
     assert hasattr(pb.models, "DixonColesGoalModel")
 
 
-# 6. test_538_source_freshness
-def test_538_source_freshness():
-    """FiveThirtyEight raw MLB dataset ceased in 2023; verify it is not misrepresented as live 2026 feed."""
-    from integrations.models.external.fivethirtyeight_mlb_elo import FiveThirtyEightMLBEloAdapter
-
-    adapter = FiveThirtyEightMLBEloAdapter()
-    # Must be categorized as LOCAL_REIMPLEMENTATION, not external live feed
-    assert adapter.SOURCE_CATEGORY == "LOCAL_REIMPLEMENTATION"
-    assert "2023" in adapter.METADATA_DISCLOSURE.get("historical_data_end", "2023")
-
-
-# 7. test_local_reimplementation_not_labeled_external
-def test_local_reimplementation_not_labeled_external():
-    """FiveThirtyEight MLB Elo is a local reimplementation of 538's paper, NOT an external package."""
-    from integrations.models.external.fivethirtyeight_mlb_elo import FiveThirtyEightMLBEloAdapter
-
-    adapter = FiveThirtyEightMLBEloAdapter()
-    assert adapter.SOURCE_CATEGORY == "LOCAL_REIMPLEMENTATION"
-    assert adapter.SOURCE_CATEGORY != "EXTERNAL_OPEN_SOURCE_ENGINE"
-
-    # Also verify config/models.yaml declaration
-    config_file = PROJECT_ROOT / "config" / "models.yaml"
-    data = yaml.safe_load(config_file.read_text(encoding="utf-8"))
-    elo_cfg = data["models"]["fivethirtyeight_mlb_elo"]
-    assert elo_cfg["source_category"] == "LOCAL_REIMPLEMENTATION"
-
-
-# 8. test_model_input_provenance_logged
+# 6. test_model_input_provenance_logged
 @pytest.mark.local_data
 def test_model_input_provenance_logged():
     """Model evaluation must log full ModelInputProvenance metadata."""

@@ -41,7 +41,6 @@ from core.snapshot_logger import PredictionSnapshotLogger
 from core.strategy_version import STRATEGY_VERSION, get_strategy_metadata
 from integrations.experts.playsport_crowd import PlaysportCrowdAdapter
 from integrations.experts.playsport_expert import PlaysportExpertAdapter
-from integrations.models.external.fivethirtyeight_mlb_elo import FiveThirtyEightMLBEloAdapter
 from integrations.models.external.penaltyblog_dixon_coles import PenaltyblogDixonColesAdapter
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
 

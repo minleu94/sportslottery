@@ -19,7 +19,6 @@ from core.scraper import PlaysportScraper
 from core.signal_hub import SignalHub
 from integrations.experts.playsport_crowd import PlaysportCrowdAdapter
 from integrations.experts.playsport_expert import PlaysportExpertAdapter
-from integrations.models.external.fivethirtyeight_mlb_elo import FiveThirtyEightMLBEloAdapter
 from integrations.models.external.penaltyblog_dixon_coles import PenaltyblogDixonColesAdapter
 from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
 
@@ -32,8 +31,6 @@ def run_e2e():
     expert_adapter = PlaysportExpertAdapter(scraper=scraper)
     crowd_adapter = PlaysportCrowdAdapter()
     dixon_adapter = PenaltyblogDixonColesAdapter()
-    elo_adapter = FiveThirtyEightMLBEloAdapter()
-
     hub = SignalHub(
         expert_adapter=expert_adapter,
         crowd_adapter=crowd_adapter,

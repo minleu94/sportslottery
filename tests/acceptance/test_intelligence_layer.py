@@ -11,10 +11,9 @@ Covers all 13 specification requirements:
 7. Different independence groups count separately
 8. Penaltyblog Dixon-Coles returns None on insufficient data (MODEL_NOT_READY)
 9. Penaltyblog Dixon-Coles predicts with sufficient match data
-10. FiveThirtyEight MLB Elo provenance, +24 home field advantage
-11. ModelRegistry rich provenance metadata
-12. Historical prediction snapshot logging & Brier score calculation
-13. Evidence weights configuration integrity
+10. ModelRegistry rich provenance metadata
+11. Historical prediction snapshot logging & Brier score calculation
+12. Evidence weights configuration integrity
 """
 
 from datetime import datetime, timedelta, timezone
@@ -29,7 +28,6 @@ from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger
 from integrations.common.models import PredictionSignal, TaiwanLeg, VerifiedExpertPick
 from integrations.experts.playsport_expert import PlaysportExpertAdapter
-from integrations.models.external.fivethirtyeight_mlb_elo import FiveThirtyEightMLBEloAdapter
 from integrations.models.external.penaltyblog_dixon_coles import PenaltyblogDixonColesAdapter
 
 
@@ -558,33 +556,7 @@ def test_penaltyblog_dixon_coles_predicts_with_sufficient_data():
     assert 0.05 <= sig.probability <= 0.95
 
 
-# 10. Test FiveThirtyEight MLB Elo provenance and +24 home advantage
-def test_fivethirtyeight_mlb_elo_provenance_and_predictions():
-    adapter = FiveThirtyEightMLBEloAdapter()
-    assert adapter.SOURCE_CATEGORY in ["LOCAL_REIMPLEMENTATION", "OPEN_SOURCE_ENGINE"]
-    assert adapter.INDEPENDENCE_GROUP == "FIVETHIRTYEIGHT_ELO"
-
-    leg = TaiwanLeg(
-        event_id="108",
-        sport="baseball",
-        league="MLB",
-        market="不讓分",
-        selection="道奇 客勝",
-        taiwan_odds=1.65,
-        start_time="10:00",
-        away_team="道奇",
-        home_team="巨人",
-        side="客",
-    )
-    sig = adapter.evaluate_leg(leg)
-    assert sig is not None
-    assert sig.source_category in ["LOCAL_REIMPLEMENTATION", "OPEN_SOURCE_ENGINE"]
-    assert sig.independence_group == "FIVETHIRTYEIGHT_ELO"
-    assert "home_field_advantage" in sig.metadata
-    assert sig.metadata["home_field_advantage"] == 24.0
-
-
-# 11. Test ModelRegistry rich provenance metadata
+# 10. Test ModelRegistry rich provenance metadata
 def test_model_registry_loads_provenance_metadata():
     registry = ModelRegistry()
     summary = registry.get_registered_models_summary()

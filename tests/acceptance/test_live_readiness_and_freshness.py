@@ -5,13 +5,10 @@ Fulfills Requirement 29:
 1. test_soccer_current_season_present
 2. test_soccer_data_freshness_gate
 3. test_stale_model_not_high_quality
-4. test_mlb_current_season_stats
-5. test_mlb_pitcher_claim_is_real
-6. test_expert_pick_before_event
-7. test_crowd_timestamp_exists
-8. test_taiwan_odds_has_timestamp
-9. test_stale_odds_blocks_ready_parlay
-10. test_model_market_delta
+4. test_expert_pick_before_event
+5. test_crowd_timestamp_exists
+6. test_taiwan_odds_has_timestamp
+7. test_stale_odds_blocks_ready_parlay
 """
 
 import json
@@ -24,7 +21,6 @@ from core.parlay_engine import ParlayEngine
 from core.signal_hub import SignalHub
 from integrations.common.models import ModelQualityLabel, PredictionSignal, TaiwanLeg, VerifiedExpertPick
 from integrations.experts.playsport_crowd import PlaysportCrowdAdapter
-from integrations.models.external.fivethirtyeight_mlb_elo import FiveThirtyEightMLBEloAdapter
 from integrations.models.external.penaltyblog_dixon_coles import PenaltyblogDixonColesAdapter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -113,82 +109,7 @@ def test_stale_model_not_high_quality():
     assert enriched.evidence_quality != "HIGH", "Stale model must not produce HIGH agreement!"
 
 
-# 4. test_mlb_current_season_stats
-@pytest.mark.local_data
-def test_mlb_current_season_stats():
-    """MLB model metadata must list season 2026, team_stats_source, and latest_game_date."""
-    adapter = FiveThirtyEightMLBEloAdapter()
-    leg = TaiwanLeg(
-        event_id="101",
-        sport="baseball",
-        league="MLB",
-        market="不讓分",
-        selection="道奇 客勝",
-        taiwan_odds=1.65,
-        start_time="07:05",
-        start_time_utc="2026-09-18T23:05:00Z",
-        away_team="道奇",
-        home_team="巨人",
-        side="客",
-    )
-    sig = adapter.evaluate_leg(leg)
-    assert sig is not None
-    assert sig.metadata.get("season") == "2026"
-    assert "MLB Stats API" in sig.metadata.get("team_stats_source", "")
-    assert sig.metadata.get("latest_game_date") == "2026-09-18"
-    assert sig.freshness_status == "LIVE"
-
-
-# 5. test_mlb_pitcher_claim_is_real
-@pytest.mark.local_data
-def test_mlb_pitcher_claim_is_real():
-    """If no probable pitchers are verified, must flag NO_LIVE_PITCHER_ADJUSTMENT."""
-    adapter = FiveThirtyEightMLBEloAdapter()
-
-    # Match with no starting pitchers
-    leg = TaiwanLeg(
-        event_id="102",
-        sport="baseball",
-        league="MLB",
-        market="不讓分",
-        selection="運動家 客勝",
-        taiwan_odds=2.40,
-        start_time="07:05",
-        start_time_utc="2026-09-18T23:05:00Z",
-        away_team="運動家",
-        home_team="天使",
-        away_pitcher=None,
-        home_pitcher=None,
-        side="客",
-    )
-    sig = adapter.evaluate_leg(leg)
-    assert sig is not None
-    assert sig.metadata.get("pitcher_source") == "NO_LIVE_PITCHER_ADJUSTMENT"
-    assert sig.quality_label == ModelQualityLabel.MODEL_EXPERIMENTAL
-
-    # Match with verified probable starting pitchers
-    leg_with_sp = TaiwanLeg(
-        event_id="103",
-        sport="baseball",
-        league="MLB",
-        market="不讓分",
-        selection="小熊 客勝",
-        taiwan_odds=1.85,
-        start_time="06:40",
-        start_time_utc="2026-09-18T22:40:00Z",
-        away_team="小熊",
-        home_team="紅人",
-        away_pitcher="Clay Holmes",
-        home_pitcher="Chase Burns",
-        side="客",
-    )
-    sig_sp = adapter.evaluate_leg(leg_with_sp)
-    assert sig_sp is not None
-    assert "Clay Holmes" in sig_sp.metadata.get("pitcher_source", "")
-    assert sig_sp.quality_label == ModelQualityLabel.MODEL_HIGH_QUALITY
-
-
-# 6. test_expert_pick_before_event
+# 4. test_expert_pick_before_event
 def test_expert_pick_before_event():
     """VerifiedExpertPick must document pick_timestamp and verify date matching."""
     pick = VerifiedExpertPick(
@@ -212,7 +133,7 @@ def test_expert_pick_before_event():
     assert pick.pick_timestamp == "TIMESTAMP_UNKNOWN"
 
 
-# 7. test_crowd_timestamp_exists
+# 5. test_crowd_timestamp_exists
 def test_crowd_timestamp_exists():
     """Crowd adapter must preserve snapshot timestamp and data age."""
     leg = TaiwanLeg(
@@ -239,7 +160,7 @@ def test_crowd_timestamp_exists():
     assert sig.freshness_status == "FRESH"
 
 
-# 8. test_taiwan_odds_has_timestamp
+# 6. test_taiwan_odds_has_timestamp
 def test_taiwan_odds_has_timestamp():
     """TaiwanLeg must store odds_scraped_at, odds_age_minutes, and odds_status."""
     leg = TaiwanLeg(
@@ -261,7 +182,7 @@ def test_taiwan_odds_has_timestamp():
     assert leg.odds_status == "FRESH"
 
 
-# 9. test_stale_odds_blocks_ready_parlay
+# 7. test_stale_odds_blocks_ready_parlay
 def test_stale_odds_blocks_ready_parlay():
     """Stale odds are rejected before a parlay is emitted as a candidate."""
     now = datetime.now(timezone.utc)
@@ -316,30 +237,3 @@ def test_stale_odds_blocks_ready_parlay():
     stale_assessment = assess_leg(leg2)
     assert stale_assessment["is_ready"] is False
     assert "ODDS_STALE" in stale_assessment["reasons"]
-
-
-# 10. test_model_market_delta
-def test_model_market_delta():
-    """PredictionSignal must include market_implied_probability, model_probability, and delta."""
-    adapter = FiveThirtyEightMLBEloAdapter()
-    leg = TaiwanLeg(
-        event_id="101",
-        sport="baseball",
-        league="MLB",
-        market="不讓分",
-        selection="道奇 客勝",
-        taiwan_odds=1.65,
-        start_time="07:05",
-        start_time_utc="2026-09-18T23:05:00Z",
-        away_team="道奇",
-        home_team="巨人",
-        side="客",
-    )
-    sig = adapter.evaluate_leg(leg)
-    assert sig is not None
-    assert sig.market_implied_probability is not None
-    assert sig.model_probability is not None
-    assert sig.model_market_delta_pp is not None
-    # Verify math consistency
-    expected_delta = round((sig.model_probability - sig.market_implied_probability) * 100.0, 1)
-    assert abs(sig.model_market_delta_pp - expected_delta) < 0.2

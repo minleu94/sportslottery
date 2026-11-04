@@ -14,7 +14,6 @@ def test_default_model_cache_paths_stay_inside_isolated_test_storage():
     import core.storage_config as storage_config
     from integrations.models.espn_poisson_soccer import ESPNPoissonSoccerFallback
     from integrations.models.espn_pythagorean_mlb import ESPNPythagoreanMLBModel
-    from integrations.models.external.fivethirtyeight_mlb_elo import FiveThirtyEightMLBEloAdapter
     from integrations.models.external.penaltyblog_dixon_coles import PenaltyblogDixonColesAdapter
     from integrations.models.penaltyblog_soccer_model import PenaltyblogSoccerAdapter
     from integrations.models.pybaseball_mlb_model import PybaseballMLBAdapter
@@ -23,7 +22,6 @@ def test_default_model_cache_paths_stay_inside_isolated_test_storage():
     cache_paths = [
         Path(ESPNPoissonSoccerFallback().cache_dir),
         Path(ESPNPythagoreanMLBModel().cache_file),
-        Path(FiveThirtyEightMLBEloAdapter().cache_file),
         Path(PenaltyblogDixonColesAdapter().cache_dir),
         Path(PenaltyblogSoccerAdapter().cache_dir),
         Path(PybaseballMLBAdapter().cache_file),

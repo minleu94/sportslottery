@@ -70,7 +70,6 @@ def isolate_database_for_tests(tmp_path_factory, monkeypatch, request):
     import integrations.models.espn_pythagorean_mlb as espn_pythagorean
     import integrations.models.penaltyblog_soccer_model as penaltyblog_soccer
     import integrations.models.pybaseball_mlb_model as pybaseball_mlb
-    import integrations.models.external.fivethirtyeight_mlb_elo as elo_538
     import integrations.models.external.penaltyblog_dixon_coles as penaltyblog_dc
     import core.line_notifier as line_notifier
     monkeypatch.setattr(espn_poisson, "CACHE_DIR", str(model_cache_root / "espn-poisson"))
@@ -79,8 +78,6 @@ def isolate_database_for_tests(tmp_path_factory, monkeypatch, request):
     monkeypatch.setattr(penaltyblog_soccer, "CACHE_DIR", str(model_cache_root / "penaltyblog-soccer"))
     monkeypatch.setattr(pybaseball_mlb, "CACHE_DIR", str(model_cache_root / "pybaseball-mlb"))
     monkeypatch.setattr(pybaseball_mlb, "MLB_CACHE_FILE", str(model_cache_root / "pybaseball-mlb" / "standings.json"))
-    monkeypatch.setattr(elo_538, "CACHE_DIR", str(model_cache_root / "538-mlb"))
-    monkeypatch.setattr(elo_538, "ELO_CACHE_FILE", str(model_cache_root / "538-mlb" / "elo.json"))
     monkeypatch.setattr(penaltyblog_dc, "CACHE_DIR", str(model_cache_root / "penaltyblog-dixon-coles"))
     monkeypatch.setattr(line_notifier, "CONFIG_PATH", storage_paths.root / "test-config" / "line_notifier.yaml")
 

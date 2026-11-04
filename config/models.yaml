@@ -30,20 +30,6 @@ models:
     adapter: integrations.models.external.live_mlb_elo.LiveMLBEloAdapter
     description: "實驗 MLB Elo；neutral 1500 起始，透過官方 Final 賽果 CLI 更新、gamePk 去重。主場+24為啟發式參數；未使用投手或休息日調整。"
 
-  fivethirtyeight_mlb_elo:
-    name: "FiveThirtyEight MLB Elo Engine (Legacy Historical Benchmark)"
-    sport: baseball
-    enabled: false
-    source_category: LOCAL_REIMPLEMENTATION
-    independence_group: FIVETHIRTYEIGHT_ELO
-    repo: fivethirtyeight/data
-    repo_url: https://github.com/fivethirtyeight/data
-    license: CC-BY-4.0 / MIT
-    version: 1.0.0
-    weight: 0.50
-    adapter: integrations.models.external.fivethirtyeight_mlb_elo.FiveThirtyEightMLBEloAdapter
-    description: "FiveThirtyEight 棒球 Elo 歷史基準模型 (2023 已停更，保留作為回測對照)。"
-
   espn_pythagorean_mlb:
     name: "ESPN Pythagorean MLB Model (Local Fallback)"
     sport: baseball
