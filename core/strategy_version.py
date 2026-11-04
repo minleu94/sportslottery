@@ -37,6 +37,14 @@ PREDICTION_CORE_EXCLUDES = {
     "core/research_reporting.py",       # report-only scores/output; no prediction or eligibility changes
     "core/performance_metrics.py",       # reads immutable outcomes; does not qualify predictions
     "core/research_dataset_exporter.py", # export formatting only
+    # App account, ticket, and presentation/runtime modules are not inputs to
+    # the wallet-free research pipeline. Their edits must not fragment its
+    # model/evaluation protocol cohort.
+    "core/app_meta.py",
+    "core/bootstrap_security.py",
+    "core/profile_manager.py",
+    "core/season_radar.py",
+    "core/ticket_recorder.py",
 }
 PREDICTION_SCRIPT_EXCLUDES = {
     "scripts/workspace_backup.py",     # backup/restore tools do not create forecasts
@@ -45,6 +53,13 @@ PREDICTION_SCRIPT_EXCLUDES = {
     "scripts/manual_live_diagnostic.py",
     "scripts/build_model_acceptance_calibration_audit.py",
     "scripts/validate_parlay_forward.py",
+    # Repository policy checks and the Windows/mobile app launchers do not
+    # change the research pipeline's forecasts, market evidence, or settlement.
+    "scripts/check_tracked_file_policy.py",
+    "scripts/check_version_consistency.py",
+    "scripts/serve_mobile.py",
+    "scripts/tray_manager.py",
+    "scripts/validate_release_tag.py",
 }
 
 GOVERNANCE_RULES = {

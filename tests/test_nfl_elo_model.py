@@ -26,8 +26,8 @@ def test_nfl_elo_model_match_prediction():
     assert pred["projected_margin"] > 10.0
 
 
-def test_nfl_elo_model_evaluate_moneyline_leg():
-    model = NFLEloModel()
+def test_nfl_elo_model_evaluate_moneyline_leg(tmp_path):
+    model = NFLEloModel(state_file=tmp_path / "nfl_elo_state.json")
     leg = TaiwanLeg(
         event_id="nfl_101",
         sport="football",
@@ -47,6 +47,9 @@ def test_nfl_elo_model_evaluate_moneyline_leg():
     assert signal.market == "不讓分"
     assert signal.probability > 0.50
     assert "projected_margin" in signal.metadata
+    assert signal.data_as_of is None
+    assert signal.freshness_status == "UNKNOWN"
+    assert signal.metadata["source_status"] == "BASELINE_ONLY"
 
 
 def test_nfl_elo_model_evaluate_spread_leg():

@@ -7,7 +7,12 @@ from core.experiment_identity import (
 )
 from core.performance_metrics import PerformanceMetricsEngine
 from core.snapshot_logger import compute_prediction_payload_hash
-from core.strategy_version import STRATEGY_VERSION, get_strategy_metadata, hash_prediction_manifest
+from core.strategy_version import (
+    STRATEGY_VERSION,
+    get_prediction_manifest_hash,
+    get_strategy_metadata,
+    hash_prediction_manifest,
+)
 
 
 def _identity_variant(*, code=None, config=None, strategy_version=None):
@@ -81,6 +86,27 @@ def test_identity_stable_and_sensitive_only_to_strategy_content_config_models_an
     changed = deepcopy(first)
     changed["protocol_settings"]["freshness_policy"] = "tampered"
     assert not validate_experiment_identity(changed)
+
+
+def test_prediction_manifest_ignores_non_research_modules_but_keeps_prediction_inputs(tmp_path):
+    files = {
+        "core/season_radar.py": "radar-v1",
+        "core/market_forward_pipeline.py": "market-v1",
+        "scripts/tray_manager.py": "tray-v1",
+        "config/models.yaml": "models-v1",
+    }
+    for relative, content in files.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    initial = get_prediction_manifest_hash(tmp_path)
+    (tmp_path / "core/season_radar.py").write_text("radar-v2", encoding="utf-8")
+    (tmp_path / "scripts/tray_manager.py").write_text("tray-v2", encoding="utf-8")
+    assert get_prediction_manifest_hash(tmp_path) == initial
+
+    (tmp_path / "core/market_forward_pipeline.py").write_text("market-v2", encoding="utf-8")
+    assert get_prediction_manifest_hash(tmp_path) != initial
 
 
 def test_historical_v1_identity_remains_verifiable_without_rewriting():

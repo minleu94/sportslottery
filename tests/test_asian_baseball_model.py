@@ -24,8 +24,8 @@ def test_asian_baseball_model_predict_npb():
     assert pred["projected_total"] < 8.0  # NPB is pitcher friendly
 
 
-def test_asian_baseball_model_evaluate_cpbl_leg():
-    model = AsianBaseballModel()
+def test_asian_baseball_model_evaluate_cpbl_leg(tmp_path):
+    model = AsianBaseballModel(state_file=tmp_path / "asian_baseball_state.json")
     leg = TaiwanLeg(
         event_id="cpbl_201",
         sport="baseball",
@@ -44,6 +44,9 @@ def test_asian_baseball_model_evaluate_cpbl_leg():
     assert signal.source_id == "asian_baseball_model"
     assert signal.probability > 0.50
     assert "projected_margin" in signal.metadata
+    assert signal.data_as_of is None
+    assert signal.freshness_status == "UNKNOWN"
+    assert signal.metadata["source_status"] == "BASELINE_ONLY"
 
 
 def test_asian_baseball_model_skips_mlb():

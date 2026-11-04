@@ -14,6 +14,132 @@ from core.research_helpers import _read_json, _write_json_atomic
 
 
 class ResearchReportMixin:
+    @staticmethod
+    def _shadow_research_coverage(snapshots, now: datetime, experiment_id: str,
+                                  latest_run_path: Path | None = None) -> dict[str, Any]:
+        current_rows = []
+        for row in snapshots:
+            identity = row.get("experiment_identity") or {}
+            if identity.get("experiment_id") != experiment_id:
+                continue
+            stamp = parse_aware_time(row.get("snapshot_timestamp") or row.get("timestamp"))
+            if stamp is not None and stamp <= now:
+                current_rows.append(row)
+
+        def event_id(row):
+            return str(row.get("canonical_event_id") or row.get("event_id") or "")
+
+        def valid_model_predictions(row):
+            stamp = parse_aware_time(row.get("snapshot_timestamp") or row.get("timestamp"))
+            start = parse_aware_time(row.get("event_start"))
+            valid = []
+            for candidate in row.get("model_candidate_predictions") or []:
+                if not isinstance(candidate, dict):
+                    continue
+                try:
+                    probability = float(candidate.get("raw_probability"))
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if not math.isfinite(probability) or not 0 < probability < 1:
+                    continue
+                as_of = parse_aware_time(candidate.get("data_as_of"))
+                if as_of is None:
+                    raw_as_of = str(candidate.get("data_as_of") or "")
+                    try:
+                        parsed_date = datetime.fromisoformat(raw_as_of)
+                    except (TypeError, ValueError):
+                        parsed_date = None
+                    if parsed_date is not None and parsed_date.tzinfo is None and len(raw_as_of) == 10:
+                        as_of = parsed_date.replace(tzinfo=timezone.utc)
+                point_in_time_verified = (
+                    candidate.get("point_in_time_status") == "VALID"
+                    or candidate.get("point_in_time_verified") is True
+                    or candidate.get("pre_event_source_order_valid") is True
+                )
+                if (str(candidate.get("freshness_status") or "UNKNOWN").upper() in {"LIVE", "FRESH", "AGING"}
+                        and stamp is not None and start is not None and as_of is not None
+                        and as_of <= stamp and as_of < start and point_in_time_verified):
+                    valid.append(candidate)
+            return valid
+
+        eligible_events = set()
+        model_events = set()
+        model_pairs = set()
+        data_valid_events = set()
+        settled_model_events = set()
+        international_events = set()
+        sharp_events = set()
+        model_sharp_events = set()
+        model_freshness = Counter()
+        all_event_keys = set()
+
+        for row in current_rows:
+            key = event_id(row)
+            if not key:
+                continue
+            all_event_keys.add(key)
+            stamp = parse_aware_time(row.get("snapshot_timestamp") or row.get("timestamp"))
+            start = parse_aware_time(row.get("event_start"))
+            if (row.get("forward_validation_eligible") is True and stamp is not None
+                    and start is not None and stamp < start):
+                eligible_events.add(key)
+
+            predictions = [candidate for candidate in row.get("model_candidate_predictions") or []
+                           if isinstance(candidate, dict)]
+            raw_predictions = []
+            for candidate in predictions:
+                try:
+                    probability = float(candidate.get("raw_probability"))
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if math.isfinite(probability) and 0 < probability < 1:
+                    raw_predictions.append(candidate)
+                    model_freshness[str(candidate.get("freshness_status") or "UNKNOWN").upper()] += 1
+                    model_pairs.add((key, str(candidate.get("model_id") or "UNKNOWN")))
+            if raw_predictions:
+                model_events.add(key)
+                result_source = str(row.get("result_source") or "").strip().upper()
+                settled_at = parse_aware_time(row.get("settled_at"))
+                if (row.get("is_settled") is True and row.get("settlement_status") in {"WON", "LOST"}
+                        and row.get("forward_validation_eligible") is True
+                        and settled_at is not None and settled_at <= now
+                        and result_source not in {"", "UNKNOWN", "MANUAL", "TEST", "FIXTURE"}):
+                    settled_model_events.add(key)
+
+            valid_predictions = valid_model_predictions(row)
+            if valid_predictions:
+                data_valid_events.add(key)
+
+            evidence = row.get("signal_evidence") or {}
+            if (evidence.get("international_market_complete") is True
+                    and not evidence.get("is_market_synthetic")):
+                international_events.add(key)
+            if (evidence.get("market_source_qualification") == "SHARP_QUALIFIED"
+                    and not evidence.get("is_market_synthetic")):
+                sharp_events.add(key)
+                if valid_predictions:
+                    model_sharp_events.add(key)
+
+        latest_run = _read_json(latest_run_path, {}) if latest_run_path is not None else {}
+        latest_result = ((latest_run.get("stages") or {}).get("pregame_snapshots") or {}).get("result") or {}
+
+        return {
+            "experiment_id": experiment_id,
+            "current_experiment_snapshot_count": len(current_rows),
+            "other_experiment_snapshot_count_excluded": max(0, len(snapshots) - len(current_rows)),
+            "current_experiment_unique_event_count": len(all_event_keys),
+            "valid_pregame_candidate_event_count": len(eligible_events),
+            "raw_shadow_model_prediction_event_count": len(model_events),
+            "unique_model_event_pair_count": len(model_pairs),
+            "data_valid_model_prediction_event_count": len(data_valid_events),
+            "settled_model_prediction_event_count": len(settled_model_events),
+            "international_market_complete_event_count": len(international_events),
+            "sharp_market_complete_event_count": len(sharp_events),
+            "model_and_sharp_complete_event_count": len(model_sharp_events),
+            "model_prediction_freshness_status_counts": dict(model_freshness),
+            "latest_run_observation": latest_result.get("shadow_coverage", {}),
+        }
+
     def _stage_report(self, stage_data: Path) -> dict[str, Any]:
         now = self.clock().astimezone(timezone.utc)
         since = now - timedelta(days=7)
@@ -98,6 +224,9 @@ class ResearchReportMixin:
             "generated_at_utc": now.isoformat(), "period_start_utc": since.isoformat(),
             "period_end_utc": now.isoformat(), "data_root": str(self.data_root),
             "experiment_identity": get_current_experiment_identity(),
+            "shadow_research_coverage": self._shadow_research_coverage(
+                snapshots, now, current_experiment_id, stage_data.parent / "run.json",
+            ),
             "wallet_data_used": False,
             "single_leg": {"recorded_snapshots": len(recent), "settled_count": len(settled),
                            "valid_current_experiment_unique_observations": audit,

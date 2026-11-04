@@ -2,6 +2,9 @@
 # separate from data/cache, data/historical, model artifacts, and the wallet.
 cadence_minutes: 15
 pregame_lead_minutes: 60
+# Shadow-only observations extend farther ahead to collect traceable research
+# predictions. Formal recommendation search stays on pregame_lead_minutes.
+shadow_pregame_lead_minutes: 240
 max_odds_age_minutes: 15
 max_attempts_per_stage: 3
 force_refresh: true

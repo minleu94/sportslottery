@@ -105,3 +105,41 @@ def test_real_colombia_and_costa_rica_fixtures_match_without_provider_ids_and_se
     draw = next(row for row in engine.settlements if row["snapshot_id"] == "col-draw")
     assert draw["result_source"] == "ESPN_PUBLIC_SCOREBOARD"
     assert "90分鐘" in draw["settlement_reason"]
+
+
+def test_current_colombia_playsport_names_resolve_to_saved_espn_teams_without_ids():
+    teams_payload = json.loads((SOURCE_ROOT / "col.1_teams.json").read_text(encoding="utf-8"))
+    team_rows = []
+
+    def collect(value):
+        if isinstance(value, dict):
+            if value.get("id") and value.get("displayName"):
+                team_rows.append(value)
+            for child in value.values():
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(teams_payload)
+    teams = {str(team["id"]): team for team in team_rows}
+    assert teams["5485"]["displayName"] == "Deportivo Pasto"
+    assert teams["10309"]["displayName"] == "Jaguares de Córdoba"
+
+    snapshot = {
+        "sport": "soccer",
+        "league": "COLOMBIA_PRIMERA_A",
+        "event_start": "2026-11-03T23:20:00Z",
+        "away_team": "科爾多瓦美洲獅",
+        "home_team": "帕斯托體育",
+    }
+    scoreboard_game = {
+        "provider": "ESPN_PUBLIC_SCOREBOARD",
+        "sport": "soccer",
+        "league": "COLOMBIA_PRIMERA_A",
+        "start_time_utc": "2026-11-03T23:20:00Z",
+        "away_team": teams["10309"]["displayName"],
+        "home_team": teams["5485"]["displayName"],
+    }
+
+    assert SettlementEngine.match_result_game(snapshot, [scoreboard_game]) is scoreboard_game
