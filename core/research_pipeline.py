@@ -24,7 +24,7 @@ from typing import Any, Callable
 
 import yaml
 
-from core.bet_validation import assess_leg, parse_aware_time
+from core.bet_validation import assess_leg, event_key, parse_aware_time
 from core.experiment_identity import get_current_experiment_identity
 from core.odds_watcher import OddsWatcher
 from core.parlay_engine import ParlayEngine
@@ -398,8 +398,9 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
                 "source_error_count": len(source_errors), "source_errors": source_errors,
                 "health_path": str(stage_data / "source_health.json")}
 
-    def _window_legs(self, window_id: str, now: datetime, stage_data: Path):
-        lead = max(1, int(self.config.get("pregame_lead_minutes", 60)))
+    def _window_legs(self, window_id: str, now: datetime, stage_data: Path, *, lead_minutes: int | None = None):
+        lead = max(1, int(lead_minutes if lead_minutes is not None
+                          else self.config.get("pregame_lead_minutes", 60)))
         deadline = now + timedelta(minutes=lead)
         raw = _read_json(stage_data / "source_legs.json", [])
         selected, excluded = [], Counter()
@@ -423,25 +424,213 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
             selected.append(leg)
         return selected, excluded
 
+    @staticmethod
+    def _research_option_key(leg: TaiwanLeg) -> tuple[str, str, str, str, str]:
+        return (event_key(leg), str(leg.market or ""), str(getattr(leg, "side", "") or ""),
+                str(getattr(leg, "line", "") or ""), str(leg.selection or ""))
+
+    @staticmethod
+    def _has_raw_model_prediction(leg: TaiwanLeg) -> bool:
+        predictions = (leg.signal_evidence or {}).get("model_candidate_provenances", [])
+        if not isinstance(predictions, list):
+            return False
+        for prediction in predictions:
+            if not isinstance(prediction, dict):
+                continue
+            try:
+                probability = float(prediction.get("raw_probability"))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if math.isfinite(probability) and 0.0 < probability < 1.0:
+                return True
+        return False
+
+    @staticmethod
+    def _model_prediction_coverage(legs: list[TaiwanLeg], now: datetime) -> dict[str, Any]:
+        prediction_count = 0
+        valid_prediction_count = 0
+        event_keys: set[str] = set()
+        model_event_pairs: set[tuple[str, str]] = set()
+        valid_event_keys: set[str] = set()
+        freshness_counts = Counter()
+
+        for leg in legs:
+            key = event_key(leg)
+            start = parse_aware_time(leg.start_time_utc)
+            predictions = (leg.signal_evidence or {}).get("model_candidate_provenances", [])
+            if not isinstance(predictions, list):
+                continue
+            for prediction in predictions:
+                if not isinstance(prediction, dict):
+                    continue
+                probability = prediction.get("raw_probability")
+                try:
+                    probability = float(probability)
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if not math.isfinite(probability) or not 0.0 < probability < 1.0:
+                    continue
+
+                prediction_count += 1
+                freshness = str(prediction.get("freshness_status") or "UNKNOWN").upper()
+                freshness_counts[freshness] += 1
+                model_id = str(prediction.get("model_id") or prediction.get("source_id") or "UNKNOWN")
+                if key:
+                    event_keys.add(key)
+                    model_event_pairs.add((key, model_id))
+
+                as_of = parse_aware_time(prediction.get("data_as_of"))
+                if as_of is None:
+                    # Penaltyblog's point-in-time training watermark is a date
+                    # because the source does not publish match timestamps.
+                    raw_as_of = str(prediction.get("data_as_of") or "")
+                    try:
+                        parsed_date = datetime.fromisoformat(raw_as_of)
+                    except (TypeError, ValueError):
+                        parsed_date = None
+                    if parsed_date is not None and parsed_date.tzinfo is None and len(raw_as_of) == 10:
+                        as_of = parsed_date.replace(tzinfo=timezone.utc)
+
+                point_in_time_verified = (
+                    prediction.get("point_in_time_status") == "VALID"
+                    or prediction.get("point_in_time_verified") is True
+                    or prediction.get("pre_event_source_order_valid") is True
+                )
+                if (freshness in {"LIVE", "FRESH", "AGING"} and as_of is not None
+                        and as_of <= now and start is not None and as_of < start
+                        and point_in_time_verified):
+                    valid_prediction_count += 1
+                    if key:
+                        valid_event_keys.add(key)
+
+        return {
+            "raw_model_prediction_count": prediction_count,
+            "raw_model_prediction_event_count": len(event_keys),
+            "unique_model_event_pair_count": len(model_event_pairs),
+            "data_valid_model_prediction_count": valid_prediction_count,
+            "data_valid_model_event_count": len(valid_event_keys),
+            "model_data_freshness_status_counts": dict(freshness_counts),
+            "data_valid_event_keys": valid_event_keys,
+        }
+
+    @staticmethod
+    def _source_window_coverage(raw_legs: list[dict[str, Any]], now: datetime, lead_minutes: int) -> dict[str, int]:
+        events: set[str] = set()
+        options: set[tuple[str, str, str, str, str]] = set()
+        deadline = now + timedelta(minutes=max(1, int(lead_minutes)))
+        for row in raw_legs:
+            if not isinstance(row, dict):
+                continue
+            leg = _leg_from_payload(row)
+            start = parse_aware_time(leg.start_time_utc)
+            key = event_key(leg)
+            if not key or start is None or start <= now or start > deadline:
+                continue
+            events.add(key)
+            options.add(ResearchPipeline._research_option_key(leg))
+        return {"source_event_count": len(events), "source_option_count": len(options)}
+
     def _stage_snapshots(self, window_id: str, now: datetime, stage_data: Path) -> dict[str, Any]:
         # A resumed stage can run long after the source stage completed. Use the
         # wall clock at eligibility time so old cached quotes cannot be sealed.
         now = self._current_utc()
-        selected, excluded = self._window_legs(window_id, now, stage_data)
+        formal_lead = max(1, int(self.config.get("pregame_lead_minutes", 60)))
+        shadow_lead = max(formal_lead, int(self.config.get("shadow_pregame_lead_minutes", formal_lead)))
+        selected, excluded = self._window_legs(window_id, now, stage_data, lead_minutes=formal_lead)
+        shadow_window_legs, shadow_excluded = self._window_legs(
+            window_id, now, stage_data, lead_minutes=shadow_lead
+        )
+        formal_option_keys = {self._research_option_key(leg) for leg in selected}
+        shadow_only = [leg for leg in shadow_window_legs
+                       if self._research_option_key(leg) not in formal_option_keys]
+
         enriched = [self._signal_hub.evaluate_taiwan_leg(leg) for leg in selected]
+        shadow_enriched = [self._signal_hub.evaluate_taiwan_leg(leg) for leg in shadow_only]
         for leg in enriched:
             leg.signal_evidence["observation_window_id"] = window_id
+            leg.signal_evidence["observation_scope"] = "FORMAL_QUALIFICATION_WINDOW"
+        shadow_window_id = f"{window_id}:shadow-{shadow_lead}m"
+        for leg in shadow_enriched:
+            leg.signal_evidence["observation_window_id"] = shadow_window_id
+            leg.signal_evidence["observation_scope"] = "SHADOW_ONLY"
         snapshots = self.snapshot_logger.log_batch(enriched, observation_window_id=window_id)
+        shadow_prediction_legs = [leg for leg in shadow_enriched if self._has_raw_model_prediction(leg)]
+        shadow_snapshots = self.snapshot_logger.log_batch(
+            shadow_prediction_legs, observation_window_id=shadow_window_id
+        )
         for leg, snapshot in zip(enriched, snapshots):
             leg.signal_evidence["snapshot_id"] = snapshot.get("snapshot_id")
             leg.signal_evidence["forward_validation_eligible"] = snapshot.get("forward_validation_eligible")
         _write_json_atomic(stage_data / "selected_legs.json", [_leg_payload(leg) for leg in enriched])
         _write_json_atomic(stage_data / "snapshot_ids.json", [row.get("snapshot_id") for row in snapshots])
-        return {"selected_leg_count": len(enriched), "snapshot_count": len(snapshots),
+        formal_predictions = self._model_prediction_coverage(enriched, now)
+        shadow_predictions = self._model_prediction_coverage(shadow_enriched, now)
+        all_window_predictions = self._model_prediction_coverage(enriched + shadow_enriched, now)
+        formal_predictions.pop("data_valid_event_keys")
+        shadow_prediction_events = shadow_predictions.pop("data_valid_event_keys")
+        shadow_window_prediction_events = all_window_predictions.pop("data_valid_event_keys")
+
+        raw_legs = _read_json(stage_data / "source_legs.json", [])
+        formal_source_coverage = self._source_window_coverage(raw_legs, now, formal_lead)
+        shadow_source_coverage = self._source_window_coverage(raw_legs, now, shadow_lead)
+        shadow_sharp_events = {
+            event_key(leg) for leg in shadow_enriched
+            if (leg.signal_evidence or {}).get("market_source_qualification") == "SHARP_QUALIFIED"
+            and not (leg.signal_evidence or {}).get("is_market_synthetic")
+            and event_key(leg)
+        }
+        shadow_international_events = {
+            event_key(leg) for leg in shadow_enriched
+            if (leg.signal_evidence or {}).get("international_market_complete") is True
+            and not (leg.signal_evidence or {}).get("is_market_synthetic")
+            and event_key(leg)
+        }
+        all_window_sharp_events = {
+            event_key(leg) for leg in enriched + shadow_enriched
+            if (leg.signal_evidence or {}).get("market_source_qualification") == "SHARP_QUALIFIED"
+            and not (leg.signal_evidence or {}).get("is_market_synthetic")
+            and event_key(leg)
+        }
+        all_window_international_events = {
+            event_key(leg) for leg in enriched + shadow_enriched
+            if (leg.signal_evidence or {}).get("international_market_complete") is True
+            and not (leg.signal_evidence or {}).get("is_market_synthetic")
+            and event_key(leg)
+        }
+        shadow_coverage = {
+            "formal_window_minutes": formal_lead,
+            "shadow_window_minutes": shadow_lead,
+            "formal_window": {**formal_source_coverage,
+                              "eligible_event_count": len({event_key(leg) for leg in enriched if event_key(leg)}),
+                              "eligible_option_count": len(enriched),
+                              "excluded_option_reasons": dict(excluded)},
+            "shadow_window": {**shadow_source_coverage,
+                              "eligible_event_count": len({event_key(leg) for leg in enriched + shadow_enriched if event_key(leg)}),
+                              "eligible_option_count": len(enriched) + len(shadow_enriched),
+                              "shadow_only_event_count": len({event_key(leg) for leg in shadow_enriched if event_key(leg)}),
+                              "shadow_only_option_count": len(shadow_enriched),
+                              "excluded_option_reasons": dict(shadow_excluded)},
+            "formal_model_outputs": formal_predictions,
+            "shadow_only_model_outputs": shadow_predictions,
+            "shadow_window_model_outputs": all_window_predictions,
+            "shadow_only_model_output_snapshot_event_count": len({
+                event_key(leg) for leg in shadow_prediction_legs if event_key(leg)
+            }),
+            "shadow_only_model_output_snapshot_option_count": len(shadow_prediction_legs),
+            "shadow_only_international_market_event_count": len(shadow_international_events),
+            "shadow_only_sharp_market_event_count": len(shadow_sharp_events),
+            "shadow_only_model_and_sharp_event_count": len(shadow_prediction_events & shadow_sharp_events),
+            "shadow_window_international_market_event_count": len(all_window_international_events),
+            "shadow_window_sharp_market_event_count": len(all_window_sharp_events),
+            "shadow_window_model_and_sharp_event_count": len(shadow_window_prediction_events & all_window_sharp_events),
+        }
+        return {"selected_leg_count": len(enriched), "snapshot_count": len(snapshots) + len(shadow_snapshots),
+                "formal_snapshot_count": len(snapshots), "shadow_snapshot_count": len(shadow_snapshots),
                 "model_candidate_probability_count": sum(row.get("model_candidate_probability_fused") is not None for row in snapshots),
                 "excluded_reason_counts": dict(excluded),
                 "model_probability_count": sum(row.get("model_probability") is not None for row in snapshots),
-                "market_baseline_only_count": sum(row.get("model_probability") is None for row in snapshots)}
+                "market_baseline_only_count": sum(row.get("model_probability") is None for row in snapshots),
+                "shadow_coverage": shadow_coverage}
 
     def _stage_observations(self, window_id: str, stage_data: Path) -> dict[str, Any]:
         legs = [_leg_from_payload(row) for row in _read_json(stage_data / "selected_legs.json", [])]

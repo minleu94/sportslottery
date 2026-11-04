@@ -362,7 +362,7 @@ class PredictionSnapshotLogger:
             candidate_probability = finite_probability(item.get("raw_probability"))
             if candidate_probability is None:
                 continue
-            model_candidate_predictions.append({
+            candidate_record = {
                 "model_id": item.get("model_id"),
                 "model_version": item.get("model_version"),
                 "league": str(leg.league),
@@ -375,7 +375,17 @@ class PredictionSnapshotLogger:
                 "data_as_of": item.get("data_as_of"),
                 "freshness_status": item.get("freshness_status"),
                 "acceptance_status_at_prediction": item.get("acceptance_status", "NOT_EVALUATED"),
-            })
+            }
+            for key in (
+                "data_source", "data_source_url", "data_source_status", "data_source_observed_at",
+                "data_source_content_sha256", "data_source_version", "source_season", "event_season",
+                "data_age_hours", "data_cache_age_hours", "point_in_time_status",
+                "point_in_time_verified", "pre_event_source_order_valid", "input_match_count",
+                "input_latest_date", "future_records_excluded",
+            ):
+                if item.get(key) is not None:
+                    candidate_record[key] = item[key]
+            model_candidate_predictions.append(candidate_record)
         strategy_metadata = {**self._strategy_metadata, "experiment_identity": self._experiment_identity}
         record = {
             "snapshot_id": snapshot_id,

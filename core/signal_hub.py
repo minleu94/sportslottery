@@ -451,6 +451,9 @@ class SignalHub:
         candidate_provenances = []
         for signal in model_signals:
             metadata = signal.metadata or {}
+            source_provenance = metadata.get("provenance")
+            if not isinstance(source_provenance, dict):
+                source_provenance = {}
             candidate_provenances.append({
                 "source_id": signal.source_id,
                 "model_id": metadata.get("model_id", signal.source_id),
@@ -463,6 +466,28 @@ class SignalHub:
                 "data_as_of": signal.data_as_of,
                 "freshness_status": signal.freshness_status,
                 "acceptance_status": (metadata.get("model_acceptance") or {}).get("status", "NOT_EVALUATED"),
+                # Retain only public, reproducibility-relevant input metadata.
+                # Do not copy arbitrary adapter metadata into the snapshot.
+                "data_source": metadata.get("data_source") or source_provenance.get("dataset_source"),
+                "data_source_url": metadata.get("source_url") or source_provenance.get("dataset_url"),
+                "data_source_status": metadata.get("source_status"),
+                "data_source_observed_at": metadata.get("observed_at") or source_provenance.get("downloaded_at"),
+                "data_source_content_sha256": (
+                    metadata.get("source_content_sha256") or metadata.get("training_file_sha256")
+                    or source_provenance.get("training_file_sha256")
+                ),
+                "data_source_version": source_provenance.get("dataset_version"),
+                "source_season": metadata.get("source_season"),
+                "event_season": metadata.get("event_season"),
+                "data_age_hours": signal.data_age_hours,
+                "data_cache_age_hours": metadata.get("cache_age_hours"),
+                "point_in_time_status": metadata.get("point_in_time_status"),
+                "point_in_time_verified": source_provenance.get("point_in_time_verified"),
+                "pre_event_source_order_valid": metadata.get("pre_event_source_order_valid"),
+                "input_match_count": source_provenance.get("match_count", metadata.get("season_matches")),
+                "input_latest_date": source_provenance.get("latest_match_date"),
+                "future_records_excluded": source_provenance.get("future_records_excluded",
+                                                                  metadata.get("future_records_excluded")),
             })
 
         # Preserve observed source fields; missing crowd data stays unknown.

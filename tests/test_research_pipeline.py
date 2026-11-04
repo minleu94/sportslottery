@@ -45,6 +45,9 @@ class FixtureModelRegistry:
             data_as_of=(event_start - timedelta(days=2)).isoformat(),
             metadata={"model_id": "fixture-elo", "model_version": "fixture-v1", "initialized": True,
                       "model_candidate_probability": 0.62, "prediction_source_scope": "FIXTURE",
+                      "data_source": "fixture-results", "source_url": "https://example.invalid/results",
+                      "source_status": "AVAILABLE", "observed_at": (event_start - timedelta(days=2)).isoformat(),
+                      "source_content_sha256": "a" * 64, "point_in_time_status": "VALID",
                       "model_acceptance": {"accepted": False, "status": "INSUFFICIENT_SAMPLE"}},
         )]
 
@@ -101,6 +104,42 @@ def test_report_counts_failed_attempts_and_excludes_unknown_future_outcomes(tmp_
     assert report["single_leg"]["settled_count"] == 0
     assert report["single_leg"]["valid_current_experiment_unique_observations"][
         "report_outcomes_unknown_at_cutoff_excluded"] == 1
+
+
+def test_shadow_coverage_summary_deduplicates_events_and_separates_experiments(tmp_path):
+    now = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    pipeline = ResearchPipeline(data_root=tmp_path / "research", clock=lambda: now)
+    identity = get_current_experiment_identity()
+    prediction = {
+        "model_id": "model-a", "raw_probability": 0.61, "data_as_of": (now - timedelta(hours=2)).isoformat(),
+        "freshness_status": "FRESH", "point_in_time_status": "VALID",
+    }
+    row = {
+        "experiment_identity": identity, "snapshot_timestamp": (now - timedelta(minutes=5)).isoformat(),
+        "event_start": (now + timedelta(hours=1)).isoformat(), "canonical_event_id": "event-1",
+        "forward_validation_eligible": True, "model_candidate_predictions": [prediction],
+        "signal_evidence": {"international_market_complete": True,
+                            "market_source_qualification": "SHARP_QUALIFIED", "is_market_synthetic": False},
+        "is_settled": False,
+    }
+    settled = {**row, "observation_window_id": "run-2:shadow-240m", "is_settled": True,
+               "settlement_status": "WON", "settled_at": now.isoformat(),
+               "result_source": "ESPN_PUBLIC_SCOREBOARD"}
+    historical = {**row, "experiment_identity": {**identity, "experiment_id": "exp_old"},
+                  "canonical_event_id": "event-old"}
+
+    summary = pipeline._shadow_research_coverage([row, settled, historical], now, identity["experiment_id"])
+
+    assert summary["current_experiment_snapshot_count"] == 2
+    assert summary["other_experiment_snapshot_count_excluded"] == 1
+    assert summary["current_experiment_unique_event_count"] == 1
+    assert summary["valid_pregame_candidate_event_count"] == 1
+    assert summary["raw_shadow_model_prediction_event_count"] == 1
+    assert summary["data_valid_model_prediction_event_count"] == 1
+    assert summary["settled_model_prediction_event_count"] == 1
+    assert summary["international_market_complete_event_count"] == 1
+    assert summary["sharp_market_complete_event_count"] == 1
+    assert summary["model_and_sharp_complete_event_count"] == 1
 def _leg(now):
     return TaiwanLeg(
         event_id="mlb-evt-1", canonical_event_id="MLB:away-home:fixture", sport="baseball", league="MLB",
@@ -169,6 +208,11 @@ def test_pipeline_runs_isolated_snapshot_settlement_report_end_to_end(tmp_path, 
     assert sealed["probability_status"] == "MARKET_BASELINE_ONLY"
     assert sealed["model_probability"] is None  # A rejected model cannot become the production point estimate.
     assert sealed["model_candidate_provenances"][0]["acceptance_status"] == "INSUFFICIENT_SAMPLE"
+    candidate = sealed["model_candidate_predictions"][0]
+    assert candidate["data_source"] == "fixture-results"
+    assert candidate["data_source_content_sha256"] == "a" * 64
+    assert candidate["data_source_observed_at"] == candidate["data_as_of"]
+    assert candidate["point_in_time_status"] == "VALID"
 
     # A later cadence settles the prior prediction only after event start; the
     # source adapter now has no upcoming selections to add.
@@ -347,6 +391,100 @@ def test_resumed_snapshot_stage_rechecks_quote_age_at_current_clock(tmp_path):
 
     assert result["snapshot_count"] == 0
     assert result["excluded_reason_counts"].get("ODDS_STALE") == 1
+
+
+def test_shadow_window_records_extra_model_outputs_without_expanding_formal_pool(tmp_path, monkeypatch):
+    now = datetime(2026, 10, 13, 18, 0, tzinfo=timezone.utc)
+    FrozenDateTime.current = now
+    monkeypatch.setattr("core.snapshot_logger.datetime", FrozenDateTime)
+
+    formal = _leg(now)
+    shadow_only = _leg(now)
+    shadow_only.event_id = "mlb-evt-shadow"
+    shadow_only.canonical_event_id = "MLB:away-home:shadow-fixture"
+    shadow_only.start_time_utc = (now + timedelta(minutes=180)).isoformat()
+    shadow_only.signal_evidence["source_game_id"] = "result-shadow"
+
+    config_path = tmp_path / "research.yaml"
+    config_path.write_text(
+        "pregame_lead_minutes: 60\nshadow_pregame_lead_minutes: 240\n",
+        encoding="utf-8",
+    )
+    root = tmp_path / "research"
+    hub = SignalHub(expert_adapter=EmptyFixtureAdapter(), crowd_adapter=EmptyFixtureAdapter(),
+                    model_registry=FixtureModelRegistry())
+    pipeline = ResearchPipeline(
+        config_path=config_path, data_root=root, signal_hub=hub,
+        odds_adapter=FixtureOddsAdapter([formal, shadow_only]), clock=lambda: now,
+    )
+    pipeline._components()
+    stage_data = root / "runs" / "test-window" / "data"
+    stage_data.mkdir(parents=True)
+    (stage_data / "source_legs.json").write_text(
+        json.dumps([formal.to_dict(), shadow_only.to_dict()]), encoding="utf-8",
+    )
+
+    result = pipeline._stage_snapshots("test-window", now, stage_data)
+
+    assert result["formal_snapshot_count"] == 1
+    assert result["shadow_snapshot_count"] == 1
+    assert result["snapshot_count"] == 2
+    assert result["shadow_coverage"]["formal_window"]["eligible_event_count"] == 1
+    assert result["shadow_coverage"]["shadow_window"]["eligible_event_count"] == 2
+    assert result["shadow_coverage"]["shadow_window"]["shadow_only_event_count"] == 1
+    assert result["shadow_coverage"]["shadow_only_model_outputs"]["raw_model_prediction_event_count"] == 1
+    assert result["shadow_coverage"]["shadow_only_model_outputs"]["data_valid_model_event_count"] == 1
+
+    formal_legs = json.loads((stage_data / "selected_legs.json").read_text(encoding="utf-8"))
+    formal_snapshot_ids = json.loads((stage_data / "snapshot_ids.json").read_text(encoding="utf-8"))
+    assert [row["event_id"] for row in formal_legs] == [formal.event_id]
+    assert len(formal_snapshot_ids) == 1
+    observations = pipeline._stage_observations("test-window", stage_data)
+    assert observations["observation_count"] == 1
+
+    records = pipeline.snapshot_logger.get_all_snapshots()
+    assert len(records) == 2
+    shadow_record = next(row for row in records if ":shadow-240m" in row["observation_window_id"])
+    assert shadow_record["signal_evidence"]["observation_scope"] == "SHADOW_ONLY"
+    assert shadow_record["probability_source"] == "MARKET_BASELINE_ONLY"
+    assert shadow_record["model_probability"] is None
+    assert shadow_record["model_candidate_predictions"][0]["raw_probability"] == 0.62
+
+
+def test_shadow_window_does_not_persist_candidates_without_model_output(tmp_path, monkeypatch):
+    now = datetime(2026, 10, 13, 18, 0, tzinfo=timezone.utc)
+    FrozenDateTime.current = now
+    monkeypatch.setattr("core.snapshot_logger.datetime", FrozenDateTime)
+    shadow_only = _leg(now)
+    shadow_only.event_id = "mlb-evt-no-model"
+    shadow_only.canonical_event_id = "MLB:away-home:no-model-fixture"
+    shadow_only.start_time_utc = (now + timedelta(minutes=180)).isoformat()
+
+    config_path = tmp_path / "research.yaml"
+    config_path.write_text(
+        "pregame_lead_minutes: 60\nshadow_pregame_lead_minutes: 240\n",
+        encoding="utf-8",
+    )
+    root = tmp_path / "research"
+    pipeline = ResearchPipeline(
+        config_path=config_path, data_root=root, signal_hub=FixtureSignalHub(),
+        odds_adapter=FixtureOddsAdapter([shadow_only]), clock=lambda: now,
+    )
+    pipeline._components()
+    stage_data = root / "runs" / "test-no-model" / "data"
+    stage_data.mkdir(parents=True)
+    (stage_data / "source_legs.json").write_text(
+        json.dumps([shadow_only.to_dict()]), encoding="utf-8",
+    )
+
+    result = pipeline._stage_snapshots("test-no-model", now, stage_data)
+
+    assert result["shadow_coverage"]["shadow_window"]["eligible_event_count"] == 1
+    assert result["shadow_coverage"]["shadow_window"]["eligible_option_count"] == 1
+    assert result["shadow_coverage"]["shadow_only_model_outputs"]["raw_model_prediction_count"] == 0
+    assert result["shadow_snapshot_count"] == 0
+    assert result["snapshot_count"] == 0
+    assert pipeline.snapshot_logger.get_all_snapshots() == []
 
 
 def test_atomic_json_replace_failure_preserves_previous_file(tmp_path, monkeypatch):

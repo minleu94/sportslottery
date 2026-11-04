@@ -59,8 +59,8 @@ def test_nba_elo_totals_probability():
     assert p_under < 0.50
 
 
-def test_nba_elo_evaluate_leg_moneyline():
-    engine = NBAEloEngine()
+def test_nba_elo_evaluate_leg_moneyline(tmp_path):
+    engine = NBAEloEngine(state_file=tmp_path / "nba_elo_state.json")
     now = datetime.now(timezone.utc).isoformat()
     leg = TaiwanLeg(
         event_id="NBA_2026_01",
@@ -83,6 +83,10 @@ def test_nba_elo_evaluate_leg_moneyline():
     assert sig.independence_group == "NBA_ELO_ENGINE"
     assert sig.market == "不讓分"
     assert 0.0 < sig.probability < 1.0
+    assert sig.data_as_of is None
+    assert sig.freshness_status == "UNKNOWN"
+    assert sig.metadata["source_status"] == "BASELINE_ONLY"
+    assert sig.metadata["point_in_time_status"] == "BASELINE_PRIOR"
 
 
 def test_nba_elo_evaluate_leg_spread():
