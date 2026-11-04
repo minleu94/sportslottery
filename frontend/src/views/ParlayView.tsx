@@ -373,7 +373,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
         {/* LEFT COLUMN: Sticky Parameter Control Panel with independent hover scroll & pinned bottom Search button */}
         <div
           id="parlay-filters"
-          className={`max-h-[calc(100dvh-16rem)] lg:col-span-4 lg:sticky lg:top-28 lg:h-[calc(100vh-8rem)] rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden ${
+          className={`max-h-[calc(100dvh-16rem)] lg:max-h-[calc(100dvh-8rem)] lg:col-span-4 lg:sticky lg:top-28 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden ${
             mobileFilterExpanded ? "flex flex-col" : "hidden lg:flex lg:flex-col"
           }`}
         >
@@ -598,12 +598,12 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
             </div>
 
             {/* Section 3: Cross-Sport & Line Movement Signal Checkboxes */}
-            <div className="p-2.5 space-y-2 text-xs">
+            <div className="p-2.5 space-y-1 text-xs">
               <div className="font-semibold text-slate-800 dark:text-slate-200">
                 3. 跨界混串與賠率跳動訊號
               </div>
 
-              <label className="flex items-center gap-2 min-h-[44px] py-1 text-slate-700 dark:text-slate-200 cursor-pointer">
+              <label className="flex items-center gap-2 min-h-8 text-slate-700 dark:text-slate-200 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={crossSport}
@@ -640,19 +640,19 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                 </div>
               )}
 
-              <label className="flex items-center gap-2 min-h-[44px] py-1 text-slate-700 dark:text-slate-200 cursor-pointer">
+              <label className="flex items-center gap-2 min-h-8 text-slate-700 dark:text-slate-200 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={preferSteam}
                   onChange={(e) => setPreferSteam(e.target.checked)}
-                        className="rounded text-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+                  className="rounded text-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
                 />
                 <span className={preferSteam ? "text-emerald-700 dark:text-emerald-400 font-medium" : ""}>
                   排序偏好賠率跳動訊號（順勢跳水優先）
                 </span>
               </label>
 
-              <label className="flex items-center gap-2 min-h-[44px] py-1 text-slate-700 dark:text-slate-200 cursor-pointer">
+              <label className="flex items-center gap-2 min-h-8 text-slate-700 dark:text-slate-200 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={excludeTraps}
