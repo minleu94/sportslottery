@@ -27,6 +27,10 @@ DEFAULT_F_PATH = Path(r"F:\Min\Python\Project\SportsLottery_Data")
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
 
 
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
 @dataclass(frozen=True)
 class StoragePathBundle:
     """Canonical absolute paths resolved once for the current process."""
@@ -218,7 +222,7 @@ def save_storage_config(target_path: Path) -> None:
 
 
 def _is_windows_junction(path: Path) -> bool:
-    if os.name != "nt" or not path.exists():
+    if not _is_windows() or not path.exists():
         return False
     try:
         import ctypes
@@ -234,7 +238,7 @@ def sync_junction(target_path: Path) -> Tuple[bool, str]:
     Existing directories are renamed to a retained backup before linking; they
     are never recursively removed. A failed link restores the previous path.
     """
-    if os.name != "nt":
+    if not _is_windows():
         return True, "Junction 不適用於此作業系統。"
     local_data = PROJECT_ROOT / "data"
     resolved_target = target_path.resolve()
@@ -312,7 +316,7 @@ def _copy_and_verify_storage(current: Path, target: Path) -> Tuple[bool, str]:
     """Copy without deleting source and verify every source path and file hash."""
     try:
         before = _storage_inventory(current)
-        if os.name == "nt":
+        if _is_windows():
             creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             proc = subprocess.run(
                 ["robocopy", str(current), str(target), "/E", "/R:2", "/W:1", "/COPY:DAT", "/DCOPY:DAT", "/SL"],
@@ -409,7 +413,7 @@ def update_storage_location(new_path_str: str, migrate: bool = True) -> Tuple[bo
         return False, f"儲存設定失敗：{exc}；已嘗試保留舊路徑設定。"
 
     scheduled_ok, scheduled_message = sync_scheduled_task_argument(target / "research_pipeline")
-    if os.name == "nt" and not scheduled_ok and "TASK_NOT_FOUND" not in scheduled_message:
+    if _is_windows() and not scheduled_ok and "TASK_NOT_FOUND" not in scheduled_message:
         try:
             save_storage_config(current)
         except Exception as restore_exc:
@@ -423,7 +427,7 @@ def update_storage_location(new_path_str: str, migrate: bool = True) -> Tuple[bo
             save_storage_config(current)
         except Exception as exc:
             restore_errors.append(f"設定復原失敗：{exc}")
-        if os.name == "nt" and scheduled_ok:
+        if _is_windows() and scheduled_ok:
             task_ok, task_message = sync_scheduled_task_argument(current / "research_pipeline")
             if not task_ok:
                 restore_errors.append(f"排程復原失敗：{task_message}")

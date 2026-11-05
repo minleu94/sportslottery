@@ -71,7 +71,7 @@ def test_storage_copy_accepts_robocopy_success_codes_and_verifies_contents(tmp_p
     def successful_copy(*args, **kwargs):
         shutil.copytree(source, target, dirs_exist_ok=True)
         return subprocess.CompletedProcess(args[0], 3, "copied", "")
-    monkeypatch.setattr(storage_config.os, "name", "nt")
+    monkeypatch.setattr(storage_config, "_is_windows", lambda: True)
     monkeypatch.setattr(storage_config.subprocess, "run", successful_copy)
     ok, message = storage_config._copy_and_verify_storage(source, target)
     assert ok and "SHA-256" in message
@@ -87,7 +87,7 @@ def test_storage_copy_rejects_partial_or_failed_robocopy(tmp_path, monkeypatch, 
         if copy_partial:
             shutil.copy2(source / "one.db", target / "one.db")
         return subprocess.CompletedProcess(args[0], return_code, "partial", "copy failed")
-    monkeypatch.setattr(storage_config.os, "name", "nt")
+    monkeypatch.setattr(storage_config, "_is_windows", lambda: True)
     monkeypatch.setattr(storage_config.subprocess, "run", mock_robocopy)
     ok, message = storage_config._copy_and_verify_storage(source, target)
     assert not ok
@@ -136,7 +136,7 @@ def test_junction_creation_failure_restores_original_data_directory(tmp_path, mo
     (local_data / "keep.sqlite3").write_bytes(b"keep")
     target.mkdir()
     monkeypatch.setattr(storage_config, "PROJECT_ROOT", project)
-    monkeypatch.setattr(storage_config.os, "name", "nt")
+    monkeypatch.setattr(storage_config, "_is_windows", lambda: True)
     monkeypatch.setattr(storage_config, "_is_windows_junction", lambda _: False)
     monkeypatch.setattr(storage_config.subprocess, "run", lambda *a, **k:
                         subprocess.CompletedProcess(a[0], 1, "", "mklink denied"))

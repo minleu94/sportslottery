@@ -649,11 +649,12 @@ def test_metrics_engine_ev_buckets():
             "snapshot_id": f"ev-metric-{index}",
             "snapshot_timestamp": "2026-10-01T12:00:00+00:00",
             "event_id": f"ev-event-{index}", "canonical_event_id": f"ev-event-{index}",
-            "event_start": f"2026-10-{2 + index:02d}T12:00:00+00:00",
+            "event_start": "2026-10-01T12:30:00+00:00",
             "settled_at": f"2026-10-{5 + index:02d}T12:00:00+00:00",
             "result_source": "STATS_API",
             "sport": "soccer", "league": "eng.1", "away_team": "Chelsea", "home_team": "Arsenal",
             "market": "不讓分", "selection": f"selection-{index}", "side": f"side-{index}", "line": None,
+            "signal_evidence": {"observation_scope": "FORMAL_QUALIFICATION_WINDOW"},
         })
         identity = get_current_experiment_identity()
         snapshot["experiment_identity"] = identity
