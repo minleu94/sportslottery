@@ -92,7 +92,9 @@ def test_identity_stable_and_sensitive_only_to_strategy_content_config_models_an
 def test_prediction_manifest_ignores_non_research_modules_but_keeps_prediction_inputs(tmp_path):
     files = {
         "core/season_radar.py": "radar-v1",
+        "core/line_notifier.py": "message-port-v1",
         "core/market_forward_pipeline.py": "market-v1",
+        "scripts/dev_runner.py": "local-url-v1",
         "scripts/tray_manager.py": "tray-v1",
         "config/models.yaml": "models-v1",
     }
@@ -103,6 +105,8 @@ def test_prediction_manifest_ignores_non_research_modules_but_keeps_prediction_i
 
     initial = get_prediction_manifest_hash(tmp_path)
     (tmp_path / "core/season_radar.py").write_text("radar-v2", encoding="utf-8")
+    (tmp_path / "core/line_notifier.py").write_text("message-port-v2", encoding="utf-8")
+    (tmp_path / "scripts/dev_runner.py").write_text("local-url-v2", encoding="utf-8")
     (tmp_path / "scripts/tray_manager.py").write_text("tray-v2", encoding="utf-8")
     assert get_prediction_manifest_hash(tmp_path) == initial
 

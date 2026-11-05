@@ -37,6 +37,7 @@ PREDICTION_CORE_EXCLUDES = {
     "core/research_reporting.py",       # report-only scores/output; no prediction or eligibility changes
     "core/performance_metrics.py",       # reads immutable outcomes; does not qualify predictions
     "core/research_dataset_exporter.py", # export formatting only
+    "core/line_notifier.py",             # messaging and presentation; parlay candidate logic is in parlay_engine
     # App account, ticket, and presentation/runtime modules are not inputs to
     # the wallet-free research pipeline. Their edits must not fragment its
     # model/evaluation protocol cohort.
@@ -57,6 +58,7 @@ PREDICTION_SCRIPT_EXCLUDES = {
     # change the research pipeline's forecasts, market evidence, or settlement.
     "scripts/check_tracked_file_policy.py",
     "scripts/check_version_consistency.py",
+    "scripts/dev_runner.py",            # local app build and launcher diagnostics do not create predictions
     "scripts/serve_mobile.py",
     "scripts/tray_manager.py",
     "scripts/validate_release_tag.py",
