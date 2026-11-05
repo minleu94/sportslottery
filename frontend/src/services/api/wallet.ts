@@ -134,7 +134,7 @@ export const walletApi = {
 
       const err = await res.json().catch(() => ({}))
 
-      throw new Error(err.detail || "下注失敗")
+      throw new Error(err.detail || "記錄注單失敗")
 
     }
 

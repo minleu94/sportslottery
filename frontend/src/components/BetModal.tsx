@@ -78,7 +78,7 @@ export const BetModal: React.FC<BetModalProps> = ({
       }, 1200)
     } catch (err: any) {
       // Keep activeKey on error so retrying uses the same idempotency key
-      setError(err.message || "下注失敗")
+      setError(`記錄注單失敗：${err.message || "請稍後重試"}`)
     } finally {
       setSubmitting(false)
     }
@@ -97,15 +97,16 @@ export const BetModal: React.FC<BetModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      title="確認投注注單"
-      description={`組合：${parlay.parlay_name} · 共 ${parlay.legs.length} 關`}
+      title="記錄已投注注單"
+      description={`請先於台灣運彩官方完成投注，再記錄此組合 · 共 ${parlay.legs.length} 關`}
     >
       <div className="space-y-4">
         {success ? (
           <div className="py-8 text-center space-y-2">
             <CheckCircle2 className="w-10 h-10 text-emerald-600 dark:text-emerald-400 mx-auto" />
-            <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">下注成功！已記錄於注單帳本</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">已自本週可用餘額扣除 NT$ {stake}</p>
+            <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">注單已記錄</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">已記錄於本站注單帳本；未向台灣運彩官方送出投注。</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">本站本週可用餘額已扣除 NT$ {stake}</p>
           </div>
         ) : (
           <>
@@ -125,10 +126,14 @@ export const BetModal: React.FC<BetModalProps> = ({
               </div>
             </div>
 
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              此功能只會在本站記錄注單並更新站內錢包，不會向台灣運彩官方送出投注。
+            </p>
+
             {/* Stake Input */}
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <label className="font-medium text-slate-700 dark:text-slate-300">投注金額 (NT$)</label>
+                <label className="font-medium text-slate-700 dark:text-slate-300">已投注金額 (NT$)</label>
                 <span className="text-slate-500 dark:text-slate-400 tabular-nums">
                   本週可用餘額：<strong className="text-slate-800 dark:text-slate-200">{formatNTD(wallet?.weekly_wallet_balance || 0)}</strong>
                 </span>
@@ -173,7 +178,7 @@ export const BetModal: React.FC<BetModalProps> = ({
               <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>
-                  本週可用餘額不足（僅剩 NT$ {maxStakeAllowed.toFixed(0)}），無法下注此金額。
+                  本週站內可用餘額不足（僅剩 NT$ {maxStakeAllowed.toFixed(0)}），無法記錄此金額。
                 </span>
               </div>
             )}
@@ -182,11 +187,11 @@ export const BetModal: React.FC<BetModalProps> = ({
               <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-300 text-xs space-y-1">
                 <div className="font-medium flex items-center gap-1">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>提交失敗</span>
+                  <span>記錄失敗</span>
                 </div>
                 <div>{error}</div>
                 <div className="text-[10px] text-slate-400">
-                  提示：重試下注將使用相同冪等鍵安全重試，不會重複扣款。
+                  提示：重試記錄將使用相同冪等鍵安全重試，不會重複扣款。
                 </div>
               </div>
             )}
@@ -203,7 +208,7 @@ export const BetModal: React.FC<BetModalProps> = ({
                 className="gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {error ? `重試下注 NT$ ${stake}` : `確認下注 NT$ ${stake}`}
+                {error ? `重試記錄 NT$ ${stake}` : `記錄已投注注單 NT$ ${stake}`}
               </Button>
             </div>
           </>

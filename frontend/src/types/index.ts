@@ -34,6 +34,7 @@ export interface LegSignalEvidence extends JsonRecord {
   market_fair_method?: string
   market_implied_probability?: number | null
   market_benchmark_fair_probability?: number | null
+  market_benchmark_ev_pct?: number | null
   market_benchmark_status?: string
   probability_status?: string
   calibration_status?: string

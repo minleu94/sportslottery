@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useSyncExternalStore } from "react"
 import { motion } from "framer-motion"
 import { api } from "@/services/api"
-import type { RadarLeague, Leg } from "@/types"
+import type { Leg, RadarLeague } from "@/types"
 import { cleanLeagueName, cleanSelectionLabel } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/Skeleton"
 import { VersusBar } from "@/components/VersusBar"
 import { Sparkline } from "@/components/charts/Sparkline"
 import { useUI } from "@/context/UIContext"
+import { getCachedRadarSnapshot, loadRadarSnapshot, subscribeRadarSnapshot } from "@/lib/radarSnapshot"
+import { getLegEvInfo } from "@/lib/probabilityProvenance"
 import {
   Radio,
   Activity,
@@ -25,11 +27,8 @@ import {
   RefreshCw,
 } from "lucide-react"
 
-interface RadarSnapshot {
-  cachedAt: number
-  leagues: RadarLeague[]
-  legs: Leg[]
-}
+const EMPTY_RADAR_LEAGUES: RadarLeague[] = []
+const EMPTY_RADAR_LEGS: Leg[] = []
 
 interface AggregatedMatch {
   matchKey: string
@@ -42,55 +41,31 @@ interface AggregatedMatch {
   options: Leg[]
 }
 
-const RADAR_CACHE_TTL_MS = 3 * 60 * 1000
-let radarSnapshot: RadarSnapshot | null = null
-
 export const RadarView: React.FC = () => {
   const { viewMode } = useUI()
-  const [leagues, setLeagues] = useState<RadarLeague[]>([])
-  const [legs, setLegs] = useState<Leg[]>([])
+  const radarSnapshot = useSyncExternalStore(subscribeRadarSnapshot, getCachedRadarSnapshot, getCachedRadarSnapshot)
+  const leagues = radarSnapshot?.leagues ?? EMPTY_RADAR_LEAGUES
+  const legs = radarSnapshot?.legs ?? EMPTY_RADAR_LEGS
   const [selectedSport, setSelectedSport] = useState<string>("all")
   const [selectedLeagueCode, setSelectedLeagueCode] = useState<string | null>(null)
   const [selectedDropdownLeague, setSelectedDropdownLeague] = useState<string>("all")
   const [searchKeyword, setSearchKeyword] = useState<string>("")
   const [collapsedLeagues, setCollapsedLeagues] = useState<Record<string, boolean>>({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !getCachedRadarSnapshot())
   const [error, setError] = useState<string | null>(null)
-  const [refreshVersion, setRefreshVersion] = useState(0)
+  const [localRefreshVersion, setLocalRefreshVersion] = useState(0)
 
   useEffect(() => {
     let isMounted = true
     async function loadData(forceRefresh: boolean) {
-      const cached = radarSnapshot
-      if (!forceRefresh && cached && Date.now() - cached.cachedAt < RADAR_CACHE_TTL_MS) {
-        setLeagues(cached.leagues)
-        setLegs(cached.legs)
-        setError(null)
-        setLoading(false)
-        return
-      }
       setLoading(true)
       setError(null)
       try {
-        const radarData = await api.getRadar(forceRefresh)
-        // The radar endpoint refreshes and writes the source cache first. Read
-        // the legs afterward so a manual refresh does not fetch each league twice.
-        const legsData = await api.getLegs()
-        if (isMounted) {
-          const nextSnapshot = {
-            cachedAt: Date.now(),
-            leagues: radarData.radar || [],
-            legs: legsData.legs || [],
-          }
-          radarSnapshot = nextSnapshot
-          setLeagues(nextSnapshot.leagues)
-          setLegs(nextSnapshot.legs)
-        }
+        await loadRadarSnapshot(api, forceRefresh)
       } catch (err: any) {
         if (isMounted) {
-          if (radarSnapshot) {
-            setLeagues(radarSnapshot.leagues)
-            setLegs(radarSnapshot.legs)
+          const cached = getCachedRadarSnapshot()
+          if (cached) {
             setError(`更新失敗，先顯示上次資料：${err.message || "載入盤口資料失敗"}`)
           } else {
             setError(err.message || "載入盤口資料失敗")
@@ -102,11 +77,11 @@ export const RadarView: React.FC = () => {
         }
       }
     }
-    loadData(refreshVersion > 0)
+    loadData(localRefreshVersion > 0)
     return () => {
       isMounted = false
     }
-  }, [refreshVersion])
+  }, [localRefreshVersion])
 
   // Total open matches across all radar leagues
   const totalOpenMatches = leagues.reduce((sum, l) => sum + (l.taiwan_market_count || 0), 0)
@@ -357,7 +332,7 @@ export const RadarView: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setRefreshVersion((version) => version + 1)}
+              onClick={() => setLocalRefreshVersion((version) => version + 1)}
               disabled={loading}
               className="ml-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:border-slate-300 disabled:opacity-60 cursor-pointer shrink-0"
             >
@@ -577,7 +552,8 @@ export const RadarView: React.FC = () => {
                             const ev = leg.signal_evidence || {}
                             const consensus = ev.consensus_ratio || 0.5
                             const lm = ev.line_movement || {}
-                            const legEv = ev.sharp_expected_value_pct ?? ev.expected_value_pct
+                            const legEvInfo = getLegEvInfo(leg)
+                            const legEv = legEvInfo.value
                             const isPositiveEv = typeof legEv === "number" && legEv > 0
 
                             return (
@@ -596,7 +572,7 @@ export const RadarView: React.FC = () => {
                                   </span>
                                   {!ev.is_market_synthetic && isPositiveEv && (
                                     <span className="ml-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/20 px-1 py-0.5 rounded font-mono">
-                                      +EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
+                                      {legEvInfo.label} {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
                                     </span>
                                   )}
                                   {!ev.is_market_synthetic && ev.sharp_fair_probability && (
@@ -723,7 +699,8 @@ export const RadarView: React.FC = () => {
                             {match.options.map((leg, optIdx) => {
                               const evidence = leg.signal_evidence || {}
                               const lm = evidence.line_movement || {}
-                              const legEv = evidence.sharp_expected_value_pct ?? evidence.expected_value_pct
+                              const legEvInfo = getLegEvInfo(leg)
+                              const legEv = legEvInfo.value
                               const isPosEv = typeof legEv === "number" && legEv > 0 && !evidence.is_market_synthetic
                               const cleanedSelection = cleanSelectionLabel(leg.selection)
 
@@ -750,7 +727,7 @@ export const RadarView: React.FC = () => {
                                       {isPosEv && (
                                         <span className="inline-flex items-center gap-0.5 font-mono font-medium text-emerald-700 dark:text-emerald-400">
                                           <Flame className="w-3 h-3" />
-                                          +EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
+                                          {legEvInfo.label} {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
                                         </span>
                                       )}
                                       {lm.is_steam && (

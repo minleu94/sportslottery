@@ -23,6 +23,9 @@ const asProbability = (value: unknown): number | null => {
   return Number.isFinite(parsed) && parsed > 0 && parsed < 1 ? parsed : null
 }
 
+const asFiniteNumber = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null
+
 const evidenceOf = (leg: Leg): LegSignalEvidence => leg.signal_evidence || {}
 
 export function getLegProbabilityInfo(leg: Leg): ProbabilityInfo {
@@ -48,9 +51,10 @@ export function getLegProbabilityInfo(leg: Leg): ProbabilityInfo {
   }
 
   const benchmarkStatus = String(evidence.market_benchmark_status || "").toUpperCase()
+  const sharpProbability = asProbability(evidence.sharp_fair_probability)
   const benchmark = asProbability(evidence.market_benchmark_fair_probability)
-  if (!synthetic && benchmarkStatus === "AVAILABLE" && qualification === "SHARP_QUALIFIED" && benchmark !== null) {
-    return { value: benchmark, source: "SHARP_MARKET", label: "合格 Sharp 市場估計", validationLabel: "市場基準；非模型驗證" }
+  if (!synthetic && benchmarkStatus === "AVAILABLE" && qualification === "SHARP_QUALIFIED" && sharpProbability !== null) {
+    return { value: sharpProbability, source: "SHARP_MARKET", label: "合格 Sharp 市場估計", validationLabel: "市場基準；非模型驗證" }
   }
   if (!synthetic && benchmarkStatus === "AVAILABLE" && qualification === "INTERNATIONAL_MARKET" && benchmark !== null) {
     return { value: benchmark, source: "INTERNATIONAL_MARKET", label: "合格國際市場估計", validationLabel: "市場基準；非模型驗證" }
@@ -83,19 +87,43 @@ export function getTaiwanFairProbabilityInfo(evidence: LegSignalEvidence): Proba
 }
 
 export function getQualifiedMarketBenchmarkInfo(evidence: LegSignalEvidence): ProbabilityInfo {
-  const probability = asProbability(evidence.market_benchmark_fair_probability)
   const qualification = String(evidence.market_source_qualification || "").toUpperCase()
   const available = String(evidence.market_benchmark_status || "").toUpperCase() === "AVAILABLE"
-  if (evidence.is_market_synthetic || !available || probability === null) {
+  if (evidence.is_market_synthetic || !available) {
     return { value: null, source: "UNAVAILABLE", label: "無有效估計", validationLabel: "沒有合格外部市場資料" }
   }
   if (qualification === "SHARP_QUALIFIED") {
-    return { value: probability, source: "SHARP_MARKET", label: "合格 Sharp 市場估計", validationLabel: "來源、盤口與時間條件合格" }
+    const sharpProbability = asProbability(evidence.sharp_fair_probability)
+    return sharpProbability === null
+      ? { value: null, source: "UNAVAILABLE", label: "無有效估計", validationLabel: "缺少 Sharp 專屬去水機率" }
+      : { value: sharpProbability, source: "SHARP_MARKET", label: "合格 Sharp 市場估計", validationLabel: "來源、盤口與時間條件合格" }
   }
   if (qualification === "INTERNATIONAL_MARKET") {
-    return { value: probability, source: "INTERNATIONAL_MARKET", label: "合格國際市場去水位估計", validationLabel: "市場基準；不是模型驗證" }
+    const probability = asProbability(evidence.market_benchmark_fair_probability)
+    return probability === null
+      ? { value: null, source: "UNAVAILABLE", label: "無有效估計", validationLabel: "缺少國際市場綜合機率" }
+      : { value: probability, source: "INTERNATIONAL_MARKET", label: "合格國際市場去水位估計", validationLabel: "市場基準；不是模型驗證" }
   }
   return { value: null, source: "UNAVAILABLE", label: "無有效估計", validationLabel: "來源資格未通過" }
+}
+
+export function getLegEvInfo(leg: Leg): { value: number | null; label: string } {
+  const probability = getLegProbabilityInfo(leg)
+  if (probability.source === "SHARP_MARKET" || probability.source === "INTERNATIONAL_MARKET") {
+    const odds = asFiniteNumber(leg.taiwan_odds)
+    const value = probability.value !== null && odds !== null && odds > 1
+      ? (probability.value * odds - 1) * 100
+      : null
+    return {
+      value,
+      label: probability.source === "SHARP_MARKET" ? "Sharp EV" : "國際市場 EV",
+    }
+  }
+
+  const evPct = asFiniteNumber(leg.expected_value_pct)
+  const ev = asFiniteNumber(leg.expected_value)
+  const value = evPct ?? (ev !== null ? ev * 100 : null)
+  return { value, label: "估計 EV" }
 }
 
 export function getModelEstimateInfo(evidence: LegSignalEvidence): ProbabilityInfo {
@@ -154,17 +182,20 @@ export function getParlayProbabilityInfo(parlay: ParlayRecommendation): Probabil
 }
 
 export function getParlayEvInfo(parlay: ParlayRecommendation): { value: number | null; label: string; credible: boolean } {
-  const sharp = parlay.has_sharp_benchmark ? parlay.sharp_parlay_ev_pct : null
   const sharpProbability = parlay.has_sharp_benchmark ? asProbability(parlay.sharp_joint_probability) : null
-  const value = sharpProbability !== null && typeof sharp === "number" && Number.isFinite(sharp)
-    ? sharp
+  const odds = asFiniteNumber(parlay.total_odds_exact) ?? asFiniteNumber(parlay.total_odds)
+  const sharpEv = sharpProbability !== null && odds !== null && odds > 1
+    ? (sharpProbability * odds - 1) * 100
+    : null
+  const value = sharpEv !== null
+    ? sharpEv
     : typeof parlay.parlay_ev_pct === "number" && Number.isFinite(parlay.parlay_ev_pct)
       ? parlay.parlay_ev_pct
       : typeof parlay.expected_value === "number" && Number.isFinite(parlay.expected_value)
         ? parlay.expected_value * 100
         : null
   const credible = Boolean(parlay.credible_value_basis)
-  const label = sharpProbability !== null && typeof sharp === "number" && Number.isFinite(sharp)
+  const label = sharpEv !== null
     ? "Sharp 市場估計 EV"
     : value === null
       ? "無有效 EV"

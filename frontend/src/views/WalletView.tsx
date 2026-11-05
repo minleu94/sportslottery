@@ -262,7 +262,7 @@ export const WalletView: React.FC<WalletViewProps> = ({ wallet, onWalletUpdate }
         ) : openTickets.length === 0 ? (
           <Card className="text-center py-8">
             <CardContent className="text-slate-500 dark:text-slate-400 text-xs">
-              目前沒有進行中的注單。可前往「串關決策」選擇組合下注。
+              目前沒有進行中的注單。完成投注後，可前往「串關決策」記錄已投注組合。
             </CardContent>
           </Card>
         ) : (

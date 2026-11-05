@@ -3,7 +3,7 @@ import { cleanLeagueName, cleanSelectionLabel } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { BookOpen, CheckCircle2, ChevronRight, TrendingDown } from "lucide-react"
-import { getLegProbabilityInfo, getParlayEvInfo, getParlayProbabilityInfo } from "@/lib/probabilityProvenance"
+import { getLegEvInfo, getLegProbabilityInfo, getParlayEvInfo, getParlayProbabilityInfo } from "@/lib/probabilityProvenance"
 
 interface ParlayResultCardProps {
   parlay: ParlayRecommendation
@@ -129,11 +129,12 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
           {parlay.legs.map((leg, legIndex) => {
             const legEvidence = leg.signal_evidence || {}
             const lm = (legEvidence.line_movement || {}) as Record<string, unknown>
-            const legEv = leg.expected_value_pct ?? (leg.expected_value != null ? leg.expected_value * 100 : null)
+            const legEvInfo = getLegEvInfo(leg)
+            const legEv = legEvInfo.value
             const legProbability = getLegProbabilityInfo(leg)
             const legProb = legProbability.value !== null ? (legProbability.value * 100).toFixed(1) : null
             const hasCredibleLegProbability = ["ACCEPTED_MODEL", "SHARP_MARKET", "INTERNATIONAL_MARKET"].includes(legProbability.source)
-            const isPos = Boolean(hasCredibleLegProbability && leg.is_positive_ev && legEv !== null && legEv > 0)
+            const isPos = Boolean(hasCredibleLegProbability && legEv !== null && legEv > 0)
             const cleanedLeague = cleanLeagueName(leg.display_league || leg.league || leg.sport)
             const cleanedSelection = cleanSelectionLabel(leg.selection)
 
@@ -182,7 +183,7 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
                               : "text-slate-400 dark:text-slate-500"
                           }`}
                         >
-                          · 估計 EV {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
+                          · {legEvInfo.label} {legEv > 0 ? `+${legEv.toFixed(1)}` : legEv.toFixed(1)}%
                         </span>
                       )}
 
@@ -229,7 +230,7 @@ export function ParlayResultCard({ parlay, index, onShowEvidence, onPlaceBet }: 
           className="min-h-[44px] text-xs font-medium px-4 gap-1.5 cursor-pointer"
         >
           <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>確認下注</span>
+          <span>記錄已投注注單</span>
         </Button>
       </div>
     </div>

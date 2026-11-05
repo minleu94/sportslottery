@@ -13,6 +13,7 @@ import { MetricGuideModal } from "@/components/MetricGuideModal"
 import { SystemHealthModal } from "@/components/SystemHealthModal"
 import { StorageSettingsModal } from "@/components/StorageSettingsModal"
 import { api, ApiRequestError } from "@/services/api"
+import { loadRadarSnapshot } from "@/lib/radarSnapshot"
 import type { Profile, WalletStatus } from "@/types"
 
 function MainLayout() {
@@ -85,8 +86,7 @@ function MainLayout() {
     try {
       if (currentProfile) {
         await Promise.all([
-          api.getRadar(true),
-          api.getLegs(undefined, true),
+          loadRadarSnapshot(api, true),
           refreshWallet(currentProfile.id),
         ])
       }

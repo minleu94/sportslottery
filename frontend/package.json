@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/check-theme-contract.mjs",
     "lint": "oxlint src",
+    "test": "node --test",
     "preview": "vite preview"
   },
   "dependencies": {
