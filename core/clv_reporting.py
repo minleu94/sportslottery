@@ -16,6 +16,7 @@ from typing import Any
 from core.bet_validation import parse_aware_time
 from core.experiment_identity import get_current_experiment_identity, validate_experiment_identity
 from core.odds_watcher import select_last_prestart_observation
+from core.observation_scope import FORMAL, SHADOW, observation_scope
 from core.persistence import read_jsonl as read_persisted_jsonl
 from core.research_paths import research_paths
 from core.snapshot_logger import compute_prediction_payload_hash
@@ -84,7 +85,9 @@ def build_clv_report(
     output = []
     audit = {"input_snapshots": len(snapshots), "invalid_identity_or_payload": 0,
              "different_experiment_excluded": 0, "not_forward_eligible": 0,
-             "non_pre_event_or_after_asof_prediction": 0}
+             "non_pre_event_or_after_asof_prediction": 0,
+             "unknown_observation_scope_excluded": 0,
+             "shadow_observations_included": 0}
     for snapshot in snapshots:
         if not _valid_snapshot(snapshot):
             audit["invalid_identity_or_payload"] += 1
@@ -95,6 +98,12 @@ def build_clv_report(
         if snapshot.get("forward_validation_eligible") is not True:
             audit["not_forward_eligible"] += 1
             continue
+        scope = observation_scope(snapshot)
+        if scope not in {FORMAL, SHADOW}:
+            audit["unknown_observation_scope_excluded"] += 1
+            continue
+        if scope == SHADOW:
+            audit["shadow_observations_included"] += 1
         start = parse_aware_time(snapshot.get("event_start"))
         event_time = snapshot.get("snapshot_timestamp") or snapshot.get("timestamp")
         predicted_at = parse_aware_time(event_time)
@@ -134,6 +143,7 @@ def build_clv_report(
                              "observation_window_id": snapshot.get("observation_window_id"),
                              "prediction_payload_hash": snapshot.get("prediction_payload_hash")},
             "experiment_id": current_id, "strategy_version": snapshot.get("strategy_version"),
+            "observation_scope": scope,
             "strategy_config_hashes": snapshot.get("strategy_config_hashes"),
             "event_id": snapshot.get("event_id"), "canonical_event_id": snapshot.get("canonical_event_id"),
             "market": snapshot.get("market"), "side": snapshot.get("side"),
@@ -161,14 +171,13 @@ def build_clv_report(
                            _line_key(row.get("line"))), ensure_ascii=False,
                           separators=(",", ":"), sort_keys=True)
 
-    first_by_option: dict[str, dict[str, Any]] = {}
-    for row in output:
-        first_by_option.setdefault(option_key(row), row)
-    for row in output:
-        row["is_first_forecast_for_option"] = first_by_option.get(option_key(row)) is row
-    available = [row for row in output if row["status"] == "LAST_PRESTART_OBSERVED"
-                 and row["odds_clv_ratio"] is not None]
-    recent = [row for row in available if row["within_15_minutes_of_start"]]
+    for scope_rows in ([row for row in output if row["observation_scope"] == value]
+                       for value in (FORMAL, SHADOW)):
+        first_by_option: dict[str, dict[str, Any]] = {}
+        for row in scope_rows:
+            first_by_option.setdefault(option_key(row), row)
+        for row in scope_rows:
+            row["is_first_forecast_for_option"] = first_by_option.get(option_key(row)) is row
     def aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         n = len(rows)
         first_rows = [row for row in rows if row.get("is_first_forecast_for_option")]
@@ -196,13 +205,30 @@ def build_clv_report(
                 "prediction_odds_above_last_observed_count": sum(r["odds_clv_ratio"] > 0 for r in rows),
                 "prediction_odds_equal_last_observed_count": sum(r["odds_clv_ratio"] == 0 for r in rows),
                 "prediction_odds_below_last_observed_count": sum(r["odds_clv_ratio"] < 0 for r in rows)}
-    return {"schema": "last-prestart-odds-clv-v2", "experiment_id": current_id,
+    formal_rows = [row for row in output if row["observation_scope"] == FORMAL]
+    shadow_rows = [row for row in output if row["observation_scope"] == SHADOW]
+
+    def scope_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        available = [row for row in rows if row["status"] == "LAST_PRESTART_OBSERVED"
+                     and row["odds_clv_ratio"] is not None]
+        recent = [row for row in available if row["within_15_minutes_of_start"]]
+        return {"observation_count": len(rows),
+                "status_counts": {status: sum(row["status"] == status for row in rows)
+                                  for status in ("PENDING_EVENT", "NO_PRESTART_QUOTE", "LAST_PRESTART_OBSERVED")},
+                "all_last_prestart_observations": aggregate(available),
+                "observations_within_15_minutes": aggregate(recent)}
+
+    formal_summary = scope_summary(formal_rows)
+    shadow_summary = scope_summary(shadow_rows)
+    return {"schema": "last-prestart-odds-clv-v3", "experiment_id": current_id,
             "as_of": cutoff.isoformat(),
-            "interpretation": "Last eligible pre-start observation only; periodic polling does not identify an authoritative final accepted price.",
-            "audit": audit, "status_counts": {status: sum(row["status"] == status for row in output)
-                                                for status in ("PENDING_EVENT", "NO_PRESTART_QUOTE", "LAST_PRESTART_OBSERVED")},
-            "all_last_prestart_observations": aggregate(available),
-            "observations_within_15_minutes": aggregate(recent),
+            "interpretation": "Formal strategy CLV is limited to the 60-minute cohort; Shadow CLV is reported separately. Periodic polling does not identify an authoritative final accepted price.",
+            "sample_scopes": {"formal_strategy": FORMAL, "shadow_research": SHADOW},
+            "audit": audit, "status_counts": formal_summary["status_counts"],
+            "all_last_prestart_observations": formal_summary["all_last_prestart_observations"],
+            "observations_within_15_minutes": formal_summary["observations_within_15_minutes"],
+            "formal_strategy": formal_summary,
+            "shadow_research": shadow_summary,
             "predictions": output}
 
 

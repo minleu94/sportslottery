@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.performance_metrics import PerformanceMetricsEngine
+from core.observation_scope import observation_scope
 from core.shadow_parlay_logger import ShadowParlayLogger
 from core.snapshot_logger import PredictionSnapshotLogger
 
@@ -71,6 +72,7 @@ class ResearchDatasetExporter:
             "strategy_version",
             "settlement_rule_id",
             "forward_validation_eligible",
+            "observation_scope",
             "exclusion_reason",
             "is_settled",
             "settlement_status",
@@ -85,7 +87,7 @@ class ResearchDatasetExporter:
             writer = csv.DictWriter(f, fieldnames=headers, extrasaction="ignore")
             writer.writeheader()
             for s in snapshots:
-                writer.writerow(s)
+                writer.writerow({**s, "observation_scope": observation_scope(s)})
 
         return out_path
 

@@ -86,7 +86,13 @@ def _normalize_line(value: Any) -> Optional[str]:
 
 def _observation_identity(snapshot: Dict[str, Any]) -> tuple[Optional[str], Optional[tuple]]:
     event_id = str(snapshot.get("canonical_event_id") or snapshot.get("event_id") or "").strip().casefold()
-    start = str(snapshot.get("event_start") or "").strip()
+    start_value = snapshot.get("event_start")
+    try:
+        from core.bet_validation import parse_aware_time
+        parsed_start = parse_aware_time(start_value)
+    except (TypeError, ValueError, OverflowError):
+        parsed_start = None
+    start = parsed_start.isoformat() if parsed_start else str(start_value or "").strip()
     if event_id:
         event_key = (event_id, start)
     else:
@@ -151,9 +157,17 @@ def _scope_forward_snapshots(
             conflicts += 1
             continue
         duplicate_retries += max(0, len(rows) - 1)
-        rows.sort(key=lambda row: (str(row.get("snapshot_timestamp") or row.get("prediction_timestamp")
-                                      or row.get("snapshot_created_at") or row.get("timestamp") or ""),
-                                   str(row.get("snapshot_id") or "")))
+        def observation_order(row: Dict[str, Any]) -> tuple[datetime, str]:
+            from core.bet_validation import parse_aware_time
+            timestamp = None
+            for field in ("snapshot_timestamp", "prediction_timestamp", "snapshot_created_at", "timestamp"):
+                timestamp = parse_aware_time(row.get(field))
+                if timestamp is not None:
+                    break
+            return (timestamp or datetime.min.replace(tzinfo=timezone.utc),
+                    str(row.get("snapshot_id") or ""))
+
+        rows.sort(key=observation_order)
         # Prefer the latest valid pre-game observation so a 240-minute shadow
         # record cannot displace the later formal-window observation.
         unique.append(rows[-1])

@@ -241,7 +241,12 @@ def sync_junction(target_path: Path) -> Tuple[bool, str]:
     if not _is_windows():
         return True, "Junction 不適用於此作業系統。"
     local_data = PROJECT_ROOT / "data"
-    resolved_target = target_path.resolve()
+    try:
+        resolved_target = Path(target_path).resolve()
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return False, f"Junction 目標路徑無效：{exc}"
+    if not resolved_target.is_dir():
+        return False, f"Junction 目標不存在或不是目錄：{resolved_target}"
     if local_data.resolve() == resolved_target:
         return True, "Junction 已指向目標目錄。"
     try:
@@ -252,33 +257,67 @@ def sync_junction(target_path: Path) -> Tuple[bool, str]:
 
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     backup = None
+    had_original_path = os.path.lexists(str(local_data))
+    original_path_moved = False
+
+    def restore_original_path() -> Optional[str]:
+        if backup is None or not os.path.lexists(str(backup)):
+            return None
+        if os.path.lexists(str(local_data)):
+            return f"原始 data 路徑保留於 {backup}；目前 data 路徑仍存在，未覆寫。"
+        try:
+            os.rename(backup, local_data)
+            return None
+        except Exception as exc:
+            return f"原始 data 路徑復原失敗：{exc}；原資料保留於 {backup}。"
+
+    def remove_unverified_junction() -> Optional[str]:
+        if had_original_path and not original_path_moved:
+            # The initial rename failed before the original path was moved.
+            # Leave that path untouched instead of treating it as a new link.
+            return None
+        if not os.path.lexists(str(local_data)):
+            return None
+        backup_detail = (f"原始資料備份位置：{backup}。" if backup
+                         else "原本沒有 data 目錄可供復原。")
+        if not _is_windows_junction(local_data):
+            return f"data 路徑不是已驗證的 Junction，為避免刪除未知內容而保留；{backup_detail}"
+        proc = subprocess.run(
+            ["cmd", "/c", "rmdir", str(local_data)], capture_output=True,
+            text=True, check=False, creationflags=creationflags,
+        )
+        if proc.returncode != 0 or os.path.lexists(str(local_data)):
+            detail = (proc.stderr or proc.stdout or f"rmdir 回傳碼 {proc.returncode}").strip()
+            return f"無法移除未驗證的 Junction：{detail}；{backup_detail}"
+        return None
+
     try:
-        if local_data.exists():
+        if had_original_path:
             backup = local_data.with_name(f"data.storage-backup-{uuid.uuid4().hex}")
             os.rename(local_data, backup)
+            original_path_moved = True
         proc = subprocess.run(
             ["cmd", "/c", "mklink", "/J", str(local_data), str(resolved_target)],
             capture_output=True, text=True, check=False, creationflags=creationflags,
         )
         if proc.returncode != 0 or not _is_windows_junction(local_data) or local_data.resolve() != resolved_target:
             detail = (proc.stderr or proc.stdout or f"mklink 回傳碼 {proc.returncode}").strip()
-            if local_data.exists() and _is_windows_junction(local_data):
-                subprocess.run(["cmd", "/c", "rmdir", str(local_data)], capture_output=True,
-                               text=True, check=False, creationflags=creationflags)
-            if backup is not None and backup.exists() and not local_data.exists():
-                os.rename(backup, local_data)
-            return False, f"建立 data Junction 失敗：{detail}"
+            cleanup_error = remove_unverified_junction()
+            restore_error = restore_original_path() if cleanup_error is None else None
+            recovery = cleanup_error or restore_error
+            if recovery:
+                return False, f"建立 data Junction 失敗：{detail}；{recovery}"
+            return False, f"建立 data Junction 失敗：{detail}；原始 data 路徑已保留或復原，原始資料未刪除。"
         return True, (f"Junction 已切換；原目錄保留於 {backup}" if backup else "Junction 已切換。")
     except Exception as exc:
         try:
-            if local_data.exists() and _is_windows_junction(local_data):
-                subprocess.run(["cmd", "/c", "rmdir", str(local_data)], capture_output=True,
-                               text=True, check=False, creationflags=creationflags)
-            if backup is not None and backup.exists() and not local_data.exists():
-                os.rename(backup, local_data)
+            cleanup_error = remove_unverified_junction()
+            restore_error = restore_original_path() if cleanup_error is None else None
+            recovery = cleanup_error or restore_error
         except Exception as restore_exc:
-            return False, f"Junction 切換失敗：{exc}；復原也失敗：{restore_exc}；原資料保留於 {backup}"
-        return False, f"Junction 切換失敗：{exc}"
+            recovery = f"復原步驟失敗：{restore_exc}；原始資料保留於 {backup}。"
+        suffix = f"；{recovery}" if recovery else "；原始 data 路徑已保留或復原，原始資料未刪除。"
+        return False, f"Junction 切換失敗：{exc}{suffix}"
 
 
 def _storage_inventory(root: Path) -> Dict[str, Tuple[str, str]]:
@@ -322,8 +361,8 @@ def _copy_and_verify_storage(current: Path, target: Path) -> Tuple[bool, str]:
                 ["robocopy", str(current), str(target), "/E", "/R:2", "/W:1", "/COPY:DAT", "/DCOPY:DAT", "/SL"],
                 capture_output=True, text=True, check=False, creationflags=creationflags,
             )
-            # Robocopy codes 0-7 are successful copy/metadata outcomes; 8+ is failure.
-            if proc.returncode >= 8:
+            # Robocopy codes 0-7 are successful copy/metadata outcomes.
+            if not 0 <= proc.returncode <= 7:
                 return False, f"robocopy 失敗（回傳碼 {proc.returncode}）：{(proc.stderr or proc.stdout).strip()}"
         else:
             for item in current.iterdir():
@@ -345,8 +384,11 @@ def _copy_and_verify_storage(current: Path, target: Path) -> Tuple[bool, str]:
         for relative in before:
             if relative.casefold().endswith((".sqlite", ".sqlite3", ".db")):
                 database = target / Path(relative)
-                with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as connection:
-                    check = connection.execute("PRAGMA quick_check").fetchone()
+                try:
+                    with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as connection:
+                        check = connection.execute("PRAGMA quick_check").fetchone()
+                except sqlite3.DatabaseError as exc:
+                    return False, f"目標 SQLite 完整性檢查失敗：{relative}（{exc}）"
                 if not check or str(check[0]).casefold() != "ok":
                     return False, f"目標 SQLite 完整性檢查失敗：{relative}"
         return True, "複製完成且逐檔 SHA-256 驗證通過。"
@@ -433,7 +475,7 @@ def update_storage_location(new_path_str: str, migrate: bool = True) -> Tuple[bo
                 restore_errors.append(f"排程復原失敗：{task_message}")
         suffix = ("；" + "；".join(restore_errors)) if restore_errors else ""
         return False, f"{junction_message}；已保留原始資料並復原先前設定{suffix}"
-    return True, f"已成功將資料存放位置更新為：{target}"
+    return True, f"已成功將資料存放位置更新為：{target}；{junction_message}"
 
 
 def get_scheduled_task_status() -> Dict[str, Any]:

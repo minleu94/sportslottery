@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import csv
+import pytest
 
 from core.clv_reporting import build_clv_report
 from core.experiment_identity import build_experiment_identity, get_current_experiment_identity
@@ -8,10 +10,12 @@ from core.recommendation_replay import compare_experiment_versions, replay_recom
 from core.snapshot_logger import compute_prediction_payload_hash
 from core.strategy_version import get_strategy_metadata
 from core.odds_watcher import select_last_prestart_observation
+from core.observation_scope import FORMAL, SHADOW
+from core.research_dataset_exporter import ResearchDatasetExporter
 
 
 def _snapshot(*, identity=None, event="evt-1", start="2026-10-13T20:00:00+00:00",
-              prediction="2026-10-13T18:00:00+00:00", probability=0.7, odds=2.0,
+              prediction="2026-10-13T19:00:00+00:00", probability=0.7, odds=2.0,
               outcome=None, status="PENDING", side="主", line=None, market="不讓分",
               result_source="STATS_API"):
     identity = identity or get_current_experiment_identity()
@@ -77,6 +81,7 @@ def test_clv_uses_exact_last_prestart_observation_and_labels_observed_price():
          "observed_at": "2026-10-13T19:50:00+00:00", "event_start": start, "source": "BOOK_FEED", "status": "LIVE"},
     ]
     report = build_clv_report([row], observations, as_of="2026-10-13T20:10:00+00:00")
+    assert report["schema"] == "last-prestart-odds-clv-v3"
     prediction = report["predictions"][0]
     assert prediction["status"] == "LAST_PRESTART_OBSERVED"
     assert prediction["last_prestart_observation"]["odds"] == 1.85
@@ -88,21 +93,23 @@ def test_clv_uses_exact_last_prestart_observation_and_labels_observed_price():
 
 
 def test_clv_pending_and_missing_are_explicit_and_bad_identity_is_excluded():
-    pending = _snapshot(event="pending", start="2026-10-15T20:00:00+00:00",
+    pending = _snapshot(event="pending", start="2026-10-15T00:00:00+00:00",
                         prediction="2026-10-14T21:00:00+00:00")
     missing = _snapshot(event="missing")
     tampered = dict(missing, taiwan_odds=3.0)
-    future_prediction = _snapshot(event="future-pred", start="2026-10-15T20:00:00+00:00",
+    future_prediction = _snapshot(event="future-pred", start="2026-10-14T23:15:00+00:00",
                                   prediction="2026-10-14T22:30:00+00:00")
+    out_of_window = _snapshot(event="out-of-window", prediction="2026-10-13T10:00:00+00:00")
     ineligible = _snapshot(event="excluded")
     ineligible["forward_validation_eligible"] = False
     ineligible["prediction_payload_hash"] = compute_prediction_payload_hash(ineligible)
-    report = build_clv_report([pending, missing, tampered, future_prediction, ineligible], [],
+    report = build_clv_report([pending, missing, tampered, future_prediction, out_of_window, ineligible], [],
                               as_of="2026-10-14T22:00:00+00:00")
     assert {row["status"] for row in report["predictions"]} == {"PENDING_EVENT", "NO_PRESTART_QUOTE"}
     assert report["audit"]["invalid_identity_or_payload"] == 1
     assert report["audit"]["not_forward_eligible"] == 1
     assert report["audit"]["non_pre_event_or_after_asof_prediction"] == 1
+    assert report["audit"]["unknown_observation_scope_excluded"] == 1
     assert report["all_last_prestart_observations"]["sample_size"] == 0
     assert report["all_last_prestart_observations"]["mean_odds_clv_ratio"] is None
 
@@ -179,6 +186,27 @@ def test_version_comparison_requires_qualified_result_source_and_settled_provena
     assert accepted["settled_matched_count"] == 1
 
 
+def test_version_comparison_reports_one_game_for_multiple_formal_options():
+    a, b = get_current_experiment_identity(), _variant_identity()
+    rows = [
+        _snapshot(identity=identity, event="multi-option", side=side,
+                  outcome=True, status="WON")
+        for identity in (a, b) for side in ("主", "客")
+    ]
+
+    result = compare_experiment_versions(
+        rows, experiment_ids=[a["experiment_id"], b["experiment_id"]],
+        as_of="2026-10-14T02:00:00Z",
+    )
+
+    assert result["schema"] == "matched-experiment-comparison-v2"
+    assert result["matched_event_count"] == 1
+    assert result["matched_observation_count"] == 2
+    assert result["settled_matched_count"] == 1
+    assert result["settled_matched_observation_count"] == 2
+    assert all(metrics["unique_event_count"] == 1 for metrics in result["version_metrics"].values())
+
+
 def test_comparison_keeps_zero_sample_empty_and_tampered_snapshots_out():
     a, b = get_current_experiment_identity(), _variant_identity()
     row = _snapshot(identity=a, status="PENDING")
@@ -195,7 +223,7 @@ def test_comparison_excludes_conflicting_duplicate_settlements():
     a, b = get_current_experiment_identity(), _variant_identity()
     rows = [
         _snapshot(identity=a, event="conflict", outcome=True, status="WON"),
-        _snapshot(identity=a, event="conflict", prediction="2026-10-13T18:30:00+00:00",
+        _snapshot(identity=a, event="conflict", prediction="2026-10-13T19:30:00+00:00",
                   outcome=False, status="LOST"),
         _snapshot(identity=b, event="conflict", outcome=True, status="WON"),
     ]
@@ -231,3 +259,47 @@ def test_legacy_unsealed_eligibility_and_malformed_schema_cannot_certify_metrics
     assert not replay_recommendation(row)["integrity_valid"]
     report=build_clv_report([row],[],as_of="2026-10-14T03:00:00Z")
     assert report["predictions"]==[]
+
+
+def test_shadow_and_formal_cohorts_stay_separate_and_formal_wins_comparison(tmp_path):
+    identities = (get_current_experiment_identity(), _variant_identity())
+    rows = []
+    for identity in identities:
+        rows.extend([
+            _snapshot(identity=identity, event="scope-event", prediction="2026-10-13T16:00:00Z",
+                      probability=0.95, odds=2.0, outcome=True, status="WON"),
+            _snapshot(identity=identity, event="scope-event", prediction="2026-10-13T19:00:00Z",
+                      probability=0.60, odds=1.5, outcome=True, status="WON"),
+        ])
+    for row in rows:
+        row["signal_evidence"]["observation_scope"] = (
+            SHADOW if row["snapshot_timestamp"] == "2026-10-13T16:00:00Z" else FORMAL
+        )
+        row["prediction_payload_hash"] = compute_prediction_payload_hash(row)
+
+    comparison = compare_experiment_versions(
+        rows, experiment_ids=[identity["experiment_id"] for identity in identities],
+        as_of="2026-10-14T02:00:00Z",
+    )
+    assert comparison["matched_event_count"] == 1
+    assert comparison["audit"]["non_formal_observation_scope_excluded"] == 2
+    assert comparison["version_metrics"][identities[0]["experiment_id"]]["n"] == 1
+    assert comparison["version_metrics"][identities[0]["experiment_id"]]["brier"] == pytest.approx(0.16)
+
+    current_rows = [row for row in rows if row["experiment_identity"]["experiment_id"] == identities[0]["experiment_id"]]
+    clv = build_clv_report(current_rows, [], as_of="2026-10-14T02:00:00Z")
+    assert clv["formal_strategy"]["observation_count"] == 1
+    assert clv["formal_strategy"]["all_last_prestart_observations"]["sample_size"] == 0
+    assert clv["shadow_research"]["observation_count"] == 1
+    assert clv["predictions"][0]["observation_scope"] == SHADOW
+
+    class SnapshotSource:
+        def get_all_snapshots(self):
+            return current_rows
+
+    exported = ResearchDatasetExporter(
+        snapshot_logger=SnapshotSource(), parlay_logger=object(), output_dir=tmp_path
+    ).export_single_leg_forward()
+    with exported.open(encoding="utf-8", newline="") as stream:
+        export_rows = list(csv.DictReader(stream))
+    assert {row["observation_scope"] for row in export_rows} == {FORMAL, SHADOW}

@@ -1,7 +1,12 @@
-"""Qualification rules for formal and shadow forward observations.
+"""Qualification rules for formal strategy and Shadow research observations.
 
-New snapshots carry an explicit scope in ``signal_evidence``. Legacy snapshots
-are classified from their prediction lead time without mutating their records.
+The formal strategy cohort is the inclusive 0–60 minute pregame window.
+Shadow research is the >60–240 minute window. Strategy performance and
+international/Sharp paired comparisons use only formal observations; model
+candidate calibration may use both windows and deduplicates to the latest
+valid observation per event/market/selection. New snapshots carry their scope
+in ``signal_evidence``. Legacy snapshots are conservatively inferred from
+timestamps without mutating their stored records; unprovable scope is unknown.
 """
 from __future__ import annotations
 

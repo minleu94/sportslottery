@@ -13,6 +13,7 @@ from core.experiment_identity import get_current_experiment_identity, validate_e
 from core.parlay_validation import _qualify as _qualify_parlay, prediction_hash as _parlay_prediction_hash
 from core.research_paths import research_paths
 from core.snapshot_logger import compute_prediction_payload_hash
+from core.observation_scope import observation_scope, qualifies_formal_strategy
 
 
 def _identity_valid(row: dict[str, Any]) -> bool:
@@ -108,6 +109,7 @@ def replay_recommendation(snapshot: dict[str, Any]) -> dict[str, Any]:
         "side": snapshot.get("side"), "line": snapshot.get("line"),
         "selection": snapshot.get("selection"),
         "snapshot_timestamp": snapshot.get("snapshot_timestamp") or snapshot.get("timestamp"),
+        "observation_scope": observation_scope(snapshot),
         "event_start": snapshot.get("event_start"), "odds": price,
         "probability": probability, "probability_status": snapshot.get("probability_status"),
         "breakeven_probability": breakeven, "replayed_expected_value": ev,
@@ -152,7 +154,8 @@ def _is_settled_known(snapshot: dict[str, Any], as_of: datetime) -> bool:
             return False
     except (TypeError, ValueError):
         return False
-    if (snapshot.get("forward_validation_eligible") is not True
+    if (not qualifies_formal_strategy(snapshot)
+            or snapshot.get("forward_validation_eligible") is not True
             or snapshot.get("is_settled") is not True
             or snapshot.get("settlement_status") not in {"WON", "LOST"}
             or type(snapshot.get("actual_outcome")) is not bool
@@ -175,7 +178,9 @@ def _is_settled_known(snapshot: dict[str, Any], as_of: datetime) -> bool:
 def _metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     n = len(rows)
     if not n:
-        return {"n": 0, "brier": None, "log_loss": None, "classification_accuracy": None,
+        return {"n": 0, "unique_event_count": 0,
+                "sample_unit": "unique formal event/market/side/line observation",
+                "brier": None, "log_loss": None, "classification_accuracy": None,
                 "selection_hit_rate": None, "roi_pct": None}
     briers, losses, returns, classification_hits, selection_hits = [], [], [], [], []
     for row in rows:
@@ -186,7 +191,11 @@ def _metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         classification_hits.append((p >= 0.5) == bool(y))
         selection_hits.append(bool(y))
         returns.append(odds - 1 if y else -1)
-    return {"n": n, "brier": sum(briers)/n, "log_loss": sum(losses)/n,
+    event_keys = {tuple(row["event_key"][:4]) for row in rows
+                  if isinstance(row.get("event_key"), tuple) and len(row["event_key"]) >= 4}
+    return {"n": n, "unique_event_count": len(event_keys),
+            "sample_unit": "unique formal event/market/side/line observation",
+            "brier": sum(briers)/n, "log_loss": sum(losses)/n,
             "classification_accuracy": sum(classification_hits)/n,
             "selection_hit_rate": sum(selection_hits)/n, "roi_pct": 100*sum(returns)/n}
 
@@ -201,6 +210,7 @@ def compare_experiment_versions(
     replays = []
     identity_ids = set()
     audit = {"invalid_or_tampered_payload_excluded": 0, "not_forward_eligible_excluded": 0,
+             "non_formal_observation_scope_excluded": 0,
              "invalid_event_key_excluded": 0, "probability_or_odds_unavailable_excluded": 0}
     for snapshot in snapshots:
         if not _integrity_valid(snapshot):
@@ -208,6 +218,9 @@ def compare_experiment_versions(
             continue
         identity = snapshot["experiment_identity"]["experiment_id"]
         identity_ids.add(identity)
+        if not qualifies_formal_strategy(snapshot):
+            audit["non_formal_observation_scope_excluded"] += 1
+            continue
         replay = replay_recommendation(snapshot)
         if replay["forward_validation_eligible"] is not True:
             audit["not_forward_eligible_excluded"] += 1
@@ -221,8 +234,10 @@ def compare_experiment_versions(
         replays.append((snapshot, replay))
     selected = sorted(set(experiment_ids) if experiment_ids is not None else identity_ids)
     if len(selected) < 2:
-        return {"schema": "matched-experiment-comparison-v1", "status": "INSUFFICIENT_VERSIONS",
-                "experiment_ids": selected, "matched_event_count": 0, "settled_matched_count": 0,
+        return {"schema": "matched-experiment-comparison-v2", "status": "INSUFFICIENT_VERSIONS",
+                "sample_scope": "FORMAL_QUALIFICATION_WINDOW_OR_LEGACY_PREMATCH_WITHIN_60_MINUTES",
+                "experiment_ids": selected, "matched_event_count": 0, "matched_observation_count": 0,
+                "settled_matched_count": 0, "settled_matched_observation_count": 0,
                 "version_metrics": {}, "pairwise_deltas": [], "audit": audit}
     by_version: dict[str, dict[tuple, tuple[dict[str, Any], dict[str, Any]]]] = defaultdict(dict)
     conflicting_keys: dict[str, set[tuple]] = defaultdict(set)
@@ -243,7 +258,9 @@ def compare_experiment_versions(
                 conflicting_keys[version].add(key)
             previous_time = parse_aware_time(previous[0].get("snapshot_timestamp") or previous[0].get("timestamp"))
             this_time = parse_aware_time(snapshot.get("snapshot_timestamp") or snapshot.get("timestamp"))
-            if this_time and previous_time and this_time < previous_time:
+            if (this_time and previous_time
+                    and (this_time, str(snapshot.get("snapshot_id") or ""))
+                    > (previous_time, str(previous[0].get("snapshot_id") or ""))):
                 by_version[version][key] = (snapshot, replay)
     for version, keys in conflicting_keys.items():
         for key in keys:
@@ -270,6 +287,10 @@ def compare_experiment_versions(
         outcome = outcomes.pop()
         for version, (snapshot, replay) in items.items():
             common.append((version, {**replay, "actual_outcome": outcome}))
+    settled_event_keys = {
+        tuple(row["event_key"][:4]) for _, row in common
+        if isinstance(row.get("event_key"), tuple) and len(row["event_key"]) >= 4
+    }
     metric_rows = {version: _metrics([row for v, row in common if v == version]) for version in selected}
     deltas = []
     for i, left in enumerate(selected):
@@ -282,10 +303,14 @@ def compare_experiment_versions(
                            "classification_accuracy_left_minus_right": a["classification_accuracy"]-b["classification_accuracy"] if a["classification_accuracy"] is not None and b["classification_accuracy"] is not None else None,
                            "selection_hit_rate_left_minus_right": a["selection_hit_rate"]-b["selection_hit_rate"] if a["selection_hit_rate"] is not None and b["selection_hit_rate"] is not None else None,
                            "roi_left_minus_right_pp": a["roi_pct"]-b["roi_pct"] if a["roi_pct"] is not None and b["roi_pct"] is not None else None})
-    return {"schema": "matched-experiment-comparison-v1",
+    return {"schema": "matched-experiment-comparison-v2",
+            "sample_scope": "FORMAL_QUALIFICATION_WINDOW_OR_LEGACY_PREMATCH_WITHIN_60_MINUTES",
             "status": "COMPLETED" if common else "NO_SETTLED_MATCHED_COHORT",
-            "experiment_ids": selected, "matched_event_count": len(common_keys),
-            "settled_matched_count": len(common)//len(selected) if selected else 0,
+            "experiment_ids": selected,
+            "matched_event_count": len({tuple(key[:4]) for key in common_keys}),
+            "matched_observation_count": len(common_keys),
+            "settled_matched_count": len(settled_event_keys),
+            "settled_matched_observation_count": len(common)//len(selected) if selected else 0,
             "audit": {**audit, "invalid_result_source_excluded": invalid_result_source_excluded},
             "duplicate_snapshots_removed": duplicates, "version_metrics": metric_rows,
             "pairwise_deltas": deltas,

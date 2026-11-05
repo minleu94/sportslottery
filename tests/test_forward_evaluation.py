@@ -243,8 +243,8 @@ def test_shadow_240m_cannot_replace_formal_60m_strategy_observation():
     shadow = _sealed(shadow)
     formal = _row("scope-event", 1, 0.80, **_accepted_model_provenance(identity))
     formal.update({"snapshot_id": "formal-60",
-                   "prediction_timestamp": "2026-10-30T13:00:00Z",
-                   "event_start": "2026-10-30T14:00:00Z",
+                   "prediction_timestamp": "2026-10-30T05:00:00-08:00",
+                   "event_start": "2026-10-30T06:00:00-08:00",
                    "signal_evidence": {"observation_scope": "FORMAL_QUALIFICATION_WINDOW"}})
     formal = _sealed(formal)
     report = ForwardEvaluationEngine().evaluate_cohort([formal, shadow])
@@ -253,6 +253,7 @@ def test_shadow_240m_cannot_replace_formal_60m_strategy_observation():
     cohort = PerformanceMetricsEngine.forward_cohort([formal, shadow], observation_purpose="SHADOW_CALIBRATION")
     assert len(cohort["observations"]) == 1
     assert cohort["observations"][0]["model_prob"] == 0.80
+    assert cohort["audit"]["duplicate_retries_removed"] == 1
     assert PerformanceMetricsEngine.forward_cohort([formal, shadow])["observations"][0]["model_prob"] == 0.80
 
 
