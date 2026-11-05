@@ -9,6 +9,9 @@ import os
 import shutil
 import subprocess
 import threading
+import hashlib
+import uuid
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -214,27 +217,137 @@ def save_storage_config(target_path: Path) -> None:
     STORAGE_CONFIG_FILE.write_text(yaml.safe_dump(config_payload, allow_unicode=True), encoding="utf-8")
 
 
-def sync_junction(target_path: Path) -> None:
-    """If on Windows and target_path is outside PROJECT_ROOT / 'data', link data junction."""
+def _is_windows_junction(path: Path) -> bool:
+    if os.name != "nt" or not path.exists():
+        return False
+    try:
+        import ctypes
+        attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+        return bool(attrs != -1 and (attrs & 0x400))
+    except Exception:
+        return False
+
+
+def sync_junction(target_path: Path) -> Tuple[bool, str]:
+    """Safely point the project data alias at a validated storage root.
+
+    Existing directories are renamed to a retained backup before linking; they
+    are never recursively removed. A failed link restores the previous path.
+    """
     if os.name != "nt":
-        return
+        return True, "Junction 不適用於此作業系統。"
     local_data = PROJECT_ROOT / "data"
     resolved_target = target_path.resolve()
     if local_data.resolve() == resolved_target:
-        return
-    # Remove existing junction or folder if empty
+        return True, "Junction 已指向目標目錄。"
+    try:
+        resolved_target.relative_to(local_data.resolve())
+        return False, "目標目錄不可位於 data Junction 之下。"
+    except ValueError:
+        pass
+
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    backup = None
     try:
         if local_data.exists():
-            subprocess.run(["cmd", "/c", "rmdir", str(local_data)], check=False, creationflags=creationflags)
-        if not local_data.exists():
-            subprocess.run(
-                ["cmd", "/c", "mklink", "/J", str(local_data), str(resolved_target)],
-                check=False,
-                creationflags=creationflags,
+            backup = local_data.with_name(f"data.storage-backup-{uuid.uuid4().hex}")
+            os.rename(local_data, backup)
+        proc = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(local_data), str(resolved_target)],
+            capture_output=True, text=True, check=False, creationflags=creationflags,
+        )
+        if proc.returncode != 0 or not _is_windows_junction(local_data) or local_data.resolve() != resolved_target:
+            detail = (proc.stderr or proc.stdout or f"mklink 回傳碼 {proc.returncode}").strip()
+            if local_data.exists() and _is_windows_junction(local_data):
+                subprocess.run(["cmd", "/c", "rmdir", str(local_data)], capture_output=True,
+                               text=True, check=False, creationflags=creationflags)
+            if backup is not None and backup.exists() and not local_data.exists():
+                os.rename(backup, local_data)
+            return False, f"建立 data Junction 失敗：{detail}"
+        return True, (f"Junction 已切換；原目錄保留於 {backup}" if backup else "Junction 已切換。")
+    except Exception as exc:
+        try:
+            if local_data.exists() and _is_windows_junction(local_data):
+                subprocess.run(["cmd", "/c", "rmdir", str(local_data)], capture_output=True,
+                               text=True, check=False, creationflags=creationflags)
+            if backup is not None and backup.exists() and not local_data.exists():
+                os.rename(backup, local_data)
+        except Exception as restore_exc:
+            return False, f"Junction 切換失敗：{exc}；復原也失敗：{restore_exc}；原資料保留於 {backup}"
+        return False, f"Junction 切換失敗：{exc}"
+
+
+def _storage_inventory(root: Path) -> Dict[str, Tuple[str, str]]:
+    """Hash every regular file and record directories/symlinks without following them."""
+    inventory: Dict[str, Tuple[str, str]] = {}
+    for current, dirs, files in os.walk(root, followlinks=False):
+        base = Path(current)
+        rel_base = base.relative_to(root).as_posix()
+        if rel_base != ".":
+            inventory[rel_base] = ("dir", "")
+        for name in list(dirs):
+            path = base / name
+            rel = path.relative_to(root).as_posix()
+            is_junction = bool(getattr(path, "is_junction", lambda: False)())
+            if path.is_symlink() or is_junction:
+                inventory[rel] = ("symlink", os.readlink(path))
+                dirs.remove(name)
+            else:
+                inventory[rel] = ("dir", "")
+        for name in files:
+            path = base / name
+            rel = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                inventory[rel] = ("symlink", os.readlink(path))
+                continue
+            digest = hashlib.sha256()
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            inventory[rel] = ("file", digest.hexdigest())
+    return inventory
+
+
+def _copy_and_verify_storage(current: Path, target: Path) -> Tuple[bool, str]:
+    """Copy without deleting source and verify every source path and file hash."""
+    try:
+        before = _storage_inventory(current)
+        if os.name == "nt":
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            proc = subprocess.run(
+                ["robocopy", str(current), str(target), "/E", "/R:2", "/W:1", "/COPY:DAT", "/DCOPY:DAT", "/SL"],
+                capture_output=True, text=True, check=False, creationflags=creationflags,
             )
-    except Exception:
-        pass
+            # Robocopy codes 0-7 are successful copy/metadata outcomes; 8+ is failure.
+            if proc.returncode >= 8:
+                return False, f"robocopy 失敗（回傳碼 {proc.returncode}）：{(proc.stderr or proc.stdout).strip()}"
+        else:
+            for item in current.iterdir():
+                dest_item = target / item.name
+                if item.is_dir() and not item.is_symlink():
+                    shutil.copytree(item, dest_item, dirs_exist_ok=True, symlinks=True)
+                elif item.is_symlink():
+                    if not dest_item.exists() and not dest_item.is_symlink():
+                        dest_item.symlink_to(os.readlink(item), target_is_directory=item.is_dir())
+                else:
+                    shutil.copy2(item, dest_item)
+        after = _storage_inventory(current)
+        copied = _storage_inventory(target)
+        if before != after:
+            return False, "複製期間來源資料有變動，未能驗證完整性。"
+        missing_or_changed = [key for key, value in before.items() if copied.get(key) != value]
+        if missing_or_changed:
+            return False, f"目標資料驗證失敗；缺少或不一致項目 {len(missing_or_changed)} 個。"
+        for relative in before:
+            if relative.casefold().endswith((".sqlite", ".sqlite3", ".db")):
+                database = target / Path(relative)
+                with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as connection:
+                    check = connection.execute("PRAGMA quick_check").fetchone()
+                if not check or str(check[0]).casefold() != "ok":
+                    return False, f"目標 SQLite 完整性檢查失敗：{relative}"
+        return True, "複製完成且逐檔 SHA-256 驗證通過。"
+    except Exception as exc:
+        return False, f"資料遷移或完整性驗證失敗：{exc}"
 
 
 def update_storage_location(new_path_str: str, migrate: bool = True) -> Tuple[bool, str]:
@@ -248,37 +361,74 @@ def update_storage_location(new_path_str: str, migrate: bool = True) -> Tuple[bo
         target = (PROJECT_ROOT / target).resolve()
 
     current = get_storage_root().resolve()
+    target = target.resolve()
     if target.resolve() == current:
         return True, "存放路徑已是當前目錄，無需變更。"
+    if target.is_relative_to(current) or current.is_relative_to(target):
+        return False, "來源與目標路徑不可互相包含。"
+    if migrate and not current.is_dir():
+        return False, f"來源資料目錄不存在或無法讀取：{current}"
 
     try:
         target.mkdir(parents=True, exist_ok=True)
+        if not target.is_dir():
+            return False, "目標路徑不是目錄。"
+        probe = target / f".sportslottery-write-check-{uuid.uuid4().hex}"
+        with probe.open("xb"):
+            pass
+        probe.unlink()
     except Exception as exc:
+        try:
+            if "probe" in locals() and probe.exists():
+                probe.unlink()
+        except Exception:
+            pass
         return False, f"無法建立或寫入目標目錄: {exc}"
 
     if migrate and current.exists():
         try:
-            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
-            # Use robocopy on Windows for fast reliable transfer
-            if os.name == "nt":
-                subprocess.run(
-                    ["robocopy", str(current), str(target), "/E", "/R:2", "/W:1"],
-                    check=False,
-                    creationflags=creationflags,
-                )
-            else:
-                for item in current.iterdir():
-                    dest_item = target / item.name
-                    if item.is_dir():
-                        shutil.copytree(item, dest_item, dirs_exist_ok=True)
-                    else:
-                        shutil.copy2(item, dest_item)
+            source_inventory = _storage_inventory(current)
+            target_inventory = _storage_inventory(target)
+            conflicts = [key for key, value in source_inventory.items()
+                         if key in target_inventory and target_inventory[key] != value]
+            if conflicts:
+                return False, f"目標已有 {len(conflicts)} 個不同內容的同名項目；為避免覆蓋，已中止遷移。"
         except Exception as exc:
-            return False, f"資料遷移失敗: {exc}"
+            return False, f"無法檢查目標資料：{exc}"
+        copied, message = _copy_and_verify_storage(current, target)
+        if not copied:
+            return False, message
 
-    save_storage_config(target)
-    sync_junction(target)
-    sync_scheduled_task_argument(target / "research_pipeline")
+    try:
+        save_storage_config(target)
+    except Exception as exc:
+        try:
+            save_storage_config(current)
+        except Exception as restore_exc:
+            return False, f"儲存設定失敗：{exc}；回復舊設定也失敗：{restore_exc}。來源資料未刪除。"
+        return False, f"儲存設定失敗：{exc}；已嘗試保留舊路徑設定。"
+
+    scheduled_ok, scheduled_message = sync_scheduled_task_argument(target / "research_pipeline")
+    if os.name == "nt" and not scheduled_ok and "TASK_NOT_FOUND" not in scheduled_message:
+        try:
+            save_storage_config(current)
+        except Exception as restore_exc:
+            return False, f"排程同步失敗：{scheduled_message}；回復設定失敗：{restore_exc}。來源資料未刪除。"
+        return False, f"排程同步失敗：{scheduled_message}；已回復舊儲存設定。"
+
+    junction_ok, junction_message = sync_junction(target)
+    if not junction_ok:
+        restore_errors = []
+        try:
+            save_storage_config(current)
+        except Exception as exc:
+            restore_errors.append(f"設定復原失敗：{exc}")
+        if os.name == "nt" and scheduled_ok:
+            task_ok, task_message = sync_scheduled_task_argument(current / "research_pipeline")
+            if not task_ok:
+                restore_errors.append(f"排程復原失敗：{task_message}")
+        suffix = ("；" + "；".join(restore_errors)) if restore_errors else ""
+        return False, f"{junction_message}；已保留原始資料並復原先前設定{suffix}"
     return True, f"已成功將資料存放位置更新為：{target}"
 
 

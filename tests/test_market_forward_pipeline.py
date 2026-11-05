@@ -525,7 +525,7 @@ def test_forward_evaluation_gate_sample_threshold(tmp_path: Path):
 
     # Log and settle 10 predictions (N=10 < 30)
     for i in range(10):
-        start_time = (now + timedelta(hours=1, minutes=i)).isoformat()
+        start_time = (now + timedelta(minutes=30, seconds=i)).isoformat()
         leg = _qualified_forward_test_leg(
             f"test_n10_{i}", now, datetime.fromisoformat(start_time)
         )
@@ -546,7 +546,7 @@ def test_forward_evaluation_gate_sample_threshold(tmp_path: Path):
 
     # Add 25 more predictions (Total N=35 >= 30)
     for i in range(10, 35):
-        start_time = (now + timedelta(hours=1, minutes=i)).isoformat()
+        start_time = (now + timedelta(minutes=30, seconds=i)).isoformat()
         leg = _qualified_forward_test_leg(
             f"test_n35_{i}", now, datetime.fromisoformat(start_time)
         )

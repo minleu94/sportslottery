@@ -24,6 +24,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from core.strategy_version import GOVERNANCE_RULES, STRATEGY_VERSION, get_strategy_metadata
 from core.experiment_identity import get_current_experiment_identity, validate_experiment_identity
+from core.observation_scope import qualifies_formal_strategy, qualifies_shadow_calibration
 
 INSUFFICIENT_THRESHOLD = GOVERNANCE_RULES["insufficient_sample_threshold"]  # 30
 
@@ -106,6 +107,7 @@ def _observation_identity(snapshot: Dict[str, Any]) -> tuple[Optional[str], Opti
 
 def _scope_forward_snapshots(
     snapshots: Iterable[Dict[str, Any]], target_experiment_id: Optional[str] = None,
+    observation_purpose: str = "FORMAL_STRATEGY",
 ) -> tuple[List[Dict[str, Any]], str, Dict[str, int]]:
     if target_experiment_id is None:
         target_experiment_id = get_current_experiment_identity()["experiment_id"]
@@ -115,6 +117,7 @@ def _scope_forward_snapshots(
     missing_key = 0
     valid_identity_count = 0
     different_target_identity_count = 0
+    scope_excluded = 0
     # Consume storage iterators once. Historical rows can contain large nested
     # evidence payloads, so retaining the complete ledger needlessly multiplies
     # the API's peak memory use.
@@ -126,6 +129,11 @@ def _scope_forward_snapshots(
             if identity.get("experiment_id") != target_experiment_id:
                 different_target_identity_count += 1
         if not _is_forward_binary(snapshot, target_experiment_id):
+            continue
+        qualifies = (qualifies_shadow_calibration(snapshot) if observation_purpose == "SHADOW_CALIBRATION"
+                     else qualifies_formal_strategy(snapshot))
+        if not qualifies:
+            scope_excluded += 1
             continue
         eligible_count += 1
         event_key, observation_key = _observation_identity(snapshot)
@@ -143,10 +151,12 @@ def _scope_forward_snapshots(
             conflicts += 1
             continue
         duplicate_retries += max(0, len(rows) - 1)
-        rows.sort(key=lambda row: (str(row.get("snapshot_created_at") or row.get("timestamp") or ""),
-                                   str(row.get("snapshot_id") or ""),
-                                   str(row.get("prediction_payload_hash") or "")))
-        unique.append(rows[0])
+        rows.sort(key=lambda row: (str(row.get("snapshot_timestamp") or row.get("prediction_timestamp")
+                                      or row.get("snapshot_created_at") or row.get("timestamp") or ""),
+                                   str(row.get("snapshot_id") or "")))
+        # Prefer the latest valid pre-game observation so a 240-minute shadow
+        # record cannot displace the later formal-window observation.
+        unique.append(rows[-1])
     event_count = len({_observation_identity(row)[0] for row in unique})
     return unique, target_experiment_id, {
         "input_count": input_count,
@@ -158,6 +168,7 @@ def _scope_forward_snapshots(
         "missing_observation_key_excluded": missing_key,
         "legacy_or_invalid_identity_excluded": input_count - valid_identity_count,
         "different_target_identity_excluded": different_target_identity_count,
+        "observation_scope_excluded": scope_excluded,
     }
 
 
@@ -202,9 +213,16 @@ class PerformanceMetricsEngine:
     """Evaluates forward prediction snapshots and generates segmented performance metrics."""
 
     @staticmethod
-    def forward_cohort(snapshots: Iterable[Dict[str, Any]], target_experiment_id: Optional[str] = None) -> Dict[str, Any]:
-        """Public shared cohort for UI, reports and evidence audits."""
-        observations, identity, audit = _scope_forward_snapshots(snapshots, target_experiment_id)
+    def forward_cohort(snapshots: Iterable[Dict[str, Any]], target_experiment_id: Optional[str] = None,
+                       observation_purpose: str = "FORMAL_STRATEGY") -> Dict[str, Any]:
+        """Return a purpose-specific, settled and deduplicated forward cohort.
+
+        Formal strategy metrics exclude shadow-only rows. Shadow calibration
+        includes both horizons and keeps the latest valid event observation.
+        """
+        observations, identity, audit = _scope_forward_snapshots(
+            snapshots, target_experiment_id, observation_purpose
+        )
         return {"observations": observations, "target_experiment_id": identity, "audit": audit}
 
     @staticmethod

@@ -34,10 +34,10 @@ def _market_evidence(event_id, *, sharp=True, fair=0.50):
         "bookmaker_ids": [source],
         "raw_outcome_odds": {source: {"home": 1.95, "away": 1.95}},
         "market_observation_times": {source: {
-            "home": "2026-10-30T09:59:00Z",
-            "away": "2026-10-30T09:59:00Z",
+            "home": "2026-10-30T12:59:00Z",
+            "away": "2026-10-30T12:59:00Z",
         }},
-        "retrieved_at_utc": "2026-10-30T10:00:00Z",
+        "retrieved_at_utc": "2026-10-30T13:00:00Z",
         "is_synthetic": False,
         "devig_method": "PROPORTIONAL",
         "fair_probability": fair,
@@ -70,9 +70,10 @@ def _accepted_model_provenance(identity):
 def _row(event_id, outcome, model_prob, *, sharp=True, fair=None, **extra):
     if fair is None:
         fair = 0.51 if outcome else 0.49
+    identity = extra.get("experiment_identity") or get_current_experiment_identity()
     return _sealed({
         "event_id": event_id,
-        "prediction_timestamp": "2026-10-30T10:00:00Z",
+        "prediction_timestamp": "2026-10-30T13:00:00Z",
         "event_start": "2026-10-30T14:00:00Z",
         "sport": "baseball",
         "league": "MLB",
@@ -84,6 +85,16 @@ def _row(event_id, outcome, model_prob, *, sharp=True, fair=None, **extra):
         "model_prob": model_prob,
         "outcome": outcome,
         "forward_validation_eligible": True,
+        "is_settled": True,
+        "settlement_status": "WON" if outcome else "LOST",
+        "actual_outcome": bool(outcome),
+        "settled_at": "2026-10-30T15:00:00Z",
+        "result_source": "OFFICIAL_UNIT_TEST_FEED",
+        "strategy_version": identity["strategy_version"],
+        "experiment_identity": identity,
+        "strategy_metadata": {"experiment_identity": identity},
+        "strategy_config_hashes": identity["config_hashes"],
+        "signal_evidence": {"observation_scope": "FORMAL_QUALIFICATION_WINDOW"},
         **extra,
     })
 
@@ -220,3 +231,36 @@ def test_repeated_snapshots_count_once_and_roi_is_not_called_settled_without_bet
     assert report.active_model_strategy.settled_roi_pct is None
     assert report.active_model_strategy.simulated_bet_count > 0
     assert report.active_model_strategy.simulated_roi_pct is not None
+
+
+def test_shadow_240m_cannot_replace_formal_60m_strategy_observation():
+    identity = get_current_experiment_identity()
+    shadow = _row("scope-event", 1, 0.20, **_accepted_model_provenance(identity))
+    shadow.update({"snapshot_id": "shadow-240",
+                   "prediction_timestamp": "2026-10-30T10:00:00Z",
+                   "event_start": "2026-10-30T14:00:00Z",
+                   "signal_evidence": {"observation_scope": "SHADOW_ONLY"}})
+    shadow = _sealed(shadow)
+    formal = _row("scope-event", 1, 0.80, **_accepted_model_provenance(identity))
+    formal.update({"snapshot_id": "formal-60",
+                   "prediction_timestamp": "2026-10-30T13:00:00Z",
+                   "event_start": "2026-10-30T14:00:00Z",
+                   "signal_evidence": {"observation_scope": "FORMAL_QUALIFICATION_WINDOW"}})
+    formal = _sealed(formal)
+    report = ForwardEvaluationEngine().evaluate_cohort([formal, shadow])
+    assert report.sample_size == 1
+    from core.performance_metrics import PerformanceMetricsEngine
+    cohort = PerformanceMetricsEngine.forward_cohort([formal, shadow], observation_purpose="SHADOW_CALIBRATION")
+    assert len(cohort["observations"]) == 1
+    assert cohort["observations"][0]["model_prob"] == 0.80
+    assert PerformanceMetricsEngine.forward_cohort([formal, shadow])["observations"][0]["model_prob"] == 0.80
+
+
+def test_legacy_observation_scope_is_inferred_conservatively_from_pregame_time():
+    from core.observation_scope import FORMAL, SHADOW, observation_scope
+    base = {"event_start": "2026-10-30T14:00:00Z"}
+    assert observation_scope({**base, "snapshot_timestamp": "2026-10-30T13:00:00Z"}) == FORMAL
+    assert observation_scope({**base, "snapshot_timestamp": "2026-10-30T12:59:00Z"}) == SHADOW
+    assert observation_scope({**base, "snapshot_timestamp": "2026-10-30T09:59:00Z"}) == "UNKNOWN"
+    assert observation_scope({**base, "observation_scope": SHADOW,
+                              "snapshot_timestamp": "2026-10-30T13:00:00Z"}) == "UNKNOWN"

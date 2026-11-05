@@ -47,6 +47,7 @@ from core.persistence import iter_jsonl
 from core.settlement_engine import SettlementEngine
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger, compute_prediction_payload_hash
+from core.observation_scope import qualifies_formal_strategy
 from core.bet_validation import parse_aware_time
 from core.contracts.common import TaiwanLeg
 from core.contracts.market import (
@@ -831,6 +832,7 @@ class MarketForwardPipeline:
         legacy_unverified_count = 0
         synthetic_fixture_count = 0
         invalid_odds_or_outcome_count = 0
+        observation_scope_excluded_count = 0
         ineligible_flag_count = 0
         missing_hash_count = 0
         invalid_hash_count = 0
@@ -927,6 +929,9 @@ class MarketForwardPipeline:
             explicitly_eligible = r.get("forward_validation_eligible") is True
             if not explicitly_eligible:
                 ineligible_flag_count += 1
+            formal_scope = qualifies_formal_strategy(r)
+            if explicitly_eligible and not formal_scope:
+                observation_scope_excluded_count += 1
 
             hash_valid = False
             try:
@@ -951,6 +956,7 @@ class MarketForwardPipeline:
                 and odds_val and odds_val > 1.0
                 and not is_syn
                 and is_pre_match
+                and formal_scope
                 and hash_valid
                 and (has_model or has_market)
             ):
@@ -977,6 +983,7 @@ class MarketForwardPipeline:
                 "invalid_odds_or_outcome": invalid_odds_or_outcome_count,
                 "missing_timestamp": missing_timestamp_count,
                 "forward_validation_ineligible_or_missing": ineligible_flag_count,
+                "non_formal_observation_scope": observation_scope_excluded_count,
                 "missing_prediction_hash": missing_hash_count,
                 "invalid_prediction_hash": invalid_hash_count,
             },

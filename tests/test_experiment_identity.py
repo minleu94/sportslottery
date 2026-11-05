@@ -38,7 +38,7 @@ def _snapshot(identity=None, *, key="game-1", side="home", outcome=True, probabi
         "timestamp": "2026-10-10T12:00:00+00:00",
         "event_id": key,
         "canonical_event_id": key,
-        "event_start": "2026-10-11T12:00:00+00:00",
+        "event_start": "2026-10-10T12:30:00+00:00",
         "sport": "soccer",
         "league": "eng.1",
         "away_team": "Chelsea",
@@ -64,6 +64,7 @@ def _snapshot(identity=None, *, key="game-1", side="home", outcome=True, probabi
         "strategy_config_hashes": identity["config_hashes"],
         "strategy_metadata": {"experiment_identity": identity},
         "prediction_hash_schema": 3,
+        "signal_evidence": {"observation_scope": "FORMAL_QUALIFICATION_WINDOW"},
         "settlement_rule_id": "test-rule-v1",
     }
     row["prediction_payload_hash"] = compute_prediction_payload_hash(row)

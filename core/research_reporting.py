@@ -158,6 +158,12 @@ class ResearchReportMixin:
         forward_cohort = PerformanceMetricsEngine.forward_cohort(known_rows, current_experiment_id)
         scoped = forward_cohort["observations"]
         audit = forward_cohort["audit"]
+        # Candidate calibration is a separate cohort: include settled shadow
+        # rows as well as formal rows, deduped to the latest valid forecast.
+        shadow_cohort = PerformanceMetricsEngine.forward_cohort(
+            known_rows, current_experiment_id, observation_purpose="SHADOW_CALIBRATION"
+        )
+        shadow_scoped = shadow_cohort["observations"]
         audit["report_outcomes_unknown_at_cutoff_excluded"] = len(recent) - len(known_rows)
         def valid_probability(value):
             try:
@@ -175,7 +181,7 @@ class ResearchReportMixin:
                        and valid_probability(row.get("market_fair_probability"))]
         # Gate-rejected research candidates remain a separate diagnostic cohort:
         # they are never substituted into the deployed-model metric above.
-        candidate_rows = [row for row in scoped
+        candidate_rows = [row for row in shadow_scoped
                           if valid_probability(row.get("model_candidate_probability_fused"))
                           and valid_probability(row.get("market_fair_probability"))
                           and bool(row.get("model_candidate_provenances"))]
@@ -230,6 +236,7 @@ class ResearchReportMixin:
             "wallet_data_used": False,
             "single_leg": {"recorded_snapshots": len(recent), "settled_count": len(settled),
                            "valid_current_experiment_unique_observations": audit,
+                           "formal_strategy_observation_scope": "FORMAL_QUALIFICATION_WINDOW_OR_LEGACY_PREMATCH_WITHIN_60_MINUTES",
                            "paired_probability_cohort_n": len(paired_rows), "model": model_metrics,
                            "market_baseline": market_metrics,
                            "paired_cluster_bootstrap_ci95": paired_ci,
@@ -241,6 +248,8 @@ class ResearchReportMixin:
                            },
                            "research_candidate": {
                                "status": "UNVALIDATED_DIAGNOSTIC_ONLY",
+                               "observation_scope": "FORMAL_PLUS_SHADOW_UP_TO_240_MINUTES_LATEST_VALID_OBSERVATION",
+                               "cohort_audit": shadow_cohort["audit"],
                                "paired_probability_cohort_n": len(candidate_rows),
                                "model_candidate": candidate_metrics,
                                "market_baseline_same_cohort": candidate_market_metrics,

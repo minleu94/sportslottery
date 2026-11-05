@@ -317,11 +317,12 @@ def test_metrics_engine_buckets_and_insufficient_sample():
             "snapshot_timestamp": "2026-10-10T12:00:00+00:00",
             "event_id": f"metric-event-{index}",
             "canonical_event_id": f"metric-event-{index}",
-            "event_start": f"2026-10-{11 + index:02d}T12:00:00+00:00",
+            "event_start": f"2026-10-10T12:30:00+00:00",
             "settled_at": f"2026-10-{12 + index:02d}T12:00:00+00:00",
             "result_source": "STATS_API",
             "sport": "soccer", "league": "eng.1", "away_team": "Chelsea", "home_team": "Arsenal",
             "market": "不讓分", "selection": f"selection-{index}", "side": f"side-{index}", "line": None,
+            "signal_evidence": {"observation_scope": "FORMAL_QUALIFICATION_WINDOW"},
         })
         identity = get_current_experiment_identity()
         snapshot["experiment_identity"] = identity

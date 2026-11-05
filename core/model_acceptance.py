@@ -19,6 +19,7 @@ from probability.calibration import apply_binary_temperature, fit_binary_tempera
 from core.experiment_identity import validate_experiment_identity
 from core.snapshot_logger import compute_prediction_payload_hash
 from core.research_paths import research_paths
+from core.observation_scope import qualifies_shadow_calibration
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "config" / "model_acceptance.yaml"
@@ -248,8 +249,9 @@ def evaluate_scope_evidence(
         matched.append({**row, "raw_probability": p, "outcome": int(y), "prediction_timestamp": timestamp,
                         "settled_at": settled_at, "market_probability": market_p, "decimal_odds": odds})
     matched.sort(key=lambda row: (row["prediction_timestamp"], str(row.get("event_id", ""))))
-    # Keep one earliest forecast per exact event/market/selection; contradictory
-    # settlements for the same key are removed from the evidence cohort.
+    # Keep one latest forecast per exact event/market/selection. Calibration
+    # accepts formal and shadow observations, while preferring the later
+    # 60-minute observation when both horizons exist.
     deduped: dict[tuple, list[dict[str, Any]]] = {}
     for row in matched:
         dedupe_key = (str(row.get("event_id", "")), str(row.get("league", "")),
@@ -258,7 +260,7 @@ def evaluate_scope_evidence(
     matched = []
     for group in deduped.values():
         if len({row["outcome"] for row in group}) == 1:
-            matched.append(group[0])
+            matched.append(group[-1])
     matched.sort(key=lambda row: (row["prediction_timestamp"], str(row.get("event_id", ""))))
     train_min = int(policy.get("min_calibration_samples", 100))
     eval_min = int(policy.get("min_evaluation_samples", 100))
@@ -478,6 +480,8 @@ class ModelAcceptanceGate:
                         or snapshot.get("forward_validation_eligible") is not True
                         or snapshot.get("prediction_hash_schema", 1) < 4):
                     continue
+                if not qualifies_shadow_calibration(snapshot):
+                    continue
 
                 identity = snapshot.get("experiment_identity")
                 if (not validate_experiment_identity(identity)
@@ -541,6 +545,8 @@ class ModelAcceptanceGate:
                         "settled_at": snapshot.get("settled_at"),
                         "settlement_status": snapshot.get("settlement_status"),
                         "result_source": snapshot.get("result_source"),
+                        "observation_scope": (snapshot.get("observation_scope")
+                                              or (snapshot.get("signal_evidence") or {}).get("observation_scope")),
                     }
                     delta_by_scope.setdefault(scope_key, []).append(evidence)
 

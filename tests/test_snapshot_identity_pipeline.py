@@ -15,7 +15,7 @@ def test_real_snapshot_settlement_and_metrics_preserve_current_experiment_identi
     from core import snapshot_logger as snapshot_logger_module
     real_now = datetime.now(timezone.utc)
     snapshot_time = real_now - timedelta(days=2)
-    event_start = real_now - timedelta(days=1)
+    event_start = snapshot_time + timedelta(minutes=30)
     settlement_time = real_now - timedelta(hours=12)
     clock_values = iter([snapshot_time, settlement_time])
 
@@ -48,6 +48,7 @@ def test_real_snapshot_settlement_and_metrics_preserve_current_experiment_identi
     leg.expected_value = 0.47
     leg.signal_evidence = {
         "probability_status": "CALIBRATED_MODEL_ESTIMATE", "consensus_probability": 0.7,
+        "observation_scope": "FORMAL_QUALIFICATION_WINDOW",
         "model_probability_raw": 0.7, "model_probability_calibrated": 0.7,
         "model_fusion_groups": ["fixture-model"], "model_fusion_groups": ["fixture-model"],
         "model_acceptance_statuses": [{"model_id": "fixture-model", "status": "ACCEPTED"}],
@@ -103,7 +104,7 @@ def test_acceptance_ledger_rejects_tampered_snapshot_prediction_hash():
     now = datetime.now(timezone.utc)
     leg = TaiwanLeg(
         event_id="gate-hash-e2e", sport="baseball", league="MLB", market="不讓分",
-        selection="Home", taiwan_odds=2.1, start_time_utc=(now + timedelta(days=1)).isoformat(),
+        selection="Home", taiwan_odds=2.1, start_time_utc=(now + timedelta(hours=3)).isoformat(),
         away_team="Away", home_team="Home", side="主",
         odds_scraped_at=(now - timedelta(minutes=1)).isoformat(), odds_status="FRESH",
     )
@@ -118,6 +119,7 @@ def test_acceptance_ledger_rejects_tampered_snapshot_prediction_hash():
     leg.consensus_probability = 0.7
     leg.signal_evidence = {
         "probability_status": "UNVALIDATED_MODEL_ESTIMATE",
+        "observation_scope": "SHADOW_ONLY",
         "consensus_probability": 0.7,
         "model_fusion_groups": ["gate-hash-model"],
         "publication_time_precision": "NOT_APPLICABLE",

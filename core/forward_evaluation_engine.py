@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.persistence import append_jsonl
 from core.snapshot_logger import compute_prediction_payload_hash
+from core.observation_scope import qualifies_formal_strategy
 from core.experiment_identity import validate_experiment_identity
 
 SHADOW_FORWARD_LOG_PATH = Path(__file__).resolve().parents[1] / "data" / "research" / "shadow_forward_records.jsonl"
@@ -398,6 +399,11 @@ class ForwardEvaluationEngine:
         latest_by_event: Dict[str, Tuple[datetime, str, Dict[str, Any]]] = {}
         for raw in cohort:
             if raw.get("forward_validation_eligible") is not True:
+                continue
+            # Strategy and paired international/Sharp comparisons are limited
+            # to formal 60-minute observations. Shadow candidates remain in
+            # the snapshot ledger for the separate model-calibration gate.
+            if not qualifies_formal_strategy(raw):
                 continue
             try:
                 hash_schema = int(raw.get("prediction_hash_schema", 0) or 0)
