@@ -330,7 +330,7 @@ def test_pipeline_audit_snapshots(tmp_path):
             "taiwan_odds": 2.10,
             "is_synthetic": False,
             "prediction_timestamp": (now - timedelta(hours=6)).isoformat(),
-            "event_start": (now - timedelta(hours=4)).isoformat(),
+            "event_start": (now - timedelta(hours=5)).isoformat(),
             "model_probability": 0.52,
             "market_source": "the_odds_api",
             "forward_validation_eligible": True,
