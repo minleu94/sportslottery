@@ -1,8 +1,8 @@
 # 目前狀況
 
-最後確認：2026-11-02
+最後確認：2026-11-03
 
-Sportslottery 目前作為台灣運彩研究與本機注單記錄工具維護。應用程式版本為 2.3.0；策略版本 v2.0-research 是獨立的研究規則標記。
+Sportslottery 目前作為台灣運彩研究與本機注單記錄工具維護。應用程式版本為 2.4.0；策略版本 v2.0-research 是獨立的研究規則標記。
 
 repo 同時保留 Streamlit 桌面版與 FastAPI／React 開發介面；目前 GitHub Release 工作流程打包 Streamlit 桌面版，啟動網址為 http://localhost:8501。
 

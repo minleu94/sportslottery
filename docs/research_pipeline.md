@@ -18,12 +18,27 @@ python main.py research-pipeline --data-root C:\research\sportslottery --resume
 
 Dry-run prints the selected 15-minute UTC window, stage plan, and resolved data
 root. It does not fetch, create directories, or write state. A normal run obtains
-Playsport odds, retains only complete-identity selections with a timezone-aware
-start inside the next 60 minutes and odds no older than 15 minutes, evaluates
-the configured research models, seals snapshots, records odds, logs linked
-parlay candidates, settles available final results with Taiwan rules, updates
-the isolated MLB Elo state when initialized, and writes a wallet-free weekly
-report. Partial source health and result coverage are recorded with each run.
+Playsport odds, evaluates the configured research models, seals snapshots,
+records odds, logs linked parlay candidates, settles available final results
+with Taiwan rules, updates the isolated MLB Elo state when initialized, and
+writes a wallet-free weekly report. Partial source health, shadow research
+coverage, and result coverage are recorded with each run.
+
+### Lead time windows and observation scope
+
+- **Formal qualification window** (`pregame_lead_minutes`, default 60 minutes):
+  retains complete-identity selections with timezone-aware start inside the next
+  60 minutes and odds no older than 15 minutes. These qualify for downstream
+  parlay candidate generation (`FORMAL_QUALIFICATION_WINDOW`).
+- **Shadow research window** (`shadow_pregame_lead_minutes`, default 240 minutes):
+  extends forward observation to 4 hours ahead. Eligible options beyond the
+  60-minute formal window are recorded as `SHADOW_ONLY` snapshots. This collects
+  auditable pre-game predictions without prematurely entering formal
+  recommendation search.
+- **Candidate provenance audit**: Each snapshot stores public, reproducibility-relevant
+  input metadata for participating models (e.g., `data_source`, `data_source_url`,
+  `data_source_content_sha256`, `point_in_time_status`, `point_in_time_verified`,
+  `input_match_count`, `input_latest_date`, `future_records_excluded`).
 
 The Elo updater stores raw schedule observations in a hashed, isolated official
 ledger. A checkpoint without that complete ledger is preserved as a backup but
@@ -65,9 +80,10 @@ The report contains settled single-leg Brier, log loss, hit rate, and ROI for
 the integrity-checked current-experiment cohort; model and market fair
 probabilities are paired on the same observations. It also reports event-date
 cluster bootstrap intervals, whole-ticket metrics from `evaluate_parlay_forward`,
-source-health trends, and result coverage. Small cohorts and unsupported sports
-are shown with their actual sample sizes/statuses. No real or shadow wallet is
-constructed or modified.
+source-health trends, shadow research coverage (valid model prediction events,
+sharp benchmarks, and paired coverage), and result coverage. Small cohorts and
+unsupported sports are shown with their actual sample sizes/statuses. No real or
+shadow wallet is constructed or modified.
 
 ## Windows Task Scheduler helper
 
