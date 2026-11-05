@@ -548,7 +548,7 @@ def set_scheduled_task_enabled(enable: bool) -> Tuple[bool, str]:
 def sync_scheduled_task_argument(new_research_root: Path) -> Tuple[bool, str]:
     """Update scheduled task data-root argument to match the new storage path."""
     task_name = "SportsLottery-Research-Pipeline"
-    if os.name != "nt":
+    if not _is_windows():
         return False, "僅支援 Windows 排程器。"
 
     main_py = PROJECT_ROOT / "main.py"

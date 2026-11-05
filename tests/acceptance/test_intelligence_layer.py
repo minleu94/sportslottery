@@ -24,6 +24,7 @@ import time
 import pytest
 
 from core.model_registry import ModelRegistry
+from core.observation_scope import SHADOW_CALIBRATION
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger
 from integrations.common.models import PredictionSignal, TaiwanLeg, VerifiedExpertPick
@@ -579,6 +580,14 @@ def test_prediction_snapshot_logger_and_calibration():
 
 def _test_prediction_snapshot_logger_and_calibration(log_file):
     logger = PredictionSnapshotLogger(log_path=log_file)
+    pregame_at = datetime.now(timezone.utc) - timedelta(hours=4)
+    event_start = pregame_at + timedelta(hours=2)
+
+    import core.snapshot_logger as snapshot_logger_module
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return pregame_at.astimezone(tz) if tz else pregame_at.replace(tzinfo=None)
 
     leg = TaiwanLeg(
         event_id="109",
@@ -588,8 +597,8 @@ def _test_prediction_snapshot_logger_and_calibration(log_file):
         selection="洋基 客勝",
         taiwan_odds=2.00,
         start_time="test future event",
-        start_time_utc=(datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
-        odds_scraped_at=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+        start_time_utc=event_start.isoformat(),
+        odds_scraped_at=(pregame_at - timedelta(minutes=1)).isoformat(),
         away_team="洋基",
         home_team="紅襪",
         side="客",
@@ -604,8 +613,8 @@ def _test_prediction_snapshot_logger_and_calibration(log_file):
         market="不讓分",
         selection="洋基 客勝",
         probability=0.60,
-        timestamp=(datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(),
-        data_as_of=(datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(),
+        timestamp=(pregame_at - timedelta(minutes=5)).isoformat(),
+        data_as_of=(pregame_at - timedelta(minutes=5)).isoformat(),
         freshness_status="FRESH",
         metadata={"provenance": "fixed unit-test fixture"},
     )
@@ -614,7 +623,12 @@ def _test_prediction_snapshot_logger_and_calibration(log_file):
     leg.odds_status = "LIVE"
     leg.signal_evidence = {"quality_score": 55.0, "independent_support_count": 1, "supporting_groups": ["FIVETHIRTYEIGHT_ELO"], "publication_time_precision": "NOT_APPLICABLE", "probability_status": "UNVALIDATED_MODEL_ESTIMATE", "consensus_probability": 0.60, "model_fusion_groups": ["FIVETHIRTYEIGHT_ELO"]}
 
-    snap = logger.log_snapshot(leg)
+    real_datetime = snapshot_logger_module.datetime
+    snapshot_logger_module.datetime = FrozenDateTime
+    try:
+        snap = logger.log_snapshot(leg)
+    finally:
+        snapshot_logger_module.datetime = real_datetime
     snap_id = snap["snapshot_id"]
     assert log_file.exists()
 
@@ -625,7 +639,7 @@ def _test_prediction_snapshot_logger_and_calibration(log_file):
     # Brier score: (0.60 - 1.0)^2 = 0.16
     assert abs(settled["brier_score"] - 0.16) < 1e-3
 
-    metrics = logger.compute_calibration_metrics()
+    metrics = logger.compute_calibration_metrics(SHADOW_CALIBRATION)
     assert metrics["settled_count"] == 1
     assert abs(metrics["mean_brier_score"] - 0.16) < 1e-3
 

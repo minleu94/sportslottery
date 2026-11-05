@@ -117,6 +117,9 @@ def test_offline_signal_search_ticket_snapshot_settlement_metrics_flow(tmp_path)
     recorder.settle_ticket(ticket["ticket_id"], won=False)
     metrics = snapshot_logger.compute_calibration_metrics()
     assert metrics["forward_eligible_count"] == 2
-    assert metrics["settled_count"] == 2
-    assert metrics["mean_brier_score"] is not None
+    # The fixture settles the future event before its scheduled start. Keep
+    # the settlement audit, but never treat it as forward model evidence.
+    assert metrics["settled_count"] == 0
+    assert metrics["mean_brier_score"] is None
+    assert metrics["cohort_audit"]["eligible_count"] == 0
     assert wallet.get_status()["weekly_wallet_balance"] == 90
