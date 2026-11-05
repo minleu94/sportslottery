@@ -11,6 +11,8 @@ from core.persistence import append_jsonl, read_jsonl
 from core.shadow_portfolio import ShadowPortfolioManager
 from core.snapshot_logger import PredictionSnapshotLogger
 import core.storage_config as storage_config
+import core.wallet as wallet_module
+from server import service_registry
 
 
 def _workspace_test_project():
@@ -68,6 +70,37 @@ def test_test_sqlite_guard_rejects_project_data_alias_before_opening():
         sqlite3.connect(f"file:{target.as_posix()}?mode=rwc", uri=True)
 
     assert not target.exists()
+
+
+def test_default_wallet_factory_fails_closed_if_test_isolation_is_missed(monkeypatch):
+    """A regression to the formal DB default must be rejected before SQLite opens it."""
+    production_wallet = storage_config.DEFAULT_DATA_DIR / "war_chest.sqlite3"
+    monkeypatch.setattr(wallet_module, "DEFAULT_DB_PATH", production_wallet)
+
+    with pytest.raises(RuntimeError, match="production data"):
+        wallet_module.WeeklyWalletManager()
+
+
+def test_wallet_ticket_and_ledger_services_share_the_isolated_database():
+    """Default service factories must resolve all betting records to test storage."""
+    isolated_wallet_db = storage_config.get_storage_path_bundle().wallet_db
+    wallet = service_registry.get_wallet()
+    recorder = service_registry.get_recorder()
+    betting = service_registry.get_betting_service()
+
+    assert wallet.db_path == isolated_wallet_db
+    assert recorder.db_path == isolated_wallet_db
+    assert betting.wallet.db_path == isolated_wallet_db
+    assert betting.recorder.db_path == isolated_wallet_db
+
+    wallet.deposit_external(10.0, notes="isolated test deposit")
+    ticket = recorder.place_ticket([{"league": "isolated-test"}], 1.0, 2.0)
+
+    assert recorder.get_ticket(ticket["ticket_id"]) is not None
+    assert [row["event_type"] for row in wallet.get_ledger_history()] == [
+        "BET_STAKE",
+        "EXTERNAL_DEPOSIT",
+    ]
 
 
 @pytest.mark.parametrize("return_code", range(8))
