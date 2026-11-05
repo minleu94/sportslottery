@@ -456,11 +456,19 @@ def update_storage_location(new_path_str: str, migrate: bool = True) -> Tuple[bo
 
     scheduled_ok, scheduled_message = sync_scheduled_task_argument(target / "research_pipeline")
     if _is_windows() and not scheduled_ok and "TASK_NOT_FOUND" not in scheduled_message:
+        restore_errors = []
         try:
             save_storage_config(current)
         except Exception as restore_exc:
-            return False, f"排程同步失敗：{scheduled_message}；回復設定失敗：{restore_exc}。來源資料未刪除。"
-        return False, f"排程同步失敗：{scheduled_message}；已回復舊儲存設定。"
+            restore_errors.append(f"設定復原失敗：{restore_exc}")
+        try:
+            task_ok, task_message = sync_scheduled_task_argument(current / "research_pipeline")
+            if not task_ok and "TASK_NOT_FOUND" not in task_message:
+                restore_errors.append(f"排程復原失敗：{task_message}")
+        except Exception as restore_exc:
+            restore_errors.append(f"排程復原失敗：{restore_exc}")
+        suffix = ("；" + "；".join(restore_errors)) if restore_errors else ""
+        return False, f"排程同步失敗：{scheduled_message}；已回復舊儲存設定{suffix}。來源資料未刪除。"
 
     junction_ok, junction_message = sync_junction(target)
     if not junction_ok:
@@ -549,11 +557,17 @@ def sync_scheduled_task_argument(new_research_root: Path) -> Tuple[bool, str]:
 
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     ps_script = f"""
+    $ErrorActionPreference = "Stop"
     $task = Get-ScheduledTask -TaskName "{task_name}" -ErrorAction SilentlyContinue
     if ($task) {{
-        $action = New-ScheduledTaskAction -Execute $task.Actions[0].Execute -Argument '{arguments}' -WorkingDirectory '{PROJECT_ROOT}'
-        Set-ScheduledTask -TaskName "{task_name}" -Action $action | Out-Null
-        Write-Output "UPDATED"
+        try {{
+            $action = New-ScheduledTaskAction -Execute $task.Actions[0].Execute -Argument '{arguments}' -WorkingDirectory '{PROJECT_ROOT}'
+            Set-ScheduledTask -TaskName "{task_name}" -Action $action | Out-Null
+            Write-Output "UPDATED"
+        }} catch {{
+            [Console]::Error.WriteLine($_.Exception.Message)
+            exit 1
+        }}
     }} else {{
         Write-Output "TASK_NOT_FOUND"
     }}
@@ -562,8 +576,9 @@ def sync_scheduled_task_argument(new_research_root: Path) -> Tuple[bool, str]:
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", ps_script],
                               capture_output=True, text=True, timeout=10, creationflags=creationflags)
         out = proc.stdout.strip()
-        if "UPDATED" in out:
+        if proc.returncode == 0 and out == "UPDATED":
             return True, "已同步更新 Windows 排程任務的資料路徑。"
-        return False, out
+        detail = (proc.stderr or proc.stdout or f"PowerShell 回傳碼 {proc.returncode}").strip()
+        return False, detail
     except Exception as exc:
         return False, str(exc)

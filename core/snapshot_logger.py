@@ -33,6 +33,9 @@ from core.settlement.taiwan_rules import resolve_settlement_rule_id
 from core.strategy_version import STRATEGY_VERSION, get_strategy_metadata
 from core.research_paths import research_paths
 from core.experiment_identity import get_current_experiment_identity
+from core.observation_scope import (
+    FORMAL, FORMAL_STRATEGY, SHADOW, SHADOW_CALIBRATION, observation_scope,
+)
 from core.persistence import read_jsonl, iter_jsonl, append_jsonl, atomic_write_bytes, file_lock
 from core.research_sqlite import database_for_ledger, get_prediction_by_unique_key, update_prediction
 from core.contracts.common import TaiwanLeg
@@ -655,38 +658,58 @@ class PredictionSnapshotLogger:
             atomic_write_bytes(self.log_path, ("\n".join(updated_lines) + "\n").encode("utf-8"))
         return settled_record
 
-    def compute_calibration_metrics(self) -> Dict[str, Any]:
-        """Compute aggregate Brier score and log loss across settled forward-eligible snapshots."""
+    def compute_calibration_metrics(self, observation_purpose: str = FORMAL_STRATEGY) -> Dict[str, Any]:
+        """Compute deduplicated model metrics for an explicit observation cohort.
+
+        Formal strategy metrics default to the 60-minute cohort. Passing
+        ``SHADOW_CALIBRATION`` admits valid 60- and 240-minute observations,
+        preferring the later formal observation when both exist.
+        """
+        if observation_purpose not in {FORMAL_STRATEGY, SHADOW_CALIBRATION}:
+            raise ValueError(f"Unsupported observation purpose: {observation_purpose}")
         records = self.get_all_snapshots()
+        from core.performance_metrics import PerformanceMetricsEngine
+        cohort = PerformanceMetricsEngine.forward_cohort(
+            records, observation_purpose=observation_purpose
+        )
+        observations = cohort["observations"]
         brier_scores = []
         log_losses = []
-        total = len(records)
-        eligible_count = 0
+        eligible_scope = {FORMAL} if observation_purpose == FORMAL_STRATEGY else {FORMAL, SHADOW}
+        eligible_count = sum(
+            data.get("forward_validation_eligible") is True
+            and data.get("strategy_version") == STRATEGY_VERSION
+            and observation_scope(data) in eligible_scope
+            for data in records
+        )
 
-        for data in records:
-            if data.get("forward_validation_eligible") is True and data.get("strategy_version") == STRATEGY_VERSION:
-                eligible_count += 1
+        for data in observations:
             try:
                 valid_model_probability = (
                     data.get("model_probability") is not None
+                    and not isinstance(data.get("model_probability"), bool)
                     and math.isfinite(float(data.get("model_probability")))
                 )
             except (TypeError, ValueError, OverflowError):
                 valid_model_probability = False
-            if (data.get("forward_validation_eligible") is True and data.get("strategy_version") == STRATEGY_VERSION
-                    and data.get("is_settled")
-                    and data.get("probability_status") in {"UNVALIDATED_MODEL_ESTIMATE", "MODEL_ESTIMATE", "CALIBRATED_MODEL_ESTIMATE"}
+            if (data.get("probability_status") in {"UNVALIDATED_MODEL_ESTIMATE", "MODEL_ESTIMATE", "CALIBRATED_MODEL_ESTIMATE"}
                     and data.get("settlement_status") in {"WON", "LOST"}
-                    and valid_model_probability
-                    and data.get("brier_score") is not None and data.get("log_loss") is not None):
-                brier_scores.append(data["brier_score"])
-                log_losses.append(data.get("log_loss", 0.0))
+                    and valid_model_probability):
+                probability = float(data["model_probability"])
+                outcome = 1.0 if data["actual_outcome"] else 0.0
+                brier_scores.append((probability - outcome) ** 2)
+                clipped = max(0.001, min(0.999, probability))
+                log_losses.append(-(outcome * math.log(clipped) + (1.0 - outcome) * math.log(1.0 - clipped)))
 
         settled = len(brier_scores)
         return {
-            "total_snapshots": total,
+            "total_snapshots": len(records),
+            "observation_purpose": observation_purpose,
             "forward_eligible_count": eligible_count,
             "settled_count": settled,
             "mean_brier_score": round(sum(brier_scores) / settled, 4) if settled > 0 else None,
             "mean_log_loss": round(sum(log_losses) / settled, 4) if settled > 0 else None,
+            "observation_count": cohort["audit"]["observation_count"],
+            "unique_event_count": cohort["audit"]["unique_event_count"],
+            "cohort_audit": cohort["audit"],
         }

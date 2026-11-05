@@ -24,7 +24,10 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from core.strategy_version import GOVERNANCE_RULES, STRATEGY_VERSION, get_strategy_metadata
 from core.experiment_identity import get_current_experiment_identity, validate_experiment_identity
-from core.observation_scope import qualifies_formal_strategy, qualifies_shadow_calibration
+from core.observation_scope import (
+    FORMAL_STRATEGY, SHADOW_CALIBRATION,
+    qualifies_formal_strategy, qualifies_shadow_calibration,
+)
 
 INSUFFICIENT_THRESHOLD = GOVERNANCE_RULES["insufficient_sample_threshold"]  # 30
 
@@ -113,8 +116,10 @@ def _observation_identity(snapshot: Dict[str, Any]) -> tuple[Optional[str], Opti
 
 def _scope_forward_snapshots(
     snapshots: Iterable[Dict[str, Any]], target_experiment_id: Optional[str] = None,
-    observation_purpose: str = "FORMAL_STRATEGY",
-) -> tuple[List[Dict[str, Any]], str, Dict[str, int]]:
+    observation_purpose: str = FORMAL_STRATEGY,
+) -> tuple[List[Dict[str, Any]], str, Dict[str, Any]]:
+    if observation_purpose not in {FORMAL_STRATEGY, SHADOW_CALIBRATION}:
+        raise ValueError(f"Unsupported observation purpose: {observation_purpose}")
     if target_experiment_id is None:
         target_experiment_id = get_current_experiment_identity()["experiment_id"]
     keyed: Dict[tuple, List[Dict[str, Any]]] = {}
@@ -136,7 +141,7 @@ def _scope_forward_snapshots(
                 different_target_identity_count += 1
         if not _is_forward_binary(snapshot, target_experiment_id):
             continue
-        qualifies = (qualifies_shadow_calibration(snapshot) if observation_purpose == "SHADOW_CALIBRATION"
+        qualifies = (qualifies_shadow_calibration(snapshot) if observation_purpose == SHADOW_CALIBRATION
                      else qualifies_formal_strategy(snapshot))
         if not qualifies:
             scope_excluded += 1
@@ -173,6 +178,7 @@ def _scope_forward_snapshots(
         unique.append(rows[-1])
     event_count = len({_observation_identity(row)[0] for row in unique})
     return unique, target_experiment_id, {
+        "observation_purpose": observation_purpose,
         "input_count": input_count,
         "eligible_count": eligible_count,
         "unique_event_count": event_count,
@@ -200,8 +206,9 @@ def _safe_roi(wins_odds_sum: float, sample_size: int) -> Optional[float]:
     return round(((wins_odds_sum - sample_size) / sample_size) * 100.0, 2)
 
 
-def _metric_metadata(target_experiment_id: str) -> Dict[str, str]:
+def _metric_metadata(target_experiment_id: str, observation_purpose: str = FORMAL_STRATEGY) -> Dict[str, str]:
     return {"target_experiment_id": target_experiment_id,
+            "observation_purpose": observation_purpose,
             "sample_unit": "unique settled event/market/side/line; selection label fallback when side is absent"}
 
 
@@ -228,7 +235,7 @@ class PerformanceMetricsEngine:
 
     @staticmethod
     def forward_cohort(snapshots: Iterable[Dict[str, Any]], target_experiment_id: Optional[str] = None,
-                       observation_purpose: str = "FORMAL_STRATEGY") -> Dict[str, Any]:
+                       observation_purpose: str = FORMAL_STRATEGY) -> Dict[str, Any]:
         """Return a purpose-specific, settled and deduplicated forward cohort.
 
         Formal strategy metrics exclude shadow-only rows. Shadow calibration
@@ -241,7 +248,7 @@ class PerformanceMetricsEngine:
 
     @staticmethod
     def compare_experiments(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Compare validated experiment groups over their shared observation basis.
+        """Compare validated experiment groups on paired formal-window observations.
 
         Legacy rows remain visible only in the reference counts; they are never
         merged into a current or historical experiment's forward metrics.
@@ -274,6 +281,7 @@ class PerformanceMetricsEngine:
             }
         shared_count = len(set.intersection(*key_sets)) if key_sets else 0
         return {
+            "observation_purpose": FORMAL_STRATEGY,
             "comparison_basis": "paired unique event/market/side/line observations; selection label fallback only",
             "paired_observation_count": shared_count,
             "experiments": comparisons,
@@ -505,9 +513,14 @@ class PerformanceMetricsEngine:
         return res
 
     @staticmethod
-    def evaluate_calibration_bins(snapshots: List[Dict[str, Any]], target_experiment_id: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    def evaluate_calibration_bins(
+        snapshots: List[Dict[str, Any]], target_experiment_id: Optional[str] = None, *,
+        observation_purpose: str = FORMAL_STRATEGY,
+    ) -> Dict[str, Dict[str, Any]]:
         """Evaluate probability calibration: predicted probability bins vs empirical hit rate."""
-        snapshots, target_experiment_id, _ = _scope_forward_snapshots(snapshots, target_experiment_id)
+        snapshots, target_experiment_id, _ = _scope_forward_snapshots(
+            snapshots, target_experiment_id, observation_purpose
+        )
         bins = {
             "0-10%": {"min": 0.0, "max": 0.10, "n": 0, "wins": 0, "pred_sum": 0.0},
             "10-25%": {"min": 0.10, "max": 0.25, "n": 0, "wins": 0, "pred_sum": 0.0},
@@ -541,7 +554,7 @@ class PerformanceMetricsEngine:
             n = v["n"]
             res[k] = {
                 "sample_size": n,
-                **_metric_metadata(target_experiment_id),
+                **_metric_metadata(target_experiment_id, observation_purpose),
                 "wins": v["wins"],
                 "avg_predicted_prob": round(v["pred_sum"] / n, 4) if n > 0 else None,
                 "empirical_hit_rate": round(v["wins"] / n, 4) if n > 0 else None,
@@ -551,9 +564,14 @@ class PerformanceMetricsEngine:
         return res
 
     @staticmethod
-    def evaluate_model_overall_metrics(snapshots: List[Dict[str, Any]], target_experiment_id: Optional[str] = None) -> Dict[str, Any]:
-        """Compute aggregate Brier, Log Loss, and ROI for models."""
-        snapshots, target_experiment_id, audit = _scope_forward_snapshots(snapshots, target_experiment_id)
+    def evaluate_model_overall_metrics(
+        snapshots: List[Dict[str, Any]], target_experiment_id: Optional[str] = None, *,
+        observation_purpose: str = FORMAL_STRATEGY,
+    ) -> Dict[str, Any]:
+        """Compute model metrics for the formal strategy or calibration cohort."""
+        snapshots, target_experiment_id, audit = _scope_forward_snapshots(
+            snapshots, target_experiment_id, observation_purpose
+        )
         probs = []
         outcomes = []
         odds_sum = 0.0
@@ -577,7 +595,7 @@ class PerformanceMetricsEngine:
         n = len(probs)
         return {
             "sample_size": n,
-            **_metric_metadata(target_experiment_id),
+            **_metric_metadata(target_experiment_id, observation_purpose),
             "wins": wins,
             "hit_rate": round(wins / n, 4) if n > 0 else None,
             "classification_accuracy": round(sum((p >= 0.5) == o for p, o in zip(probs, outcomes)) / n, 4) if n > 0 else None,

@@ -70,7 +70,7 @@ def test_test_sqlite_guard_rejects_project_data_alias_before_opening():
     assert not target.exists()
 
 
-@pytest.mark.parametrize("return_code", [0, 1, 3, 7])
+@pytest.mark.parametrize("return_code", range(8))
 def test_storage_copy_accepts_robocopy_success_codes_and_verifies_contents(tmp_path, monkeypatch, return_code):
     source, target = tmp_path / "source", tmp_path / "target"
     (source / "research").mkdir(parents=True)
@@ -291,12 +291,30 @@ def test_storage_update_restores_settings_when_scheduled_task_sync_fails(tmp_pat
     monkeypatch.setattr(storage_config, "get_storage_root", lambda: source)
     monkeypatch.setattr(storage_config, "_copy_and_verify_storage", lambda *_: (True, "verified"))
     monkeypatch.setattr(storage_config, "save_storage_config", lambda path: config_calls.append(path))
-    monkeypatch.setattr(storage_config, "sync_scheduled_task_argument", lambda _: (False, "task denied"))
+    task_calls = []
+    def fail_then_restore_task(path):
+        task_calls.append(path)
+        return (False, "task denied") if len(task_calls) == 1 else (True, "restored")
+    monkeypatch.setattr(storage_config, "sync_scheduled_task_argument", fail_then_restore_task)
     monkeypatch.setattr(storage_config, "_is_windows", lambda: True)
     monkeypatch.setattr(storage_config, "sync_junction", lambda _: pytest.fail("junction switched"))
 
     ok, message = storage_config.update_storage_location(str(target), migrate=True)
 
-    assert not ok and "task denied" in message and "回復舊儲存設定" in message
+    assert not ok and "task denied" in message and "已回復舊儲存設定" in message
     assert config_calls == [target.resolve(), source.resolve()]
+    assert task_calls == [target / "research_pipeline", source / "research_pipeline"]
     assert (source / "snapshot.jsonl").read_text(encoding="utf-8") == "original\n"
+
+
+def test_scheduled_task_nonzero_exit_is_not_reported_as_success(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage_config, "_is_windows", lambda: True)
+    monkeypatch.setattr(
+        storage_config.subprocess, "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(args, 1, "UPDATED", "Set-ScheduledTask failed"),
+    )
+
+    ok, message = storage_config.sync_scheduled_task_argument(tmp_path / "research_pipeline")
+
+    assert not ok
+    assert "Set-ScheduledTask failed" in message
