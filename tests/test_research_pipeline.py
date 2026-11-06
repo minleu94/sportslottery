@@ -116,17 +116,44 @@ def test_report_counts_failed_attempts_and_excludes_unknown_future_outcomes(tmp_
         "report_outcomes_unknown_at_cutoff_excluded"] == 1
 
 
+def test_report_uses_one_pinned_experiment_identity_for_all_cohorts(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import core.research_reporting as reporting
+
+    now = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    pipeline = ResearchPipeline(data_root=tmp_path / "research", clock=lambda: now)
+    pipeline.snapshot_logger = SimpleNamespace(get_all_snapshots=lambda: [])
+    pipeline.parlay_logger = SimpleNamespace(get_all_parlay_snapshots=lambda: [])
+    identity = get_current_experiment_identity()
+    calls = []
+
+    def changing_identity():
+        calls.append(None)
+        return identity if len(calls) == 1 else {**identity, "experiment_id": "exp_different"}
+
+    monkeypatch.setattr(reporting, "get_current_experiment_identity", changing_identity)
+    stage = tmp_path / "research" / "runs" / "fixture" / "data"
+    stage.mkdir(parents=True)
+    pipeline._stage_report(stage)
+    report = json.loads((tmp_path / "research" / "reports" / "weekly_2026-10-01.json").read_text())
+
+    assert len(calls) == 1
+    assert report["experiment_identity"] == identity
+    assert report["shadow_research_coverage"]["experiment_id"] == identity["experiment_id"]
+
+
 def test_shadow_coverage_summary_deduplicates_events_and_separates_experiments(tmp_path):
     now = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
     pipeline = ResearchPipeline(data_root=tmp_path / "research", clock=lambda: now)
     identity = get_current_experiment_identity()
     prediction = {
-        "model_id": "model-a", "raw_probability": 0.61, "data_as_of": (now - timedelta(hours=2)).isoformat(),
+        "model_id": "model-a", "raw_probability": 0.61, "data_as_of": (now - timedelta(hours=4)).isoformat(),
         "freshness_status": "FRESH", "point_in_time_status": "VALID",
     }
     row = {
-        "experiment_identity": identity, "snapshot_timestamp": (now - timedelta(minutes=5)).isoformat(),
-        "event_start": (now + timedelta(hours=1)).isoformat(), "canonical_event_id": "event-1",
+        "experiment_identity": identity, "snapshot_timestamp": (now - timedelta(hours=3)).isoformat(),
+        "event_start": (now - timedelta(hours=1)).isoformat(), "canonical_event_id": "event-1",
+        "observation_scope": "SHADOW_ONLY",
         "forward_validation_eligible": True, "model_candidate_predictions": [prediction],
         "signal_evidence": {"international_market_complete": True,
                             "market_source_qualification": "SHARP_QUALIFIED", "is_market_synthetic": False},
@@ -134,7 +161,7 @@ def test_shadow_coverage_summary_deduplicates_events_and_separates_experiments(t
     }
     settled = {**row, "observation_window_id": "run-2:shadow-240m", "is_settled": True,
                "settlement_status": "WON", "settled_at": now.isoformat(),
-               "result_source": "ESPN_PUBLIC_SCOREBOARD"}
+               "actual_outcome": True, "result_source": "ESPN_PUBLIC_SCOREBOARD"}
     historical = {**row, "experiment_identity": {**identity, "experiment_id": "exp_old"},
                   "canonical_event_id": "event-old"}
 
@@ -150,6 +177,36 @@ def test_shadow_coverage_summary_deduplicates_events_and_separates_experiments(t
     assert summary["international_market_complete_event_count"] == 1
     assert summary["sharp_market_complete_event_count"] == 1
     assert summary["model_and_sharp_complete_event_count"] == 1
+
+
+def test_shadow_coverage_reports_candidate_qualification_and_settlement_losses(tmp_path):
+    now = datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+    pipeline = ResearchPipeline(data_root=tmp_path / "research", clock=lambda: now)
+    identity = get_current_experiment_identity()
+    row = {
+        "experiment_identity": identity,
+        "snapshot_timestamp": (now - timedelta(minutes=5)).isoformat(),
+        "event_start": (now + timedelta(hours=1)).isoformat(),
+        "canonical_event_id": "candidate-a",
+        "forward_validation_eligible": True,
+        "is_settled": False,
+        "model_candidate_predictions": [{
+            "model_id": "model-a", "raw_probability": 0.6,
+            "freshness_status": "FRESH", "point_in_time_status": "VALID",
+        }],
+    }
+
+    summary = pipeline._shadow_research_coverage([row], now, identity["experiment_id"])
+
+    assert summary["model_candidate_raw_prediction_count_by_model"] == {"model-a": 1}
+    assert summary["model_candidate_qualification_exclusion_counts_by_model"] == {
+        "model-a": {"DATA_AS_OF_MISSING_OR_UNAWARE": 1}
+    }
+    assert summary["model_candidate_qualification_eligible_prediction_count_by_model"] == {}
+    assert summary["model_candidate_settlement_eligible_prediction_count"] == 0
+    assert summary["model_candidate_settlement_exclusion_counts_by_model"] == {
+        "model-a": {"NOT_SETTLED": 1}
+    }
 def _leg(now):
     return TaiwanLeg(
         event_id="mlb-evt-1", canonical_event_id="MLB:away-home:fixture", sport="baseball", league="MLB",

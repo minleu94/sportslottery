@@ -340,7 +340,7 @@ def test_independence_group_deduplication():
         confidence="HIGH",
         freshness_status="FRESH",
         data_as_of="2026-09-18T06:00:00Z",
-        metadata={"provenance": "fixed unit-test fixture"},
+        metadata={"provenance": "fixed unit-test fixture", "point_in_time_verified": True},
     )
     sig2 = PredictionSignal(
         source_id="espn_season_avg",
@@ -379,6 +379,7 @@ def test_independence_group_deduplication():
     assert leg.signal_evidence["independent_support_count"] == 0
     assert leg.signal_evidence["supporting_groups"] == []
     assert len(leg.signal_evidence["model_candidate_provenances"]) == 2
+    assert leg.signal_evidence["model_candidate_provenances"][0]["point_in_time_verified"] is True
     assert leg.evidence_quality == "INSUFFICIENT_SIGNAL"
 
 

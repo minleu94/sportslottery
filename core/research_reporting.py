@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import json
 import math
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from core.bet_validation import parse_aware_time
 from core.experiment_identity import get_current_experiment_identity
+from core.observation_scope import qualifies_shadow_calibration
 from core.research_helpers import _read_json, _write_json_atomic
 
 
@@ -30,44 +31,70 @@ class ResearchReportMixin:
             return str(row.get("canonical_event_id") or row.get("event_id") or "")
 
         qualification_exclusions = Counter()
-        def valid_model_predictions(row):
+        qualification_exclusions_by_model = defaultdict(Counter)
+        candidate_counts_by_model = Counter()
+        candidate_qualified_counts_by_model = Counter()
+        settlement_exclusions = Counter()
+        settlement_exclusions_by_model = defaultdict(Counter)
+        settlement_eligible_candidates = 0
+        settlement_eligible_by_model = Counter()
+
+        def candidate_qualification_reason(row, candidate, key):
+            if not key:
+                return "EVENT_ID_MISSING"
+            try:
+                probability = float(candidate.get("raw_probability"))
+            except (TypeError, ValueError, OverflowError):
+                return "PROBABILITY_INVALID"
+            if not math.isfinite(probability) or not 0 < probability < 1:
+                return "PROBABILITY_INVALID"
             stamp = parse_aware_time(row.get("snapshot_timestamp") or row.get("timestamp"))
             start = parse_aware_time(row.get("event_start"))
-            valid = []
-            for candidate in row.get("model_candidate_predictions") or []:
-                if not isinstance(candidate, dict):
-                    continue
-                try:
-                    probability = float(candidate.get("raw_probability"))
-                except (TypeError, ValueError, OverflowError):
-                    continue
-                if not math.isfinite(probability) or not 0 < probability < 1:
-                    continue
-                as_of = parse_aware_time(candidate.get("data_as_of"))
-                point_in_time_verified = (
-                    candidate.get("point_in_time_status") == "VALID"
-                    or candidate.get("point_in_time_verified") is True
-                    or candidate.get("pre_event_source_order_valid") is True
-                )
-                freshness = str(candidate.get("freshness_status") or "UNKNOWN").upper()
-                reason = None
-                if freshness not in {"LIVE", "FRESH", "AGING"}:
-                    reason = "DATA_STALE_OR_UNKNOWN"
-                elif as_of is None:
-                    reason = "DATA_AS_OF_MISSING_OR_UNAWARE"
-                elif stamp is None or start is None:
-                    reason = "SNAPSHOT_OR_EVENT_START_MISSING"
-                elif as_of > stamp:
-                    reason = "DATA_AS_OF_AFTER_OBSERVATION"
-                elif as_of >= start:
-                    reason = "DATA_AS_OF_NOT_PRE_EVENT"
-                elif not point_in_time_verified:
-                    reason = "POINT_IN_TIME_UNPROVEN"
-                if reason:
-                    qualification_exclusions[reason] += 1
-                else:
-                    valid.append(candidate)
-            return valid
+            as_of = parse_aware_time(candidate.get("data_as_of"))
+            point_in_time_verified = (
+                candidate.get("point_in_time_status") == "VALID"
+                or candidate.get("point_in_time_verified") is True
+                or candidate.get("pre_event_source_order_valid") is True
+            )
+            freshness = str(candidate.get("freshness_status") or "UNKNOWN").upper()
+            if freshness not in {"LIVE", "FRESH", "AGING"}:
+                return "DATA_STALE_OR_UNKNOWN"
+            if as_of is None:
+                return "DATA_AS_OF_MISSING_OR_UNAWARE"
+            if stamp is None or start is None:
+                return "SNAPSHOT_OR_EVENT_START_MISSING"
+            if as_of > stamp:
+                return "DATA_AS_OF_AFTER_OBSERVATION"
+            if as_of >= start:
+                return "DATA_AS_OF_NOT_PRE_EVENT"
+            if not point_in_time_verified:
+                return "POINT_IN_TIME_UNPROVEN"
+            if not qualifies_shadow_calibration(row):
+                return "OBSERVATION_SCOPE_UNKNOWN_OR_OUTSIDE_240M"
+            return None
+
+        def candidate_settlement_reason(row):
+            if row.get("is_settled") is not True:
+                return "NOT_SETTLED"
+            if row.get("settlement_status") not in {"WON", "LOST"}:
+                return "SETTLEMENT_NOT_BINARY"
+            if row.get("forward_validation_eligible") is not True:
+                return "NOT_FORWARD_ELIGIBLE"
+            settled_at = parse_aware_time(row.get("settled_at"))
+            event_start = parse_aware_time(row.get("event_start"))
+            if settled_at is None or event_start is None:
+                return "SETTLEMENT_OR_EVENT_TIME_MISSING"
+            if settled_at < event_start:
+                return "SETTLEMENT_BEFORE_EVENT_START"
+            if settled_at > now:
+                return "SETTLEMENT_AFTER_REPORT_CUTOFF"
+            source = str(row.get("result_source") or "").strip().upper()
+            if source in {"", "UNKNOWN", "MANUAL", "TEST", "FIXTURE"}:
+                return "RESULT_SOURCE_UNTRUSTED"
+            expected_outcome = row.get("settlement_status") == "WON"
+            if row.get("actual_outcome") is not expected_outcome:
+                return "SETTLEMENT_OUTCOME_INCONSISTENT"
+            return None
 
         eligible_events = set()
         model_events = set()
@@ -82,39 +109,55 @@ class ResearchReportMixin:
 
         for row in current_rows:
             key = event_id(row)
-            if not key:
-                continue
-            all_event_keys.add(key)
             stamp = parse_aware_time(row.get("snapshot_timestamp") or row.get("timestamp"))
             start = parse_aware_time(row.get("event_start"))
-            if (row.get("forward_validation_eligible") is True and stamp is not None
+            if (key and row.get("forward_validation_eligible") is True and stamp is not None
                     and start is not None and stamp < start):
                 eligible_events.add(key)
 
-            predictions = [candidate for candidate in row.get("model_candidate_predictions") or []
-                           if isinstance(candidate, dict)]
+            predictions = row.get("model_candidate_predictions") or []
+            settlement_reason = candidate_settlement_reason(row)
             raw_predictions = []
+            valid_predictions = []
             for candidate in predictions:
+                if not isinstance(candidate, dict):
+                    qualification_exclusions["INVALID_CANDIDATE_RECORD"] += 1
+                    qualification_exclusions_by_model["UNKNOWN"]["INVALID_CANDIDATE_RECORD"] += 1
+                    continue
+                model_id = str(candidate.get("model_id") or "UNKNOWN")
+                candidate_counts_by_model[model_id] += 1
+                model_freshness[str(candidate.get("freshness_status") or "UNKNOWN").upper()] += 1
+                qualification_reason = candidate_qualification_reason(row, candidate, key)
+                if qualification_reason:
+                    qualification_exclusions[qualification_reason] += 1
+                    qualification_exclusions_by_model[model_id][qualification_reason] += 1
+                else:
+                    valid_predictions.append(candidate)
+                    candidate_qualified_counts_by_model[model_id] += 1
+
+                if settlement_reason:
+                    settlement_exclusions[settlement_reason] += 1
+                    settlement_exclusions_by_model[model_id][settlement_reason] += 1
+                else:
+                    settlement_eligible_candidates += 1
+                    settlement_eligible_by_model[model_id] += 1
+
                 try:
                     probability = float(candidate.get("raw_probability"))
                 except (TypeError, ValueError, OverflowError):
                     continue
                 if math.isfinite(probability) and 0 < probability < 1:
                     raw_predictions.append(candidate)
-                    model_freshness[str(candidate.get("freshness_status") or "UNKNOWN").upper()] += 1
-                    model_pairs.add((key, str(candidate.get("model_id") or "UNKNOWN")))
-            if raw_predictions:
+                    if key:
+                        model_pairs.add((key, model_id))
+            if key:
+                all_event_keys.add(key)
+            if raw_predictions and key:
                 model_events.add(key)
-                result_source = str(row.get("result_source") or "").strip().upper()
-                settled_at = parse_aware_time(row.get("settled_at"))
-                if (row.get("is_settled") is True and row.get("settlement_status") in {"WON", "LOST"}
-                        and row.get("forward_validation_eligible") is True
-                        and settled_at is not None and settled_at <= now
-                        and result_source not in {"", "UNKNOWN", "MANUAL", "TEST", "FIXTURE"}):
+                if settlement_reason is None:
                     settled_model_events.add(key)
 
-            valid_predictions = valid_model_predictions(row)
-            if valid_predictions:
+            if valid_predictions and key:
                 data_valid_events.add(key)
 
             evidence = row.get("signal_evidence") or {}
@@ -145,6 +188,18 @@ class ResearchReportMixin:
             "model_and_sharp_complete_event_count": len(model_sharp_events),
             "model_prediction_freshness_status_counts": dict(model_freshness),
             "model_prediction_qualification_exclusion_counts": dict(qualification_exclusions),
+            "model_candidate_raw_prediction_count_by_model": dict(candidate_counts_by_model),
+            "model_candidate_raw_prediction_count": sum(candidate_counts_by_model.values()),
+            "model_candidate_qualification_exclusion_counts_by_model": {
+                model_id: dict(counts) for model_id, counts in sorted(qualification_exclusions_by_model.items())
+            },
+            "model_candidate_qualification_eligible_prediction_count_by_model": dict(candidate_qualified_counts_by_model),
+            "model_candidate_settlement_eligible_prediction_count": settlement_eligible_candidates,
+            "model_candidate_settlement_eligible_prediction_count_by_model": dict(settlement_eligible_by_model),
+            "model_candidate_settlement_exclusion_counts": dict(settlement_exclusions),
+            "model_candidate_settlement_exclusion_counts_by_model": {
+                model_id: dict(counts) for model_id, counts in sorted(settlement_exclusions_by_model.items())
+            },
             "latest_run_observation": latest_result.get("shadow_coverage", {}),
         }
 
@@ -162,7 +217,8 @@ class ResearchReportMixin:
             and parse_aware_time(row.get("settled_at")) <= now)]
         settled = [row for row in known_rows if row.get("is_settled") and row.get("settlement_status") in {"WON", "LOST", "PUSH", "VOID"}]
         from core.performance_metrics import PerformanceMetricsEngine
-        current_experiment_id = get_current_experiment_identity()["experiment_id"]
+        current_experiment_identity = get_current_experiment_identity()
+        current_experiment_id = current_experiment_identity["experiment_id"]
         forward_cohort = PerformanceMetricsEngine.forward_cohort(known_rows, current_experiment_id)
         scoped = forward_cohort["observations"]
         audit = forward_cohort["audit"]
@@ -237,7 +293,7 @@ class ResearchReportMixin:
         payload = {
             "generated_at_utc": now.isoformat(), "period_start_utc": since.isoformat(),
             "period_end_utc": now.isoformat(), "data_root": str(self.data_root),
-            "experiment_identity": get_current_experiment_identity(),
+            "experiment_identity": current_experiment_identity,
             "shadow_research_coverage": self._shadow_research_coverage(
                 snapshots, now, current_experiment_id, stage_data.parent / "run.json",
             ),

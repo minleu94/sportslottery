@@ -149,6 +149,7 @@ def test_acceptance_ledger_rejects_tampered_snapshot_prediction_hash():
                 "as_of": (now + timedelta(days=2)).isoformat()}
         intact = gate.status(**args)
         assert intact.get("matched_rows") == 1, intact
+        intact_record = json.loads(path.read_text(encoding="utf-8"))
 
         persisted = json.loads(path.read_text(encoding="utf-8"))
         persisted["model_candidate_predictions"][0].pop("point_in_time_status")
@@ -178,3 +179,14 @@ def test_acceptance_ledger_rejects_tampered_snapshot_prediction_hash():
         incomplete_market = gate.status(**args)
         assert incomplete_market["incomplete_or_invalid_market_benchmark_excluded"] == 1
         assert incomplete_market.get("matched_rows", 0) == 0
+
+        # SQLite is authoritative after migration; a stale JSONL export must
+        # not hide settled evidence from the acceptance gate.
+        from core.research_sqlite import migrate_jsonl_ledgers
+        path.write_text(json.dumps(intact_record, ensure_ascii=False) + "\n", encoding="utf-8")
+        migrate_jsonl_ledgers(path.parent)
+        path.write_text("", encoding="utf-8")
+        sqlite_gate = ModelAcceptanceGate(snapshot_path=path)
+        sqlite_result = sqlite_gate.status(**args)
+        assert sqlite_result.get("matched_rows") == 1, sqlite_result
+        assert sqlite_result["evidence_snapshot_count"] == 1

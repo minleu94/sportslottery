@@ -142,3 +142,12 @@ def test_shadow_forecasts_can_calibrate_without_becoming_formal_strategy_rows():
     result = evaluate_scope_evidence(rows, **_kwargs())
     assert result["accepted"] is True
     assert result["calibration_event_count"] == 100
+
+
+def test_acceptance_evidence_never_pools_experiment_identities():
+    rows = [{**row, "experiment_id": "exp_other"} for row in _evidence_rows()]
+    result = evaluate_scope_evidence(rows, **_kwargs(), experiment_id="exp_current")
+
+    assert result["accepted"] is False
+    assert result["matched_rows"] == 0
+    assert result["exclusion_counts"]["EXPERIMENT_ID_MISMATCH"] == len(rows)
