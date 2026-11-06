@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import yaml
@@ -53,26 +54,30 @@ def test_registry_reloads_changed_elo_state_before_evaluation():
             }
         }}), encoding="utf-8")
         registry = ModelRegistry(config_path=config, data_root=root)
+        now = datetime.now(timezone.utc)
         leg = TaiwanLeg(event_id="state-sync", sport="baseball", league="MLB", market="不讓分",
-                        selection="Dodgers Home Win", taiwan_odds=2.0, start_time_utc="2026-10-20T20:00:00+00:00",
+                        selection="Dodgers Home Win", taiwan_odds=2.0,
+                        start_time_utc=(now + timedelta(days=1)).isoformat(),
                         away_team="New York Yankees", home_team="Los Angeles Dodgers", side="主")
         before = registry.evaluate_leg_across_models(leg)
         assert len(before) == 1
         assert before[0].data_as_of is None
 
         adapter = registry._instances["live_mlb_elo"]
+        latest_game_time = (now - timedelta(days=1)).replace(hour=20, minute=0, second=0, microsecond=0)
         result = adapter.apply_official_games([{
             "gamePk": 191000987,
-            "gameDate": "2026-10-10T20:00:00Z",
+            "gameDate": latest_game_time.isoformat(),
             "status": {"abstractGameState": "Final", "codedGameState": "F"},
             "teams": {"home": {"team": {"name": "Los Angeles Dodgers"}},
                       "away": {"team": {"name": "New York Yankees"}}},
             "linescore": {"teams": {"home": {"runs": 5}, "away": {"runs": 2}}},
         }])
-        assert result["data_as_of"].startswith("2026-10-10")
+        assert result["data_as_of"].startswith(latest_game_time.date().isoformat())
         after = registry.evaluate_leg_across_models(leg)
         assert len(after) == 1
-        assert after[0].data_as_of == result["data_as_of"]
+        assert after[0].data_as_of == adapter.last_update
+        assert after[0].metadata["input_latest_game_time"] == result["data_as_of"]
         assert after[0].freshness_status == "FRESH"
 
         # A malformed replacement must clear stale data instead of retaining FRESH state.
