@@ -85,9 +85,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 $RunnerPlan = $RunnerPlanText | ConvertFrom-Json
 $CadenceMinutes = [int]$RunnerPlan.plan.cadence_minutes
-if ($CadenceMinutes -lt 1 -or $CadenceMinutes -gt 1440) {
-    throw "Task cadence must be between 1 and 1440 minutes."
+if ($CadenceMinutes -lt 2 -or $CadenceMinutes -gt 1440) {
+    throw "Task cadence must be between 2 and 1440 minutes."
 }
+# Reserve almost the full cadence for slow-but-bounded research updates while
+# leaving at least one minute before the next trigger can be considered.
+$ExecutionLimitMinutes = [Math]::Min(14, $CadenceMinutes - 1)
 
 $Arguments = '"{0}" research-pipeline --config "{1}" --data-root "{2}" --resume' -f `
     $MainPath, $ConfigPath, $DataRoot
@@ -103,6 +106,7 @@ $Plan = [pscustomobject]@{
     Arguments = $Arguments
     WorkingDirectory = $ProjectRoot
     CadenceMinutes = $CadenceMinutes
+    ExecutionLimitMinutes = $ExecutionLimitMinutes
     RunAs = $RunAs
     LogonType = $LogonType
     DataRoot = $DataRoot
@@ -127,7 +131,7 @@ if ($RunAsSystem) {
     $Principal = New-ScheduledTaskPrincipal -UserId $Plan.RunAs -LogonType Interactive -RunLevel Limited
 }
 $Settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew `
-    -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+    -ExecutionTimeLimit (New-TimeSpan -Minutes $Plan.ExecutionLimitMinutes)
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger `
     -Principal $Principal -Settings $Settings -Description "Wallet-free isolated Taiwan sports research pipeline" -Force | Out-Null
 Write-Output "Registered '$TaskName' for $($Plan.RunAs), every $CadenceMinutes minutes. No credentials were stored."
