@@ -23,6 +23,21 @@ def test_resolve_nba_team():
     assert den is not None
     assert den.canonical_id == "NBA_DEN"
 
+    # ESPN and the 2026 model have ratings for the full league, including
+    # franchises not yet present in the original partial identity registry.
+    okc = _resolve_nba_team("Oklahoma City Thunder")
+    assert okc is not None and okc.canonical_id == "NBA_OKC"
+    nop = _resolve_nba_team("New Orleans Pelicans")
+    assert nop is not None and nop.canonical_id == "NBA_NOP"
+    assert _resolve_nba_team("Seattle SuperSonics") is None
+
+
+def test_nba_elo_predict_match_rejects_non_nba_unknown_and_same_team():
+    engine = NBAEloEngine()
+    assert engine.predict_match("Oklahoma City Thunder", "Boston Celtics") is not None
+    assert engine.predict_match("Unknown City", "Boston Celtics") is None
+    assert engine.predict_match("Boston Celtics", "Boston Celtics") is None
+
 
 def test_nba_elo_predict_match():
     engine = NBAEloEngine()

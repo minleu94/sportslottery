@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.identity import GLOBAL_TEAM_REGISTRY
 from core.persistence import atomic_write_bytes
 from core.contracts.common import PredictionSignal, TaiwanLeg
+from core.model_provenance import model_input_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -83,12 +84,24 @@ NFL_TEAM_ALIASES: Dict[str, str] = {
 
 
 def _resolve_nfl_team_code(name: str) -> str:
-    """Resolve raw team string to 2-3 letter canonical NFL code."""
-    cleaned = str(name).strip().upper()
+    """Resolve an exact NFL alias; unsupported names never receive a default Elo."""
+    def normalize(value: str) -> str:
+        return " ".join("".join(char if char.isalnum() else " " for char in str(value).casefold()).split())
+
+    raw = str(name).strip()
+    cleaned = raw.upper()
+    if cleaned in BASE_NFL_ELO:
+        return cleaned
+    if cleaned.startswith("NFL_") and cleaned[4:] in BASE_NFL_ELO:
+        return cleaned[4:]
+    normalized = normalize(raw)
+    matches = set()
     for alias, code in NFL_TEAM_ALIASES.items():
-        if alias.upper() in cleaned:
-            return code
-    return cleaned[:3]
+        key = normalize(alias)
+        if (normalized == key or normalized.startswith(key + " ")
+                or normalized.endswith(" " + key) or f" {key} " in f" {normalized} "):
+            matches.add(code)
+    return next(iter(matches)) if len(matches) == 1 else ""
 
 
 class NFLEloModel:
@@ -99,11 +112,13 @@ class NFLEloModel:
     ENGINE_NAME = "NFL Elo Quantitative Valuation Engine"
 
     def __init__(self, state_file: Optional[Path] = None):
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         self.state_file = state_file or STATE_FILE
         self.elo_ratings: Dict[str, float] = dict(BASE_NFL_ELO)
         self.processed_games_count = 0
         self.last_updated_at: Optional[str] = None
+        self.source: Optional[str] = None
+        self.processed_events: Dict[str, Dict[str, Any]] = {}
         self._load_state()
 
     def _load_state(self) -> None:
@@ -119,6 +134,9 @@ class NFLEloModel:
                     self.elo_ratings.update(ratings)
                 self.processed_games_count = data.get("processed_games", 0)
                 self.last_updated_at = data.get("last_updated_at")
+                self.source = data.get("source")
+                events = data.get("research_events", {})
+                self.processed_events = events if isinstance(events, dict) else {}
         except Exception as exc:
             logger.warning("Error reading NFL Elo state: %s", exc)
 
@@ -129,6 +147,8 @@ class NFLEloModel:
             "ratings": self.elo_ratings,
             "processed_games": self.processed_games_count,
             "last_updated_at": self.last_updated_at or datetime.now(timezone.utc).isoformat(),
+            "source": self.source,
+            "research_events": self.processed_events,
             "version": self.version,
         }
         atomic_write_bytes(self.state_file, json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8"))
@@ -141,10 +161,13 @@ class NFLEloModel:
         self,
         home_team: str,
         away_team: str,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Predict match win probabilities, spread, and totals."""
         home_code = _resolve_nfl_team_code(home_team)
         away_code = _resolve_nfl_team_code(away_team)
+        if (not home_code or not away_code or home_code not in BASE_NFL_ELO
+                or away_code not in BASE_NFL_ELO or home_code == away_code):
+            return None
 
         elo_home = self.get_team_elo(home_code)
         elo_away = self.get_team_elo(away_code)
@@ -199,10 +222,13 @@ class NFLEloModel:
         """Evaluate an NFL TaiwanLeg option."""
         league_str = str(leg.league or "").upper()
         sport_str = str(leg.sport or "").lower()
-        if "NFL" not in league_str and sport_str not in ("football", "american_football"):
+        if (league_str not in {"NFL", "NFL (美足)", "美足", "美式足球"}
+                or sport_str not in {"football", "american_football"}):
             return None
 
         pred = self.predict_match(leg.home_team, leg.away_team)
+        if pred is None:
+            return None
         market = leg.market or ""
         side = getattr(leg, "side", "") or ""
         selection = leg.selection or ""
@@ -239,6 +265,8 @@ class NFLEloModel:
         be_hurdle = 1.0 / odds if odds > 1.0 else 0.5
         edge_pp = (est_prob - be_hurdle) * 100.0
 
+        evidence = model_input_evidence(self.last_updated_at, leg.start_time_utc,
+                                        fresh_hours=96, aging_days=14)
         metadata = {
             "model_id": "nfl_elo_model",
             "model_version": self.version,
@@ -249,6 +277,13 @@ class NFLEloModel:
             "edge_pp": round(edge_pp, 2),
             "expected_value_pct": round((est_prob * odds - 1.0) * 100.0, 2),
             "initialized": True,
+            "data_source": self.source or "embedded_baseline_prior",
+            "source_status": "UPDATED_STATE" if self.processed_events else "BASELINE_ONLY",
+            "data_source_observed_at": self.last_updated_at,
+            "point_in_time_status": evidence["point_in_time_status"] if self.processed_events else "BASELINE_PRIOR",
+            "point_in_time_verified": evidence["point_in_time_verified"] if self.processed_events else False,
+            "pre_event_source_order_valid": evidence["pre_event_source_order_valid"] if self.processed_events else False,
+            "processed_games_count": self.processed_games_count,
         }
 
         confidence = "HIGH" if edge_pp >= 4.0 else ("MED" if edge_pp >= 0.0 else "LOW")
@@ -266,11 +301,13 @@ class NFLEloModel:
             score=round(edge_pp, 2),
             confidence=confidence,
             data_as_of=self.last_updated_at,
-            freshness_status="LIVE" if self.last_updated_at else "UNKNOWN",
+            freshness_status=evidence["freshness_status"] if self.processed_events else "UNKNOWN",
             metadata={**metadata,
-                      "data_source": "updated_game_results" if self.last_updated_at else "embedded_baseline_prior",
-                      "source_status": "UPDATED_STATE" if self.last_updated_at else "BASELINE_ONLY",
-                      "point_in_time_status": "VALID" if self.last_updated_at else "BASELINE_PRIOR",
+                      "data_source": self.source or "embedded_baseline_prior",
+                      "source_status": "UPDATED_STATE" if self.processed_events else "BASELINE_ONLY",
+                      "point_in_time_status": evidence["point_in_time_status"] if self.processed_events else "BASELINE_PRIOR",
+                      "point_in_time_verified": evidence["point_in_time_verified"] if self.processed_events else False,
+                      "pre_event_source_order_valid": evidence["pre_event_source_order_valid"] if self.processed_events else False,
                       "model_state_updated_at": self.last_updated_at,
                       "processed_games_count": self.processed_games_count},
         )

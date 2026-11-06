@@ -186,7 +186,9 @@ class FakeDixonColes:
 
 def write_match_file(path: Path, matches):
     path.mkdir(parents=True, exist_ok=True)
-    (path / "real_matches_eng.1.json").write_text(json.dumps({"matches": matches, "downloaded_at": "source-time"}), encoding="utf-8")
+    (path / "real_matches_eng.1.json").write_text(json.dumps({
+        "matches": matches, "downloaded_at": "2024-06-30T12:00:00+00:00"
+    }), encoding="utf-8")
 
 
 def test_penaltyblog_cache_cutoff_file_hash_and_official_weight_base_date(tmp_path, monkeypatch):

@@ -259,7 +259,7 @@ NBA_TEAMS: List[CanonicalTeam] = [
     CanonicalTeam("NBA_BKN", "basketball", "NBA", "BKN", "Brooklyn Nets", "布魯克林籃網", "籃網", ["ESPN_TEAM_17"]),
     CanonicalTeam("NBA_MIA", "basketball", "NBA", "MIA", "Miami Heat", "邁阿密熱火", "熱火", ["ESPN_TEAM_14"]),
     CanonicalTeam("NBA_CHA", "basketball", "NBA", "CHA", "Charlotte Hornets", "夏洛特黃蜂", "黃蜂", ["ESPN_TEAM_30"]),
-    CanonicalTeam("NBA_BOS", "basketball", "NBA", "BOS", "Boston Celtics", "波士頓塞爾提克", "塞爾提", ["ESPN_TEAM_2"]),
+    CanonicalTeam("NBA_BOS", "basketball", "NBA", "BOS", "Boston Celtics", "波士頓塞爾提克", "塞爾提", ["塞爾提克", "ESPN_TEAM_2"]),
     CanonicalTeam("NBA_CHI", "basketball", "NBA", "CHI", "Chicago Bulls", "芝加哥公牛", "公牛", ["ESPN_TEAM_4"]),
     CanonicalTeam("NBA_MIL", "basketball", "NBA", "MIL", "Milwaukee Bucks", "密爾瓦基公鹿", "公鹿", ["ESPN_TEAM_15"]),
     CanonicalTeam("NBA_PHX", "basketball", "NBA", "PHX", "Phoenix Suns", "鳳凰城太陽", "太陽", ["ESPN_TEAM_21"]),
@@ -270,6 +270,21 @@ NBA_TEAMS: List[CanonicalTeam] = [
     CanonicalTeam("NBA_DAL", "basketball", "NBA", "DAL", "Dallas Mavericks", "達拉斯獨行俠", "獨行俠", ["ESPN_TEAM_6"]),
     CanonicalTeam("NBA_DEN", "basketball", "NBA", "DEN", "Denver Nuggets", "丹佛金塊", "金塊", ["ESPN_TEAM_7"]),
     CanonicalTeam("NBA_LAC", "basketball", "NBA", "LAC", "LA Clippers", "洛杉磯快艇", "快艇", ["ESPN_TEAM_12"]),
+    # The Elo engine has ratings for every NBA team. Keep the shared identity
+    # registry equally complete so ESPN results and model inputs can resolve
+    # the same franchises without accepting unknown-team fallbacks.
+    CanonicalTeam("NBA_OKC", "basketball", "NBA", "OKC", "Oklahoma City Thunder", "奧克拉荷馬雷霆", "雷霆", ["Thunder"]),
+    CanonicalTeam("NBA_NYK", "basketball", "NBA", "NYK", "New York Knicks", "紐約尼克", "尼克", ["Knicks"]),
+    CanonicalTeam("NBA_PHI", "basketball", "NBA", "PHI", "Philadelphia 76ers", "費城七六人", "七六人", ["Sixers", "76ers"]),
+    CanonicalTeam("NBA_IND", "basketball", "NBA", "IND", "Indiana Pacers", "印第安納溜馬", "溜馬", ["Pacers"]),
+    CanonicalTeam("NBA_CLE", "basketball", "NBA", "CLE", "Cleveland Cavaliers", "克里夫蘭騎士", "騎士", ["Cavaliers", "Cavs"]),
+    CanonicalTeam("NBA_ORL", "basketball", "NBA", "ORL", "Orlando Magic", "奧蘭多魔術", "魔術", ["Magic"]),
+    CanonicalTeam("NBA_HOU", "basketball", "NBA", "HOU", "Houston Rockets", "休士頓火箭", "火箭", ["Rockets"]),
+    CanonicalTeam("NBA_MEM", "basketball", "NBA", "MEM", "Memphis Grizzlies", "曼菲斯灰熊", "灰熊", ["Grizzlies"]),
+    CanonicalTeam("NBA_ATL", "basketball", "NBA", "ATL", "Atlanta Hawks", "亞特蘭大老鷹", "老鷹", ["Hawks"]),
+    CanonicalTeam("NBA_UTA", "basketball", "NBA", "UTA", "Utah Jazz", "猶他爵士", "爵士", ["Jazz"]),
+    CanonicalTeam("NBA_TOR", "basketball", "NBA", "TOR", "Toronto Raptors", "多倫多暴龍", "暴龍", ["Raptors"]),
+    CanonicalTeam("NBA_WAS", "basketball", "NBA", "WAS", "Washington Wizards", "華盛頓巫師", "巫師", ["Wizards"]),
 ]
 
 # =========================================================================

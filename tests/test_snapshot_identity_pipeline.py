@@ -130,7 +130,8 @@ def test_acceptance_ledger_rejects_tampered_snapshot_prediction_hash():
         "model_candidate_provenances": [{"model_id": "gate-hash-model", "model_version": "1",
             "artifact_hash": "a" * 64, "protocol_id": "test-protocol", "protocol_hash": "b" * 64,
             "source_scope": "taiwan_forward", "raw_probability": 0.7,
-            "data_as_of": signal.data_as_of, "freshness_status": "FRESH"}],
+            "data_as_of": signal.data_as_of, "freshness_status": "FRESH",
+            "point_in_time_status": "VALID"}],
     }
     with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as folder:
         path = Path(folder) / "prediction_snapshots.jsonl"
@@ -148,6 +149,19 @@ def test_acceptance_ledger_rejects_tampered_snapshot_prediction_hash():
                 "as_of": (now + timedelta(days=2)).isoformat()}
         intact = gate.status(**args)
         assert intact.get("matched_rows") == 1, intact
+
+        persisted = json.loads(path.read_text(encoding="utf-8"))
+        persisted["model_candidate_predictions"][0].pop("point_in_time_status")
+        persisted["prediction_payload_hash"] = compute_prediction_payload_hash(persisted)
+        path.write_text(json.dumps(persisted, ensure_ascii=False) + "\n", encoding="utf-8")
+        unproven = gate.status(**args)
+        assert unproven.get("matched_rows", 0) == 0
+        assert unproven.get("exclusion_counts", {}).get("POINT_IN_TIME_UNPROVEN") == 1
+
+        persisted["model_candidate_predictions"][0]["point_in_time_status"] = "VALID"
+        persisted["prediction_payload_hash"] = compute_prediction_payload_hash(persisted)
+        path.write_text(json.dumps(persisted, ensure_ascii=False) + "\n", encoding="utf-8")
+        gate.status(**args)
 
         persisted = json.loads(path.read_text(encoding="utf-8"))
         persisted["model_candidate_predictions"][0]["raw_probability"] = 0.71

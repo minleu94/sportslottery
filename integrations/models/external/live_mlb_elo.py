@@ -339,13 +339,15 @@ class LiveMLBEloAdapter:
             return "UNKNOWN"
         pred = _parse_aware(getattr(leg, "start_time_utc", None))
         data = _parse_aware(self.data_as_of)
-        if data is None or pred is None:
+        observed = _parse_aware(self.last_update)
+        if data is None or observed is None or pred is None:
             return "UNKNOWN"
-        # Schedule gameDate is game start, not final whistle. Same-day use cannot
-        # prove the result existed before this prediction, so fail closed.
-        if data.date() >= pred.date():
+        # A timestamped update after the latest completed game can be used for
+        # same-day future events only when it predates their start. The model
+        # still refuses any incomplete schedule coverage above.
+        if observed >= pred or data >= pred:
             return "UNKNOWN"
-        age = (pred.date() - data.date()).days
+        age = max(0, (pred.date() - data.date()).days)
         return "FRESH" if age <= FRESH_DAYS else "AGING" if age <= AGING_DAYS else "STALE"
 
     def evaluate_leg(self, leg: TaiwanLeg) -> Optional[PredictionSignal]:
@@ -370,10 +372,20 @@ class LiveMLBEloAdapter:
         probability = prob_home if is_home else prob_away
         edge = (probability - market_implied) * 100.0
         confidence = "MED" if edge >= 0 else "LOW"
+        point_in_time_verified = bool(
+            freshness in {"FRESH", "AGING"}
+            and _parse_aware(self.last_update) is not None
+            and _parse_aware(getattr(leg, "start_time_utc", None)) is not None
+            and _parse_aware(self.last_update) < _parse_aware(getattr(leg, "start_time_utc", None))
+        )
         meta = {"home_elo": self.get_rating(home.canonical_id), "away_elo": self.get_rating(away.canonical_id),
                 "hfa": HOME_FIELD_ADVANTAGE, "engine": self.ENGINE_NAME,
                 "rating_initialization": "neutral_1500" if not self.data_as_of else "official_results_elo",
-                "data_as_of": self.data_as_of, "last_update": self.last_update, "source": self.source,
+                "data_as_of": self.last_update, "input_latest_game_time": self.data_as_of,
+                "data_source_observed_at": self.last_update, "last_update": self.last_update, "source": self.source,
+                "point_in_time_status": "VALID" if point_in_time_verified else "UNKNOWN",
+                "point_in_time_verified": point_in_time_verified,
+                "pre_event_source_order_valid": point_in_time_verified,
                 "processed_game_count": len(self._processed_game_pks), "starting_pitcher_adjustment_used": False,
                 "rest_adjustment_used": False, "empirically_calibrated": False,
                 "quality_note": "模型勝率為未校準估計；資料新鮮度不代表預測品質已驗證。"}
@@ -381,7 +393,7 @@ class LiveMLBEloAdapter:
             source_type="MODEL", event_id=leg.event_id, market=leg.market, selection=leg.selection,
             probability=round(probability, 3), score=round(edge, 1), confidence=confidence,
             pick="主" if is_home else "客", source_category=self.SOURCE_CATEGORY,
-            independence_group=self.INDEPENDENCE_GROUP, data_as_of=self.data_as_of,
+            independence_group=self.INDEPENDENCE_GROUP, data_as_of=self.last_update,
             freshness_status=freshness, market_implied_probability=round(market_implied, 3),
             model_probability=round(probability, 3), model_market_delta_pp=round(edge, 1),
             quality_label=ModelQualityLabel.MODEL_EXPERIMENTAL,

@@ -238,7 +238,7 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
             "run_window_id": window_id,
             "window_start_utc": window_start.isoformat(),
             "data_root": str(self.data_root),
-            "stages": ["model_update", "soccer_model_update", "source_fetch_health", "pregame_snapshots", "odds_observations",
+            "stages": ["model_update", "soccer_model_update", "research_rating_update", "source_fetch_health", "pregame_snapshots", "odds_observations",
                        "parlay_candidates", "multi_sport_settlement", "weekly_report"],
             "network_enabled": not dry_run,
             "mutations_enabled": not dry_run,
@@ -300,6 +300,7 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
             stage_functions = [
                 ("model_update", lambda: self._stage_model_update(stage_data)),
                 ("soccer_model_update", lambda: self._stage_soccer_model_update(stage_data)),
+                ("research_rating_update", lambda: self._stage_research_rating_update(stage_data)),
                 ("source_fetch_health", lambda: self._stage_source(window_id, now, stage_data)),
                 ("pregame_snapshots", lambda: self._stage_snapshots(window_id, self._current_utc(), stage_data)),
                 ("odds_observations", lambda: self._stage_observations(window_id, stage_data)),
@@ -453,6 +454,7 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
         model_event_pairs: set[tuple[str, str]] = set()
         valid_event_keys: set[str] = set()
         freshness_counts = Counter()
+        qualification_exclusions = Counter()
 
         for leg in legs:
             key = event_key(leg)
@@ -480,25 +482,27 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
                     model_event_pairs.add((key, model_id))
 
                 as_of = parse_aware_time(prediction.get("data_as_of"))
-                if as_of is None:
-                    # Penaltyblog's point-in-time training watermark is a date
-                    # because the source does not publish match timestamps.
-                    raw_as_of = str(prediction.get("data_as_of") or "")
-                    try:
-                        parsed_date = datetime.fromisoformat(raw_as_of)
-                    except (TypeError, ValueError):
-                        parsed_date = None
-                    if parsed_date is not None and parsed_date.tzinfo is None and len(raw_as_of) == 10:
-                        as_of = parsed_date.replace(tzinfo=timezone.utc)
-
                 point_in_time_verified = (
                     prediction.get("point_in_time_status") == "VALID"
                     or prediction.get("point_in_time_verified") is True
                     or prediction.get("pre_event_source_order_valid") is True
                 )
-                if (freshness in {"LIVE", "FRESH", "AGING"} and as_of is not None
-                        and as_of <= now and start is not None and as_of < start
-                        and point_in_time_verified):
+                reason = None
+                if freshness not in {"LIVE", "FRESH", "AGING"}:
+                    reason = "DATA_STALE_OR_UNKNOWN"
+                elif as_of is None:
+                    reason = "DATA_AS_OF_MISSING_OR_UNAWARE"
+                elif as_of > now:
+                    reason = "DATA_AS_OF_AFTER_OBSERVATION"
+                elif start is None:
+                    reason = "EVENT_START_MISSING_OR_UNAWARE"
+                elif as_of >= start:
+                    reason = "DATA_AS_OF_NOT_PRE_EVENT"
+                elif not point_in_time_verified:
+                    reason = "POINT_IN_TIME_UNPROVEN"
+                if reason:
+                    qualification_exclusions[reason] += 1
+                else:
                     valid_prediction_count += 1
                     if key:
                         valid_event_keys.add(key)
@@ -510,6 +514,7 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
             "data_valid_model_prediction_count": valid_prediction_count,
             "data_valid_model_event_count": len(valid_event_keys),
             "model_data_freshness_status_counts": dict(freshness_counts),
+            "model_prediction_qualification_exclusion_counts": dict(qualification_exclusions),
             "data_valid_event_keys": valid_event_keys,
         }
 
@@ -852,6 +857,20 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
         result = {"status": status, "source": "Football-Data.co.uk", "leagues": results,
                   "errors": errors, "refresh_due_at_utc": (now + timedelta(hours=refresh_hours)).isoformat()}
         _write_json_atomic(stage_data / "soccer_model_update.json", result)
+        return result
+
+    def _stage_research_rating_update(self, stage_data: Path) -> dict[str, Any]:
+        """Refresh isolated NBA/NFL/Asian Elo inputs before creating snapshots."""
+        settings = self.config.get("research_rating_update", {}) or {}
+        if not settings.get("enabled", True):
+            result = {"status": "SKIPPED", "reason": "research_rating_update.enabled is false"}
+            _write_json_atomic(stage_data / "research_rating_update.json", result)
+            return {"_stage_status": "SKIPPED", **result}
+        from core.research_rating_updates import ResearchRatingUpdater
+        result = ResearchRatingUpdater(self.data_root, clock=self.clock).run(settings, stage_data)
+        registry = getattr(self._signal_hub, "model_registry", None)
+        if hasattr(registry, "refresh"):
+            registry.refresh()
         return result
 
     @staticmethod

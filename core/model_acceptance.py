@@ -11,6 +11,7 @@ import json
 import math
 import random
 import re
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -218,35 +219,69 @@ def evaluate_scope_evidence(
     if cutoff is None:
         return {"accepted": False, "status": "INVALID_AS_OF", "reason": "as_of_must_be_timezone_aware"}
     matched = []
+    exclusions: Counter[str] = Counter()
+    input_count = 0
     for row in rows:
+        input_count += 1
         if not isinstance(row, Mapping):
+            exclusions["INVALID_ROW"] += 1
             continue
         if (row.get("model_id"), row.get("model_version"), row.get("league"), row.get("market"),
                 row.get("source_scope"), row.get("artifact_hash"), row.get("protocol_id"), row.get("protocol_hash")) != (
                 model_id, model_version, league, market, source_scope, artifact_hash, protocol_id, protocol_hash_value):
+            exclusions["SCOPE_MISMATCH"] += 1
             continue
         p = _finite(row.get("raw_probability"))
         y = row.get("outcome")
         timestamp = _date(row.get("prediction_timestamp"))
+        data_as_of = _date(row.get("data_as_of"))
         settled_at = _date(row.get("settled_at"))
         event_start = _date(row.get("event_start"))
         market_p = _finite(row.get("market_probability"))
         odds = _finite(row.get("decimal_odds"))
         settlement_status = row.get("settlement_status")
         result_source = row.get("result_source")
-        if (p is None or not 0 < p < 1 or type(y) not in {int, bool} or y not in (0, 1)
-                or timestamp is None or settled_at is None or settled_at < timestamp
-                or (event_start is not None and (timestamp >= event_start or settled_at < event_start))
+        if p is None or not 0 < p < 1 or type(y) not in {int, bool} or y not in (0, 1):
+            exclusions["INVALID_PROBABILITY_OR_OUTCOME"] += 1
+            continue
+        if not str(row.get("event_id") or "").strip():
+            exclusions["EVENT_ID_MISSING"] += 1
+            continue
+        if timestamp is None or settled_at is None or event_start is None:
+            exclusions["TIMESTAMP_MISSING_OR_UNAWARE"] += 1
+            continue
+        point_in_time_verified = (
+            row.get("point_in_time_status") == "VALID"
+            or row.get("point_in_time_verified") is True
+            or row.get("pre_event_source_order_valid") is True
+        )
+        if (not point_in_time_verified or data_as_of is None or data_as_of > timestamp
+                or data_as_of >= event_start or timestamp >= event_start):
+            exclusions["POINT_IN_TIME_UNPROVEN"] += 1
+            continue
+        if str(row.get("freshness_status") or "UNKNOWN").upper() not in {"LIVE", "FRESH", "AGING"}:
+            exclusions["DATA_STALE_OR_UNKNOWN"] += 1
+            continue
+        if not qualifies_shadow_calibration(row):
+            exclusions["OBSERVATION_SCOPE_UNKNOWN_OR_OUTSIDE_WINDOW"] += 1
+            continue
+        if (settled_at < timestamp or settled_at < event_start
                 or settlement_status not in {"WON", "LOST"}
-                or (settlement_status == "WON") != bool(y)
-                or not isinstance(result_source, str) or not result_source.strip()
+                or (settlement_status == "WON") != bool(y)):
+            exclusions["SETTLEMENT_INVALID"] += 1
+            continue
+        if (not isinstance(result_source, str) or not result_source.strip()
                 or result_source.strip().upper() in {"UNKNOWN", "MANUAL", "TEST", "FIXTURE"}):
+            exclusions["RESULT_SOURCE_UNTRUSTED"] += 1
             continue
         if settled_at > cutoff:
+            exclusions["SETTLEMENT_AFTER_AS_OF"] += 1
             continue
         if market_p is None or not 0 < market_p < 1 or odds is None or odds <= 1:
+            exclusions["MARKET_BENCHMARK_INVALID"] += 1
             continue
         matched.append({**row, "raw_probability": p, "outcome": int(y), "prediction_timestamp": timestamp,
+                        "data_as_of": data_as_of, "event_start": event_start,
                         "settled_at": settled_at, "market_probability": market_p, "decimal_odds": odds})
     matched.sort(key=lambda row: (row["prediction_timestamp"], str(row.get("event_id", ""))))
     # Keep one latest forecast per exact event/market/selection. Calibration
@@ -268,7 +303,8 @@ def evaluate_scope_evidence(
               "scope": {"model_id": model_id, "model_version": model_version, "league": league,
                         "market": market, "source_scope": source_scope, "artifact_hash": artifact_hash,
                         "protocol_id": protocol_id, "protocol_hash": protocol_hash_value},
-              "calibration_n": 0, "evaluation_n": 0}
+              "calibration_n": 0, "evaluation_n": 0,
+              "input_rows": input_count, "exclusion_counts": dict(exclusions)}
     if source_scope != "taiwan_forward":
         result.update(status="HISTORICAL_ONLY", reason="non_taiwan_source_cannot_grant_runtime_acceptance",
                       matched_rows=len(matched))
@@ -397,7 +433,7 @@ class ModelAcceptanceGate:
         self.policy_path = Path(policy_path)
         self.policy = load_policy(self.policy_path)
         self._rows_signature: tuple[int, int, int] | None = None
-        # Keep only compact, already-validated model evidence. Holding every
+        # Keep only compact, scope-matched model evidence. Holding every
         # decoded snapshot here can multiply a multi-GB JSONL ledger in RSS.
         self._evidence_by_scope: dict[tuple, list[dict[str, Any]]] | None = None
         self._snapshot_row_count = 0
@@ -506,11 +542,6 @@ class ModelAcceptanceGate:
                 for prediction in snapshot.get("model_candidate_predictions", []):
                     if not isinstance(prediction, dict):
                         continue
-                    data_as_of = _date(prediction.get("data_as_of"))
-                    if (data_as_of is None or data_as_of > snapshot_time or data_as_of >= event_start
-                            or prediction.get("freshness_status") not in {"LIVE", "FRESH", "AGING"}):
-                        continue
-
                     scope_key = (
                         prediction.get("model_id"), prediction.get("model_version"),
                         prediction.get("league"), prediction.get("market"),
@@ -535,6 +566,11 @@ class ModelAcceptanceGate:
                         "protocol_hash": scope_key[7],
                         "raw_probability": prediction.get("raw_probability"),
                         "prediction_timestamp": snapshot.get("snapshot_timestamp"),
+                        "data_as_of": prediction.get("data_as_of"),
+                        "freshness_status": prediction.get("freshness_status"),
+                        "point_in_time_status": prediction.get("point_in_time_status"),
+                        "point_in_time_verified": prediction.get("point_in_time_verified"),
+                        "pre_event_source_order_valid": prediction.get("pre_event_source_order_valid"),
                         "event_id": snapshot.get("canonical_event_id") or snapshot.get("event_id"),
                         "side": snapshot.get("side") or snapshot.get("pick"),
                         "line": snapshot.get("line"),

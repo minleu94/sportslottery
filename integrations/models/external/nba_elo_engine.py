@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.identity import GLOBAL_TEAM_REGISTRY
 from core.persistence import atomic_write_bytes
 from core.contracts.common import PredictionSignal, TaiwanLeg
+from core.model_provenance import model_input_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +52,26 @@ BASE_NBA_ELO: Dict[str, float] = {
 
 def _resolve_nba_team(name: str):
     """Resolve team name to canonical team in registry."""
-    team = GLOBAL_TEAM_REGISTRY.resolve(name, sport="basketball", league="NBA")
-    if team is None:
-        team = GLOBAL_TEAM_REGISTRY.resolve(name, sport="basketball")
+    raw_name = str(name or "").strip()
+    team = GLOBAL_TEAM_REGISTRY.resolve(raw_name, sport="basketball", league="NBA")
+    if not team or team.sport != "basketball" or team.league != "NBA":
+        return None
+    exact_aliases = {
+        str(alias).strip().casefold()
+        for alias in (team.canonical_id, team.abbreviation, team.display_name_en,
+                      team.display_name_zh, team.short_name_zh, *team.aliases)
+    }
+    if raw_name.casefold() not in exact_aliases:
+        return None
+    # The shared team registry historically used NBA_NO for New Orleans,
+    # while the model rating key is NBA_NOP. Keep both identity layers
+    # consistent at this adapter boundary without changing old stored IDs.
+    canonical_id = "NBA_NOP" if team.canonical_id == "NBA_NO" else team.canonical_id
+    if canonical_id not in BASE_NBA_ELO:
+        return None
+    if canonical_id != team.canonical_id:
+        from dataclasses import replace
+        team = replace(team, canonical_id=canonical_id, abbreviation="NOP")
     return team
 
 
@@ -65,11 +83,13 @@ class NBAEloEngine:
     ENGINE_NAME = "NBA Elo & Four Factors Quantitative Model"
 
     def __init__(self, state_file: Optional[Path] = None):
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         self.state_file = state_file or STATE_FILE
         self.elo_ratings: Dict[str, float] = dict(BASE_NBA_ELO)
         self.processed_games_count = 0
         self.last_updated_at: Optional[str] = None
+        self.source: Optional[str] = None
+        self.processed_events: Dict[str, Dict[str, Any]] = {}
         self._load_state()
 
     def _load_state(self) -> None:
@@ -85,6 +105,9 @@ class NBAEloEngine:
                     self.elo_ratings.update(ratings)
                 self.processed_games_count = data.get("processed_games", 0)
                 self.last_updated_at = data.get("last_updated_at")
+                self.source = data.get("source")
+                events = data.get("research_events", {})
+                self.processed_events = events if isinstance(events, dict) else {}
         except Exception as exc:
             logger.warning("Error reading NBA Elo state: %s", exc)
 
@@ -95,6 +118,8 @@ class NBAEloEngine:
             "ratings": self.elo_ratings,
             "processed_games": self.processed_games_count,
             "last_updated_at": self.last_updated_at or datetime.now(timezone.utc).isoformat(),
+            "source": self.source,
+            "research_events": self.processed_events,
             "version": self.version,
         }
         atomic_write_bytes(self.state_file, json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8"))
@@ -107,10 +132,12 @@ class NBAEloEngine:
         self,
         home_team: str,
         away_team: str,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Predict match win probabilities, spread, and totals."""
         can_home = _resolve_nba_team(home_team)
         can_away = _resolve_nba_team(away_team)
+        if can_home is None or can_away is None or can_home.canonical_id == can_away.canonical_id:
+            return None
 
         home_id = can_home.canonical_id if can_home else home_team
         away_id = can_away.canonical_id if can_away else away_team
@@ -171,10 +198,12 @@ class NBAEloEngine:
 
     def evaluate_leg(self, leg: TaiwanLeg) -> Optional[PredictionSignal]:
         """Evaluate an NBA TaiwanLeg option."""
-        if leg.sport != "basketball" or "NBA" not in leg.league.upper():
+        if leg.sport != "basketball" or str(leg.league or "").strip().upper() != "NBA":
             return None
 
         pred = self.predict_match(leg.home_team, leg.away_team)
+        if pred is None:
+            return None
         market = leg.market or ""
         side = getattr(leg, "side", "") or ""
         selection = leg.selection or ""
@@ -213,6 +242,8 @@ class NBAEloEngine:
         be_hurdle = 1.0 / odds if odds > 1.0 else 0.5
         edge_pp = (est_prob - be_hurdle) * 100.0
 
+        evidence = model_input_evidence(self.last_updated_at, leg.start_time_utc,
+                                        fresh_hours=48, aging_days=10)
         metadata = {
             "model_id": "nba_elo_engine",
             "model_version": self.version,
@@ -223,6 +254,13 @@ class NBAEloEngine:
             "edge_pp": round(edge_pp, 2),
             "expected_value_pct": round((est_prob * odds - 1.0) * 100.0, 2),
             "initialized": True,
+            "data_source": self.source or "embedded_baseline_prior",
+            "source_status": "UPDATED_STATE" if self.processed_events else "BASELINE_ONLY",
+            "data_source_observed_at": self.last_updated_at,
+            "point_in_time_status": evidence["point_in_time_status"] if self.processed_events else "BASELINE_PRIOR",
+            "point_in_time_verified": evidence["point_in_time_verified"] if self.processed_events else False,
+            "pre_event_source_order_valid": evidence["pre_event_source_order_valid"] if self.processed_events else False,
+            "processed_games_count": self.processed_games_count,
         }
 
         confidence = "HIGH" if edge_pp >= 4.0 else ("MED" if edge_pp >= 0.0 else "LOW")
@@ -240,11 +278,13 @@ class NBAEloEngine:
             score=round(edge_pp, 2),
             confidence=confidence,
             data_as_of=self.last_updated_at,
-            freshness_status="LIVE" if self.last_updated_at else "UNKNOWN",
+            freshness_status=evidence["freshness_status"] if self.processed_events else "UNKNOWN",
             metadata={**metadata,
-                      "data_source": "updated_game_results" if self.last_updated_at else "embedded_baseline_prior",
-                      "source_status": "UPDATED_STATE" if self.last_updated_at else "BASELINE_ONLY",
-                      "point_in_time_status": "VALID" if self.last_updated_at else "BASELINE_PRIOR",
+                      "data_source": self.source or "embedded_baseline_prior",
+                      "source_status": "UPDATED_STATE" if self.processed_events else "BASELINE_ONLY",
+                      "point_in_time_status": evidence["point_in_time_status"] if self.processed_events else "BASELINE_PRIOR",
+                      "point_in_time_verified": evidence["point_in_time_verified"] if self.processed_events else False,
+                      "pre_event_source_order_valid": evidence["pre_event_source_order_valid"] if self.processed_events else False,
                       "model_state_updated_at": self.last_updated_at,
                       "processed_games_count": self.processed_games_count},
         )

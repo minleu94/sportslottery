@@ -14,6 +14,10 @@ def _evidence_rows(n=240):
             "protocol_id": "taiwan-forward-binary-temperature-v1", "protocol_hash": "b" * 64,
             "raw_probability": 0.8 if outcome else 0.2, "outcome": outcome,
             "prediction_timestamp": (start + timedelta(days=index)).isoformat(),
+            "data_as_of": (start + timedelta(days=index - 1)).isoformat(),
+            "freshness_status": "FRESH", "point_in_time_status": "VALID",
+            "observation_scope": "FORMAL_QUALIFICATION_WINDOW",
+            "event_start": (start + timedelta(days=index, minutes=60)).isoformat(),
             "settled_at": (start + timedelta(days=index, hours=1)).isoformat(),
             "settlement_status": "WON" if outcome else "LOST", "result_source": "STATS_API",
             "market_probability": 0.5, "decimal_odds": 2.05, "event_id": f"e{index}",
@@ -65,6 +69,9 @@ def test_overlapping_fit_and_evaluation_timestamps_are_rejected():
     rows = _evidence_rows()
     for row in rows[100:]:
         row["prediction_timestamp"] = rows[99]["prediction_timestamp"]
+        row["data_as_of"] = rows[99]["data_as_of"]
+        row["event_start"] = rows[99]["event_start"]
+        row["settled_at"] = rows[99]["settled_at"]
     result = evaluate_scope_evidence(rows, **_kwargs())
     assert result["accepted"] is False
     assert result["status"] == "INVALID_CHRONOLOGY"
@@ -107,3 +114,31 @@ def test_event_start_must_precede_prediction_and_not_follow_settlement():
     result = evaluate_scope_evidence(rows, **_kwargs())
     assert result["accepted"] is False
     assert result.get("matched_rows", 0) == 0
+
+
+def test_acceptance_requires_explicit_point_in_time_proof_and_aware_data_watermark():
+    rows = _evidence_rows()
+    for row in rows:
+        row.pop("point_in_time_status")
+    result = evaluate_scope_evidence(rows, **_kwargs())
+    assert result["accepted"] is False
+    assert result["exclusion_counts"]["POINT_IN_TIME_UNPROVEN"] == len(rows)
+
+    rows = _evidence_rows()
+    for row in rows:
+        row["data_as_of"] = row["prediction_timestamp"][:10]
+    result = evaluate_scope_evidence(rows, **_kwargs())
+    assert result["accepted"] is False
+    assert result["exclusion_counts"]["POINT_IN_TIME_UNPROVEN"] == len(rows)
+
+
+def test_shadow_forecasts_can_calibrate_without_becoming_formal_strategy_rows():
+    rows = _evidence_rows()
+    for row in rows:
+        prediction = datetime.fromisoformat(row["prediction_timestamp"])
+        row["observation_scope"] = "SHADOW_ONLY"
+        row["event_start"] = (prediction + timedelta(minutes=180)).isoformat()
+        row["settled_at"] = (prediction + timedelta(hours=4)).isoformat()
+    result = evaluate_scope_evidence(rows, **_kwargs())
+    assert result["accepted"] is True
+    assert result["calibration_event_count"] == 100

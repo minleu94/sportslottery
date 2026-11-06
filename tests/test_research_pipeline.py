@@ -15,6 +15,16 @@ from core.snapshot_logger import PredictionSnapshotLogger
 from integrations.common.models import PredictionSignal, TaiwanLeg
 
 
+@pytest.fixture(autouse=True)
+def _keep_pipeline_runs_offline(monkeypatch):
+    """Pipeline tests use explicit fixture providers; never call live rating feeds."""
+    monkeypatch.setattr(
+        ResearchPipeline,
+        "_stage_research_rating_update",
+        lambda self, stage_data: {"status": "OFFLINE_TEST_STUB"},
+    )
+
+
 class FixtureOddsAdapter:
     def __init__(self, legs):
         self.legs = legs

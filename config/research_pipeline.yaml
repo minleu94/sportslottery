@@ -48,3 +48,11 @@ soccer_model_update:
   refresh_interval_hours: 6
   max_attempts: 3
   minimum_matches_per_league: 60
+
+# Refresh the research Elo models from bounded result scoreboards. ESPN is a
+# public third-party source for NBA/NFL; Asian leagues use their official feeds.
+research_rating_update:
+  enabled: true
+  refresh_interval_hours: 12
+  retry_interval_minutes: 60
+  lookback_days: 3

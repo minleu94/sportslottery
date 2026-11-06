@@ -29,6 +29,7 @@ import penaltyblog as pb
 
 from core.identity import GLOBAL_TEAM_REGISTRY
 from core.contracts.common import ModelQualityLabel, PredictionSignal, TaiwanLeg
+from core.bet_validation import parse_aware_time
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +307,9 @@ class PenaltyblogDixonColesAdapter:
                 training_end_date=latest_date.isoformat(), match_count=len(goals_home),
                 latest_match_date=latest_date.isoformat(), dataset_seasons=meta.get("dataset_seasons", []),
                 data_age_days=data_age_days, freshness_status=freshness_status,
-                point_in_time_verified=bool(cutoff is not None and unknown_dates == 0 and invalid_score_records == 0),
+                point_in_time_verified=bool(cutoff is not None
+                                            and parse_aware_time(meta.get("downloaded_at")) is not None
+                                            and unknown_dates == 0 and invalid_score_records == 0),
                 cold_start_flag=cold_start_flag, training_file_sha256=file_hash,
                 future_records_excluded=future_records_excluded, unknown_date_records=unknown_dates,
                 invalid_score_records=invalid_score_records,
@@ -433,6 +436,14 @@ class PenaltyblogDixonColesAdapter:
 
         model_market_delta_pp = round((model_prob - market_implied) * 100.0, 1)
 
+        source_observed_at = parse_aware_time(prov.downloaded_at)
+        prediction_time = datetime.now(timezone.utc)
+        event_start = parse_aware_time(getattr(leg, "start_time_utc", None))
+        point_in_time_verified = bool(
+            prov.point_in_time_verified and source_observed_at is not None
+            and source_observed_at <= prediction_time
+            and event_start is not None and source_observed_at < event_start
+        )
         return PredictionSignal(
             source_id="penaltyblog_dixon_coles",
             source_name="Penaltyblog Dixon-Coles (External Engine)",
@@ -447,7 +458,9 @@ class PenaltyblogDixonColesAdapter:
             source_category=source_category,
             independence_group=self.INDEPENDENCE_GROUP,
             timestamp=datetime.now(timezone.utc).isoformat(),
-            data_as_of=prov.latest_match_date,
+            # This is the aware source observation time, while the latest
+            # training match date remains separate descriptive provenance.
+            data_as_of=prov.downloaded_at,
             data_age_hours=round(prov.data_age_days * 24.0, 1) if prov.data_age_days is not None else None,
             freshness_status=prov.freshness_status,
             market_implied_probability=round(market_implied, 3),
@@ -473,6 +486,12 @@ class PenaltyblogDixonColesAdapter:
                 "freshness_status": prov.freshness_status,
                 "cold_start_flag": prov.cold_start_flag,
                 "training_file_sha256": prov.training_file_sha256,
+                "data_as_of": prov.downloaded_at,
+                "input_latest_date": prov.latest_match_date,
+                "data_source_observed_at": prov.downloaded_at,
+                "point_in_time_status": "VALID" if point_in_time_verified else "UNKNOWN",
+                "point_in_time_verified": point_in_time_verified,
+                "pre_event_source_order_valid": point_in_time_verified,
                 "future_records_excluded": prov.future_records_excluded,
                 "unknown_date_records": prov.unknown_date_records,
                 "invalid_score_records": prov.invalid_score_records,

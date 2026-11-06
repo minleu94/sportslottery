@@ -29,6 +29,7 @@ class ResearchReportMixin:
         def event_id(row):
             return str(row.get("canonical_event_id") or row.get("event_id") or "")
 
+        qualification_exclusions = Counter()
         def valid_model_predictions(row):
             stamp = parse_aware_time(row.get("snapshot_timestamp") or row.get("timestamp"))
             start = parse_aware_time(row.get("event_start"))
@@ -43,22 +44,28 @@ class ResearchReportMixin:
                 if not math.isfinite(probability) or not 0 < probability < 1:
                     continue
                 as_of = parse_aware_time(candidate.get("data_as_of"))
-                if as_of is None:
-                    raw_as_of = str(candidate.get("data_as_of") or "")
-                    try:
-                        parsed_date = datetime.fromisoformat(raw_as_of)
-                    except (TypeError, ValueError):
-                        parsed_date = None
-                    if parsed_date is not None and parsed_date.tzinfo is None and len(raw_as_of) == 10:
-                        as_of = parsed_date.replace(tzinfo=timezone.utc)
                 point_in_time_verified = (
                     candidate.get("point_in_time_status") == "VALID"
                     or candidate.get("point_in_time_verified") is True
                     or candidate.get("pre_event_source_order_valid") is True
                 )
-                if (str(candidate.get("freshness_status") or "UNKNOWN").upper() in {"LIVE", "FRESH", "AGING"}
-                        and stamp is not None and start is not None and as_of is not None
-                        and as_of <= stamp and as_of < start and point_in_time_verified):
+                freshness = str(candidate.get("freshness_status") or "UNKNOWN").upper()
+                reason = None
+                if freshness not in {"LIVE", "FRESH", "AGING"}:
+                    reason = "DATA_STALE_OR_UNKNOWN"
+                elif as_of is None:
+                    reason = "DATA_AS_OF_MISSING_OR_UNAWARE"
+                elif stamp is None or start is None:
+                    reason = "SNAPSHOT_OR_EVENT_START_MISSING"
+                elif as_of > stamp:
+                    reason = "DATA_AS_OF_AFTER_OBSERVATION"
+                elif as_of >= start:
+                    reason = "DATA_AS_OF_NOT_PRE_EVENT"
+                elif not point_in_time_verified:
+                    reason = "POINT_IN_TIME_UNPROVEN"
+                if reason:
+                    qualification_exclusions[reason] += 1
+                else:
                     valid.append(candidate)
             return valid
 
@@ -137,6 +144,7 @@ class ResearchReportMixin:
             "sharp_market_complete_event_count": len(sharp_events),
             "model_and_sharp_complete_event_count": len(model_sharp_events),
             "model_prediction_freshness_status_counts": dict(model_freshness),
+            "model_prediction_qualification_exclusion_counts": dict(qualification_exclusions),
             "latest_run_observation": latest_result.get("shadow_coverage", {}),
         }
 
