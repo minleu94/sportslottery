@@ -13,7 +13,7 @@ from ui.html_safety import html_text
 
 
 def render_line_binding_card(profile: Dict[str, Any]) -> None:
-    """Render an intuitive, copyable guide on how to bind LINE Bot and operate via LINE."""
+    """Render safe LINE Profile binding instructions."""
     is_bound = bool(profile.get("line_user_id"))
     status_badge = (
         "<span style='color:#06c755; font-weight:bold;'>✅ 已成功連動 LINE 帳號</span>"
@@ -21,9 +21,7 @@ def render_line_binding_card(profile: Dict[str, Any]) -> None:
         else "<span style='color:#f59e0b; font-weight:bold;'>⚠️ 尚未連動 LINE 帳號</span>"
     )
 
-    p_name = html_text(profile.get("name", "玩家"))
-    pin_digits = 8 if profile.get("id") == DEFAULT_PROFILE_ID else 4
-    bind_cmd = html_text(f"綁定 {profile.get('name', '玩家')} <{pin_digits} 位 PIN>")
+    bind_cmd = html_text(f"綁定請求 {profile.get('name', '玩家')}")
 
     st.markdown(
         f"""
@@ -32,7 +30,7 @@ def render_line_binding_card(profile: Dict[str, Any]) -> None:
                 📲 LINE 機器人帳號連動指引 · {status_badge}
             </div>
             <div class="lg-sub">
-                直接在 LINE 官方對話中輸入指令，即可隨時查閱即時推薦、注單戰績、個人娛樂餘額與修改設定！
+                LINE 是 Sportslottery 手機快捷入口。私人 Wallet 只對應已綁定 Profile；帳號、安全與完整管理仍在主系統完成。
             </div>
             <div style="margin: 8px 0;">
                 <span style="font-size: 0.85rem; color: var(--text-secondary);">連動指令（長按或點選複製）：</span><br>
@@ -48,7 +46,7 @@ def render_line_binding_card(profile: Dict[str, Any]) -> None:
             </div>
             <div class="line-step">
                 <div class="line-step-num">3</div>
-                <div>收到機器人回覆「🎉 綁定成功」後，日後所有 LINE 查詢與投注紀錄將全自動同步至<b>【{p_name}】</b>的專屬空間！請將提示文字替換成您自己的 PIN。</div>
+                <div>在 LINE 回覆確認碼，並於主系統核對相同確認碼後再核准。申請 10 分鐘有效；不會透過 LINE 傳送 PIN 或密碼。</div>
             </div>
         </div>
         """,
@@ -60,13 +58,12 @@ def render_line_binding_card(profile: Dict[str, Any]) -> None:
             f"""
             | LINE 指令 | 說明 | 範例 |
             | :--- | :--- | :--- |
-            | **`綁定 <玩家名稱> <PIN>`** | 將目前 LINE 帳號與玩家 Profile 綁定 | `綁定 玩家名稱 PIN` |
+            | **`綁定請求 <玩家名稱>`** | 提出綁定申請，需在主系統核准 | `綁定請求 玩家名稱` |
             | **`我的狀態`** 或 **`餘額`** | 查看本週錢包餘額與中獎儲備池 | `我的狀態` |
-            | **`今日推薦`** 或 **`今日開盤`** | 取得當日高 EV 瘋狗串關與單關雷達 | `今日推薦` |
+            | **`今日開盤`** | 查看已開盤場次與資料狀態 | `今日開盤` |
             | **`查戰績`** | 查詢個人注單歷史盈虧與過關明細 | `查戰績` |
-            | **`改密碼 <舊PIN> <新PIN>`** | 於 LINE 線上修改 PIN 碼 | `改密碼 舊PIN 新PIN` |
-            | **`預算 <金額>`** | 調整每週娛樂預算上限 | `預算 300` |
-            | **`解綁`** | 解除此 LINE 帳號與 Profile 的連動 | `解綁` |
+            | **`通知設定`** | 調整目前已綁定 Profile 的提醒偏好 | `通知設定` |
+            | **`個人設定`** | 開啟主系統帳號與安全管理 | `個人設定` |
             """
         )
 
@@ -287,8 +284,7 @@ def render_profile_view(
 
             st.info(
                 "💡 **LINE 帳號綁定提示**：\n"
-                "成員若欲在 LINE 對話中使用自身帳號，只需在 LINE 機器人對話框輸入：\n"
-                "`綁定 <名字> <PIN碼>`（例如：`綁定 小明 0000`），即可自動將其 LINE 帳號連動至個人空間。"
+                "在 LINE 機器人對話輸入「綁定請求 <Profile 名稱>」，再登入主系統個人設定核對相同確認碼並核准；只核准你剛才親自發起的申請。申請 10 分鐘有效；請勿在 LINE 傳送 PIN 或密碼。"
             )
 
             other_players = [p for p in all_profs if p["id"] != DEFAULT_PROFILE_ID]

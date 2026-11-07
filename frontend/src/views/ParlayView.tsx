@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { api } from "@/services/api"
 import type { JsonRecord, ParlayRecommendation, ParlaySearchPerformance, ParlayTier, WalletStatus } from "@/types"
@@ -142,6 +142,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   const [searchPerformance, setSearchPerformance] = useState<ParlayPerformance | null>(restoredSearch?.performance ?? null)
   const [searchComplete, setSearchComplete] = useState<boolean>(restoredSearch?.searchComplete ?? true)
   const [searchDiagnostics, setSearchDiagnostics] = useState<ParlaySearchDiagnostics | null>(restoredSearch?.diagnostics ?? null)
+  const [pendingDeepLinkSearch, setPendingDeepLinkSearch] = useState(false)
 
   // Modals state
   const [selectedParlayForEvidence, setSelectedParlayForEvidence] = useState<ParlayRecommendation | null>(null)
@@ -292,6 +293,40 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       setSearching(false)
     }
   }
+
+  const handleSearchRef = useRef(handleSearch)
+  handleSearchRef.current = handleSearch
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("tab") !== "parlay") return
+    const mode = params.get("mode")
+    const target = Number(params.get("target_odds"))
+    if (mode === "banker") {
+      setOddsMode("banker")
+      setTargetOdds(3.75)
+      setTolerance(0.2)
+      setMinLegs(1)
+      setMaxLegs(3)
+      setSignalFilter("value_only")
+      setMinLegsCustomized(false)
+    } else if (mode === "target") {
+      setOddsMode("target")
+      if (Number.isFinite(target) && target >= 1.5 && target <= 5000) setTargetOdds(target)
+      setTolerance(0.2)
+      setMinLegs(2)
+      setMaxLegs(5)
+      setSignalFilter("normal")
+      setMinLegsCustomized(false)
+    }
+    if (params.get("run_search") === "1") setPendingDeepLinkSearch(true)
+  }, [])
+
+  useEffect(() => {
+    if (!pendingDeepLinkSearch) return
+    setPendingDeepLinkSearch(false)
+    void handleSearchRef.current()
+  }, [pendingDeepLinkSearch])
 
   const currentList = tiers[activeTier] || []
   const allTiersList = [...tiers.high_consensus, ...tiers.aggressive, ...tiers.moonshot]

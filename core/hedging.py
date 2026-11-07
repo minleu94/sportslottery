@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""Hedging and Arbitrage Lock-in Engine (聽牌對衝與保本鎖利計算引擎).
+"""Conditional hedge arithmetic for user-supplied opposing prices.
 
-When a multi-leg parlay has won N-1 legs and only 1 final leg remains pending,
-this engine calculates exact opposing hedge stakes to either:
-1. BREAKEVEN (保本對衝): Spend minimal hedge stake so if the parlay busts on the last leg,
-   net loss is NT$ 0 (zero risk).
-2. GUARANTEED_LOCK_IN (100% 絕對對等鎖利): Equalize net profit across all outcomes,
-   locking in guaranteed pure profit regardless of the final game result.
+The results assume the entered price is available and accepted, with compatible
+market definitions and settlement. This module does not obtain live opposing
+odds, verify execution, or guarantee a break-even outcome or profit.
 """
 
 from __future__ import annotations
@@ -21,7 +18,7 @@ def calculate_hedge(
     opposing_odds: float,
     opposing_selection: str = "反向盤口",
 ) -> Dict[str, Any]:
-    """Calculate breakeven and guaranteed lock-in hedge stakes.
+    """Calculate conditional scenario stakes for a user-supplied opposing price.
 
     Args:
         ticket_stake: Initial stake of the parlay ticket (e.g. NT$ 50).
@@ -30,7 +27,7 @@ def calculate_hedge(
         opposing_selection: Description of the opposing selection (e.g. '客受讓 +3.5').
 
     Returns:
-        Dict containing breakeven and guaranteed lock-in staking recommendations.
+        Dict containing arithmetic scenarios. These are not execution guarantees.
     """
     if ticket_stake <= 0:
         raise ValueError("注單本金必須大於 0")
@@ -72,7 +69,7 @@ def calculate_hedge(
             "total_spent": ticket_stake + h_breakeven,
             "profit_if_parlay_wins": breakeven_if_parlay_wins,
             "profit_if_hedge_wins": breakeven_if_hedge_wins,
-            "desc": f"反買 NT$ {h_breakeven:,.0f}：若最後一關倒了完全不賠 (保本)，若過關仍淨賺 NT$ {breakeven_if_parlay_wins:,.2f}！",
+            "desc": f"假設反向價格 {opposing_odds:.2f} 可成交，反買 NT$ {h_breakeven:,.0f}：最後一關反向命中試算 {breakeven_if_hedge_wins:+,.2f} 元，原串關全過試算 {breakeven_if_parlay_wins:+,.2f} 元。",
         },
         "guaranteed": {
             "stake": h_guaranteed,
@@ -80,6 +77,6 @@ def calculate_hedge(
             "profit_if_parlay_wins": guaranteed_if_parlay_wins,
             "profit_if_hedge_wins": guaranteed_if_hedge_wins,
             "guaranteed_profit": guaranteed_profit,
-            "desc": f"反買 NT$ {h_guaranteed:,.0f}：無論最後一場誰贏，100% 絕對穩賺約 NT$ {guaranteed_profit:,.2f}！",
+            "desc": f"假設反向價格 {opposing_odds:.2f} 可成交，反買 NT$ {h_guaranteed:,.0f}：兩結果淨額相同的條件式試算約 NT$ {guaranteed_profit:,.2f}；不保證成交或獲利。",
         },
     }

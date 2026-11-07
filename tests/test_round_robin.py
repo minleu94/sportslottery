@@ -41,7 +41,7 @@ def test_generate_sub_bets_4_legs_4_in_5():
     assert round(combo_4_bets[0]["odds"], 3) == round(1.80**4, 3)
 
 
-def test_simulate_resilience_4_in_5_guaranteed_profit():
+def test_simulate_resilience_4_in_5_estimated_one_miss_payout():
     # 4 legs each with 1.85 odds
     legs = [
         {"selection": "LAD", "odds": 1.85},
@@ -58,13 +58,14 @@ def test_simulate_resilience_4_in_5_guaranteed_profit():
     assert res["all_win"]["payout"] > 350.0
     assert res["all_win"]["profit"] > 300.0
 
-    # If any 1 leg misses: exactly one 3-leg parlay survives: 1.85^3 * 10 = 63.32
-    # 63.32 > 50.0, so profit is +13.32 even with 1 loss!
-    assert res["one_miss"]["is_guaranteed_breakeven"] is True
+    # Under the supplied odds assumption, one 3-leg parlay survives.
+    # This is an estimate and does not promise an official payout or profit.
+    assert res["one_miss"]["is_nonnegative_under_assumed_odds"] is True
     assert res["one_miss"]["min_payout"] > 50.0
     assert res["one_miss"]["min_profit"] > 0.0
     assert res["grade"] == "SHIELD_PROFIT"
-    assert "🟢 完美防倒" in res["grade_badge"]
+    assert "倒 1 關情境試算為非負" in res["grade_badge"]
+    assert "不代表保證獲利" in res["grade_desc"]
     assert len(res["one_miss"]["scenarios"]) == 4
 
 

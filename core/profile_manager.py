@@ -223,6 +223,50 @@ class ProfileManager:
             conn.execute("UPDATE profiles SET line_user_id = ?, updated_at = ? WHERE id = ?", (uid, now, pid))
         return self.get_profile(pid)
 
+    def bind_line_user_from_authenticated_session(self, profile_id: str, line_user_id: str) -> Dict[str, Any]:
+        """Bind a LINE identity after the caller has authenticated this Profile in the web app.
+
+        This method is intentionally separate from ``bind_line_user``: routes must
+        verify session ownership and an approved, recent LINE-originated request
+        before calling it.  It never accepts a PIN or moves a LINE identity from
+        another Profile implicitly.
+        """
+        pid = str(profile_id or "").strip()
+        uid = str(line_user_id or "").strip()
+        if not pid or not uid:
+            raise ValueError("Profile 與 LINE 身分均不可為空。")
+        now = get_now_iso()
+        with self._transaction() as conn:
+            target = conn.execute("SELECT id FROM profiles WHERE id = ?", (pid,)).fetchone()
+            if target is None:
+                raise ValueError("找不到要綁定的 Profile。")
+            owner = conn.execute("SELECT id FROM profiles WHERE line_user_id = ?", (uid,)).fetchone()
+            if owner and str(owner["id"]) != pid:
+                raise ValueError("此 LINE 帳號已綁定其他 Profile，請先在原帳號的主系統解除綁定。")
+            conn.execute(
+                "UPDATE profiles SET line_user_id = ?, updated_at = ? WHERE id = ?",
+                (uid, now, pid),
+            )
+        profile = self.get_profile(pid)
+        if profile is None:
+            raise ValueError("找不到要綁定的 Profile。")
+        return profile
+
+    def unbind_line_user_from_authenticated_session(self, profile_id: str) -> bool:
+        """Unbind the current Profile after the route verifies session ownership."""
+        pid = str(profile_id or "").strip()
+        if not pid:
+            raise ValueError("Profile 不可為空。")
+        now = get_now_iso()
+        with self._transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE profiles SET line_user_id = NULL, updated_at = ? WHERE id = ?",
+                (now, pid),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("找不到要解除綁定的 Profile。")
+        return True
+
     def unbind_line_user(self, profile_id: str, current_pin: str) -> bool:
         pid = str(profile_id or "").strip()
         if not self.verify_pin(pid, current_pin):

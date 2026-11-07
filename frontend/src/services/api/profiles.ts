@@ -2,6 +2,73 @@ import { ApiRequestError, BASE_URL, authHeaders, setAuthToken } from "./shared"
 import type { Profile } from "@/types"
 
 export const profilesApi = {
+  async getLineSettings(): Promise<{
+    bound: boolean
+    preferences: Record<"steam_drop" | "ticket_settlement" | "hedging_alert" | "morning_radar", boolean>
+  }> {
+    const res = await fetch(`${BASE_URL}/line/preferences`, { headers: authHeaders() })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "取得 LINE 設定失敗")
+    }
+    return res.json()
+  },
+
+  async saveLineSettings(payload: Record<string, boolean>) {
+    const res = await fetch(`${BASE_URL}/line/preferences`, {
+      method: "PUT",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "儲存 LINE 設定失敗")
+    }
+    return res.json()
+  },
+
+  async getLineBindingRequests(): Promise<{ requests: Array<{ request_id: string; display_name: string; confirmation_code: string; created_at: string; expires_at: string }> }> {
+    const res = await fetch(`${BASE_URL}/line/binding-requests`, { headers: authHeaders() })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "取得 LINE 綁定申請失敗")
+    }
+    return res.json()
+  },
+
+  async approveLineBindingRequest(requestId: string) {
+    const res = await fetch(`${BASE_URL}/line/binding-requests/${encodeURIComponent(requestId)}/approve`, {
+      method: "POST",
+      headers: authHeaders(),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "核准 LINE 綁定失敗")
+    }
+    return res.json()
+  },
+
+  async rejectLineBindingRequest(requestId: string) {
+    const res = await fetch(`${BASE_URL}/line/binding-requests/${encodeURIComponent(requestId)}/reject`, {
+      method: "POST",
+      headers: authHeaders(),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "拒絕 LINE 綁定失敗")
+    }
+    return res.json()
+  },
+
+  async unbindLineProfile() {
+    const res = await fetch(`${BASE_URL}/line/binding`, { method: "DELETE", headers: authHeaders() })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || "解除 LINE 綁定失敗")
+    }
+    return res.json()
+  },
+
   async getProfiles(): Promise<{ profiles: Profile[] }> {
 
     const res = await fetch(`${BASE_URL}/profiles`)

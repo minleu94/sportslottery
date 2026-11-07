@@ -2,7 +2,11 @@
 """Unit tests for Taiwan Sports Lottery QR Code generator."""
 
 import pytest
-from core.lottery_qr import build_lottery_slip_payload, generate_qr_code_data_url
+from core.lottery_qr import (
+    OFFICIAL_TAIWAN_LOTTERY_QR_SUPPORTED,
+    build_lottery_slip_payload,
+    generate_qr_code_data_url,
+)
 
 
 def test_build_lottery_slip_payload():
@@ -12,14 +16,15 @@ def test_build_lottery_slip_payload():
     ]
 
     payload = build_lottery_slip_payload(legs, total_stake=100.0, parlay_name="2 串 1")
-    assert payload["format"] == "TSL_3.0_SLIP"
+    assert payload["format"] == "SPORTSLOTTERY_LOCAL_EXPERIMENTAL"
     assert payload["total_stake"] == 100.0
     assert payload["ticket_type"] == "2P1"
     assert len(payload["legs"]) == 2
-    assert "TSL3|100|2P1|101:SU:洋基勝/202:ATS:湖人 +4.5" in payload["compact_code"]
+    assert payload["compact_code"].startswith("SPORTSLOTTERY_LOCAL|100|2P1|")
+    assert OFFICIAL_TAIWAN_LOTTERY_QR_SUPPORTED is False
 
 
 def test_generate_qr_code_data_url():
-    data_url = generate_qr_code_data_url("TSL3|100|2P1|TEST")
+    data_url = generate_qr_code_data_url("SPORTSLOTTERY_LOCAL|100|2P1|TEST")
     assert data_url.startswith("data:image/png;base64,")
     assert len(data_url) > 100

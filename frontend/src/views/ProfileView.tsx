@@ -6,7 +6,7 @@ import { formatNTD } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
-import { User, KeyRound, Shield, CheckCircle2, AlertCircle, Crown, Eye, UserPlus, RefreshCw, Trash2, Settings2 } from "lucide-react"
+import { User, KeyRound, Shield, CheckCircle2, AlertCircle, Crown, Eye, UserPlus, RefreshCw, Trash2, Settings2, Bell, Link2, Unlink } from "lucide-react"
 import { Dialog } from "@/components/ui/Dialog"
 
 interface ProfileViewProps {
@@ -28,6 +28,9 @@ interface PlayerOverviewItem {
   total_tickets_count: number
 }
 
+type LinePreferences = Record<"steam_drop" | "ticket_settlement" | "hedging_alert" | "morning_radar", boolean>
+type LineBindingRequest = { request_id: string; display_name: string; confirmation_code: string; created_at: string; expires_at: string }
+
 export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProfileChange }) => {
   const isAdmin = currentProfile?.id === "default"
   const [activeTab, setActiveTab] = useState<"edit" | "admin_overview" | "create">("edit")
@@ -37,6 +40,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
   const [pinCode, setPinCode] = useState<string>("")
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [lineBound, setLineBound] = useState(false)
+  const [linePreferences, setLinePreferences] = useState<LinePreferences>({ steam_drop: true, ticket_settlement: true, hedging_alert: true, morning_radar: true })
+  const [lineRequests, setLineRequests] = useState<LineBindingRequest[]>([])
+  const [lineLoading, setLineLoading] = useState(false)
 
   // Edit settings
   const [editName, setEditName] = useState<string>(currentProfile?.name || "")
@@ -64,6 +71,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
 
   useEffect(() => {
     loadProfiles()
+    void loadLineSettings()
     if (isAdmin) {
       loadAdminPlayers()
     }
@@ -83,6 +91,61 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
       setProfiles(res.profiles || [])
     } catch (err: any) {
       console.error(err)
+    }
+  }
+
+  async function loadLineSettings() {
+    setLineLoading(true)
+    try {
+      const [settings, pending] = await Promise.all([api.getLineSettings(), api.getLineBindingRequests()])
+      setLineBound(settings.bound)
+      setLinePreferences(settings.preferences)
+      setLineRequests(pending.requests || [])
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "載入 LINE 綁定與通知設定失敗" })
+    } finally {
+      setLineLoading(false)
+    }
+  }
+
+  async function handleSaveLinePreferences() {
+    setLineLoading(true)
+    try {
+      const result = await api.saveLineSettings(linePreferences)
+      setLinePreferences(result.preferences)
+      setMessage({ type: "success", text: "LINE 通知偏好已更新。" })
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "儲存 LINE 通知偏好失敗" })
+    } finally {
+      setLineLoading(false)
+    }
+  }
+
+  async function handleLineBinding(requestId: string, approve: boolean) {
+    setLineLoading(true)
+    try {
+      if (approve) await api.approveLineBindingRequest(requestId)
+      else await api.rejectLineBindingRequest(requestId)
+      await loadLineSettings()
+      setMessage({ type: "success", text: approve ? "LINE 帳號已綁定至目前 Profile。" : "已拒絕 LINE 綁定申請。" })
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "處理 LINE 綁定申請失敗" })
+    } finally {
+      setLineLoading(false)
+    }
+  }
+
+  async function handleUnbindLine() {
+    if (!window.confirm("解除此 Profile 的 LINE 綁定？之後需重新提出並核准綁定申請。")) return
+    setLineLoading(true)
+    try {
+      await api.unbindLineProfile()
+      await loadLineSettings()
+      setMessage({ type: "success", text: "已解除目前 Profile 的 LINE 綁定。" })
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "解除 LINE 綁定失敗" })
+    } finally {
+      setLineLoading(false)
     }
   }
 
@@ -478,6 +541,80 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ currentProfile, onProf
               >
                 儲存風控設定
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+            <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                LINE 綁定與通知
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-slate-800 dark:text-slate-200">LINE 狀態：{lineBound ? "已綁定目前 Profile" : "尚未綁定"}</div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {lineBound
+                      ? "私人 Wallet 與本站注單只會依此 Profile 顯示。解綁或重新綁定需在主系統操作。"
+                      : `在 LINE 私人對話傳送「綁定請求 ${currentProfile?.name || "玩家名稱"}」，再核對 LINE 回覆與下方相同的確認碼。只核准你剛才親自發起的申請，不確定時請拒絕。`}
+                  </p>
+                </div>
+                <button onClick={() => void loadLineSettings()} disabled={lineLoading} aria-label="重新整理 LINE 設定" className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-emerald-600 disabled:opacity-50">
+                  <RefreshCw className={`w-4 h-4 ${lineLoading ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+
+              {lineBound && (
+                <Button variant="ghost" onClick={handleUnbindLine} disabled={lineLoading} className="text-rose-600 border border-rose-200 dark:border-rose-900/60">
+                  <Unlink className="w-4 h-4 mr-2" />解除 LINE 綁定
+                </Button>
+              )}
+
+              {lineRequests.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 p-3">
+                  <div className="text-xs font-semibold text-amber-800 dark:text-amber-300">待確認申請（10 分鐘內有效）</div>
+                  {lineRequests.map((request) => (
+                    <div key={request.request_id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-md bg-white dark:bg-slate-900 p-2.5">
+                      <div className="text-xs text-slate-700 dark:text-slate-300">
+                        確認碼：<b className="font-mono tracking-wider">{request.confirmation_code}</b>
+                        <div className="text-[11px] text-slate-500">申請：{new Date(request.created_at).toLocaleString()}</div>
+                        <div className="text-[11px] text-slate-500">到期：{new Date(request.expires_at).toLocaleString()}</div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Button onClick={() => void handleLineBinding(request.request_id, true)} disabled={lineLoading} className="h-8 px-3 text-xs">核准綁定</Button>
+                        <Button variant="ghost" onClick={() => void handleLineBinding(request.request_id, false)} disabled={lineLoading} className="h-8 px-3 text-xs">拒絕</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300"><Bell className="w-3.5 h-3.5" />此 Profile 的 LINE 通知</div>
+                {([
+                  ["steam_drop", "重要賠率變動"],
+                  ["ticket_settlement", "本站注單結算"],
+                  ["hedging_alert", "聽牌／對沖提醒"],
+                  ["morning_radar", "每日 Radar 摘要"],
+                ] as const).map(([key, label]) => (
+                  <label key={key} className="flex items-center justify-between gap-3 py-1 text-xs text-slate-600 dark:text-slate-300">
+                    <span>{label}</span>
+                    <input
+                      type="checkbox"
+                      checked={linePreferences[key]}
+                      disabled={!lineBound || lineLoading}
+                      onChange={(event) => setLinePreferences((previous) => ({ ...previous, [key]: event.target.checked }))}
+                      className="h-4 w-4 accent-emerald-600"
+                    />
+                  </label>
+                ))}
+                <Button onClick={handleSaveLinePreferences} disabled={!lineBound || lineLoading} className="w-full text-xs">
+                  儲存 LINE 通知偏好
+                </Button>
+                {!lineBound && <p className="text-[11px] text-slate-500">完成 LINE 綁定後可設定通知。LINE 使用者身分與偏好只套用於目前 Profile。</p>}
+              </div>
             </CardContent>
           </Card>
         </div>

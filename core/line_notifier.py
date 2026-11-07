@@ -1,26 +1,40 @@
 #!/usr/bin/env python3
 """LINE Bot Messaging API Notification Engine (LINE 即時推播引擎).
 
-Supports real-time alerts for:
-1. STEAM_DROP (📉 賠率跳水警報 - 熱錢急湧)
-2. TICKET_SETTLEMENT (🎉 注單自動對獎/中獎報喜入庫)
-3. HEDGING_ALERT (🔔 聽牌對衝提示 - 最後一關鎖定保本/獲利)
-4. MORNING_RADAR (☀️ 每日開盤賽季雷達簡報)
+Supports Profile-scoped alerts for odds changes, local ticket settlements,
+conditional hedge reminders, and the daily Radar summary.
 """
 
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import re
+import secrets
 import threading
 import time
+import uuid
 from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
+from urllib.parse import urlsplit
+from core.line_flex import (
+    TAIWAN_LOTTERY_URL,
+    _parlay_probability_source,
+    build_menu_flex,
+    build_manual_slip_flex,
+    build_notification_flex,
+    build_parlay_flex,
+    build_radar_flex,
+    build_status_flex,
+    build_wallet_flex,
+    system_deep_link,
+)
 from core.tunnel_runtime import load_active_runtime
 import requests
 import yaml
@@ -35,6 +49,31 @@ LINE_SEARCH_STATE_TTL_SECONDS = 30 * 60
 LINE_SEARCH_STATE_MAX_USERS = 1000
 LINE_EVENT_DEDUPE_TTL_SECONDS = 24 * 60 * 60
 LINE_EVENT_DEDUPE_MAX_IDS = 20000
+LINE_NOTIFICATION_DEDUPE_TTL_SECONDS = 60 * 60
+LINE_NOTIFICATION_DEDUPE_MAX_IDS = 20000
+LINE_MAX_NOTIFICATION_AGE_SECONDS = 15 * 60
+LINE_BINDING_REQUEST_TTL_SECONDS = 10 * 60
+LINE_BINDING_REQUEST_MAX_IDS = 500
+LINE_BINDING_REQUEST_MAX_PER_PROFILE = 5
+LINE_PREFERENCE_KEYS = ("steam_drop", "ticket_settlement", "hedging_alert", "morning_radar")
+
+
+def _attach_quick_replies(message: Dict[str, Any], quick_replies: Optional[List[Dict[str, str]]]) -> Dict[str, Any]:
+    if quick_replies:
+        message["quickReply"] = {
+            "items": [
+                {
+                    "type": "action",
+                    "action": {
+                        "type": "message",
+                        "label": item.get("label", item.get("text", ""))[:20],
+                        "text": item.get("text", "")[:300],
+                    },
+                }
+                for item in quick_replies[:13]
+            ]
+        }
+    return message
 
 
 @dataclass
@@ -45,9 +84,25 @@ class _LineUserSearchState:
     last_parlay_candidates: List[Dict[str, Any]] = field(default_factory=list)
     last_candidate_index: int = 0
     last_search_context: Dict[str, Any] = field(default_factory=dict)
+    last_search_result: Dict[str, Any] = field(default_factory=dict)
+    last_wallet_status: Optional[Dict[str, Any]] = None
+    last_wallet_tickets: List[Dict[str, Any]] = field(default_factory=list)
+    last_radar_status: Optional[Dict[str, Any]] = None
+    last_profile_id: Optional[str] = None
+    last_flex_message: Optional[Dict[str, Any]] = None
     lock: Any = field(default_factory=threading.RLock, repr=False)
     last_accessed: float = field(default_factory=time.monotonic)
     active_requests: int = 0
+
+
+@dataclass
+class _PendingLineBindingRequest:
+    request_id: str
+    profile_id: str
+    line_user_id: str
+    confirmation_code: str
+    created_at: float
+    expires_at: float
 
 
 class LineNotifier:
@@ -57,9 +112,11 @@ class LineNotifier:
         self,
         config_path: Optional[Path] = None,
         session: Optional[requests.Session] = None,
+        profile_manager: Optional[Any] = None,
     ):
         self.config_path = config_path or CONFIG_PATH
         self.session = session or requests.Session()
+        self._profile_manager_instance = profile_manager
         self.config = self.load_config()
         self.last_recommended_parlay: Optional[Dict[str, Any]] = None
         self.last_parlay_candidates: List[Dict[str, Any]] = []
@@ -69,13 +126,16 @@ class LineNotifier:
         self._user_search_states_lock = threading.Lock()
         self._seen_webhook_events: OrderedDict[str, float] = OrderedDict()
         self._seen_webhook_events_lock = threading.Lock()
+        self._seen_notifications: OrderedDict[str, float] = OrderedDict()
+        self._seen_notifications_lock = threading.Lock()
+        self._pending_line_bindings: OrderedDict[str, _PendingLineBindingRequest] = OrderedDict()
+        self._pending_line_bindings_lock = threading.Lock()
 
     def claim_webhook_event(self, event_id: Optional[str]) -> bool:
         """Claim a LINE webhook event once to avoid duplicate work on redelivery."""
         normalized_id = str(event_id or "").strip()
         if not normalized_id:
             return True
-
         now = time.monotonic()
         with self._seen_webhook_events_lock:
             while self._seen_webhook_events:
@@ -91,6 +151,14 @@ class LineNotifier:
             while len(self._seen_webhook_events) > LINE_EVENT_DEDUPE_MAX_IDS:
                 self._seen_webhook_events.popitem(last=False)
             return True
+
+    def release_webhook_event(self, event_id: Optional[str]) -> None:
+        """Allow LINE redelivery to retry an event that failed during processing."""
+        normalized_id = str(event_id or "").strip()
+        if not normalized_id:
+            return
+        with self._seen_webhook_events_lock:
+            self._seen_webhook_events.pop(normalized_id, None)
 
     @contextmanager
     def user_search_context(self, line_user_id: Optional[str]) -> Iterator[Any]:
@@ -145,7 +213,6 @@ class LineNotifier:
         cfg: Dict[str, Any] = {
             "enabled": False,
             "channel_access_token": "",
-            "user_id": "",
             "notify_events": {
                 "steam_drop": True,
                 "ticket_settlement": True,
@@ -165,14 +232,17 @@ class LineNotifier:
 
         # Environment variable overrides
         env_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
-        env_user = os.environ.get("LINE_USER_ID")
         if env_token:
             cfg["channel_access_token"] = env_token
-        if env_user:
-            cfg["user_id"] = env_user
 
-        # Auto-enable if token and user_id are set, unless explicitly disabled in file
-        if cfg["channel_access_token"] and cfg["user_id"] and "enabled" not in cfg:
+        # Ignore the legacy global recipient. Push delivery must resolve from
+        # a Profile that explicitly bound this LINE identity.
+        cfg.pop("user_id", None)
+        if not isinstance(cfg.get("line_preferences"), dict):
+            cfg["line_preferences"] = {}
+
+        # Signed replies work without a global push recipient.
+        if cfg["channel_access_token"] and "enabled" not in cfg:
             cfg["enabled"] = True
 
         return cfg
@@ -180,15 +250,28 @@ class LineNotifier:
     def save_config(self, new_cfg: Dict[str, Any]) -> None:
         """Persist updated LINE Bot credentials and preference settings."""
         self.config.update(new_cfg)
+        self.config.pop("user_id", None)
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        persisted_config = dict(self.config)
+        if os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"):
+            # An environment override is runtime-only; never copy it into YAML
+            # when an unrelated preference or setting is saved.
+            try:
+                disk_config = yaml.safe_load(self.config_path.read_text(encoding="utf-8"))
+            except (OSError, yaml.YAMLError):
+                disk_config = None
+            disk_token = disk_config.get("channel_access_token") if isinstance(disk_config, dict) else None
+            if disk_token:
+                persisted_config["channel_access_token"] = disk_token
+            else:
+                persisted_config.pop("channel_access_token", None)
         with open(self.config_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(self.config, f, allow_unicode=True, sort_keys=False)
+            yaml.safe_dump(persisted_config, f, allow_unicode=True, sort_keys=False)
 
     def is_configured(self) -> bool:
-        """Check whether LINE credentials are fully populated and active."""
+        """Check whether the Messaging API channel credentials are active."""
         token = str(self.config.get("channel_access_token") or "").strip()
-        user_id = str(self.config.get("user_id") or "").strip()
-        return bool(self.config.get("enabled", False) and token and user_id)
+        return bool(self.config.get("enabled", False) and token)
 
     @staticmethod
     def is_slow_parlay_search_request(user_text: str) -> bool:
@@ -209,24 +292,38 @@ class LineNotifier:
             return False
         return 1.5 <= target_mult <= 1000
 
+    @staticmethod
+    def requires_private_line_chat(user_text: str) -> bool:
+        """Keep Profile, Wallet, notification, and hedge details out of group chats."""
+        command = str(user_text or "").strip().lower()
+        private_terms = (
+            "戰績", "錢包", "餘額", "本金", "獲利", "本週", "通知", "聽牌", "對沖",
+            "最後一關", "個人設定", "帳號", "綁定", "解綁", "解除綁定", "登入",
+            "改密碼", "修改密碼", "pin", "預算", "限額", "profile", "login", "unbind",
+        )
+        return any(term in command for term in private_terms)
+
     def send_push_message(
         self,
         text: str,
         user_id: Optional[str] = None,
         image_url: Optional[str] = None,
         quick_replies: Optional[List[Dict[str, str]]] = None,
+        flex_message: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Send a push message (text and optional image) to the configured LINE User ID or Group ID."""
+        """Send a push only to an explicit, Profile-bound LINE recipient."""
         token = str(self.config.get("channel_access_token") or "").strip()
-        target = str(user_id or self.config.get("user_id") or "").strip()
+        target = str(user_id or "").strip()
 
-        if not token or not target:
+        if not token:
             return {
                 "success": False,
                 "status_code": 0,
                 "error": "LINE_NOT_CONFIGURED",
-                "message": "尚未設定 Channel Access Token 或 User ID",
+                "message": "尚未設定 Channel Access Token",
             }
+        if not target:
+            return {"success": False, "status_code": 0, "error": "LINE_TARGET_REQUIRED", "message": "未提供已綁定的 LINE 收件者"}
 
         headers = {
             "Content-Type": "application/json",
@@ -240,24 +337,8 @@ class LineNotifier:
                 "originalContentUrl": image_url,
                 "previewImageUrl": image_url,
             })
-        msg_obj: Dict[str, Any] = {
-            "type": "text",
-            "text": text,
-        }
-        if quick_replies:
-            msg_obj["quickReply"] = {
-                "items": [
-                    {
-                        "type": "action",
-                        "action": {
-                            "type": "message",
-                            "label": item.get("label", item.get("text", ""))[:20],
-                            "text": item.get("text", "")[:300],
-                        },
-                    }
-                    for item in quick_replies[:13]
-                ]
-            }
+        use_flex = bool(flex_message and os.environ.get("LINE_DISABLE_FLEX", "").lower() not in {"1", "true", "yes"})
+        msg_obj = _attach_quick_replies(dict(flex_message) if use_flex else {"type": "text", "text": text}, quick_replies)
         messages_list.append(msg_obj)
 
         payload = {
@@ -272,6 +353,12 @@ class LineNotifier:
                 return {"success": True, "status_code": 200}
             else:
                 err_text = resp.text
+                if use_flex and 400 <= resp.status_code < 500:
+                    fallback_message = _attach_quick_replies({"type": "text", "text": str(text)[:5000]}, quick_replies)
+                    fallback = {"to": target, "messages": [fallback_message]}
+                    fallback_response = self.session.post(LINE_PUSH_URL, headers=headers, json=fallback, timeout=8.0)
+                    if fallback_response.status_code == 200:
+                        return {"success": True, "status_code": 200, "fallback": "text"}
                 logger.warning("LINE push failed [%d]: %s", resp.status_code, err_text)
                 return {
                     "success": False,
@@ -294,8 +381,9 @@ class LineNotifier:
         text: str,
         quick_replies: Optional[List[Dict[str, str]]] = None,
         image_url: Optional[str] = None,
+        flex_message: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Send a reply to an incoming webhook message using replyToken (free quota), supporting images."""
+        """Send a LINE reply, using Flex altText as the complete unsupported-client fallback."""
         token = str(self.config.get("channel_access_token") or "").strip()
         if not token or not reply_token:
             return {
@@ -318,24 +406,8 @@ class LineNotifier:
                 "previewImageUrl": image_url,
             })
 
-        msg_obj: Dict[str, Any] = {
-            "type": "text",
-            "text": text,
-        }
-        if quick_replies:
-            msg_obj["quickReply"] = {
-                "items": [
-                    {
-                        "type": "action",
-                        "action": {
-                            "type": "message",
-                            "label": item.get("label", item.get("text", ""))[:20],
-                            "text": item.get("text", "")[:300],
-                        },
-                    }
-                    for item in quick_replies[:13]
-                ]
-            }
+        use_flex = bool(flex_message and os.environ.get("LINE_DISABLE_FLEX", "").lower() not in {"1", "true", "yes"})
+        msg_obj = _attach_quick_replies(dict(flex_message) if use_flex else {"type": "text", "text": text}, quick_replies)
         messages_list.append(msg_obj)
 
         payload = {
@@ -350,6 +422,12 @@ class LineNotifier:
                 return {"success": True, "status_code": 200}
             else:
                 err_text = resp.text
+                if use_flex and 400 <= resp.status_code < 500:
+                    fallback_message = _attach_quick_replies({"type": "text", "text": str(text)[:5000]}, quick_replies)
+                    fallback = {"replyToken": reply_token, "messages": [fallback_message]}
+                    fallback_response = self.session.post(LINE_REPLY_URL, headers=headers, json=fallback, timeout=8.0)
+                    if fallback_response.status_code == 200:
+                        return {"success": True, "status_code": 200, "fallback": "text"}
                 logger.warning("LINE reply failed [%d]: %s", resp.status_code, err_text)
                 return {
                     "success": False,
@@ -368,28 +446,27 @@ class LineNotifier:
 
     @staticmethod
     def default_quick_replies() -> List[Dict[str, str]]:
-        """Standard main menu shortcuts displayed above keyboard in LINE chat."""
+        """Six primary entries that mirror the LINE Flex main menu."""
         return [
             {"label": "🎯 智慧串關", "text": "智慧串關"},
-            {"label": "🛡️ 穩健保底", "text": "高勝率保底"},
+            {"label": "🛡️ Banker 精選", "text": "Banker 穩健精選"},
             {"label": "☀️ 今日賽事", "text": "今日開盤"},
             {"label": "💰 資產戰績", "text": "查戰績"},
-            {"label": "🛠️ 工具箱/QR", "text": "功能表"},
-            {"label": "👤 個人設定", "text": "個人設定"},
+            {"label": "🔔 通知設定", "text": "通知設定"},
+            {"label": "👤 個人設定／主系統", "text": "個人設定"},
         ]
 
     @staticmethod
     def parlay_quick_replies(has_next: bool = True) -> List[Dict[str, str]]:
         """Contextual actions displayed immediately after a parlay recommendation."""
-        replies = [
-            {"label": "📱 產生此單 QR 碼", "text": "QR"},
-        ]
+        replies: List[Dict[str, str]] = []
         if has_next:
             replies.append({"label": "🎲 換一組推薦", "text": "換一組"})
         replies.extend([
+            {"label": "🛡️ Banker 精選", "text": "Banker 穩健精選"},
+            {"label": "📋 投注單明細", "text": "投注單明細"},
             {"label": "🎯 找20倍", "text": "20倍"},
             {"label": "🔥 找50倍", "text": "50倍"},
-            {"label": "🛡️ 穩健保底", "text": "高勝率保底"},
             {"label": "🏠 回主選單", "text": "功能表"},
         ])
         return replies
@@ -398,7 +475,7 @@ class LineNotifier:
     def multiplier_menu_quick_replies() -> List[Dict[str, str]]:
         """Sub-tier options when user asks for multiplier parlay menu."""
         return [
-            {"label": "🛡️ 穩健 2.5倍", "text": "高勝率保底"},
+            {"label": "🛡️ Banker 1.5–6x", "text": "Banker 穩健精選"},
             {"label": "🔥 瘋狗 10倍", "text": "10倍"},
             {"label": "🎯 經典 20倍", "text": "20倍"},
             {"label": "💥 狂暴 50倍", "text": "50倍"},
@@ -415,7 +492,7 @@ class LineNotifier:
             {"label": "⚽ 足球 20倍", "text": "足球 20倍"},
             {"label": "🏀 NBA 15倍", "text": "NBA 15倍"},
             {"label": "🎯 瘋狗 20倍", "text": "20倍"},
-            {"label": "🛡️ 穩健保底", "text": "高勝率保底"},
+            {"label": "🛡️ Banker 精選", "text": "Banker 穩健精選"},
             {"label": "🏠 回主選單", "text": "功能表"},
         ]
 
@@ -432,15 +509,243 @@ class LineNotifier:
 
     @staticmethod
     def tools_menu_quick_replies() -> List[Dict[str, str]]:
-        """Sub-tier options for tools / kiosk slip / hedging."""
+        """Keep the main menu short and place account actions on the main web app."""
         return [
-            {"label": "📱 產生投注 QR 碼", "text": "QR"},
-            {"label": "🛡️ 聽牌對沖計算", "text": "對沖"},
-            {"label": "💰 查戰績錢包", "text": "查戰績"},
-            {"label": "👤 個人設定/PIN", "text": "個人設定"},
-            {"label": "🎯 找20倍串關", "text": "20倍"},
+            {"label": "🎯 智慧串關", "text": "智慧串關"},
+            {"label": "🛡️ Banker 精選", "text": "Banker 穩健精選"},
+            {"label": "☀️ 今日賽事", "text": "今日開盤"},
+            {"label": "💰 資產戰績", "text": "查戰績"},
+            {"label": "🔔 通知設定", "text": "通知設定"},
+            {"label": "👤 個人設定", "text": "個人設定"},
             {"label": "🏠 回主選單", "text": "功能表"},
         ]
+
+    def _profile_manager(self) -> Any:
+        if self._profile_manager_instance is None:
+            from server import service_registry
+            self._profile_manager_instance = service_registry.get_services().profile_mgr
+        return self._profile_manager_instance
+
+    def _runtime_system_url(self) -> Optional[str]:
+        runtime = load_active_runtime(ROOT_DIR / "data" / "line_bot_runtime.json")
+        url = str(runtime.get("tunnel_url") or "").strip()
+        parts = urlsplit(url)
+        if parts.scheme.lower() != "https" or not parts.hostname or parts.username or parts.password:
+            return None
+        return url.rstrip("/")
+
+    def _get_bound_profile(self, line_user_id: Optional[str]) -> Optional[Dict[str, Any]]:
+        user_id = str(line_user_id or "").strip()
+        if not user_id:
+            return None
+        try:
+            return self._profile_manager().get_profile_by_line_user_id(user_id)
+        except Exception as exc:
+            logger.warning("Unable to resolve bound LINE Profile: %s", exc)
+            return None
+
+    def get_notification_preferences(self, profile_id: str) -> Dict[str, bool]:
+        all_settings = self.config.get("line_preferences") if isinstance(self.config.get("line_preferences"), dict) else {}
+        saved = all_settings.get(str(profile_id), {}) if isinstance(all_settings.get(str(profile_id)), dict) else {}
+        return {key: bool(saved.get(key, True)) for key in LINE_PREFERENCE_KEYS}
+
+    def update_notification_preferences(self, line_user_id: Optional[str], updates: Dict[str, Any]) -> Optional[Dict[str, bool]]:
+        profile = self._get_bound_profile(line_user_id)
+        if not profile:
+            return None
+        accepted = {key: value for key, value in updates.items() if key in LINE_PREFERENCE_KEYS and isinstance(value, bool)}
+        if not accepted:
+            return self.get_notification_preferences(str(profile["id"]))
+        all_settings = self.config.get("line_preferences")
+        if not isinstance(all_settings, dict):
+            all_settings = {}
+        settings = self.get_notification_preferences(str(profile["id"]))
+        settings.update(accepted)
+        all_settings[str(profile["id"])] = settings
+        self.save_config({"line_preferences": all_settings})
+        return settings
+
+    def request_line_binding(self, profile_name: str, line_user_id: Optional[str]) -> Dict[str, Any]:
+        """Create a short-lived request that must be approved in the authenticated web app."""
+        uid = str(line_user_id or "").strip()
+        name = str(profile_name or "").strip()
+        if not uid or not name:
+            return {"success": False, "reason": "PROFILE_NAME_REQUIRED"}
+        try:
+            manager = self._profile_manager()
+            profile = manager.get_profile_by_name(name)
+            if not profile:
+                return {"success": False, "reason": "PROFILE_NOT_FOUND"}
+            existing = manager.get_profile_by_line_user_id(uid)
+            if existing and str(existing.get("id")) != str(profile.get("id")):
+                return {"success": False, "reason": "LINE_ALREADY_BOUND"}
+        except Exception as exc:
+            logger.warning("Unable to create LINE binding request: %s", exc)
+            return {"success": False, "reason": "PROFILE_SERVICE_UNAVAILABLE"}
+
+        if existing:
+            return {"success": True, "already_bound": True, "profile_name": profile.get("name")}
+
+        now = time.time()
+        request_id = uuid.uuid4().hex
+        confirmation_code = "".join(secrets.choice("23456789ABCDEFGHJKLMNPQRSTUVWXYZ") for _ in range(6))
+        request = _PendingLineBindingRequest(
+            request_id=request_id,
+            profile_id=str(profile["id"]),
+            line_user_id=uid,
+            confirmation_code=confirmation_code,
+            created_at=now,
+            expires_at=now + LINE_BINDING_REQUEST_TTL_SECONDS,
+        )
+        with self._pending_line_bindings_lock:
+            expired = [key for key, value in self._pending_line_bindings.items() if value.expires_at <= now]
+            for key in expired:
+                self._pending_line_bindings.pop(key, None)
+            existing_request = next(
+                (
+                    value for value in self._pending_line_bindings.values()
+                    if value.profile_id == request.profile_id and value.line_user_id == uid
+                ),
+                None,
+            )
+            if existing_request:
+                return {
+                    "success": True,
+                    "already_pending": True,
+                    "profile_name": profile.get("name"),
+                    "confirmation_code": existing_request.confirmation_code,
+                    "expires_at": datetime.fromtimestamp(existing_request.expires_at, timezone.utc).isoformat(),
+                }
+            profile_request_count = sum(
+                value.profile_id == request.profile_id for value in self._pending_line_bindings.values()
+            )
+            if profile_request_count >= LINE_BINDING_REQUEST_MAX_PER_PROFILE:
+                return {"success": False, "reason": "TOO_MANY_PENDING_REQUESTS"}
+            self._pending_line_bindings[request_id] = request
+            while len(self._pending_line_bindings) > LINE_BINDING_REQUEST_MAX_IDS:
+                self._pending_line_bindings.popitem(last=False)
+        return {
+            "success": True,
+            "profile_name": profile.get("name"),
+            "confirmation_code": confirmation_code,
+            "expires_at": datetime.fromtimestamp(request.expires_at, timezone.utc).isoformat(),
+        }
+
+    def list_line_binding_requests(self, profile_id: str) -> List[Dict[str, Any]]:
+        pid = str(profile_id or "").strip()
+        now = time.time()
+        with self._pending_line_bindings_lock:
+            expired = [key for key, value in self._pending_line_bindings.items() if value.expires_at <= now]
+            for key in expired:
+                self._pending_line_bindings.pop(key, None)
+            pending = [value for value in self._pending_line_bindings.values() if value.profile_id == pid]
+        return [
+            {
+                "request_id": request.request_id,
+                "display_name": "LINE 私人對話",
+                "confirmation_code": request.confirmation_code,
+                "created_at": datetime.fromtimestamp(request.created_at, timezone.utc).isoformat(),
+                "expires_at": datetime.fromtimestamp(request.expires_at, timezone.utc).isoformat(),
+            }
+            for request in pending
+        ]
+
+    def approve_line_binding_request(self, profile_id: str, request_id: str) -> bool:
+        pid = str(profile_id or "").strip()
+        rid = str(request_id or "").strip()
+        with self._pending_line_bindings_lock:
+            request = self._pending_line_bindings.get(rid)
+            if not request:
+                return False
+            if request.expires_at <= time.time():
+                self._pending_line_bindings.pop(rid, None)
+                return False
+            if request.profile_id != pid:
+                return False
+            self._profile_manager().bind_line_user_from_authenticated_session(pid, request.line_user_id)
+            self._pending_line_bindings.pop(rid, None)
+            return True
+
+    def reject_line_binding_request(self, profile_id: str, request_id: str) -> bool:
+        pid = str(profile_id or "").strip()
+        rid = str(request_id or "").strip()
+        with self._pending_line_bindings_lock:
+            request = self._pending_line_bindings.get(rid)
+            if not request or request.profile_id != pid:
+                return False
+            self._pending_line_bindings.pop(rid, None)
+            return True
+
+    def _claim_notification(self, profile_id: str, event_name: str, event_key: str) -> bool:
+        key = f"{profile_id}:{event_name}:{event_key}"
+        now = time.monotonic()
+        with self._seen_notifications_lock:
+            expired = [item for item, created in self._seen_notifications.items() if now - created >= LINE_NOTIFICATION_DEDUPE_TTL_SECONDS]
+            for item in expired:
+                self._seen_notifications.pop(item, None)
+            if key in self._seen_notifications:
+                return False
+            self._seen_notifications[key] = now
+            while len(self._seen_notifications) > LINE_NOTIFICATION_DEDUPE_MAX_IDS:
+                self._seen_notifications.popitem(last=False)
+            return True
+
+    def _notification_profiles(self, event_name: str, profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        try:
+            if profile_id:
+                profiles = [self._profile_manager().get_profile(profile_id)]
+            else:
+                profiles = self._profile_manager().list_profiles()
+        except Exception as exc:
+            logger.warning("Unable to load Profiles for LINE notification: %s", exc)
+            return []
+        result = []
+        for profile in profiles:
+            if not isinstance(profile, dict) or not profile.get("id") or not profile.get("line_user_id"):
+                continue
+            if not self.get_notification_preferences(str(profile["id"])).get(event_name, False):
+                continue
+            result.append(profile)
+        return result
+
+    def _dispatch_notification(
+        self,
+        event_name: str,
+        event_key: str,
+        text: str,
+        *,
+        profile_id: Optional[str] = None,
+        system_tab: str = "radar",
+        require_profile: bool = False,
+    ) -> Dict[str, Any]:
+        if not self.is_configured():
+            return {"success": False, "skipped": True, "reason": "LINE_NOT_CONFIGURED"}
+        if require_profile and not str(profile_id or "").strip():
+            return {"success": False, "skipped": True, "reason": "PROFILE_REQUIRED"}
+        recipients = self._notification_profiles(event_name, profile_id)
+        if not recipients:
+            return {"success": False, "skipped": True, "reason": "NO_BOUND_RECIPIENTS"}
+        sent = 0
+        failures = []
+        for profile in recipients:
+            pid = str(profile["id"])
+            if not self._claim_notification(pid, event_name, event_key):
+                continue
+            card = build_status_flex(event_name.replace("_", " ").title(), "Sportslottery 本站通知", [text], system_url=self._runtime_system_url(), tab=system_tab)
+            result = self.send_push_message(text, user_id=str(profile["line_user_id"]), flex_message=card)
+            if result.get("success"):
+                sent += 1
+            else:
+                self._release_notification(pid, event_name, event_key)
+                failures.append(result.get("error", "SEND_FAILED"))
+        if not sent and not failures:
+            return {"success": False, "skipped": True, "reason": "DUPLICATE"}
+        return {"success": sent > 0, "sent": sent, "failures": failures}
+
+    def _release_notification(self, profile_id: str, event_name: str, event_key: str) -> None:
+        key = f"{profile_id}:{event_name}:{event_key}"
+        with self._seen_notifications_lock:
+            self._seen_notifications.pop(key, None)
 
     def test_connection(self, user_id: Optional[str] = None) -> Dict[str, Any]:
         """Send an instant test ping to verify LINE bot integration."""
@@ -448,12 +753,8 @@ class LineNotifier:
             "🐕 【台灣運彩 瘋狗流決策台】\n"
             "---------------------------\n"
             "✅ LINE 即時通知推播連線成功！\n\n"
-            "本頻道將即時向您傳送：\n"
-            "• 📉 盤口跳水與誘盤情報\n"
-            "• 🎉 賽果自動對獎與中獎入庫\n"
-            "• 🔔 串關聽牌對衝保本提醒\n"
-            "• ☀️ 每日賽季開盤雷達簡報\n\n"
-            "祝您場場過關，財庫滿載！🎯"
+            "本頻道可依您的 Profile 通知偏好傳送資料變更與本站帳務摘要。\n"
+            "推薦估值與對沖試算不保證賽果、成交或獲利。"
         )
         return self.send_push_message(msg, user_id=user_id)
 
@@ -471,21 +772,46 @@ class LineNotifier:
         new_odds: float,
         delta_odds: float,
         delta_pct: float,
+        *,
+        source: str = "本站台彩盤口快照",
+        observed_at: Optional[str] = None,
+        trigger: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Trigger alert when a severe odds drop (sharp money inflow) is detected."""
-        if not self.config.get("notify_events", {}).get("steam_drop", True):
-            return {"skipped": True, "reason": "EVENT_DISABLED"}
-
+        """Notify bound Profiles about a meaningful odds change without inferring money flow."""
+        observed = str(observed_at or "").strip()
+        if not self._is_recent_source_time(observed):
+            return {"success": False, "skipped": True, "reason": "SOURCE_TIME_MISSING_OR_STALE"}
+        condition = trigger or f"賠率變動 {delta_pct:+.1%}（由上游監控條件觸發）"
         text = (
-            "📉 【盤口跳水警報！熱錢湧入】\n"
-            "---------------------------\n"
+            "📉 【重要賠率變動】\n"
             f"🏆 賽事：[{league}] {match_title}\n"
             f"🎯 玩法：{market} ➔ 【{selection}】\n"
             f"📊 賠率變動：{old_odds:.2f} ➔ {new_odds:.2f} ({delta_odds:+.2f} / {delta_pct:+.1%})\n\n"
-            "💡 情報提示：\n"
-            "此關卡短時間內遭遇大額資金重注，莊家緊急下調賠率以防範風險。可留意納入今日串關組合！"
+            f"資料來源：{source}\n觀測時間：{observed}\n觸發條件：{condition}\n"
+            "賠率變動本身無法證明資金流向或投注方向；盤口可能繼續變動。"
         )
-        return self.send_push_message(text)
+        try:
+            observed_dt = datetime.fromisoformat(observed.replace("Z", "+00:00"))
+            if observed_dt.tzinfo is None:
+                observed_dt = observed_dt.replace(tzinfo=timezone.utc)
+            bucket = int(observed_dt.timestamp() // (15 * 60))
+        except (TypeError, ValueError, OverflowError):
+            return {"success": False, "skipped": True, "reason": "SOURCE_TIME_INVALID"}
+        key = hashlib.sha256(f"{league}|{match_title}|{market}|{selection}|{bucket}".encode("utf-8")).hexdigest()[:24]
+        return self._dispatch_notification("steam_drop", key, text, system_tab="radar")
+
+    @staticmethod
+    def _is_recent_source_time(value: str, max_age_seconds: int = LINE_MAX_NOTIFICATION_AGE_SECONDS) -> bool:
+        if not value:
+            return False
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            age = (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds()
+            return -60 <= age <= max_age_seconds
+        except (TypeError, ValueError, OverflowError):
+            return False
 
     def notify_ticket_settlement(
         self,
@@ -495,9 +821,7 @@ class LineNotifier:
         prize_pool: float,
         weekly_balance: float,
     ) -> Dict[str, Any]:
-        """Trigger celebration or settlement report when tickets are resolved."""
-        if not self.config.get("notify_events", {}).get("ticket_settlement", True):
-            return {"skipped": True, "reason": "EVENT_DISABLED"}
+        """Notify the LINE account bound to the Profile whose local ticket settled."""
 
         sports = ticket.get("sports_summary") or "運彩串關"
         stake = ticket.get("stake", 0.0)
@@ -506,27 +830,30 @@ class LineNotifier:
         if won:
             net_profit = actual_payout - stake
             text = (
-                "🎉 【瘋狗出擊 · 中獎報喜！】\n"
-                "---------------------------\n"
+                "🎉 【本站注單結算】\n"
                 f"🎫 組合：{sports}\n"
                 f"🔥 賠率：{total_odds:.2f} 倍\n"
                 f"💵 下注本金：NT$ {stake:,.0f}\n"
                 f"💰 實際派彩：NT$ {actual_payout:,.2f} (+NT$ {net_profit:,.2f})\n\n"
-                "🔒 獲利已全數撥入【保留儲備池】！\n"
+                "本站帳務已記錄此結算。\n"
                 f"• 目前儲備池總額：NT$ {prize_pool:,.2f}\n"
                 f"• 本週可玩餘額：NT$ {weekly_balance:,.2f}"
             )
         else:
             text = (
-                "ℹ️ 【注單結算通知】\n"
-                "---------------------------\n"
+                "ℹ️ 【本站注單結算】\n"
                 f"🎫 組合：{sports} ({total_odds:.2f}x)\n"
                 f"💵 投入本金：NT$ {stake:,.0f}\n"
-                "結果：未全數命中，再接再厲！\n"
+                "結果：本站記錄為未全數命中。\n"
                 f"• 本週剩餘可玩額度：NT$ {weekly_balance:,.2f}"
             )
-
-        return self.send_push_message(text)
+        settled_at = str(ticket.get("settled_at") or ticket.get("updated_at") or "時間未提供")
+        text += f"\n來源：Sportslottery 本站 Ticket 結算記錄。本站結算時間：{settled_at}。這不代表台灣運彩官方已受理投注或確認派彩。"
+        ticket_key = str(ticket.get("ticket_id") or ticket.get("id") or hashlib.sha256(json.dumps(ticket, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:20])
+        return self._dispatch_notification(
+            "ticket_settlement", f"{ticket_key}:{int(bool(won))}:{actual_payout:.2f}", text,
+            profile_id=str(ticket.get("profile_id") or ""), system_tab="wallet", require_profile=True,
+        )
 
     def notify_hedging_alert(
         self,
@@ -534,9 +861,7 @@ class LineNotifier:
         pending_leg: Dict[str, Any],
         hedge_analysis: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Trigger urgent alert when a multi-leg parlay is 'Hedging Ready' (聽牌)."""
-        if not self.config.get("notify_events", {}).get("hedging_alert", True):
-            return {"skipped": True, "reason": "EVENT_DISABLED"}
+        """Send an estimate notice; opposing odds are never represented as guaranteed."""
 
         sports = ticket.get("sports_summary") or "運彩高倍串關"
         potential_payout = float(ticket.get("potential_payout", 0.0))
@@ -544,118 +869,104 @@ class LineNotifier:
 
         match_str = f"{pending_leg.get('away_team')} vs {pending_leg.get('home_team')}"
         opposing_bet = hedge_analysis.get("opposing_selection", "反向盤口")
-        hedge_odds = float(hedge_analysis.get("hedge_odds", 1.75))
+        try:
+            hedge_odds = float(hedge_analysis.get("hedge_odds"))
+            hedge_odds_text = f"{hedge_odds:.2f}" if hedge_odds > 1 else "未提供有效價格"
+        except (TypeError, ValueError, OverflowError):
+            hedge_odds = 0.0
+            hedge_odds_text = "未提供有效價格"
         breakeven_stake = float(hedge_analysis.get("breakeven_stake", 0.0))
-        guaranteed_stake = float(hedge_analysis.get("guaranteed_stake", 0.0))
-        guaranteed_profit = float(hedge_analysis.get("guaranteed_profit", 0.0))
+        source = str(hedge_analysis.get("source") or "未提供可信即時對向盤口")
+        observed = str(hedge_analysis.get("observed_at") or "時間未提供")
+        trigger = str(hedge_analysis.get("trigger") or "本站注單目前僅剩一關待賽")
+        hedge_stake_line = f"• 假設可取得該價格時，平衡注金試算約 NT$ {breakeven_stake:.0f}\n" if hedge_odds > 1 else ""
 
         text = (
-            "🔔 【恭喜聽牌！對衝保本通知】\n"
-            "---------------------------\n"
-            f"🎫 串關：{sports}\n"
-            f"🎯 潛在派彩高達：NT$ {potential_payout:,.2f} (本金 NT$ {stake:,.0f})\n"
-            f"⏳ 最後決戰：[{pending_leg.get('league')}] {match_str}\n"
-            f"目前手持關卡：【{pending_leg.get('selection')}】\n\n"
-            "🛡️ 建議對衝策略（反買對家鎖利）：\n"
-            f"• 標的：【{opposing_bet}】(反向賠率約 {hedge_odds:.2f})\n"
-            f"• ① 保本對衝：反買 NT$ {breakeven_stake:.0f} ➔ 倒此關仍立於不敗 (0 虧損)\n"
-            f"• ② 100% 絕對鎖利：反買 NT$ {guaranteed_stake:.0f} ➔ 無論最後一場輸贏，保底淨賺 NT$ {guaranteed_profit:,.2f}！"
+            "🔔 【本站聽牌／對沖提醒】\n"
+            + f"🎫 串關：{sports}\n"
+            + f"🎯 本站記錄潛在派彩：NT$ {potential_payout:,.2f} (本金 NT$ {stake:,.0f})\n"
+            + f"⏳ 最後決戰：[{pending_leg.get('league')}] {match_str}\n"
+            + f"目前手持關卡：【{pending_leg.get('selection')}】\n\n"
+            + "試算條件：\n"
+            + f"• 反向標的：【{opposing_bet}】；假設賠率 {hedge_odds_text}\n"
+            + hedge_stake_line
+            + f"• 資料來源：{source}\n觀測時間：{observed}\n觸發條件：{trigger}\n"
+            + "此為條件式試算，未取得可信即時對向盤口；不保證可成交、打平或獲利。"
         )
-        return self.send_push_message(text)
+        ticket_key = str(ticket.get("ticket_id") or ticket.get("id") or ticket.get("sports_summary") or "ticket")
+        return self._dispatch_notification(
+            "hedging_alert", f"{ticket_key}:{pending_leg.get('event_id') or match_str}", text,
+            profile_id=str(ticket.get("profile_id") or ""), system_tab="wallet", require_profile=True,
+        )
 
     def notify_morning_radar(
         self,
         radar_summary: List[Dict[str, Any]],
         top_picks: Optional[List[Dict[str, Any]]] = None,
+        *,
+        as_of: Optional[str] = None,
+        source_status: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Daily briefing for green-light leagues and actionable high +EV legs."""
-        if not self.config.get("notify_events", {}).get("morning_radar", True):
-            return {"skipped": True, "reason": "EVENT_DISABLED"}
+        """Daily snapshot of Taiwan Sports Lottery markets and source status."""
+
+        observed = str(as_of or "").strip()
+        if not self._is_recent_source_time(observed):
+            return {"success": False, "skipped": True, "reason": "SOURCE_TIME_MISSING_OR_STALE"}
 
         green_leagues = [r for r in radar_summary if r.get("status") == "GREEN"]
         leagues_str = "、".join(f"{r['icon']}{r['name']}({r['taiwan_market_count']}場)" for r in green_leagues) or "今日各聯賽休兵"
 
-        picks_text = ""
-        if top_picks:
-            picks_lines = []
-            for p in top_picks[:3]:
-                ev_str = f"🔥 +EV {p['ev']:+.1f}%" if p.get("ev") else ""
-                picks_lines.append(f"• [{p['league']}] {p['match']} ➔ {p['selection']} ({p['odds']}x) {ev_str}")
-            picks_text = "\n🌟 今日焦點價值關卡推薦：\n" + "\n".join(picks_lines)
-
+        opened_count = sum(int(row.get("taiwan_market_count") or row.get("game_count") or 0) for row in radar_summary)
+        data_source = "台灣運彩開盤快照／本站 Radar 摘要"
         text = (
-            "☀️ 【今日運彩賽季雷達簡報】\n"
-            "---------------------------\n"
-            f"🟢 今日開盤聯賽：\n{leagues_str}\n"
-            f"{picks_text}\n\n"
-            "祝今日選盤順利，穩中求勝！🐕"
+            "☀️ 【每日 Radar 摘要】\n"
+            f"今日已開盤場次：{opened_count}\n聯賽：{leagues_str}\n"
+            f"資料來源：{data_source}\n來源狀態：{source_status or '未提供'}\n資料時間：{observed}\n"
+            "此為開盤狀態摘要，不代表推薦或獲利保證。"
         )
-        return self.send_push_message(text)
+        key = datetime.now(timezone.utc).date().isoformat()
+        return self._dispatch_notification("morning_radar", key, text, system_tab="radar")
 
     def _generate_qr_for_combo(
         self,
         combo: Dict[str, Any],
         stake: float = 100.0,
     ) -> Dict[str, Any]:
-        """Generate a Taiwan Sports Lottery 3.0 QR Code image and kiosk cheat sheet."""
-        from core.lottery_qr import build_lottery_slip_payload, generate_qr_code_file
-        import hashlib
+        """Format a manual slip; the local TSL3 QR encoding is not official/verified."""
+        legs = combo.get("legs", []) if isinstance(combo.get("legs"), list) else []
+        parlay_name = str(combo.get("parlay_name") or f"{len(legs)} 串 1")
+        try:
+            total_odds = float(combo.get("total_odds_exact", combo.get("total_odds", 0)) or 0)
+        except (TypeError, ValueError, OverflowError):
+            total_odds = 0.0
+        try:
+            stake_value = max(0.0, float(stake))
+        except (TypeError, ValueError, OverflowError):
+            stake_value = 0.0
 
-        legs = combo.get("legs", [])
-        parlay_name = combo.get("parlay_name", f"{len(legs)} 串 1")
-        total_odds = float(combo.get("total_odds", 1.0))
-        potential_payout = round(stake * total_odds, 0)
-
-        slip = build_lottery_slip_payload(
-            legs=legs,
-            total_stake=stake,
-            parlay_name=parlay_name,
-        )
-        compact_code = slip["compact_code"]
-
-        # Cache file under static/qr/
-        code_hash = hashlib.sha256(compact_code.encode("utf-8")).hexdigest()[:12]
-        qr_filename = f"tsl_{code_hash}.png"
-        qr_file_path = ROOT_DIR / "static" / "qr" / qr_filename
-
-        generate_qr_code_file(compact_code, qr_file_path)
-
-        # Detect active public tunnel for image hosting
-        status_file = ROOT_DIR / "data" / "line_bot_runtime.json"
-        runtime = load_active_runtime(status_file)
-        tunnel_url = runtime.get("tunnel_url", "")
-
-        image_url = f"{tunnel_url}/static/qr/{qr_filename}" if tunnel_url else None
-
-        cheat_lines = [
-            "🏪 【台彩 3.0 免劃單 · 臨櫃出票條碼】",
-            "===========================",
-            f"🎫 組合：{parlay_name} (總賠率 {total_odds:.2f}x)",
-            f"💵 建議注碼：NT$ {stake:.0f} (預期派彩 NT$ {potential_payout:,.0f})",
-            "---------------------------",
-            "📋 賽事選號明細 (店員代劃單對照)：",
+        lines = [
+            "📋 【投注單明細（人工核對用）】",
+            f"組合：{parlay_name}｜顯示總賠率：{total_odds:.2f}x｜注金參考：NT$ {stake_value:,.0f}",
+            "本功能只整理本站資料，不是台灣運彩官方投注 QR，也不能直接出票。請在官方投注頁核對即時盤口、玩法與注金。",
         ]
-        for idx, l in enumerate(slip["legs"], start=1):
-            clean_league = re.sub(r"^unknown_", "", str(l.get("league") or ""), flags=re.IGNORECASE).strip()
-            if "colombia" in clean_league.lower() or "columbia" in clean_league.lower():
-                clean_league = "哥倫比亞甲級足球聯賽"
-            elif clean_league.lower() == "unknown":
-                clean_league = "精選賽事"
-            clean_sel = re.sub(r"\s*\(\d+(?:\.\d+)?\)\s*$", "", str(l.get("selection") or "")).strip() or l.get("selection")
-            cheat_lines.append(
-                f"{idx}. 賽事編號 #{l['event_id']} [{clean_league}]\n"
-                f"   {l['match']}\n"
-                f"   ➔ 玩法：{l['market']} | 選號：【{clean_sel}】({l['odds']:.2f}x)"
-            )
-        cheat_lines.append("===========================")
-        cheat_lines.append("📲 使用方式：")
-        cheat_lines.append("至彩券行櫃檯將手機對準機台鏡頭掃描上方 QR Code，即可 1 秒免劃單出票！🎯")
-
-        return {
-            "text": "\n".join(cheat_lines),
-            "image_url": image_url,
-            "compact_code": compact_code,
-        }
+        for index, leg in enumerate(legs, 1):
+            if not isinstance(leg, dict):
+                continue
+            event_id = leg.get("event_id") or leg.get("canonical_event_id") or "未知"
+            league = str(leg.get("display_league") or leg.get("league") or "聯賽未知")
+            matchup = f"{leg.get('away_team') or '客隊未知'} vs {leg.get('home_team') or '主隊未知'}"
+            market = str(leg.get("market") or leg.get("market_type") or "玩法未知")
+            selection = str(leg.get("selection") or "選項未知")
+            line = leg.get("line")
+            odds = leg.get("taiwan_odds", leg.get("odds"))
+            try:
+                odds_text = f"{float(odds):.2f}"
+            except (TypeError, ValueError, OverflowError):
+                odds_text = "未提供"
+            line_text = f" {line}" if line not in (None, "") else ""
+            lines.append(f"{index}. #{event_id} {league}｜{matchup}\n   {market}{line_text}｜{selection} @ {odds_text}")
+        lines.append(f"台灣運彩官方投注頁：{TAIWAN_LOTTERY_URL}")
+        return {"text": "\n".join(lines), "image_url": None, "official_qr_verified": False}
 
     def notify_ticket_qr(
         self,
@@ -663,12 +974,12 @@ class LineNotifier:
         stake: float = 100.0,
         user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Push a Taiwan Sports Lottery QR Code and slip description to LINE."""
+        """Send a manual slip; never imply this local payload is an official ticket QR."""
         qr_data = self._generate_qr_for_combo(combo, stake)
         return self.send_push_message(
             text=qr_data["text"],
             user_id=user_id,
-            image_url=qr_data.get("image_url"),
+            flex_message=build_manual_slip_flex(qr_data["text"]),
         )
 
     @staticmethod
@@ -788,32 +1099,39 @@ class LineNotifier:
         else:
             market_str = f"【{clean_selection}】({odds:.2f}x)"
 
-        # 5. International Market Benchmark & Splits Note
+        # 5. Display only qualified market evidence; ticket-share data does not
+        # establish where large cash flows are going.
         market_intel_notes = []
         evidence = leg.get("signal_evidence") or {}
         is_market_synth = bool(evidence.get("is_market_synthetic") or evidence.get("is_synthetic"))
-        is_splits_synth = bool(evidence.get("is_splits_synthetic"))
 
         sharp_p = evidence.get("sharp_fair_probability")
         sharp_ev = evidence.get("sharp_expected_value_pct")
+        sharp_qualified = (
+            str(evidence.get("market_source_qualification") or "").upper() == "SHARP_QUALIFIED"
+            and str(evidence.get("market_benchmark_status") or "").upper() == "AVAILABLE"
+            and not is_market_synth
+        )
 
         if is_market_synth:
             # Synthetic fixtures must NEVER be presented as verified +EV in recommendations
             synth_p = evidence.get("synthetic_fair_probability")
             if synth_p:
                 market_intel_notes.append(f"   🌐 國際參考盤口: 模擬樣本 {synth_p * 100:.1f}% (測試展示，非真實優勢)")
-        elif sharp_p and sharp_ev is not None:
-            ev_str = f" (+EV {sharp_ev:+.1f}%)" if sharp_ev > 0 else f" ({sharp_ev:+.1f}%)"
-            market_intel_notes.append(f"   🌐 國際公允勝率: {sharp_p * 100:.1f}%{ev_str}")
+        elif sharp_qualified and sharp_p is not None:
+            ev_str = f" · Sharp EV {float(sharp_ev):+.1f}%" if isinstance(sharp_ev, (int, float)) else ""
+            market_intel_notes.append(f"   🌐 Sharp 市場估計: {float(sharp_p) * 100:.1f}%{ev_str}")
 
-        money_p = evidence.get("money_percentage")
-        bet_p = evidence.get("bet_percentage")
-        if money_p is not None and bet_p is not None:
-            if is_splits_synth:
-                market_intel_notes.append(f"   💰 國際籌碼傾向: 資金 {money_p:.0f}% / 票數 {bet_p:.0f}% (模擬數據)")
-            else:
-                div_note = " (⚡資金顯著分歧)" if (money_p - bet_p) >= 15.0 else ""
-                market_intel_notes.append(f"   💰 國際籌碼傾向: 資金 {money_p:.0f}% / 票數 {bet_p:.0f}%{div_note}")
+        market_fair = evidence.get("market_fair_probability")
+        if not is_market_synth and isinstance(market_fair, (int, float)) and 0 < market_fair < 1:
+            market_method = str(evidence.get("market_fair_method") or "台彩市場估計").replace("_", " ")
+            market_intel_notes.append(f"   📊 {market_method}: {market_fair * 100:.1f}%")
+
+        model_status = str(evidence.get("probability_status") or "").upper()
+        if model_status in {"UNVALIDATED_MODEL_ESTIMATE", "UNVALIDATED_MODEL_FUSION_ESTIMATE"}:
+            market_intel_notes.append("   🧪 模型候選未驗收，不作正式模型推薦依據")
+        elif model_status == "CALIBRATED_MODEL_ESTIMATE" and evidence.get("model_accepted_ids"):
+            market_intel_notes.append("   🧪 使用已驗收模型輸入；串關機率仍未驗證")
 
         extra_text = ("\n" + "\n".join(market_intel_notes)) if market_intel_notes else ""
 
@@ -827,23 +1145,14 @@ class LineNotifier:
     def get_menu_text() -> str:
         """Full interactive menu formatted for mobile LINE chat."""
         return (
-            "🐕 【瘋狗流 LINE 助手指令說明 · 功能表 / 工具箱】\n"
-            "===========================\n"
-            "您可以直接點選下方快捷膠囊，或傳送以下指令：\n\n"
-            "📱 【彩券行免劃單 QR 碼】\n"
-            "• 點選「📱 產生投注 QR 碼」或輸入「QR」\n"
-            "  ➔ 即時生成台彩 3.0 機台掃描條碼，實體彩券行 1 秒出票！\n\n"
-            "🛡️ 【聽牌對沖與鎖利】\n"
-            "• 點選「🛡️ 聽牌對沖」或輸入「對沖」\n"
-            "  ➔ 若手上注單只剩最後一關，即時計算 100% 鎖利或 0 虧損保本計畫！\n\n"
-            "💰 【資金與戰績管理】\n"
-            "• 點選「💰 查戰績錢包」或輸入「查戰績」\n"
-            "  ➔ 查看本週 NT$200 風控錢包餘額、保留儲備池與歷史獲利！\n\n"
-            "👤 【玩家設定與 PIN 碼】\n"
-            "• 點選「👤 個人設定」或輸入「改密碼 0000 1234」\n"
-            "  ➔ 綁定 LINE 專屬錢包或修改 PIN 密碼！\n"
-            "===========================\n"
-            "💡 提示：點擊下方快捷按鈕即可一鍵送出！"
+            "Sportslottery LINE 主選單｜手機快捷助手\n"
+            "🎯 智慧串關｜輸入目標倍率查詢主系統合格候選\n"
+            "🛡️ Banker 穩健精選｜使用主系統正式 Banker 條件\n"
+            "☀️ 今日賽事｜查看開盤與來源狀態\n"
+            "💰 資產戰績｜僅限已綁定 Profile\n"
+            "🔔 通知設定｜調整已綁定 Profile 的個別偏好\n"
+            "👤 個人設定｜帳號、安全與完整操作在主系統完成\n"
+            "投注單明細僅供人工核對；目前沒有驗證台灣運彩官方 QR 出票格式。所有機率、EV 與對沖資料均為估計，不保證結果。"
         )
 
     def handle_user_message(
@@ -862,18 +1171,6 @@ class LineNotifier:
         if not cmd:
             return self.get_menu_text()
 
-        # If user is bound to a specific Profile, wire up their personal wallet
-        if line_user_id and wallet_mgr is None:
-            try:
-                from core.profile_manager import ProfileManager
-                from core.wallet import WeeklyWalletManager
-                pm = ProfileManager()
-                bound = pm.get_profile_by_line_user_id(line_user_id)
-                if bound:
-                    wallet_mgr = WeeklyWalletManager(profile_id=bound["id"])
-            except Exception:
-                pass
-
         # 1. Greetings & Menu Triggers
         menu_triggers = [
             "功能表", "選單", "menu", "help", "說明", "指令", "你好", "您好", "哈囉",
@@ -884,7 +1181,10 @@ class LineNotifier:
 
         # 1.1 Banker Mode / High Win Rate (保底/穩健)
         if any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker"]):
-            return self._search_parlay_for_bot(2.5, parlay_engine, available_legs, search_state=search_state)
+            return self._search_parlay_for_bot(3.75, parlay_engine, available_legs, sport_filter="banker", search_state=search_state)
+
+        if cmd.startswith("通知"):
+            return self._handle_notification_command(user_text, line_user_id)
 
         # 1.15 Next Combo / Alternative Parlay (換一組推薦)
         if any(k in cmd for k in ["換一組", "另一組", "換一張", "下一組", "換", "next", "reroll", "再一組"]):
@@ -898,16 +1198,8 @@ class LineNotifier:
         # 1.3 Multiplier Selection Menu (智慧串關選倍率)
         if any(cmd == k or k in cmd for k in ["智慧串關", "選倍率", "串關"]):
             return (
-                "🎯 【瘋狗流 · 智慧串關倍率選單】\n"
-                "===========================\n"
-                "請直接輸入您想挑戰的目標倍率：\n\n"
-                "🛡️ 【穩健保底組】(高勝率累積戰力)\n"
-                "• 輸入「2倍」或「3倍」➔ 銀行家 Banker 定海神針單\n\n"
-                "🔥 【瘋狗起步組】(以小博大熱門)\n"
-                "• 輸入「10倍」、「20倍」或「30倍」\n\n"
-                "🚀 【極限狂暴組】(十元登月發家)\n"
-                "• 輸入「50倍」、「100倍」或「200倍」\n\n"
-                "💡 提示：也可以指定球種，例如輸入「足球 20倍」或「NBA 10倍」！"
+                "🎯 智慧串關使用主系統相同的合格條件與估值。請輸入目標倍率，例如「10倍」、「20倍」或「30倍」；若沒有合格候選，系統會說明原因，不會放寬條件湊單。\n"
+                "Banker 請選擇「Banker 穩健精選」，使用主系統正式 Banker 篩選與排序。"
             )
 
         # 2. Match Target Multiplier: e.g. "20", "20倍", "20x", "50倍", "100"
@@ -931,7 +1223,7 @@ class LineNotifier:
 
         # 3. Wallet & Staking Performance: e.g. "戰績", "錢包", "餘額", "本週"
         if any(k in cmd for k in ["戰績", "錢包", "餘額", "本金", "獲利", "本週"]):
-            return self._get_wallet_status_text(wallet_mgr)
+            return self._get_wallet_status_text(wallet_mgr, line_user_id=line_user_id)
 
         # 4. Season Radar / Daily Matchups: e.g. "雷達", "開盤", "今天", "賽程"
         if any(k in cmd for k in ["雷達", "開盤", "今天", "賽程", "賽事"]):
@@ -939,23 +1231,25 @@ class LineNotifier:
 
         # 5. Hedging / Breakeven Queries: e.g. "對沖", "對衝", "聽牌", "鎖利", "保本"
         if any(k in cmd for k in ["對沖", "對衝", "聽牌", "鎖利", "保本"]):
-            return self._get_hedging_status_text()
+            return self._get_hedging_status_text(line_user_id)
 
         # 6. QR Code Slip Generation: e.g. "qr", "產qr", "條碼", "投注單", "qrcode"
         if any(cmd == q or q in cmd for q in ["qr", "產qr", "條碼", "投注單", "qrcode", "出票", "劃單"]):
             return self._handle_qr_request(parlay_engine, available_legs, search_state=search_state)["text"]
 
         # 7. Fallback to Menu with Prompt
+        if cmd in {"查看完整分析", "完整分析"}:
+            return "完整串關分析需要 Sportslottery 正式 HTTPS 網址。請稍後重試，或從主系統的 Parlay 頁面查看。"
         return (
             "🐕 【瘋狗流 LINE 助手指令說明】\n"
             "---------------------------\n"
             f"收到指令：「{user_text}」\n"
             "未能辨識此關鍵字。您可以點擊下方快捷按鈕，或參考以下指令：\n\n"
             "• 發送「20倍」➔ 智慧搜尋 20 倍串關\n"
-            "• 發送「QR」➔ 取得彩券行掃描出單條碼\n"
+            "• 發送「投注單明細」➔ 整理本站選項供人工核對（本站 QR 未驗證為官方出票格式）\n"
             "• 發送「查戰績」➔ 查看每週額度與獲利\n"
             "• 發送「今日開盤」➔ 查看開盤聯賽與場次\n"
-            "• 發送「對沖」➔ 聽牌對沖保本計算\n"
+            "• 發送「對沖」➔ 查看本站 OPEN 注單與資料限制\n"
             "• 發送「功能表」➔ 查看完整功能說明"
         )
 
@@ -967,7 +1261,7 @@ class LineNotifier:
         wallet_mgr: Optional[Any] = None,
         line_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Process inbound text command and return dict with 'text', 'image_url', and contextual 'quick_replies'."""
+        """Return a text fallback, Flex card where available, and contextual Quick Replies."""
         with self.user_search_context(line_user_id) as search_state:
             return self._handle_user_message_full(
                 user_text,
@@ -996,9 +1290,10 @@ class LineNotifier:
             qr_res["quick_replies"] = [
                 {"label": "🎲 換一組推薦", "text": "換一組"},
                 {"label": "🎯 找20倍", "text": "20倍"},
-                {"label": "🛡️ 穩健保底", "text": "高勝率保底"},
+                {"label": "🛡️ Banker 精選", "text": "Banker 穩健精選"},
                 {"label": "🏠 回主選單", "text": "功能表"},
             ]
+            qr_res["flex_message"] = build_manual_slip_flex(qr_res["text"])
             return qr_res
 
         # 2. Main Text Command Processing
@@ -1013,6 +1308,41 @@ class LineNotifier:
 
         # 3. Contextual Quick Reply Routing
         quick_replies = self.default_quick_replies()
+        flex = None
+
+        menu_triggers = ["功能表", "選單", "menu", "help", "說明", "指令", "你好", "您好", "哈囉", "hello", "hi", "嗨", "開始", "start", "安安", "?", "？", "怎麼用", "功能指南"]
+        if any(cmd == trigger for trigger in menu_triggers):
+            flex = build_menu_flex(self._runtime_system_url())
+
+        elif "通知設定" in cmd or cmd.startswith("通知"):
+            profile = self._get_bound_profile(line_user_id)
+            if profile:
+                flex = build_notification_flex(self.get_notification_preferences(str(profile["id"])))
+            else:
+                flex = build_status_flex("通知設定", "請先完成 Profile 綁定", [text_reply], system_url=self._runtime_system_url(), tab="profile")
+
+        elif any(k in cmd for k in ["戰績", "錢包", "餘額", "本金", "獲利", "本週"]):
+            snapshot = self._get_line_wallet_snapshot(line_user_id)
+            if snapshot.get("profile"):
+                flex = build_wallet_flex(snapshot["status"], snapshot["tickets"], system_url=self._runtime_system_url(), profile_id=str(snapshot["profile"]["id"]))
+            else:
+                flex = build_status_flex("資產戰績", "私人帳務僅限已綁定 Profile", [snapshot["text"]], system_url=self._runtime_system_url(), tab="profile")
+
+        elif any(k in cmd for k in ["雷達", "開盤", "今天", "賽程", "賽事"]):
+            radar = self._get_radar_snapshot()
+            flex = build_radar_flex(radar, system_url=self._runtime_system_url()) if radar else build_status_flex("今日賽事", "資料服務暫時無法使用", [text_reply], system_url=self._runtime_system_url(), tab="radar")
+
+        elif any(k in cmd for k in ["個人設定", "profile", "手機版", "決策台"]):
+            flex = build_menu_flex(self._runtime_system_url())
+
+        elif search_state.last_recommended_parlay and (
+            any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker", "換一組", "另一組", "換", "next", "reroll"])
+            or (("倍" in cmd or "x" in cmd or cmd.isdigit() or "串" in cmd) and re.search(r"\d", cmd))
+        ):
+            context = search_state.last_search_context or {}
+            candidate = dict(search_state.last_recommended_parlay)
+            candidate.setdefault("target_odds", context.get("target_mult"))
+            flex = build_parlay_flex(candidate, system_url=self._runtime_system_url(), banker=context.get("mode") == "banker")
 
         # A. Multiplier Menu requested
         if any(cmd == k or k in cmd for k in ["智慧串關", "選倍率", "串關"]):
@@ -1040,8 +1370,26 @@ class LineNotifier:
         return {
             "text": text_reply,
             "image_url": None,
+            "flex_message": flex,
             "quick_replies": quick_replies,
         }
+
+    def _handle_notification_command(self, user_text: str, line_user_id: Optional[str]) -> str:
+        """Update notification preferences only for the Profile bound to this LINE user."""
+        profile = self._get_bound_profile(line_user_id)
+        if not profile:
+            return "通知偏好會存到已綁定 Profile。請先輸入「綁定請求 玩家名稱」，再於登入主系統的個人設定核准。"
+        match = re.fullmatch(r"通知\s+(全部|賠率|結算|聽牌|Radar|雷達)\s+(開啟|關閉)", str(user_text or "").strip(), re.IGNORECASE)
+        if not match:
+            return "請使用通知設定圖卡按鈕，或輸入「通知 全部 開啟／關閉」。設定只套用到目前綁定的 Profile。"
+        name, action = match.groups()
+        value = action == "開啟"
+        key_by_label = {"賠率": "steam_drop", "結算": "ticket_settlement", "聽牌": "hedging_alert", "Radar": "morning_radar", "雷達": "morning_radar"}
+        updates = {key: value for key in LINE_PREFERENCE_KEYS} if name == "全部" else {key_by_label[name]: value}
+        saved = self.update_notification_preferences(line_user_id, updates)
+        if saved is None:
+            return "無法更新通知偏好，請確認 LINE Profile 綁定狀態。"
+        return f"已更新【{profile.get('name', '目前 Profile')}】的通知偏好。"
 
     def _handle_qr_request(
         self,
@@ -1049,7 +1397,7 @@ class LineNotifier:
         available_legs: Optional[List[Any]] = None,
         search_state: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Generate QR code for the last recommended parlay or find the best combo."""
+        """Return manual ticket details; no official Taiwan Lottery ticket QR is available."""
         search_state = search_state or self
         combo = search_state.last_recommended_parlay
         if not combo:
@@ -1062,10 +1410,10 @@ class LineNotifier:
 
         return {
             "text": (
-                "📱 【彩券行 QR Code 投注單】\n"
-                "---------------------------\n"
-                "⚠️ 目前尚未選定或搜尋串關組合。\n"
-                "請先發送目標倍率（例如「20倍」或點選下方快捷按鈕），推薦組合後即可一秒產出實體條碼！"
+                "📋 【投注單明細】\n"
+                "目前尚未選定合格組合。請先查詢目標倍率後再查看明細。\n"
+                "本站自製 QR 尚未驗證為台灣運彩官方格式，不能用於機台出票。"
+                f"\n台灣運彩官方投注頁：{TAIWAN_LOTTERY_URL}"
             ),
             "image_url": None,
         }
@@ -1079,8 +1427,9 @@ class LineNotifier:
         """Cycle to the next parlay candidate for the last searched target."""
         search_state = search_state or self
         if not search_state.last_parlay_candidates:
-            target = search_state.last_search_context.get("target_mult", 20.0)
-            sport = search_state.last_search_context.get("sport_filter")
+            context = search_state.last_search_context
+            target = context.get("target_mult", 20.0)
+            sport = "banker" if context.get("mode") == "banker" else context.get("sport_filter")
             return self._search_parlay_for_bot(
                 target, parlay_engine, available_legs, sport_filter=sport, search_state=search_state,
             )
@@ -1088,31 +1437,7 @@ class LineNotifier:
         search_state.last_candidate_index = (search_state.last_candidate_index + 1) % len(search_state.last_parlay_candidates)
         next_combo = search_state.last_parlay_candidates[search_state.last_candidate_index]
         search_state.last_recommended_parlay = next_combo
-
-        total_odds = float(next_combo.get("total_odds", 1.0))
-        joint_prob = float(next_combo.get("joint_probability", 0.0)) * 100
-        ev_pct = float(next_combo.get("parlay_ev_pct", 0.0))
-        legs = next_combo.get("legs", [])
-
-        from core.kelly import calculate_kelly_stake
-        kelly_res = calculate_kelly_stake(
-            win_probability=max(0.01, min(0.99, joint_prob / 100.0)),
-            decimal_odds=total_odds,
-            bankroll=200.0,
-        )
-        recommended_stake = kelly_res.get("quarter_kelly_stake", 10.0)
-
-        lines = [
-            f"🎲 【替換推薦 · 第 {search_state.last_candidate_index + 1}/{len(search_state.last_parlay_candidates)} 組 · 總賠率 {total_odds}x】",
-            f"⚖️ 估算勝率：{joint_prob:.1f}% | 期望值 EV：{ev_pct:+.1f}%",
-            f"💵 建議注碼：NT$ {recommended_stake:.0f} (1/4 凱利風控)",
-            "---------------------------",
-        ]
-        for idx, l in enumerate(legs, start=1):
-            lines.append(self.format_parlay_leg(l, idx))
-        lines.append("---------------------------")
-        lines.append("📲 點擊下方【📱 產生此單 QR 碼】立即生成條碼，或點【🎲 換一組推薦】瀏覽更多！")
-        return "\n".join(lines)
+        return self._format_line_parlay(next_combo, search_state.last_search_context, search_state.last_candidate_index, len(search_state.last_parlay_candidates))
 
     def _search_parlay_for_bot(
         self,
@@ -1122,405 +1447,286 @@ class LineNotifier:
         sport_filter: Optional[str] = None,
         search_state: Optional[Any] = None,
     ) -> str:
-        """Execute parlay combo search and format betting recommendation with Kelly sizing."""
+        """Use the exact API search service and ranking that powers the React Parlay view."""
         search_state = search_state or self
         try:
-            search_state.last_search_context = {"target_mult": target_mult, "sport_filter": sport_filter}
-            if not parlay_engine:
-                from core.signal_hub import SignalHub
-                from core.parlay_engine import ParlayEngine
-                parlay_engine = ParlayEngine(signal_hub=SignalHub())
+            from core.scraper import ALLIANCE_MAP
+            from server import service_registry
+            from server.routers import parlay as parlay_api
+            from server.schemas import ParlaySearchRequest
 
-            if not available_legs:
-                from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
-                adapter = PlaysportOddsAdapter()
-                raw_legs = adapter.get_taiwan_legs()
-                if raw_legs:
-                    available_legs = [parlay_engine.signal_hub.evaluate_taiwan_leg(leg) for leg in raw_legs]
-
-            if not available_legs:
-                search_state.last_parlay_candidates = []
-                search_state.last_candidate_index = 0
-                search_state.last_recommended_parlay = None
-                return (
-                    f"🎯 目標倍率：{target_mult:.1f} 倍\n"
-                    "---------------------------\n"
-                    "⚠️ 目前盤口處於交界或夜間封盤時段，無合格即時開盤賽事。\n"
-                    "系統已記錄您的需求，早盤開出新盤口時將優先為您運算推薦！"
+            banker = bool(sport_filter == "banker")
+            alliances = None
+            if sport_filter in {"soccer", "baseball", "basketball", "football"}:
+                alliance_ids = {"soccer": ["4"], "baseball": ["1", "2", "6", "9"], "basketball": ["3", "7"], "football": ["93"]}[sport_filter]
+                alliances = [key for key in alliance_ids if key in ALLIANCE_MAP]
+            if banker:
+                req = ParlaySearchRequest(
+                    min_odds=1.5, max_odds=6.0, target_odds=3.75, tolerance=0.20,
+                    min_legs=1, max_legs=3, alliances=None, signal_filter="value_only",
+                    ranking_mode="WIN_PROBABILITY", exclude_traps=False, prefer_steam=True,
+                    search_budget=60000,
                 )
-
-            search_pool = available_legs
-            sport_note = ""
-            if sport_filter:
-                filtered = [
-                    l for l in available_legs
-                    if (getattr(l, "sport", None) or (isinstance(l, dict) and l.get("sport"))) == sport_filter
-                ]
-                if len(filtered) >= 2:
-                    search_pool = filtered
-                else:
-                    sport_names = {"soccer": "足球", "baseball": "棒球", "basketball": "籃球", "football": "美足"}
-                    sport_note = f"⚠️ 今日開盤之【{sport_names.get(sport_filter, sport_filter)}】合格賽事不足以單獨組成串關，以下為您提供跨球種高勝率推薦：\n\n"
-
-            res = parlay_engine.search_parlays(
-                legs=search_pool,
-                target_odds=target_mult,
-                tolerance=0.25,
-                min_legs=2,
-                max_legs=6,
-                search_budget=30000,
-            )
-            top_combos = []
-            for tier, combos in res.items():
-                top_combos.extend(combos)
-
-            if top_combos:
-                search_state.last_parlay_candidates = top_combos
-                search_state.last_candidate_index = 0
-                best = top_combos[0]
-                search_state.last_recommended_parlay = best
-                total_odds = float(best.get("total_odds", target_mult))
-                joint_prob = float(best.get("joint_probability", 0.0)) * 100
-                ev_pct = float(best.get("parlay_ev_pct", 0.0))
-                legs = best.get("legs", [])
-
-                # Kelly sizing recommendation
-                from core.kelly import calculate_kelly_stake
-                kelly_res = calculate_kelly_stake(
-                    win_probability=max(0.01, min(0.99, joint_prob / 100.0)),
-                    decimal_odds=total_odds,
-                    bankroll=200.0,
-                )
-                recommended_stake = kelly_res.get("quarter_kelly_stake", 10.0)
-
-                lines = []
-                if sport_note:
-                    lines.append(sport_note.strip())
-                cand_info = f" (共 {len(top_combos)} 組候選)" if len(top_combos) > 1 else ""
-                lines.extend([
-                    f"🎯 【{best.get('parlay_name', '精選串關')} · 總賠率 {total_odds}x{cand_info}】",
-                    f"⚖️ 估算勝率：{joint_prob:.1f}% | 期望值 EV：{ev_pct:+.1f}%",
-                    f"💵 建議注碼：NT$ {recommended_stake:.0f} (1/4 凱利風控)",
-                    "---------------------------",
-                ])
-                for idx, l in enumerate(legs, start=1):
-                    lines.append(self.format_parlay_leg(l, idx))
-                lines.append("---------------------------")
-                lines.append("📲 點擊下方【📱 產生此單 QR 碼】立即生成條碼，或點【🎲 換一組推薦】瀏覽更多！")
-                lines.append("祝您場場過關，財庫滿載！🐕")
-                return "\n".join(lines)
+                context = {"mode": "banker", "target_mult": 3.75, "sport_filter": None}
             else:
-                search_state.last_parlay_candidates = []
-                search_state.last_candidate_index = 0
-                search_state.last_recommended_parlay = None
-                return (
-                    f"🔍 已為您精算 {target_mult:.1f} 倍組合。\n"
-                    "目前盤口中暫無完全符合 +EV 與風控標準之理想組合，建議微調倍率（如「10倍」或「30倍」）重新嘗試！"
+                req = ParlaySearchRequest(
+                    target_odds=float(target_mult), tolerance=0.20, min_legs=2, max_legs=5,
+                    alliances=alliances, signal_filter="normal", ranking_mode="WIN_PROBABILITY",
+                    exclude_traps=False, prefer_steam=True, search_budget=60000,
                 )
+                context = {"mode": "target", "target_mult": float(target_mult), "sport_filter": sport_filter}
+
+            if not parlay_api._parlay_search_capacity.acquire(blocking=False):
+                return "主系統串關搜尋目前繁忙，請稍後再試。"
+            slot_acquired = False
+            try:
+                if not parlay_api._parlay_search_slots.acquire(timeout=20):
+                    return "主系統串關搜尋佇列目前已滿，請稍後再試。"
+                slot_acquired = True
+                result = parlay_api._execute_parlay_search(req)
+            finally:
+                if slot_acquired:
+                    parlay_api._parlay_search_slots.release()
+                parlay_api._parlay_search_capacity.release()
+            search_state.last_search_context = context
+            search_state.last_search_result = result
+            candidates = []
+            for tier in ("high_consensus", "aggressive", "moonshot"):
+                candidates.extend(result.get("tiers", {}).get(tier, []))
+            search_state.last_parlay_candidates = candidates
+            search_state.last_candidate_index = 0
+            if not candidates:
+                search_state.last_recommended_parlay = None
+                diagnostic = result.get("diagnostics") or {}
+                reason_counts = diagnostic.get("excluded_option_reasons") or {}
+                reason_summary = "、".join(f"{key}: {value}" for key, value in list(reason_counts.items())[:3])
+                try:
+                    source = self._summarize_source_status(service_registry.get_services()[0].get_source_status())
+                except Exception:
+                    source = "使用主系統台灣運彩來源；來源狀態未提供"
+                if banker:
+                    headline = "Banker 正式條件（1.5–6.0 倍、1–3 關）目前沒有合格候選。"
+                else:
+                    headline = f"目標 {float(target_mult):.1f} 倍目前沒有符合主系統資格的候選。"
+                return f"{headline}\n資料狀態：{source}。搜尋完成：{bool(result.get('search_complete', True))}。" + (f"\n主要排除原因：{reason_summary}。" if reason_summary else "") + "\n未放寬條件湊單；可調整目標倍率後重新搜尋。"
+
+            search_state.last_recommended_parlay = candidates[0]
+            return self._format_line_parlay(candidates[0], context, 0, len(candidates))
         except Exception as exc:
             search_state.last_parlay_candidates = []
             search_state.last_candidate_index = 0
             search_state.last_recommended_parlay = None
-            logger.error("Error in _search_parlay_for_bot: %s", exc)
-            return f"搜尋組合時發生錯誤，請稍候重試：{exc}"
+            logger.exception("Unified LINE parlay search failed")
+            return "搜尋暫時無法完成，請稍後重試；未返回未驗證的候選。"
+
+    @staticmethod
+    def _format_line_parlay(candidate: Dict[str, Any], context: Dict[str, Any], index: int = 0, count: int = 1) -> str:
+        legs = candidate.get("legs") or []
+        odds = candidate.get("total_odds_exact", candidate.get("total_odds", 0))
+        probability = candidate.get("joint_probability")
+        probability_source = _parlay_probability_source(candidate)
+        if candidate.get("has_sharp_benchmark"):
+            try:
+                sharp_probability = float(candidate.get("sharp_joint_probability"))
+                if 0 < sharp_probability < 1:
+                    probability = sharp_probability
+            except (TypeError, ValueError, OverflowError):
+                pass
+        ev = candidate.get("parlay_ev_pct")
+        ev_source = "未驗證估計 EV"
+        if candidate.get("has_sharp_benchmark") and candidate.get("sharp_joint_probability") is not None:
+            try:
+                ev = (float(candidate["sharp_joint_probability"]) * float(odds) - 1) * 100
+                ev_source = "Sharp 市場估計 EV"
+            except (TypeError, ValueError, OverflowError):
+                ev = None
+        elif candidate.get("credible_value_basis"):
+            ev_source = "合格來源估計 EV"
+        freshness = sorted({str(leg.get("odds_scraped_at")) for leg in legs if isinstance(leg, dict) and leg.get("odds_scraped_at")})
+        lines = [
+            f"{'🛡️ Banker' if context.get('mode') == 'banker' else '🎯 智慧串關'}｜第 {index + 1}/{max(count, 1)} 組",
+            f"關數：{len(legs)}｜總倍率：{float(odds or 0):.2f}x",
+            f"組合機率：{float(probability) * 100:.1f}%" if probability is not None else "組合機率：來源不足",
+            f"機率來源：{probability_source}",
+            f"EV：{float(ev):+.1f}%｜來源：{ev_source}｜狀態：{candidate.get('credible_value_status') or 'UNVERIFIED'}" if ev is not None else "EV：未提供；不列為已驗證價值",
+            f"相關性風險：{candidate.get('correlation_risk_grade') or '未提供'}",
+            f"資料時間：{'；'.join(freshness) if freshness else '來源未提供抓取時間'}",
+        ]
+        lines.extend(LineNotifier.format_parlay_leg(leg, i) for i, leg in enumerate(legs, 1) if isinstance(leg, dict))
+        lines.append("風險提示：機率與 EV 是估計值，會受盤口更新與串關相關性影響；不代表命中或獲利保證。")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _summarize_source_status(source_status: Any) -> str:
+        if not isinstance(source_status, dict) or not source_status:
+            return "來源狀態未提供"
+        counts: Dict[str, int] = {}
+        for item in source_status.values():
+            state = str(item.get("source_status") or "UNKNOWN").upper() if isinstance(item, dict) else "UNKNOWN"
+            counts[state] = counts.get(state, 0) + 1
+        return "、".join(f"{state} {count} 個聯盟" for state, count in sorted(counts.items()))
 
     def _handle_profile_commands(self, user_text: str, line_user_id: Optional[str] = None) -> Optional[str]:
-        """Handle profile status, public web link, and in-LINE profile commands."""
-        clean_cmd = user_text.strip()
-        cmd_lower = clean_cmd.lower()
-
-        # Check in-LINE command: e.g. "綁定 小明 1234", "登入 小明 1234"
-        m_bind = re.match(r"^(?:綁定|bind|登入|login)\s+([^\s]+)(?:\s+(\d{4}))?$", clean_cmd, re.IGNORECASE)
-        # Check in-LINE command: "解綁", "解除綁定"
-        m_unbind = re.match(r"^(?:解綁|解除綁定|unbind)(?:\s+(\d{4}))?$", clean_cmd, re.IGNORECASE)
-        # Check in-LINE command: "改密碼 0000 1234", "修改密碼 0000 1234", "改pin 0000 1234"
-        m_change_pin = re.match(r"^(?:改密碼|修改密碼|變更密碼|改pin|修改pin)\s+(\d{4})\s+(\d{4})$", clean_cmd, re.IGNORECASE)
-        # Check in-LINE command: e.g. "切換 小明 1234", "切換 小明"
-        m_switch = re.match(r"^(?:切換|switch)\s+([^\s]+)(?:\s+(\d{4}))?$", clean_cmd, re.IGNORECASE)
-        # Check in-LINE command: "新增 小王 300 1234" or "新增玩家 小王 300 1234"
-        m_add = re.match(r"^(?:新增玩家|建立玩家|新增|建立|create)\s+([^\s]+)(?:\s+(\d+(?:\.\d+)?))?(?:\s+(\d{4}))?$", clean_cmd, re.IGNORECASE)
-        # Check in-LINE command: "預算 500" or "修改預算 500"
-        m_cap = re.match(r"^(?:修改預算|預算|限額)\s+(\d+(?:\.\d+)?)$", clean_cmd, re.IGNORECASE)
-
-        is_profile_query = any(k in cmd_lower for k in [
-            "個人設定", "profile", "玩家", "個人池", "網頁", "決策台",
-            "註冊", "帳號", "網址", "連結", "手機版", "設定", "修改",
-            "忘記密碼", "忘記pin", "忘記", "登入", "login"
-        ])
-
-        if not (m_bind or m_unbind or m_change_pin or m_switch or m_add or m_cap or is_profile_query):
+        """Expose only a main-system link and the authenticated binding approval flow."""
+        clean_cmd = str(user_text or "").strip()
+        lower = clean_cmd.lower()
+        bind_match = re.fullmatch(r"(?:綁定請求|bind request)\s+(.{1,64})", clean_cmd, re.IGNORECASE)
+        sensitive_cmd = re.match(
+            r"^(?:綁定|bind|登入|login|解綁|解除綁定|unbind|改密碼|修改密碼|變更密碼|改pin|修改pin|切換|switch|新增玩家|建立玩家|新增|建立|create|修改預算|預算|限額)\b",
+            clean_cmd,
+            re.IGNORECASE,
+        )
+        is_profile_query = any(key in lower for key in ("個人設定", "profile", "帳號", "網頁", "決策台", "手機版", "忘記密碼", "忘記pin", "登入"))
+        if not bind_match and not sensitive_cmd and not is_profile_query:
             return None
 
-        # This help response is independent of profile data. Keep it available
-        # even when the configured SQLite storage is temporarily unreachable.
-        if any(k in cmd_lower for k in ["忘記密碼", "忘記pin", "忘記碼", "忘記"]):
+        if sensitive_cmd and not bind_match:
+            return "帳號、PIN、預算與解綁操作請在 Sportslottery 主系統完成；LINE 不會接收或顯示 PIN、密碼或其他帳務資料。"
+
+        if bind_match:
+            result = self.request_line_binding(bind_match.group(1), line_user_id)
+            if not result.get("success"):
+                reasons = {
+                    "PROFILE_NAME_REQUIRED": "請以「綁定請求 玩家名稱」提出綁定申請。",
+                    "PROFILE_NOT_FOUND": "找不到此 Profile；請先在主系統確認帳號名稱。",
+                    "LINE_ALREADY_BOUND": "此 LINE 帳號已綁定其他 Profile；請先登入原 Profile 在主系統解除。",
+                    "PROFILE_SERVICE_UNAVAILABLE": "Profile 服務暫時無法使用，請稍後再試。",
+                    "TOO_MANY_PENDING_REQUESTS": "此 Profile 暫有多筆待確認申請，請先於主系統處理後再試。",
+                }
+                return reasons.get(result.get("reason"), "目前無法建立綁定申請，請在主系統確認帳號狀態。")
+            if result.get("already_bound"):
+                return f"此 LINE 已綁定【{result.get('profile_name', '目前 Profile')}】。如需解除或更換，請在主系統個人設定操作。"
+            repeated = "（此為先前尚未處理的申請）" if result.get("already_pending") else ""
             return (
-                "💬 【忘記密碼 / PIN 碼】\n"
-                "===========================\n"
-                "忘記密碼請聯絡管理員 Archie！\n\n"
-                "💡 系統預設初始 PIN 碼為 0000。\n"
-                "若您先前已綁定 LINE 帳號，亦可直接傳送指令：\n"
-                "「改密碼 <舊PIN> <新4位數PIN>」"
+                f"已建立【{result.get('profile_name', 'Profile')}】LINE 綁定申請{repeated}，有效 10 分鐘。\n"
+                f"確認碼：{result.get('confirmation_code', '未提供')}。請登入同一 Profile 的 Sportslottery 主系統，核對相同確認碼後再核准。"
             )
 
+        url = system_deep_link(self._runtime_system_url(), "profile")
+        if url:
+            return f"Sportslottery 個人設定與完整帳號管理：{url}\n未登入時請依主系統登入流程驗證。"
+        return "目前未設定可用的正式 HTTPS 主系統網址。請稍後重試，或使用已部署的 Sportslottery HTTPS 網址登入。"
+
+    def _get_wallet_status_text(self, wallet_mgr: Optional[Any] = None, line_user_id: Optional[str] = None) -> str:
+        """Return a bound Profile's wallet summary; never fall back to the default Profile."""
         try:
-            import urllib.parse
-            from core.profile_manager import ProfileManager
-            pm = ProfileManager()
-            profs = pm.list_profiles()
+            return self._get_line_wallet_snapshot(line_user_id)["text"]
+        except Exception as exc:
+            logger.error("Error reading bound LINE wallet: %s", exc)
+            return "Wallet 服務暫時無法讀取，請稍後在主系統查看。"
 
-            # If this LINE user has bound a profile, prioritize that profile
-            bound_profile = pm.get_profile_by_line_user_id(line_user_id) if line_user_id else None
-            cur = bound_profile or (profs[0] if profs else {"name": "主帳號", "weekly_play_cap": 200.0, "pin_code": "0000", "id": "default"})
+    def _get_line_wallet_snapshot(self, line_user_id: Optional[str]) -> Dict[str, Any]:
+        """Read wallet and recent tickets for exactly the Profile bound to this LINE user."""
+        from server import service_registry
 
-            # Command 1: Bind LINE user to Profile
-            if m_bind:
-                target_name = m_bind.group(1).strip()
-                target_pin = m_bind.group(2) or "0000"
-                matched = next((p for p in profs if p["name"].lower() == target_name.lower()), None)
-                if not matched:
-                    names = "、".join([p["name"] for p in profs])
-                    return f"❌ 找不到玩家「{target_name}」。目前已建立的玩家有：{names}\n\n💡 若要建立新玩家，請輸入：新增 {target_name} 200 0000"
-                if not line_user_id:
-                    return f"❌ 無法取得您的 LINE 身分識別，無法執行綁定。"
-                try:
-                    pm.bind_line_user(matched["id"], line_user_id=line_user_id, current_pin=target_pin)
-                    return (
-                        f"🎉 【LINE 帳號綁定成功】！\n"
-                        f"===========================\n"
-                        f"• 綁定玩家：【{matched['name']}】\n"
-                        f"• 每週娛樂限額：NT$ {matched['weekly_play_cap']:.0f}\n\n"
-                        f"日後您在此 LINE 對話中查詢「查戰績」、「餘額」或開啟網頁，系統皆會自動對應【{matched['name']}】的專屬資金池！"
-                    )
-                except Exception as exc:
-                    return f"❌ 綁定失敗：{exc}"
-
-            # Command 2: Unbind LINE user
-            if m_unbind:
-                if not bound_profile:
-                    return "ℹ️ 您目前尚未綁定任何玩家 Profile。"
-                target_pin = m_unbind.group(1) or bound_profile.get("pin_code", "0000")
-                try:
-                    pm.unbind_line_user(bound_profile["id"], current_pin=target_pin)
-                    return f"✅ 已成功解除此 LINE 帳號與玩家【{bound_profile['name']}】的綁定。"
-                except Exception as exc:
-                    return f"❌ 解綁失敗：{exc}"
-
-            # Command 3: Change PIN code directly via LINE
-            if m_change_pin:
-                old_pin = m_change_pin.group(1)
-                new_pin = m_change_pin.group(2)
-                try:
-                    updated = pm.update_profile(cur["id"], current_pin=old_pin, new_pin_code=new_pin)
-                    return (
-                        f"✅ 【PIN 碼修改成功】！\n"
-                        f"玩家【{updated['name']}】的 4 位數 PIN 碼已成功更新為：{updated['pin_code']}。\n"
-                        f"請妥善保管您的新密碼，登入網頁版時請輸入新 PIN 碼！"
-                    )
-                except Exception as exc:
-                    return f"❌ 修改密碼失敗：{exc}"
-
-            if m_switch:
-                target_name = m_switch.group(1).strip()
-                target_pin = m_switch.group(2) or "0000"
-                matched = next((p for p in profs if p["name"].lower() == target_name.lower()), None)
-                if not matched:
-                    names = "、".join([p["name"] for p in profs])
-                    return f"❌ 找不到玩家「{target_name}」。目前已建立的玩家有：{names}\n\n💡 若要新增玩家，請輸入：新增 {target_name} 200 0000"
-                if matched.get("pin_code") and matched["pin_code"] != "0000":
-                    if target_pin != matched["pin_code"]:
-                        return f"🔒 玩家「{target_name}」受 PIN 碼保護。請輸入：切換 {target_name} <4位PIN碼>"
-                return (
-                    f"✅ 【切換成功】當前操作玩家：【{matched['name']}】！\n"
-                    f"• 每週娛樂限額：NT$ {matched['weekly_play_cap']:.0f}\n"
-                    f"• 資金池與戰績現已對應至該玩家專屬紀錄。"
-                )
-
-            if m_add:
-                new_name = m_add.group(1).strip()
-                new_cap = float(m_add.group(2)) if m_add.group(2) else 200.0
-                new_pin = m_add.group(3) or "0000"
-                try:
-                    created = pm.create_profile(name=new_name, weekly_play_cap=new_cap, pin_code=new_pin)
-                    # If this LINE user isn't bound, optionally auto-bind them
-                    if line_user_id and not bound_profile:
-                        pm.bind_line_user(created["id"], line_user_id=line_user_id, current_pin=new_pin)
-                        bind_note = "\n🔗 已自動將此 LINE 帳號與新玩家完成綁定！"
-                    else:
-                        bind_note = ""
-                    return (
-                        f"🎉 成功建立新玩家 Profile！\n"
-                        f"• 玩家名稱：【{created['name']}】\n"
-                        f"• 每週娛樂限額：NT$ {created['weekly_play_cap']:.0f}\n"
-                        f"• 安全 PIN 碼：{created['pin_code']}{bind_note}\n\n"
-                        f"已為其配置獨立娛樂錢包與投注紀錄。"
-                    )
-                except Exception as exc:
-                    return f"❌ 建立玩家失敗：{exc}"
-
-            if m_cap:
-                new_cap = float(m_cap.group(1))
-                try:
-                    updated = pm.update_profile(cur["id"], current_pin=cur.get("pin_code", "0000"), new_weekly_play_cap=new_cap)
-                    return (
-                        f"✅ 【{updated['name']}】每週娛樂預算已更新為：NT$ {updated['weekly_play_cap']:.0f}！\n"
-                        f"（每週一自動重置額度）"
-                    )
-                except Exception as exc:
-                    return f"❌ 更新預算失敗：{exc}"
-
-            # Resolve public HTTPS URL and local network URL (Port 8000)
-            runtime_file = ROOT_DIR / "data" / "line_bot_runtime.json"
-            public_url = load_active_runtime(runtime_file).get("tunnel_url")
-
-            lan_ip = "127.0.0.1"
+        profile = self._get_bound_profile(line_user_id)
+        if not profile:
+            return {
+                "text": "此 LINE 尚未綁定 Profile，無法顯示私人 Wallet 或注單。請在 LINE 輸入「綁定請求 玩家名稱」，再於登入主系統的個人設定核准。",
+                "profile": None,
+                "status": None,
+                "tickets": [],
+            }
+        profile_id = str(profile["id"])
+        status = service_registry.get_wallet(profile_id=profile_id).get_status()
+        all_tickets = service_registry.get_betting_service(profile_id=profile_id).list_tickets(limit=50, profile_id=profile_id)
+        settled_tickets = [ticket for ticket in all_tickets if str(ticket.get("status") or "").upper() in {"WON", "LOST", "VOID"}][:2]
+        open_tickets = [ticket for ticket in all_tickets if str(ticket.get("status") or "").upper() == "OPEN"][:1]
+        tickets = settled_tickets + open_tickets
+        status["profile_id"] = profile_id
+        lines = [
+            f"💰 【{profile.get('name', 'Profile')}｜資產戰績】",
+            f"本週可用 NT$ {float(status.get('weekly_wallet_balance') or 0):,.0f}｜已記錄注金 NT$ {float(status.get('weekly_staked') or 0):,.0f}",
+            f"獲利保留池 NT$ {float(status.get('prize_pool') or 0):,.0f}｜歷史淨利 NT$ {float(status.get('lifetime_net_profit') or 0):+,.0f}",
+            "以下為 Sportslottery 本站記錄，不代表台灣運彩官方投注或派彩。",
+        ]
+        for ticket in tickets[:3]:
             try:
-                import socket
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                lan_ip = s.getsockname()[0]
-                s.close()
-            except Exception:
-                pass
+                stake = f"NT$ {float(ticket.get('stake') or 0):,.0f}"
+            except (TypeError, ValueError, OverflowError):
+                stake = "金額未提供"
+            line = f"本站注單｜{ticket.get('sports_summary') or ticket.get('parlay_name') or '串關'}｜{ticket.get('status') or '狀態未知'}｜注金 {stake}"
+            if str(ticket.get("status") or "").upper() in {"WON", "LOST", "VOID"}:
+                try:
+                    line += f"｜本站派彩 NT$ {float(ticket.get('actual_payout') or 0):,.0f}"
+                except (TypeError, ValueError, OverflowError):
+                    pass
+                settled_at = ticket.get("settled_at") or ticket.get("updated_at")
+                if settled_at:
+                    line += f"｜本站結算時間 {settled_at}"
+            lines.append(line)
+        if not tickets:
+            lines.append("目前沒有近期本站注單記錄。")
+        return {"text": "\n".join(lines), "profile": profile, "status": status, "tickets": tickets}
 
-            profs_str = "、".join([p["name"] for p in profs])
-            user_param = f"?user={urllib.parse.quote(cur['name'])}" if cur.get("name") else ""
-            
-            web_parts = []
-            if public_url:
-                web_parts.append(
-                    f"🌐 【手機公網決策台】（出門在外 4G/5G 隨時開）：\n"
-                    f"👉 {public_url}{user_param}"
-                )
-            if lan_ip and lan_ip != "127.0.0.1":
-                web_parts.append(
-                    f"📶 【家用 Wi-Fi 內網連線】：\n"
-                    f"👉 http://{lan_ip}:8000{user_param}"
-                )
-            web_parts.append("💡 進入網頁後，輸入 4 位數 PIN 碼（預設 0000）即可登入；新朋友亦可點選「快速註冊」1秒免信箱直接開通！")
-            web_section = "\n" + "\n\n".join(web_parts) + "\n"
-
-            bind_status_str = f"（已綁定此 LINE）" if bound_profile else "（未綁定，可傳送「綁定 <名字> <PIN碼>」連動）"
-
-            return (
-                "👤 【玩家 Profile 與獨立資金池】\n"
-                "===========================\n"
-                f"• 當前操作玩家：【{cur['name']}】{bind_status_str}\n"
-                f"• 每週娛樂限額：NT$ {cur['weekly_play_cap']:.0f}\n"
-                f"• 現有玩家名單：{profs_str}\n"
-                f"• 安全防護：4 位數 PIN 碼保護中\n"
-                f"{web_section}\n"
-                "🔒 本系統支援多玩家獨立池子：\n"
-                "每位玩家各自記錄每週預算、中獎保留池與下注戰績，帳目互不干擾！\n\n"
-                "💬 【LINE 快捷指令說明】：\n"
-                "•「綁定 <名字> <PIN>」➔ 將此 LINE 帳號綁定至玩家\n"
-                "•「改密碼 <舊PIN> <新PIN>」➔ 直接在 LINE 修改密碼\n"
-                "•「新增 <名字> <金額> <PIN>」➔ 建立新帳號\n"
-                "•「預算 <金額>」➔ 調整目前玩家每週額度\n"
-                "•「查戰績」➔ 查看目前玩家本週結算與中獎池"
-            )
-        except Exception as exc:
-            logger.error("Error in profile handling: %s", exc)
-            return f"Profile 讀取異常：{exc}"
-
-    def _get_wallet_status_text(self, wallet_mgr: Optional[Any] = None) -> str:
-        """Format wallet and financial discipline report."""
+    def _get_radar_snapshot(self) -> Optional[Dict[str, Any]]:
+        """Use the same service objects and payload fields as the React Radar API."""
         try:
-            if not wallet_mgr:
-                from core.wallet import WeeklyWalletManager
-                wallet_mgr = WeeklyWalletManager()
-            status = wallet_mgr.get_status()
-            return (
-                "💰 【瘋狗流資金與戰績總覽】\n"
-                "===========================\n"
-                f"• 本週可玩餘額：NT$ {status['weekly_wallet_balance']:.2f}\n"
-                f"• 本週已下注額：NT$ {status['weekly_staked']:.2f}\n"
-                f"• 🔒 保留儲備池：NT$ {status['prize_pool']:.2f}\n"
-                f"• 歷史累計淨利：NT$ {status.get('lifetime_net_profit', 0.0):+,.2f}\n"
-                f"• 累計下注金額：NT$ {status.get('lifetime_staked', 0.0):,.2f}\n"
-                f"• 累計實收派彩：NT$ {status.get('lifetime_gross_payout', 0.0):,.2f}\n"
-                "===========================\n"
-                "嚴守每週 NT$200 風控紀律，獲利全數入庫！🐕"
-            )
-        except Exception as exc:
-            logger.error("Error reading wallet: %s", exc)
-            return f"錢包數據讀取異常：{exc}"
-
-    def _get_radar_status_text(self) -> str:
-        """Format active league radar status."""
-        try:
-            from core.season_radar import SeasonRadar
-            from integrations.odds.playsport_taiwan_odds import PlaysportOddsAdapter
+            from server import service_registry
             from core.scraper import ALLIANCE_MAP
-            radar = SeasonRadar()
-            adapter = PlaysportOddsAdapter()
+            adapter, _, _, radar, _, _, _, _ = service_registry.get_services()
             legs = adapter.get_taiwan_legs(list(ALLIANCE_MAP))
             summary = radar.get_radar_summary(taiwan_legs=legs)
-            active = [r for r in summary if r.get("status") == "GREEN" or r.get("taiwan_market_count", 0) > 0]
-            if active:
-                lines = [
-                    "☀️ 【今日運彩賽季開盤雷達】",
-                    "===========================",
+            source_status = adapter.get_source_status()
+            observed_values = [
+                str(item.get("observed_at"))
+                for item in source_status.values()
+                if isinstance(item, dict) and item.get("observed_at")
+            ] if isinstance(source_status, dict) else []
+            if not observed_values:
+                observed_values = [
+                    str(getattr(leg, "odds_scraped_at", ""))
+                    for leg in legs
+                    if getattr(leg, "odds_scraped_at", None)
                 ]
-                for r in active:
-                    lines.append(f"🟢 {r.get('icon', '⚽')} {r.get('name')}：{r.get('taiwan_market_count', 0)} 場開盤")
-                lines.append("===========================")
-                lines.append("您可以直接點選【智慧串關】或傳送「20倍」開始組單！")
-                return "\n".join(lines)
-            return "☀️ 今日各聯賽盤口目前多處於交界或休兵時段，稍後開盤將自動更新！"
+            parsed_observed = []
+            for value in observed_values:
+                try:
+                    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    if parsed.tzinfo is not None:
+                        parsed_observed.append(parsed.astimezone(timezone.utc))
+                except (TypeError, ValueError, OverflowError):
+                    continue
+            as_of = max(parsed_observed).isoformat() if parsed_observed else "來源時間未提供"
+            return {
+                "radar": summary,
+                "total_legs": len(legs),
+                "source_status": self._summarize_source_status(source_status),
+                "as_of": as_of,
+            }
         except Exception as exc:
             logger.error("Error reading radar: %s", exc)
-            return f"賽季雷達讀取異常：{exc}"
+            return None
 
-    def _get_hedging_status_text(self) -> str:
-        """Format current hedging/arbitrage status for active open tickets."""
+    def _get_radar_status_text(self) -> str:
+        snapshot = self._get_radar_snapshot()
+        if not snapshot:
+            return "今日賽事服務暫時無法使用，請稍後在主系統重試。"
+        opened = [row for row in snapshot.get("radar", []) if int(row.get("taiwan_market_count") or 0) > 0]
+        lines = [f"☀️ 今日台彩開盤摘要｜資料時間：{snapshot.get('as_of')}", f"來源狀態：{snapshot.get('source_status')}"]
+        if not opened:
+            lines.append("目前沒有確認已開盤的場次。")
+        else:
+            lines.extend(f"{row.get('icon') or '•'} {row.get('name')}｜{row.get('taiwan_market_count', 0)} 場" for row in opened[:8])
+        return "\n".join(lines)
+
+    def _get_hedging_status_text(self, line_user_id: Optional[str] = None) -> str:
+        """Show only the bound Profile's open-ticket status and avoid assumed hedge prices."""
         try:
-            from core.ticket_recorder import TicketRecorder
-            from core.hedging import calculate_hedge
-            recorder = TicketRecorder()
-            open_tickets = recorder.list_tickets(status_filter="OPEN")
+            profile = self._get_bound_profile(line_user_id)
+            if not profile:
+                return "此 LINE 尚未綁定 Profile，不能讀取私人注單或聽牌狀態。請先完成主系統綁定核准。"
+            from server import service_registry
+            open_tickets = service_registry.get_betting_service(profile_id=str(profile["id"])).list_tickets(
+                status_filter="OPEN", limit=50, profile_id=str(profile["id"]),
+            )
             if not open_tickets:
-                return (
-                    "🛡️ 【對沖保本狀態查詢】\n"
-                    "---------------------------\n"
-                    "目前系統中暫無進行中的未結算注單。\n"
-                    "下注後系統會自動全程盯盤，一旦進入最後一關「聽牌」，會第一時間主動推播對沖方案給您！"
-                )
-
-            hedging_ready = []
-            for t in open_tickets:
-                legs = t.get("legs", [])
-                if len(legs) >= 2:
-                    pending_legs = [l for l in legs if l.get("outcome") in (None, "PENDING", "")]
-                    if len(pending_legs) == 1:
-                        hedging_ready.append((t, pending_legs[0]))
-
-            if hedging_ready:
-                t, pending = hedging_ready[0]
-                analysis = calculate_hedge(
-                    ticket_stake=float(t.get("stake", 0.0)),
-                    potential_payout=float(t.get("potential_payout", 0.0)),
-                    opposing_odds=1.75,
-                    opposing_selection="反向盤口",
-                )
-                return (
-                    "🔔 【恭喜聽牌！即時對沖方案】\n"
-                    "===========================\n"
-                    f"🎫 串關：{t.get('sports_summary', '運彩高倍串關')}\n"
-                    f"🎯 潛在派彩：NT$ {float(t.get('potential_payout', 0.0)):,.2f}\n"
-                    f"⏳ 最後決戰：[{pending.get('league')}] {pending.get('away_team')} vs {pending.get('home_team')}\n"
-                    f"手持關卡：【{pending.get('selection')}】\n\n"
-                    "🛡️ 建議對沖策略：\n"
-                    f"• ① 保本對沖：反買 NT$ {analysis['breakeven_stake']:.0f} ➔ 0 虧損\n"
-                    f"• ② 絕對鎖利：反買 NT$ {analysis['guaranteed_stake']:.0f} ➔ 保底淨賺 NT$ {analysis['guaranteed_profit']:,.2f}！"
-                )
-
+                return f"【{profile.get('name', 'Profile')}】目前沒有狀態為 OPEN 的本站注單。\n來源：Sportslottery 本站 Ticket 記錄。"
             return (
-                f"🛡️ 【對沖監控中】\n"
-                "---------------------------\n"
-                f"目前共有 {len(open_tickets)} 張進行中的未結算注單。\n"
-                "目前尚未達到最後一關聽牌條件，系統正密切監控賽事結果中！"
+                f"【{profile.get('name', 'Profile')}｜聽牌／對沖提醒】\n"
+                f"目前有 {len(open_tickets)} 筆本站 OPEN 注單。\n"
+                "尚未取得可信即時對向盤口，因此此處不估算鎖利或保本注金。請在主系統核對注單與最新盤口。"
             )
         except Exception as exc:
             logger.error("Error reading hedging: %s", exc)
-            return f"對沖狀態查詢異常：{exc}"
+            return "聽牌／對沖狀態暫時無法讀取，請稍後在主系統查看。"

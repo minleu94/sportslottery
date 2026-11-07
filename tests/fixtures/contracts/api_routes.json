@@ -23,6 +23,25 @@
   "/api/legs": [
     "GET"
   ],
+  "/api/line/binding": [
+    "DELETE"
+  ],
+  "/api/line/binding-requests": [
+    "GET"
+  ],
+  "/api/line/binding-requests/{request_id}/approve": [
+    "POST"
+  ],
+  "/api/line/binding-requests/{request_id}/reject": [
+    "POST"
+  ],
+  "/api/line/preferences": [
+    "GET",
+    "PUT"
+  ],
+  "/api/line/status": [
+    "GET"
+  ],
   "/api/market/benchmark": [
     "GET"
   ],

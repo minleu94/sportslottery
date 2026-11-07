@@ -123,6 +123,22 @@ def test_multi_user_wallet_and_prize_pool_isolation(tmp_path):
     assert len(rec_default.list_tickets(profile_id="all")) == 1
 
 
+def test_authenticated_line_binding_never_moves_identity_between_profiles(tmp_path):
+    pm = ProfileManager(db_path=tmp_path / "line_binding.sqlite3")
+    p_a = pm.create_profile(name="LINE 玩家甲", pin_code="1234")
+    p_b = pm.create_profile(name="LINE 玩家乙", pin_code="5678")
+
+    bound = pm.bind_line_user_from_authenticated_session(p_a["id"], "U-LINE-TEST")
+    assert bound["line_user_id"] == "U-LINE-TEST"
+    with pytest.raises(ValueError, match="已綁定其他 Profile"):
+        pm.bind_line_user_from_authenticated_session(p_b["id"], "U-LINE-TEST")
+    assert pm.get_profile_by_line_user_id("U-LINE-TEST")["id"] == p_a["id"]
+    assert pm.get_profile(p_b["id"])["line_user_id"] is None
+
+    assert pm.unbind_line_user_from_authenticated_session(p_a["id"]) is True
+    assert pm.get_profile_by_line_user_id("U-LINE-TEST") is None
+
+
 def test_get_profile_by_name_and_verify_login(tmp_path):
     db = tmp_path / "test_profiles.sqlite3"
     pm = ProfileManager(db_path=db)

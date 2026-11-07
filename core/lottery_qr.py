@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Taiwan Sports Lottery QR Code & Betting Slip Generator (台灣運彩免劃單出票條碼引擎).
+"""Experimental Sportslottery QR payload and manual ticket detail helpers.
 
-Generates standard digital betting slips and QR codes for physical lottery kiosks:
-1. Encodes event IDs, market codes, selections, odds, parlay sizes, and stakes.
-2. Generates in-memory Base64 PNG QR Code images for direct display in Streamlit / Mobile PWA.
-3. Provides a clean kiosk clerk cheat-sheet (賽事編號 / 玩法 / 選擇 / 注金) for fast manual ticketing.
+The local ``SPORTSLOTTERY_LOCAL`` payload is not an official Taiwan Sports
+Lottery encoding. No kiosk acceptance or direct-ticket compatibility has been
+verified. Production UI surfaces manual ticket details only and links users to
+the official betting page for current prices and submission.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ MARKET_CODES: Dict[str, str] = {
     "單雙": "OE",
     "單節不讓分": "1Q_SU",
 }
+OFFICIAL_TAIWAN_LOTTERY_QR_SUPPORTED = False
 
 
 def build_lottery_slip_payload(
@@ -33,7 +34,7 @@ def build_lottery_slip_payload(
     parlay_name: str = "",
     round_robin_spec: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build standardized Taiwan Sports Lottery ticket payload."""
+    """Build a local experimental payload and manual ticket details."""
     formatted_legs = []
     for leg in legs:
         mkt = str(leg.get("market") or "")
@@ -50,14 +51,13 @@ def build_lottery_slip_payload(
             "odds": float(leg.get("taiwan_odds") or leg.get("odds") or 1.0),
         })
 
-    # Compact ticket string for kiosk optical scanners
-    # Format: TSL|STAKE|TYPE|E1:MKT:SEL/E2:MKT:SEL
+    # This is only a Sportslottery-local QR payload, not a Taiwan Lottery protocol.
     leg_tokens = [f"{l['event_id']}:{l['market_code']}:{l['selection']}" for l in formatted_legs]
     ticket_type = round_robin_spec if round_robin_spec else f"{len(legs)}P1"
-    compact_code = f"TSL3|{int(total_stake)}|{ticket_type}|{'/'.join(leg_tokens)}"
+    compact_code = f"SPORTSLOTTERY_LOCAL|{int(total_stake)}|{ticket_type}|{'/'.join(leg_tokens)}"
 
     return {
-        "format": "TSL_3.0_SLIP",
+        "format": "SPORTSLOTTERY_LOCAL_EXPERIMENTAL",
         "ticket_type": ticket_type,
         "parlay_name": parlay_name or f"{len(legs)} 串 1",
         "total_stake": total_stake,

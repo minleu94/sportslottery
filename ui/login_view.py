@@ -142,7 +142,7 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
             show_pin_hint = st.button("💡 PIN 說明", use_container_width=True, key="login_hint_btn")
 
         if show_forgot_pin:
-            st.info("💬 **忘記密碼？**\n\n忘記密碼請聯絡管理員 **Archie**！\n\n*(若您先前已綁定 LINE 機器人，亦可直接於 LINE 傳送「改密碼 舊PIN 新PIN」進行線上重設)*")
+            st.info("💬 **忘記密碼？**\n\n請使用主系統既有的管理員重設流程。LINE 不會接收或修改 PIN、密碼。")
 
         if show_pin_hint:
             st.info(
@@ -173,13 +173,9 @@ def render_login_gate(profile_mgr: ProfileManager) -> Optional[Dict[str, Any]]:
                     else:
                         st.error(f"❌ {msg}（忘記密碼請聯絡管理員 Archie）")
 
-        with st.expander("📲 如何透過 LINE 官方帳號免密碼直接查詢？", expanded=False):
+        with st.expander("📲 如何安全綁定 LINE 快捷助手？", expanded=False):
             st.markdown(
-                """
-                若您平時習慣使用 LINE，可直接在「瘋狗流」LINE 對話框傳送：  
-                `綁定 <玩家名稱> <PIN碼>`（例如：`綁定 Archie 0000`）  
-                完成一次性綁定後，在 LINE 輸入「`今日推薦`」、「`餘額`」、「`查戰績`」即可直接調用您的專屬資金空間！
-                """
+                "在 LINE 私人對話輸入 `綁定請求 Profile 名稱`，再登入主系統個人設定核對相同確認碼並核准。只核准你剛才親自發起的申請；私人 Wallet 僅對應已綁定 Profile，LINE 不會要求 PIN 或密碼。"
             )
 
     # -------------------------------------------------------------

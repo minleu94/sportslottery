@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Taiwan Sports Lottery Round Robin (過關組合 / 輪串) Engine.
+"""Taiwan Sports Lottery Round Robin payout scenario calculator.
 
 Computes official Taiwan Sports Lottery combination bets (3串4, 4串5, 4串11, 5串16, 5串26, 6串22, etc.),
-generates sub-parlay combinations, and evaluates resilience / breakeven analysis
-(e.g., "倒 1 關還能拿回多少錢？是否保本？").
+generates sub-parlay combinations, and estimates payout scenarios using the
+provided odds and stake. Results are not official acceptance or payout records.
 """
 
 from __future__ import annotations
@@ -23,22 +23,22 @@ ROUND_ROBIN_SPECS: Dict[int, Dict[str, Dict[str, Any]]] = {
     },
     4: {
         "4_4": {"sub_sizes": [3], "count": 4, "label": "4 串 4 (3 關共 4 注)", "desc": "包含 4 注 3 關組合"},
-        "4_5": {"sub_sizes": [3, 4], "count": 5, "label": "4 串 5 (3關+4關, 共 5 注 - 經典防倒保本)", "desc": "包含 4 注 3 關 + 1 注 4 關 (最熱門防倒 1 關組合)"},
+        "4_5": {"sub_sizes": [3, 4], "count": 5, "label": "4 串 5 (3關+4關, 共 5 注 - 倒 1 關情境)", "desc": "包含 4 注 3 關 + 1 注 4 關；依目前假設賠率試算倒 1 關情境"},
         "4_6": {"sub_sizes": [2], "count": 6, "label": "4 串 6 (2 關共 6 注)", "desc": "包含 6 注 2 關組合"},
-        "4_11": {"sub_sizes": [2, 3, 4], "count": 11, "label": "4 串 11 (2關+3關+4關, 共 11 注 - 雙層避險)", "desc": "包含 6 注 2 關 + 4 注 3 關 + 1 注 4 關 (倒 2 關仍有機會保本)"},
+        "4_11": {"sub_sizes": [2, 3, 4], "count": 11, "label": "4 串 11 (2關+3關+4關, 共 11 注 - 倒 2 關情境)", "desc": "包含 6 注 2 關 + 4 注 3 關 + 1 注 4 關；依目前假設賠率試算倒 2 關情境"},
         "4_15": {"sub_sizes": [1, 2, 3, 4], "count": 15, "label": "4 串 15 (含單場共 15 注)", "desc": "全覆蓋：4 注單場 + 6 注 2 關 + 4 注 3 關 + 1 注 4 關"},
     },
     5: {
         "5_5": {"sub_sizes": [4], "count": 5, "label": "5 串 5 (4 關共 5 注)", "desc": "包含 5 注 4 關組合"},
-        "5_6": {"sub_sizes": [4, 5], "count": 6, "label": "5 串 6 (4關+5關, 共 6 注 - 5關防倒首選)", "desc": "包含 5 注 4 關 + 1 注 5 關"},
+        "5_6": {"sub_sizes": [4, 5], "count": 6, "label": "5 串 6 (4關+5關, 共 6 注 - 倒 1 關情境)", "desc": "包含 5 注 4 關 + 1 注 5 關"},
         "5_10": {"sub_sizes": [2], "count": 10, "label": "5 串 10 (2 關共 10 注)", "desc": "包含 10 注 2 關組合"},
         "5_16": {"sub_sizes": [3, 4, 5], "count": 16, "label": "5 串 16 (3關+4關+5關, 共 16 注)", "desc": "包含 10 注 3 關 + 5 注 4 關 + 1 注 5 關"},
         "5_20": {"sub_sizes": [2, 3], "count": 20, "label": "5 串 20 (2關+3關, 共 20 注)", "desc": "包含 10 注 2 關 + 10 注 3 關"},
-        "5_26": {"sub_sizes": [2, 3, 4, 5], "count": 26, "label": "5 串 26 (2關至5關, 共 26 注 - 終極防空護盾)", "desc": "包含 10 注 2 關 + 10 注 3 關 + 5 注 4 關 + 1 注 5 關"},
+        "5_26": {"sub_sizes": [2, 3, 4, 5], "count": 26, "label": "5 串 26 (2關至5關, 共 26 注)", "desc": "包含 10 注 2 關 + 10 注 3 關 + 5 注 4 關 + 1 注 5 關"},
     },
     6: {
         "6_6": {"sub_sizes": [5], "count": 6, "label": "6 串 6 (5 關共 6 注)", "desc": "包含 6 注 5 關組合"},
-        "6_7": {"sub_sizes": [5, 6], "count": 7, "label": "6 串 7 (5關+6關, 共 7 注 - 6關防倒首選)", "desc": "包含 6 注 5 關 + 1 注 6 關"},
+        "6_7": {"sub_sizes": [5, 6], "count": 7, "label": "6 串 7 (5關+6關, 共 7 注 - 倒 1 關情境)", "desc": "包含 6 注 5 關 + 1 注 6 關"},
         "6_15": {"sub_sizes": [2], "count": 15, "label": "6 串 15 (2 關共 15 注)", "desc": "包含 15 注 2 關組合"},
         "6_20": {"sub_sizes": [3], "count": 20, "label": "6 串 20 (3 關共 20 注)", "desc": "包含 20 注 3 關組合"},
         "6_22": {"sub_sizes": [4, 5, 6], "count": 22, "label": "6 串 22 (4關+5關+6關, 共 22 注)", "desc": "包含 15 注 4 關 + 6 注 5 關 + 1 注 6 關"},
@@ -140,20 +140,23 @@ class RoundRobinEngine:
         # Resilience Grade Assignment
         if min_1_miss >= total_stake:
             grade = "SHIELD_PROFIT"
-            grade_badge = "🟢 完美防倒 (倒 1 關保證保本且獲利！)"
-            grade_desc = f"極佳容錯！即使倒了最高賠率那關，最少仍可拿回 NT$ {min_1_miss:,.2f} (淨賺 +NT$ {min_profit_1_miss:,.2f})"
+            grade_badge = "🟢 倒 1 關情境試算為非負"
+            grade_desc = (
+                f"依目前假設賠率，倒 1 關最低淨額試算為 +NT$ {min_profit_1_miss:,.2f}；"
+                "實際派彩可能不同，不代表保證獲利。"
+            )
         elif avg_1_miss >= total_stake:
             grade = "SHIELD_COVER"
-            grade_badge = "🟡 穩健避險 (倒 1 關平均回本)"
-            grade_desc = f"良好避險！倒 1 關平均可拿回 NT$ {avg_1_miss:,.2f}，收回大部或全部本金"
+            grade_badge = "🟡 倒 1 關平均派彩試算"
+            grade_desc = f"依目前假設賠率，倒 1 關平均派彩估計為 NT$ {avg_1_miss:,.2f}；實際結果可能不同。"
         elif min_1_miss >= total_stake * 0.70:
             grade = "SHIELD_DEFENSE"
-            grade_badge = "🟡 減震回本 (倒 1 關收回 70%+ 本金)"
-            grade_desc = f"大幅降低全損風險！倒 1 關仍可保住 NT$ {min_1_miss:,.2f} ~ {max_1_miss:,.2f}"
+            grade_badge = "🟡 倒 1 關派彩試算"
+            grade_desc = f"依目前假設賠率，倒 1 關派彩估計為 NT$ {min_1_miss:,.2f} ~ {max_1_miss:,.2f}；實際結果可能不同。"
         else:
             grade = "HIGH_EXPLOSIVE"
             grade_badge = "🔴 爆發進攻型 (需全中獲取極大派彩)"
-            grade_desc = f"全中時派彩高達 NT$ {all_win_payout:,.2f} (ROI +{all_win_roi}%)；倒關回本比例較低"
+            grade_desc = f"依目前假設賠率，全中派彩估計為 NT$ {all_win_payout:,.2f} (ROI +{all_win_roi}%)；倒關情境派彩較低。"
 
         return {
             "num_legs": num_legs,
@@ -176,7 +179,7 @@ class RoundRobinEngine:
                 "max_payout": max_1_miss,
                 "avg_payout": avg_1_miss,
                 "min_profit": min_profit_1_miss,
-                "is_guaranteed_breakeven": min_1_miss >= total_stake,
+                "is_nonnegative_under_assumed_odds": min_1_miss >= total_stake,
                 "scenarios": payouts_1_miss,
             },
             "two_miss": {

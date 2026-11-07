@@ -1105,8 +1105,8 @@ elif active_tab == NAV_PARLAY:
                 # -------------------------------------------------------------
                 num_legs = len(item["legs"])
                 if num_legs >= 3:
-                    with st.expander(f"🛡️ 過關組合（輪串）防倒保本計算器 (Round Robin 容錯避險)", expanded=False):
-                        st.caption("痛點解方：全串（例如 4 串 1）只要倒 1 關就全損；「過關組合」將多個子串關拆單組合，支援「倒 1 關保本獲利」甚至「倒 2 關避險」！")
+                    with st.expander(f"🛡️ 過關組合（輪串）情境試算 (Round Robin)", expanded=False):
+                        st.caption("將多個子串關拆單，依目前顯示賠率比較全過、倒 1 關與倒 2 關的派彩情境。結果不代表官方投注受理、價格可成交或實際派彩；下單前請重新核對玩法與賠率。")
                         combos_dict = RoundRobinEngine.get_supported_combinations(num_legs)
                         combo_keys = list(combos_dict.keys())
 
@@ -1153,8 +1153,8 @@ elif active_tab == NAV_PARLAY:
                                             <div style='font-size:0.75rem; color:#86efac;'>淨賺 +NT$ {rr_sim['all_win']['profit']:,.2f} (ROI +{rr_sim['all_win']['roi_pct']}%)</div>
                                         </div>
                                         <div style='background:#0f172a; padding:8px 12px; border-radius:6px; flex:1; min-width:130px;'>
-                                            <div style='font-size:0.78rem; color:#94a3b8;'>🛡️ 倒 1 關保底派彩</div>
-                                            <div style='font-size:1.1rem; font-weight:bold; color:{"#4ade80" if rr_sim["one_miss"]["is_guaranteed_breakeven"] else "#facc15"};'>NT$ {rr_sim['one_miss']['min_payout']:,.2f} ~ {rr_sim['one_miss']['max_payout']:,.2f}</div>
+                                            <div style='font-size:0.78rem; color:#94a3b8;'>🛡️ 倒 1 關情境試算</div>
+                                            <div style='font-size:1.1rem; font-weight:bold; color:{"#4ade80" if rr_sim["one_miss"]["is_nonnegative_under_assumed_odds"] else "#facc15"};'>NT$ {rr_sim['one_miss']['min_payout']:,.2f} ~ {rr_sim['one_miss']['max_payout']:,.2f}</div>
                                             <div style='font-size:0.75rem; color:#cbd5e1;'>倒最硬關卡淨利: {rr_sim['one_miss']['min_profit']:+,.2f}</div>
                                         </div>
                                         <div style='background:#0f172a; padding:8px 12px; border-radius:6px; flex:1; min-width:130px;'>
@@ -1178,7 +1178,7 @@ elif active_tab == NAV_PARLAY:
                                         "存活注數": f"{sc['surviving_count']} 注",
                                         "可拿回派彩": f"NT$ {sc['payout']:,.2f}",
                                         "結算損益": f"NT$ {m_prof:+,.2f} {p_color}",
-                                        "是否保本": "✅ 保本獲利" if m_prof >= 0 else "⚠️ 部分虧損",
+                                            "目前試算損益": "✅ 非負" if m_prof >= 0 else "⚠️ 負值",
                                     })
                                 st.table(miss_rows)
 
@@ -1242,31 +1242,26 @@ elif active_tab == NAV_PARLAY:
                     )
                     st.markdown(f"<div style='font-size:0.86rem; color:#bbb; margin-top:3px;'>{kelly_note}</div>", unsafe_allow_html=True)
 
-                    with st.expander("📲 實體彩券行免劃單出票 QR Code (Taiwan Lottery Bet Slip)", expanded=False):
-                        from core.lottery_qr import build_lottery_slip_payload, generate_qr_code_data_url
+                    with st.expander("📋 投注單明細（人工核對用）", expanded=False):
+                        from core.lottery_qr import build_lottery_slip_payload
                         slip_payload = build_lottery_slip_payload(item["legs"], total_stake=stake_per_bet, parlay_name=item.get("parlay_name", ""))
-                        qr_data_url = generate_qr_code_data_url(slip_payload["compact_code"])
-                        col_qr1, col_qr2 = st.columns([1, 2])
-                        with col_qr1:
-                            st.markdown(f"<div style='text-align:center;'><img src='{html_text(qr_data_url)}' style='width:150px; height:150px; border-radius:8px; border:2px solid #ff4b4b; background:#fff; padding:4px;'><br><span style='font-size:0.8rem; color:#aaa;'>門市店員掃碼出單</span></div>", unsafe_allow_html=True)
-                        with col_qr2:
-                            st.markdown("**📋 彩券行店員出票對照清單：**")
-                            for l in slip_payload["legs"]:
-                                st.markdown(
-                                    f"<div>• 賽事編號 <strong>#{html_text(l['event_id'])}</strong> "
-                                    f"[{html_text(l['league'])}] ➔ <code>{html_text(l['market'])}</code> "
-                                    f"| 選擇：<code>{html_text(l['selection'])}</code> "
-                                    f"(賠率 {float(l['odds']):.2f})</div>",
-                                    unsafe_allow_html=True,
-                                )
-                            st.caption(f"組合型式：{slip_payload['parlay_name']} | 建議注金：NT$ {stake_per_bet:.0f}")
-                            if line_notifier.is_configured():
-                                if st.button("📲 一鍵推播 QR 投注單至手機 LINE", key=f"push_line_qr_{item_key}"):
-                                    push_res = line_notifier.notify_ticket_qr(item, stake=stake_per_bet)
-                                    if push_res.get("success"):
-                                        st.success("✅ 投注單 QR Code 與明細已成功送達您的手機 LINE！請在手機查收！")
-                                    else:
-                                        st.error(f"❌ 推播失敗：{push_res.get('message')}")
+                        st.warning("本站尚未驗證台灣運彩官方 QR 編碼或實體機台相容性。以下內容只供人工核對，不能直接出票。")
+                        st.markdown("**賽事選號明細**")
+                        for l in slip_payload["legs"]:
+                            st.markdown(
+                                f"• 賽事編號 **#{html_text(l['event_id'])}** [{html_text(l['league'])}] · "
+                                f"{html_text(l['match'])} · {html_text(l['market'])} · {html_text(l['selection'])} "
+                                f"({float(l['odds']):.2f})"
+                            )
+                        st.caption(f"組合型式：{slip_payload['parlay_name']} | 注金參考：NT$ {stake_per_bet:.0f}")
+                        st.markdown("[開啟台灣運彩官方投注頁](https://www.sportslottery.com.tw/sportsbook/daily-coupons)")
+                        if active_profile.get("line_user_id") and line_notifier.is_configured():
+                            if st.button("📲 推播投注單明細至已綁定 LINE", key=f"push_line_slip_{item_key}"):
+                                push_res = line_notifier.notify_ticket_qr(item, stake=stake_per_bet, user_id=active_profile["line_user_id"])
+                                if push_res.get("success"):
+                                    st.success("本站投注單明細已推播；請在官方投注頁核對最新資料。")
+                                else:
+                                    st.error(f"推播失敗：{push_res.get('message')}")
                 with col_bet_m:
                     placed_odds_input = st.number_input(
                         "實際下注賠率 (Placed Odds)",
@@ -1407,21 +1402,7 @@ elif active_tab == NAV_WALLET:
                 type="password",
                 help="前往 LINE Developers Console > Messaging API > 最下方 Issue 取得",
             )
-            line_user = st.text_input(
-                "Your User ID (接收對象 ID)",
-                value=str(line_notifier.config.get("user_id") or ""),
-                help="前往 LINE Developers Console > Basic settings > Your user ID (格式如 U123456...)",
-            )
-            
-            ev_cfg = line_notifier.config.get("notify_events", {})
-            st.markdown("##### 🛎️ 推播事件開關：")
-            c_ev1, c_ev2 = st.columns(2)
-            with c_ev1:
-                ev_steam = st.checkbox("📉 賠率跳水警報 (大戶熱錢)", value=bool(ev_cfg.get("steam_drop", True)))
-                ev_hedging = st.checkbox("🔔 串關聽牌對衝提示", value=bool(ev_cfg.get("hedging_alert", True)))
-            with c_ev2:
-                ev_settle = st.checkbox("🎉 自動對獎中獎入庫", value=bool(ev_cfg.get("ticket_settlement", True)))
-                ev_radar = st.checkbox("☀️ 每日開盤賽季雷達簡報", value=bool(ev_cfg.get("morning_radar", True)))
+            st.caption("推播收件者必須綁定既有 Profile。各玩家通知偏好請在 React 主系統「個人設定」分別管理。賠率變動不代表資金流向。")
                 
             c_btns1, c_btns2 = st.columns(2)
             with c_btns1:
@@ -1429,31 +1410,23 @@ elif active_tab == NAV_WALLET:
                     line_notifier.save_config({
                         "enabled": line_enabled,
                         "channel_access_token": line_token.strip(),
-                        "user_id": line_user.strip(),
-                        "notify_events": {
-                            "steam_drop": ev_steam,
-                            "ticket_settlement": ev_settle,
-                            "hedging_alert": ev_hedging,
-                            "morning_radar": ev_radar,
-                        },
                     })
                     st.success("LINE Bot 設定已成功儲存！")
                     st.rerun()
             with c_btns2:
-                if st.button("🧪 發送測試訊息至手機", use_container_width=True, disabled=not line_token or not line_user):
+                if st.button("🧪 測試目前已綁定 Profile", use_container_width=True, disabled=not line_token or not active_profile.get("line_user_id")):
                     test_notifier = LineNotifier()
                     test_notifier.config["channel_access_token"] = line_token.strip()
-                    test_notifier.config["user_id"] = line_user.strip()
-                    test_res = test_notifier.test_connection()
+                    test_notifier.config["enabled"] = True
+                    test_res = test_notifier.test_connection(user_id=str(active_profile["line_user_id"]))
                     if test_res.get("success"):
-                        st.balloons()
-                        st.success("✅ 測試訊息已成功送達您的 LINE！請查看手機！")
+                        st.success("測試通知已傳送到目前登入且已綁定的 LINE 帳號。")
                     else:
                         st.error(f"❌ 發送失敗：[{test_res.get('status_code')}] {test_res.get('message')}")
         with col_ln2:
             st.markdown("#### 🤖 LINE 雙向對話與指令互動設定")
             st.markdown("""
-            若希望直接在 LINE 傳送「**20倍**」、「**查戰績**」、「**功能表**」並立即收到 AI 推薦：
+            LINE 可查詢主系統候選與開盤摘要。私人 Wallet 需先綁定 Profile；個別通知偏好由玩家在主系統設定。
 
             **步驟 1：關閉 LINE 預設罐頭回應**
             前往 **[LINE Official Account Manager](https://manager.line.biz/)**：
@@ -1462,13 +1435,13 @@ elif active_tab == NAV_WALLET:
             - **自動回應訊息**：設為「**停用 (關閉)**」*(防止官方傳送「無法個別回覆」罐頭訊息)*
             - **Webhook**：切換為「**啟用**」
 
-            **步驟 2：啟動本機互動服務通道**
-            - 雙擊執行專案目錄下的 **`start_line_bot.bat`**
-            - 視窗會自動啟動並為您配發公開 Webhook 網址（例如 `https://xxxx.trycloudflare.com/callback`）
+            **步驟 2：使用 Sportslottery 統一 Runtime**
+            - LINE Webhook 與 React API 共用同一個服務程序與 Runtime URL。
+            - 請使用目前 Runtime 顯示的 Webhook URL，不要手動填入暫時網址。
 
             **步驟 3：綁定 Webhook 網址**
             - 前往 **[LINE Developers Console](https://developers.line.biz/)** ➔ 進入 **Messaging API** 頁籤
-            - 在 **Webhook settings** 貼上該網址，開啟 **Use Webhook**，點擊 **Verify** 顯示 Success 即可！
+            - 在 **Webhook settings** 貼上目前 Runtime 的 `/callback` 網址，開啟 **Use Webhook**，以 Verify 確認設定。
             """)
 
     st.markdown("### 🎫 注單歷史清單")
@@ -1539,9 +1512,9 @@ elif active_tab == NAV_WALLET:
 
                     is_hedging_ready = bool(t_eval["pending_count"] == 1 and t_eval["won_count"] >= 1 and t_eval["lost_count"] == 0)
                     if is_hedging_ready:
-                        st.warning("🔔 **【聽牌狀態達成！】** 本注單大部分關卡已順利過關，僅剩最後 1 關！強烈建議參考下方「聽牌反買對衝計算機」，輕鬆鎖定保本或絕對利潤！")
+                        st.warning("🔔 **【本站聽牌條件達成】** 本注單僅剩最後 1 關待賽。系統沒有可信即時對向盤口；下方只接受人工核對的假設賠率進行情境試算，不保證可成交、打平或獲利。")
 
-                    with st.expander(f"🛡️ 聽牌反買對衝保本計算機 (Hedge Calculator){' 🔥 (聽牌推薦)' if is_hedging_ready else ''}", expanded=is_hedging_ready):
+                    with st.expander(f"🛡️ 聽牌對向盤口情境試算 (Hedge Calculator){' · 僅供參考' if is_hedging_ready else ''}", expanded=is_hedging_ready):
                         pending_legs = [l for l, le in zip(ot["legs"], t_eval["legs_eval"]) if le["status"] in ("PENDING", "IN_PROGRESS", "NOT_STARTED")]
                         target_leg = pending_legs[0] if pending_legs else ot["legs"][-1]
                         col_h1, col_h2 = st.columns(2)
@@ -1554,10 +1527,10 @@ elif active_tab == NAV_WALLET:
                                 key=f"h_sel_{ot['id']}",
                             )
                             hedge_odds_input = st.number_input(
-                                "反向盤口即時賠率",
-                                min_value=1.05,
+                                "假設可取得的對向賠率（請人工核對）",
+                                min_value=1.0,
                                 max_value=20.0,
-                                value=1.75,
+                                value=1.0,
                                 step=0.05,
                                 key=f"h_odds_{ot['id']}",
                             )
@@ -1574,16 +1547,17 @@ elif active_tab == NAV_WALLET:
                                 st.markdown(
                                     f"""
                                     <div style='background:rgba(74,222,128,0.08); border:1px solid #2e7d32; border-radius:8px; padding:8px 12px; margin-bottom:8px;'>
-                                        <b>🛡️ ① 保本對衝策略 (0 風險打平)</b><br>
+                                        <b>🛡️ ① 條件式損益平衡試算</b><br>
                                         • 反買下注：<b>NT$ {bk['stake']:,.0f}</b><br>
-                                        • 倒此關仍保本：<b>{bk['profit_if_hedge_wins']:+.2f} 元 (0 虧損)</b><br>
+                                        • 若假設價格可成交、反向選項獲勝：<b>{bk['profit_if_hedge_wins']:+.2f} 元</b><br>
                                         • 全過仍淨賺：<b>+{bk['profit_if_parlay_wins']:,.2f} 元</b>
                                     </div>
                                     <div style='background:rgba(245,124,0,0.08); border:1px solid #f57c00; border-radius:8px; padding:8px 12px;'>
-                                        <b>💰 ② 100% 絕對鎖利策略 (對等穩賺)</b><br>
+                                        <b>💰 ② 假設價格下兩結果淨額相同試算</b><br>
                                         • 反買下注：<b>NT$ {gq['stake']:,.0f}</b><br>
-                                        • 無論最後一場輸贏，<b>100% 絕對保底淨賺約 NT$ {gq['guaranteed_profit']:,.2f}</b>！
+                                        • 假設對向價格可成交時，兩結果較低淨額約 NT$ {gq['guaranteed_profit']:,.2f}。
                                     </div>
+                                    <div style='font-size:0.78rem; color:#94a3b8; margin-top:8px;'>這是本站計算器依輸入賠率做的條件式試算。未取得可信即時對向盤口；成交、賠率變動、限額與結算規則都可能改變結果，不保證不虧或獲利。</div>
                                     """,
                                     unsafe_allow_html=True,
                                 )
@@ -1598,11 +1572,11 @@ elif active_tab == NAV_WALLET:
                                         }
                                         res_push = line_notifier.notify_hedging_alert(ot, target_leg, h_alert)
                                         if res_push.get("success"):
-                                            st.success("✅ 聽牌對衝策略已成功推播至您的 LINE！")
+                                            st.success("聽牌情境試算已推播至已設定的 LINE 收件者。請注意通知中的來源與風險說明。")
                                         else:
                                             st.error(f"推播失敗：{res_push.get('message')}")
                             except Exception as h_exc:
-                                st.warning(f"對衝試算提示：{h_exc}")
+                                st.info(f"請先輸入已由使用者核對、可取得的對向賠率（大於 1.0）再試算。{h_exc}")
 
                     c_act1, c_act2, c_act3 = st.columns(3)
                     with c_act1:

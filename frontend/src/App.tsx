@@ -19,9 +19,20 @@ import type { Profile, WalletStatus } from "@/types"
 function MainLayout() {
   const [activeTab, setActiveTab] = useState<NavTab>("radar")
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null)
+  const [deepLinkMismatch, setDeepLinkMismatch] = useState(false)
   const [walletStatus, setWalletStatus] = useState<WalletStatus | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  function applyDeepLink(profile: Profile) {
+    const params = new URLSearchParams(window.location.search)
+    const requestedTab = params.get("tab") as NavTab | null
+    const validTabs: NavTab[] = ["radar", "parlay", "wallet", "profile", "research"]
+    const targetProfileId = params.get("profile_id")
+    const mismatch = Boolean(targetProfileId && targetProfileId !== profile.id)
+    setDeepLinkMismatch(mismatch)
+    if (requestedTab && validTabs.includes(requestedTab)) setActiveTab(requestedTab)
+  }
 
   // Drawer & Modals state
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -49,6 +60,7 @@ function MainLayout() {
         // /auth/me refreshes the HttpOnly cookie before the legacy local token is removed.
         api.setAuthToken(null)
         setCurrentProfile(meRes.profile)
+        applyDeepLink(meRes.profile)
         localStorage.setItem("auth_profile_id", meRes.profile.id)
         const wRes = await api.getWalletStatus(meRes.profile.id)
         setWalletStatus(wRes)
@@ -99,12 +111,14 @@ function MainLayout() {
 
   function handleProfileChange(newProfile: Profile) {
     setCurrentProfile(newProfile)
+    applyDeepLink(newProfile)
     localStorage.setItem("auth_profile_id", newProfile.id)
     refreshWallet(newProfile.id)
   }
 
   function handleLoginSuccess(profile: Profile) {
     setCurrentProfile(profile)
+    applyDeepLink(profile)
     localStorage.setItem("auth_profile_id", profile.id)
     refreshWallet(profile.id)
   }
@@ -158,26 +172,35 @@ function MainLayout() {
         {/* Tab Views */}
         <Suspense fallback={<div className="py-12 text-center text-slate-500">頁面載入中…</div>}>
         <div className="pt-0.5">
-          {activeTab === "radar" && <RadarView />}
-          {activeTab === "parlay" && (
+          {deepLinkMismatch ? (
+            <div role="status" className="max-w-xl mx-auto mt-8 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-5 text-sm text-amber-900 dark:text-amber-200">
+              <h2 className="font-semibold">這個 Wallet 連結屬於另一個 Profile</h2>
+              <p className="mt-2 text-xs leading-5">目前登入的帳號沒有該 Profile 的 Wallet 權限。請登出後使用正確帳號登入；不會切換帳號或顯示其他玩家的帳務。</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button onClick={() => { setDeepLinkMismatch(false); setActiveTab("profile") }} className="rounded-lg border border-amber-500/40 px-3 py-2 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">前往個人設定</button>
+                <button onClick={() => void handleLogout()} className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-medium hover:bg-white/70 dark:hover:bg-slate-900/50">登出並使用正確帳號登入</button>
+              </div>
+            </div>
+          ) : activeTab === "radar" && <RadarView />}
+          {!deepLinkMismatch && activeTab === "parlay" && (
             <ParlayView
               wallet={walletStatus}
               onWalletUpdate={setWalletStatus}
             />
           )}
-          {activeTab === "wallet" && (
+          {!deepLinkMismatch && activeTab === "wallet" && (
             <WalletView
               wallet={walletStatus}
               onWalletUpdate={setWalletStatus}
             />
           )}
-          {activeTab === "profile" && (
+          {!deepLinkMismatch && activeTab === "profile" && (
             <ProfileView
               currentProfile={currentProfile}
               onProfileChange={handleProfileChange}
             />
           )}
-          {activeTab === "research" && <ResearchView />}
+          {!deepLinkMismatch && activeTab === "research" && <ResearchView />}
         </div>
         </Suspense>
       </main>
