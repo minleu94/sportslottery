@@ -13,6 +13,7 @@ from core.line_flex import (
     TAIWAN_LOTTERY_URL,
     build_menu_flex,
     build_parlay_flex,
+    build_radar_flex,
     system_deep_link,
 )
 from core.line_notifier import LineNotifier
@@ -125,6 +126,20 @@ def test_flex_menu_actions_and_text_alt_are_complete():
     assert len(actions) == 6
     assert all(item["type"] == "button" and item["action"]["type"] in {"message", "uri"} for item in actions)
     assert actions[-1]["action"]["uri"] == "https://sportslottery.example/app?tab=profile"
+    assert actions[-1]["style"] == "primary"
+    assert actions[-1]["color"] == "#1E3A8A"
+
+
+def test_radar_cta_uses_high_contrast_primary_button():
+    radar = build_radar_flex(
+        {"source_status": "fresh", "as_of": "2026-11-06T10:00:00Z", "radar": []},
+        system_url="https://sportslottery.example/app",
+    )
+    button = radar["contents"]["footer"]["contents"][0]
+    assert button["action"]["label"] == "開啟主系統賽事雷達"
+    assert button["style"] == "primary"
+    assert button["color"] == "#1E3A8A"
+    assert button["action"]["type"] == "uri"
 
 
 def test_line_search_uses_shared_react_search_request_and_tier_order(monkeypatch, tmp_path):

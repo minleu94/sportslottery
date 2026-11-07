@@ -14,6 +14,7 @@ from urllib.parse import urlencode, urlsplit, urlunsplit
 TAIWAN_LOTTERY_URL = "https://www.sportslottery.com.tw/sportsbook/daily-coupons"
 
 _GREEN = "#087F5B"
+_CTA_BLUE = "#1E3A8A"
 _INK = "#152238"
 _MUTED = "#64748B"
 _SURFACE = "#F4F7FA"
@@ -57,9 +58,11 @@ def _message_button(label: str, message: str, *, color: str = _GREEN) -> dict[st
     }
 
 
-def _uri_button(label: str, uri: str, *, color: str = _INK) -> dict[str, Any]:
+def _uri_button(label: str, uri: str) -> dict[str, Any]:
     return {
-        "type": "button", "style": "secondary", "color": color, "height": "md",
+        # LINE's primary button style uses a solid fill with a high-contrast
+        # white label. Keep URI CTAs consistent and legible across Flex cards.
+        "type": "button", "style": "primary", "color": _CTA_BLUE, "height": "md",
         "action": {"type": "uri", "label": label[:20], "uri": uri},
     }
 
