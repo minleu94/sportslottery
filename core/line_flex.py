@@ -156,6 +156,15 @@ def _parlay_probability_source(parlay: dict[str, Any]) -> str:
     return "混合來源組合估計；串關機率未驗證" if sources else "來源不足；不列為已驗證勝率"
 
 
+def _sport_icon(leg: dict[str, Any]) -> str:
+    from core.identity.league_mapping import normalize_league_and_sport
+
+    sport = str(leg.get("sport") or "").lower().strip()
+    if sport not in {"soccer", "basketball", "baseball", "football", "hockey", "tennis"}:
+        _, sport = normalize_league_and_sport(str(leg.get("league") or ""))
+    return {"soccer": "⚽", "basketball": "🏀", "baseball": "⚾", "football": "🏈", "hockey": "🏒", "tennis": "🎾"}.get(sport, "🎯")
+
+
 def _leg_rows(legs: list[dict[str, Any]]) -> list[str]:
     rows: list[str] = []
     for index, leg in enumerate(legs, 1):
@@ -178,7 +187,7 @@ def _leg_rows(legs: list[dict[str, Any]]) -> list[str]:
             freshness = f"{freshness} · {max(0, float(age)):.0f} 分鐘前" if age is not None else freshness
         except (TypeError, ValueError, OverflowError):
             pass
-        rows.append(f"{index}. [{league}] {away} vs {home} · #{event}\n{market}{line_text}｜{selection} @ {odds_text}\n資料：{freshness}")
+        rows.append(f"{index}. {_sport_icon(leg)} [{league}] {away} vs {home} · #{event}\n{market}{line_text}｜{selection} @ {odds_text}\n資料：{freshness}")
         evidence = leg.get("signal_evidence") if isinstance(leg.get("signal_evidence"), dict) else {}
         try:
             market_probability = float(evidence.get("market_fair_probability")) * 100
@@ -207,7 +216,7 @@ def _leg_rows(legs: list[dict[str, Any]]) -> list[str]:
     return rows
 
 
-def build_parlay_flex(parlay: dict[str, Any], *, system_url: str | None, banker: bool = False) -> dict[str, Any]:
+def build_parlay_flex(parlay: dict[str, Any], *, system_url: str | None, banker: bool = False, index: int = 0, count: int = 1, search_complete: bool = True) -> dict[str, Any]:
     legs = [leg if isinstance(leg, dict) else {} for leg in (parlay.get("legs") or [])]
     try:
         odds = float(parlay.get("total_odds_exact", parlay.get("total_odds", 0)) or 0)
@@ -245,6 +254,7 @@ def build_parlay_flex(parlay: dict[str, Any], *, system_url: str | None, banker:
     as_of = max(as_of_values) if as_of_values else "時間未提供"
     title = "Banker 穩健候選" if banker else "智慧串關候選"
     rows = [
+        f"目前第 {index + 1} / {count} 組",
         f"關數：{len(legs)} 關    倍率：{odds_label}",
         f"組合機率：{probability_label}（{probability_source}）",
         f"EV：{ev_label} · 狀態 {ev_status}",
@@ -253,9 +263,14 @@ def build_parlay_flex(parlay: dict[str, Any], *, system_url: str | None, banker:
         *_leg_rows(legs),
         "風險：機率與 EV 為估計值，會受盤口更新及關卡相關性影響；不代表已驗證命中率或獲利。",
     ]
+    if index + 1 >= count:
+        rows.append("本次搜尋沒有其他合格組合。" if search_complete else "本次搜尋尚未完成，可能還有其他組合。")
     target = parlay.get("target_odds") or parlay.get("total_odds")
     details_url = system_deep_link(system_url, "parlay", mode="banker" if banker else "target", target_odds=target, run_search="1")
-    footer = [_message_button("🎲 換一組", "換一組"), _message_button("🎯 調整倍率", "智慧串關")]
+    footer = []
+    if index + 1 < count:
+        footer.append(_message_button("🎲 換一組", "換一組"))
+    footer.append(_message_button("🎯 調整倍率", "智慧串關"))
     if details_url:
         footer.append(_uri_button("📊 查看完整分析", details_url))
     else:

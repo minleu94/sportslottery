@@ -196,6 +196,65 @@ def test_line_search_explains_when_shared_search_has_no_qualified_candidate(monk
     assert notifier.last_recommended_parlay is None
 
 
+def test_shortcuts_filter_sports_and_next_does_not_repeat(monkeypatch, tmp_path):
+    from server.routers import parlay as parlay_routes
+
+    def candidate(ident, sport, league):
+        return {"candidate_id": ident, "total_odds_exact": 15, "legs": [
+            {"event_id": ident, "sport": sport, "league": league, "away_team": "客隊", "home_team": "主隊", "market": "獨贏", "selection": "主勝", "taiwan_odds": 2}
+        ]}
+
+    nba1 = candidate("nba1", "basketball", "NBA")
+    nba2 = candidate("nba2", "basketball", "NBA")
+    soccer = candidate("soccer", "soccer", "EPL")
+    mixed = {"candidate_id": "mixed", "total_odds_exact": 15, "legs": nba1["legs"] + soccer["legs"]}
+    calls = []
+
+    def search(req):
+        calls.append(req)
+        return {"tiers": {"high_consensus": [nba1, mixed, soccer], "aggressive": [nba1, nba2], "moonshot": []}, "search_complete": True}
+
+    monkeypatch.setattr(parlay_routes, "_execute_parlay_search", search)
+    notifier = LineNotifier(config_path=tmp_path / "line.yaml")
+    first = notifier.handle_user_message_full("NBA 15倍", line_user_id="U-A")
+    assert calls[-1].alliances == ["3"]
+    assert "nba1" in repr(first["flex_message"]) and "🏀" in repr(first["flex_message"])
+    assert "soccer" not in repr(first["flex_message"])
+    second = notifier.handle_user_message_full("換一組", line_user_id="U-A")
+    assert "nba2" in repr(second["flex_message"])
+    assert "第 2 / 2 組" in repr(second["flex_message"])
+    assert "換一組" not in repr(second["flex_message"])
+    exhausted = notifier.handle_user_message_full("換一組", line_user_id="U-A")
+    assert exhausted["flex_message"] is None
+    assert "沒有其他合格組合" in exhausted["text"]
+
+    football = notifier.handle_user_message_full("足球 20倍", line_user_id="U-B")
+    assert calls[-1].alliances == ["4"]
+    assert "⚽" in repr(football["flex_message"])
+    assert "nba1" not in repr(football["flex_message"])
+    assert notifier._user_search_states["U-A"].last_recommended_parlay["candidate_id"] == "nba2"
+
+
+def test_search_failure_does_not_redisplay_previous_card(monkeypatch, tmp_path):
+    from server.routers import parlay as parlay_routes
+
+    notifier = LineNotifier(config_path=tmp_path / "line.yaml")
+    candidate = {"candidate_id": "first", "total_odds_exact": 15, "legs": [
+        {"event_id": "1", "sport": "basketball", "league": "NBA", "taiwan_odds": 2}
+    ]}
+    monkeypatch.setattr(parlay_routes, "_execute_parlay_search", lambda req: {"tiers": {"high_consensus": [candidate]}, "search_complete": False})
+    first = notifier.handle_user_message_full("NBA 15倍", line_user_id="U-A")
+    assert first["flex_message"] is not None
+    exhausted = notifier.handle_user_message_full("換一組", line_user_id="U-A")
+    assert exhausted["flex_message"] is None and "搜尋尚未完成" in exhausted["text"]
+
+    def fail(_req):
+        raise RuntimeError("offline")
+    monkeypatch.setattr(parlay_routes, "_execute_parlay_search", fail)
+    failed = notifier.handle_user_message_full("NBA 15倍", line_user_id="U-A")
+    assert failed["flex_message"] is None and "搜尋暫時無法完成" in failed["text"]
+
+
 def test_parlay_flex_discloses_model_and_probability_sources():
     candidate = {
         "total_odds_exact": 12,

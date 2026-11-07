@@ -1212,6 +1212,8 @@ class LineNotifier:
                     sport_filter = "soccer"
                 elif any(w in cmd for w in ["棒球", "baseball"]):
                     sport_filter = "baseball"
+                elif re.search(r"\bnba\b", cmd):
+                    sport_filter = "nba"
                 elif any(w in cmd for w in ["籃球", "basketball"]):
                     sport_filter = "basketball"
                 elif any(w in cmd for w in ["美足", "football", "nfl"]):
@@ -1283,6 +1285,8 @@ class LineNotifier:
     ) -> Dict[str, Any]:
         search_state = search_state or self
         cmd = user_text.strip().lower()
+        is_next = any(k in cmd for k in ["換一組", "另一組", "換一張", "下一組", "換", "next", "reroll", "再一組"])
+        previous_candidate = search_state.last_recommended_parlay
 
         # 1. QR Code Request
         if any(cmd == q or q in cmd for q in ["qr", "產qr", "條碼", "投注單", "qrcode", "出票", "劃單"]):
@@ -1335,24 +1339,24 @@ class LineNotifier:
         elif any(k in cmd for k in ["個人設定", "profile", "手機版", "決策台"]):
             flex = build_menu_flex(self._runtime_system_url())
 
-        elif search_state.last_recommended_parlay and (
-            any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker", "換一組", "另一組", "換", "next", "reroll"])
+        elif search_state.last_recommended_parlay and (not is_next or search_state.last_recommended_parlay is not previous_candidate) and (
+            is_next or any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker"])
             or (("倍" in cmd or "x" in cmd or cmd.isdigit() or "串" in cmd) and re.search(r"\d", cmd))
         ):
             context = search_state.last_search_context or {}
             candidate = dict(search_state.last_recommended_parlay)
             candidate.setdefault("target_odds", context.get("target_mult"))
-            flex = build_parlay_flex(candidate, system_url=self._runtime_system_url(), banker=context.get("mode") == "banker")
+            flex = build_parlay_flex(candidate, system_url=self._runtime_system_url(), banker=context.get("mode") == "banker", index=search_state.last_candidate_index, count=len(search_state.last_parlay_candidates), search_complete=search_state.last_search_result.get("search_complete", True))
 
         # A. Multiplier Menu requested
         if any(cmd == k or k in cmd for k in ["智慧串關", "選倍率", "串關"]):
             quick_replies = self.multiplier_menu_quick_replies()
 
         # B. Parlay Search or Next Candidate triggered
-        elif any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker", "換一組", "另一組", "換", "next", "reroll"]) or (
+        elif is_next or any(k in cmd for k in ["高勝率", "保底", "穩健", "銀行家", "banker"]) or (
             ("倍" in cmd or "x" in cmd or cmd.isdigit() or "串" in cmd) and re.search(r"\d", cmd)
         ):
-            has_next = len(search_state.last_parlay_candidates) > 1
+            has_next = search_state.last_candidate_index + 1 < len(search_state.last_parlay_candidates)
             quick_replies = self.parlay_quick_replies(has_next=has_next)
 
         # C. Season Radar requested
@@ -1424,17 +1428,17 @@ class LineNotifier:
         available_legs: Optional[List[Any]] = None,
         search_state: Optional[Any] = None,
     ) -> str:
-        """Cycle to the next parlay candidate for the last searched target."""
+        """Show the next distinct candidate without silently repeating results."""
         search_state = search_state or self
         if not search_state.last_parlay_candidates:
-            context = search_state.last_search_context
-            target = context.get("target_mult", 20.0)
-            sport = "banker" if context.get("mode") == "banker" else context.get("sport_filter")
-            return self._search_parlay_for_bot(
-                target, parlay_engine, available_legs, sport_filter=sport, search_state=search_state,
-            )
+            return "目前沒有可切換的組合。請先選擇球種與目標倍率重新搜尋。"
 
-        search_state.last_candidate_index = (search_state.last_candidate_index + 1) % len(search_state.last_parlay_candidates)
+        if search_state.last_candidate_index + 1 >= len(search_state.last_parlay_candidates):
+            complete = (getattr(search_state, "last_search_result", {}) or {}).get("search_complete", True)
+            detail = "本次搜尋尚未完成，可能還有其他組合。" if not complete else "目前搜尋結果已看完，沒有其他合格組合。"
+            return f"{detail} 請調整倍率後重新搜尋。"
+
+        search_state.last_candidate_index += 1
         next_combo = search_state.last_parlay_candidates[search_state.last_candidate_index]
         search_state.last_recommended_parlay = next_combo
         return self._format_line_parlay(next_combo, search_state.last_search_context, search_state.last_candidate_index, len(search_state.last_parlay_candidates))
@@ -1449,6 +1453,10 @@ class LineNotifier:
     ) -> str:
         """Use the exact API search service and ranking that powers the React Parlay view."""
         search_state = search_state or self
+        search_state.last_search_result = {}
+        search_state.last_parlay_candidates = []
+        search_state.last_candidate_index = 0
+        search_state.last_recommended_parlay = None
         try:
             from core.scraper import ALLIANCE_MAP
             from server import service_registry
@@ -1457,9 +1465,11 @@ class LineNotifier:
 
             banker = bool(sport_filter == "banker")
             alliances = None
-            if sport_filter in {"soccer", "baseball", "basketball", "football"}:
-                alliance_ids = {"soccer": ["4"], "baseball": ["1", "2", "6", "9"], "basketball": ["3", "7"], "football": ["93"]}[sport_filter]
+            if sport_filter in {"soccer", "baseball", "basketball", "football", "nba"}:
+                alliance_ids = {"soccer": ["4"], "baseball": ["1", "2", "6", "9"], "basketball": ["3", "7"], "nba": ["3"], "football": ["93"]}[sport_filter]
                 alliances = [key for key in alliance_ids if key in ALLIANCE_MAP]
+                if not alliances:
+                    raise ValueError("Selected sport has no configured alliance")
             if banker:
                 req = ParlaySearchRequest(
                     min_odds=1.5, max_odds=6.0, target_odds=3.75, tolerance=0.20,
@@ -1476,6 +1486,9 @@ class LineNotifier:
                 )
                 context = {"mode": "target", "target_mult": float(target_mult), "sport_filter": sport_filter}
 
+            # A failed or busy search must never show a previous result as the new one.
+            search_state.last_search_context = context
+
             if not parlay_api._parlay_search_capacity.acquire(blocking=False):
                 return "主系統串關搜尋目前繁忙，請稍後再試。"
             slot_acquired = False
@@ -1491,8 +1504,17 @@ class LineNotifier:
             search_state.last_search_context = context
             search_state.last_search_result = result
             candidates = []
+            seen = set()
             for tier in ("high_consensus", "aggressive", "moonshot"):
-                candidates.extend(result.get("tiers", {}).get(tier, []))
+                for candidate in result.get("tiers", {}).get(tier, []):
+                    if sport_filter not in (None, "banker") and not self._matches_line_sport(candidate, sport_filter):
+                        continue
+                    key = candidate.get("candidate_id") or candidate.get("parlay_id")
+                    if key and key in seen:
+                        continue
+                    if key:
+                        seen.add(key)
+                    candidates.append(candidate)
             search_state.last_parlay_candidates = candidates
             search_state.last_candidate_index = 0
             if not candidates:
@@ -1507,7 +1529,8 @@ class LineNotifier:
                 if banker:
                     headline = "Banker 正式條件（1.5–6.0 倍、1–3 關）目前沒有合格候選。"
                 else:
-                    headline = f"目標 {float(target_mult):.1f} 倍目前沒有符合主系統資格的候選。"
+                    scope = {"nba": "NBA ", "soccer": "足球 ", "basketball": "籃球 ", "baseball": "棒球 ", "football": "美式足球 "}.get(sport_filter, "")
+                    headline = f"{scope}目標 {float(target_mult):.1f} 倍目前沒有符合主系統資格的候選。"
                 return f"{headline}\n資料狀態：{source}。搜尋完成：{bool(result.get('search_complete', True))}。" + (f"\n主要排除原因：{reason_summary}。" if reason_summary else "") + "\n未放寬條件湊單；可調整目標倍率後重新搜尋。"
 
             search_state.last_recommended_parlay = candidates[0]
@@ -1518,6 +1541,25 @@ class LineNotifier:
             search_state.last_recommended_parlay = None
             logger.exception("Unified LINE parlay search failed")
             return "搜尋暫時無法完成，請稍後重試；未返回未驗證的候選。"
+
+    @staticmethod
+    def _matches_line_sport(candidate: Dict[str, Any], requested: str) -> bool:
+        from core.identity.league_mapping import normalize_league_and_sport
+
+        legs = candidate.get("legs") or []
+        if not legs:
+            return False
+        for leg in legs:
+            if not isinstance(leg, dict):
+                return False
+            league, inferred_sport = normalize_league_and_sport(str(leg.get("league") or ""))
+            sport = str(leg.get("sport") or inferred_sport).lower().strip()
+            if requested == "nba":
+                if league != "NBA" or sport != "basketball":
+                    return False
+            elif sport != requested:
+                return False
+        return True
 
     @staticmethod
     def _format_line_parlay(candidate: Dict[str, Any], context: Dict[str, Any], index: int = 0, count: int = 1) -> str:
