@@ -178,7 +178,7 @@ export const ResearchView: React.FC = () => {
         ? `（抓取/快照 ${(durations.snapshot_and_fetch / 1000).toFixed(1)} 秒、結算 ${(durations.settlement_scan / 1000).toFixed(1)} 秒、驗證 ${(durations.forward_evaluation / 1000).toFixed(1)} 秒；總計 ${(durations.total / 1000).toFixed(1)} 秒）`
         : ""
       const hasQualifiedCandidates = (cycle.qualified_pending_candidate_count || 0) > 0
-      const cycleDetails = `台彩快照 ${cycle.taiwan_snapshots_logged || 0}、真實盤口 ${cycle.real_market_quote_count || 0}、成功對齊 ${cycle.real_matched_count || 0}、Synthetic ${cycle.synthetic_market_quote_count || 0}、待結算合格候選 ${cycle.qualified_pending_candidate_count || 0}、本次扣點 ${cycle.credits_consumed || 0}。`
+      const cycleDetails = `台彩快照 ${cycle.taiwan_snapshots_logged || 0}、國際盤報價筆數 ${cycle.real_market_quote_count || 0}、配對選項數 ${cycle.real_matched_count || 0}、配對賽事 ${cycle.real_matched_event_count || 0}/${cycle.unique_candidate_event_count || 0}、Synthetic ${cycle.synthetic_market_quote_count || 0}、待結算合格候選 ${cycle.qualified_pending_candidate_count || 0}、本次扣點 ${cycle.credits_consumed || 0}。`
       setFeedbackMsg({
         type: hasQualifiedCandidates ? "success" : "warning",
         text: hasQualifiedCandidates
@@ -453,7 +453,7 @@ export const ResearchView: React.FC = () => {
                 <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
                   {alignment.status === "UNKNOWN" || alignment.status === "NO_RECORDED_CYCLE"
                     ? "尚無配對週期資料"
-                    : `候選 ${alignment.valid_candidate_count ?? "未知"} · 對齊 ${alignment.real_matched_count ?? "未知"}`}
+                    : `候選選項 ${alignment.valid_candidate_count ?? "未知"} · 配對選項 ${alignment.real_matched_count ?? "未知"} · 配對賽事 ${alignment.real_matched_event_count ?? "未知"}/${alignment.unique_candidate_event_count ?? "未知"}`}
                 </div>
                 {rejectionEntries.length > 0 ? (
                   <details className="mt-1 text-xs text-slate-500">
@@ -581,8 +581,10 @@ export const ResearchView: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-2 border-t border-sky-500/10">
                 <div className="text-slate-600 dark:text-slate-300">台彩快照 <strong className="font-mono">{sched.last_cycle_summary.taiwan_snapshots_logged ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">有效候選 <strong className="font-mono">{sched.last_cycle_summary.valid_candidate_count ?? 0}</strong></div>
-                <div className="text-slate-600 dark:text-slate-300">真實盤口 <strong className="font-mono">{sched.last_cycle_summary.real_market_quote_count ?? 0}</strong></div>
-                <div className="text-slate-600 dark:text-slate-300">成功對齊 <strong className="font-mono">{sched.last_cycle_summary.real_matched_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">國際報價筆數 <strong className="font-mono">{sched.last_cycle_summary.real_market_quote_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">台彩候選賽事 <strong className="font-mono">{sched.last_cycle_summary.unique_candidate_event_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">配對選項數 <strong className="font-mono">{sched.last_cycle_summary.real_matched_count ?? 0}</strong></div>
+                <div className="text-slate-600 dark:text-slate-300">配對賽事／候選 <strong className="font-mono">{sched.last_cycle_summary.real_matched_event_count ?? 0}/{sched.last_cycle_summary.unique_candidate_event_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">完整市場 <strong className="font-mono">{sched.last_cycle_summary.complete_market_benchmark_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">符合指定 Sharp 來源規則 <strong className="font-mono">{sched.last_cycle_summary.sharp_qualified_count ?? 0}</strong></div>
                 <div className="text-slate-600 dark:text-slate-300">Synthetic <strong className="font-mono">{sched.last_cycle_summary.synthetic_market_quote_count ?? 0}</strong></div>

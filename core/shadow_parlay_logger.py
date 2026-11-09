@@ -33,7 +33,11 @@ from core.experiment_identity import build_experiment_identity
 from core.parlay_validation import freeze_candidate
 from core.research_paths import research_paths
 from core.persistence import append_jsonl, clear_jsonl_cache, file_lock, iter_jsonl, read_jsonl
-from core.research_sqlite import database_for_ledger, settle_parlays as settle_sqlite_parlays
+from core.research_sqlite import (
+    database_for_ledger,
+    get_parlay_records_for_window,
+    settle_parlays as settle_sqlite_parlays,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +132,10 @@ class ShadowParlayLogger:
         experiment_identity = build_experiment_identity(self._strategy_metadata)
         existing_by_tier = {}
         if run_window_id:
-            for existing in iter_jsonl(self.log_path):
+            existing_records = get_parlay_records_for_window(self.log_path, run_window_id, experiment_identity)
+            if existing_records is None:
+                existing_records = iter_jsonl(self.log_path)
+            for existing in existing_records:
                 existing_identity = existing.get("experiment_identity") or (existing.get("strategy_metadata") or {}).get("experiment_identity")
                 if (existing.get("run_window_id") == run_window_id
                         and existing_identity == experiment_identity):

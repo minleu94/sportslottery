@@ -310,6 +310,7 @@ export interface ForwardEvaluationSummary {
 export interface AlignmentSummary {
   status: string
   real_matched_count?: number
+  real_matched_event_count?: number
   valid_candidate_count?: number
   candidate_rejection_counts?: Record<string, number>
   rejection_counts?: Record<string, number>
@@ -320,8 +321,10 @@ export interface AlignmentSummary {
 export interface MarketCycleSummary {
   taiwan_snapshots_logged?: number
   valid_candidate_count?: number
+  unique_candidate_event_count?: number
   real_market_quote_count?: number
   real_matched_count?: number
+  real_matched_event_count?: number
   complete_market_benchmark_count?: number
   sharp_qualified_count?: number
   synthetic_market_quote_count?: number

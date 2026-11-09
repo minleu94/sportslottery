@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import sqlite3
 import threading
 import time
 from collections import Counter, defaultdict
@@ -28,6 +29,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 from core.forward_evaluation_engine import (
     ForwardEvaluationEngine,
     MIN_FORWARD_EVALUATION_SAMPLE,
+    QuantitativeMetrics,
     StrategyComparisonReport,
     _validated_market_probabilities,
 )
@@ -44,6 +46,13 @@ from core.market_provider_factory import (
     build_default_market_providers,
 )
 from core.persistence import iter_jsonl
+from core.research_sqlite import (
+    defer_parlay_candidates,
+    defer_predictions,
+    get_due_predictions,
+    research_index_counts,
+    research_indexes_ready,
+)
 from core.settlement_engine import SettlementEngine
 from core.signal_hub import SignalHub
 from core.snapshot_logger import PredictionSnapshotLogger, compute_prediction_payload_hash
@@ -66,6 +75,7 @@ logger = logging.getLogger(__name__)
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "data" / "research" / "forward_evaluation_summary.json"
 
 _summary_cache_payload: Optional[Dict[str, Any]] = None
+_summary_cache_key: Optional[str] = None
 _summary_cache_mtime: int = 0
 _summary_cache_time: float = 0
 _summary_cache_lock = threading.Lock()
@@ -80,6 +90,7 @@ def _alignment_summary_from_scheduler_status(scheduler_status: Optional[Dict[str
     return {
         "status": "REAL_QUOTES_MATCHED" if matched else "NO_REAL_QUOTES_MATCHED",
         "real_matched_count": matched,
+        "real_matched_event_count": latest_cycle.get("real_matched_event_count", 0),
         "taiwan_snapshots_logged": latest_cycle.get("taiwan_snapshots_logged", 0),
         "valid_candidate_count": latest_cycle.get("valid_candidate_count", 0),
         "unique_candidate_event_count": latest_cycle.get("unique_candidate_event_count", 0),
@@ -102,6 +113,8 @@ class MarketForwardPipeline:
     """End-to-end continuous market intelligence and prospective validation engine."""
 
     _MARKET_TO_API = TAIWAN_MARKET_TO_ODDS_API
+    FORWARD_EVALUATION_REFRESH_SECONDS = 24 * 60 * 60
+    SETTLEMENT_BATCH_SIZE = 500
 
     def __init__(
         self,
@@ -140,6 +153,9 @@ class MarketForwardPipeline:
         self.evaluation_engine = evaluation_engine or ForwardEvaluationEngine()
         self.summary_path = summary_path or SUMMARY_PATH
         self.scheduler_status_provider = scheduler_status_provider
+        self._evaluation_report_cache: Dict[str, Any] = {}
+        self._evaluation_report_cached_at = 0.0
+        self._evaluation_report_lock = threading.Lock()
         self.summary_path.parent.mkdir(parents=True, exist_ok=True)
 
     def resolve_target_leagues(self, leagues: Optional[List[str]] = None) -> List[str]:
@@ -610,6 +626,7 @@ class MarketForwardPipeline:
         total_unmatched = max(0, total_legs_processed - len(candidate_records))
         real_market_quote_count = synthetic_market_quote_count = 0
         real_matched_count = synthetic_matched_count = 0
+        real_matched_event_keys: set[str] = set()
         complete_market_benchmark_count = sharp_qualified_count = ev_count = 0
         qualified_pending_candidate_count = 0
         candidate_rejection_counts: Counter[str] = Counter()
@@ -631,6 +648,12 @@ class MarketForwardPipeline:
                     synthetic_matched_count += 1
                 else:
                     real_matched_count += 1
+                    matched_event_key = leg.canonical_event_id or canonical_market_event_id(
+                        leg.sport, leg.league, leg.event_id, leg.start_time_utc,
+                    )
+                    if not matched_event_key:
+                        matched_event_key = f"{leg.sport}:{leg.league}:{leg.event_id}"
+                    real_matched_event_keys.add(str(matched_event_key))
                     try:
                         benchmark = self._build_market_benchmark_evidence(
                             leg, cand, int_odds, taiwan_odds=float(leg.taiwan_odds),
@@ -705,6 +728,7 @@ class MarketForwardPipeline:
             "unique_candidate_event_count": len({(leg.sport, leg.league, str(leg.event_id)) for _, leg, _, _ in candidate_records}),
             "total_matched": total_matched,
             "real_matched_count": real_matched_count,
+            "real_matched_event_count": len(real_matched_event_keys),
             "synthetic_matched_count": synthetic_matched_count,
             "total_unmatched": total_unmatched,
             "complete_market_benchmark_count": complete_market_benchmark_count,
@@ -739,24 +763,53 @@ class MarketForwardPipeline:
         if current_time is None:
             raise ValueError("Settlement observation time must be timezone aware.")
 
-        unsettled_checked = 0
-        deferred_count = 0
-        missing_start_count = 0
-        due_snapshots: List[Dict[str, Any]] = []
         result_grace = 3 * 60 * 60
+        database_path = self.snapshot_logger.log_path.parent / "research.sqlite3"
+        if not research_indexes_ready(self.snapshot_logger.log_path):
+            return {
+                "status": "INDEX_MIGRATION_REQUIRED",
+                "unsettled_checked": 0,
+                "due_count": 0,
+                "settled_count": 0,
+                "unresolved_count": 0,
+                "deferred_count": 0,
+                "result_fetch_errors": {},
+                "timestamp_utc": current_time.isoformat(),
+            }
 
-        for snap in iter_jsonl(self.snapshot_logger.log_path):
-            if snap.get("is_settled"):
-                continue
-            unsettled_checked += 1
-            event_start = parse_aware_time(snap.get("event_start") or snap.get("start_time_utc"))
-            if event_start is None:
-                missing_start_count += 1
-                continue
-            if (current_time - event_start).total_seconds() <= result_grace:
-                deferred_count += 1
-                continue
-            due_snapshots.append(snap)
+        index_counts = research_index_counts(database_path)
+        unsettled_checked = int(index_counts.get("prediction_unsettled_count", 0))
+        due_snapshots = get_due_predictions(
+            self.snapshot_logger.log_path,
+            now_epoch=current_time.timestamp(),
+            limit=self.SETTLEMENT_BATCH_SIZE,
+            minimum_event_age_seconds=result_grace,
+        )
+        if due_snapshots is None:
+            return {
+                "status": "INDEX_MIGRATION_REQUIRED",
+                "unsettled_checked": unsettled_checked,
+                "due_count": 0,
+                "settled_count": 0,
+                "unresolved_count": 0,
+                "deferred_count": unsettled_checked,
+                "result_fetch_errors": {},
+                "timestamp_utc": current_time.isoformat(),
+            }
+
+        missing_start = [
+            snap for snap in due_snapshots
+            if parse_aware_time(snap.get("event_start") or snap.get("start_time_utc")) is None
+        ]
+        missing_start_count = len(missing_start)
+        if missing_start:
+            defer_predictions(
+                self.snapshot_logger.log_path,
+                [str(snap.get("snapshot_id")) for snap in missing_start if snap.get("snapshot_id")],
+                due_epoch=current_time.timestamp() + 30 * 24 * 60 * 60,
+            )
+        due_snapshots = [snap for snap in due_snapshots if snap not in missing_start]
+        deferred_count = max(0, unsettled_checked - len(due_snapshots) - missing_start_count)
 
         # Reuse the same provider coverage, identity matching, Taiwan settlement
         # rules, payload integrity check, and idempotent writes used by the full
@@ -780,13 +833,46 @@ class MarketForwardPipeline:
                 "deferred_observations": [],
             }
 
-        parlay_result = self.settlement_engine.settle_parlays_against_snapshots()
+        if due_snapshots:
+            result_errors = any(
+                info.get("fetch_status") == "FETCH_ERROR"
+                for info in (result.get("coverage") or {}).values()
+            )
+            retry_seconds = 15 * 60 if result_errors else 6 * 60 * 60
+            from core.research_sqlite import get_predictions_by_ids
+
+            refreshed = get_predictions_by_ids(
+                self.snapshot_logger.log_path,
+                [str(snap.get("snapshot_id")) for snap in due_snapshots if snap.get("snapshot_id")],
+            )
+            unresolved_ids = [
+                snapshot_id for snapshot_id, snap in refreshed.items()
+                if not snap.get("is_settled")
+            ]
+            defer_predictions(
+                self.snapshot_logger.log_path,
+                unresolved_ids,
+                due_epoch=current_time.timestamp() + retry_seconds,
+            )
+
+        parlay_result = self.settlement_engine.settle_parlays_against_snapshots(
+            candidate_limit=self.SETTLEMENT_BATCH_SIZE,
+            now=current_time,
+        )
+        deferred_parlay_ids = parlay_result.get("deferred_candidate_ids", [])
+        if deferred_parlay_ids:
+            defer_parlay_candidates(
+                self.snapshot_logger.log_path,
+                deferred_parlay_ids,
+                due_epoch=current_time.timestamp() + 6 * 60 * 60,
+            )
         fetch_errors = {
             league: list(info.get("errors") or [])
             for league, info in result.get("coverage", {}).items()
             if info.get("fetch_status") == "FETCH_ERROR"
         }
         return {
+            "status": result.get("status", "OK"),
             "unsettled_checked": unsettled_checked,
             "due_count": len(due_snapshots),
             "settled_count": int(result.get("settled", 0)),
@@ -993,21 +1079,91 @@ class MarketForwardPipeline:
     def generate_forward_evaluation_report(
         self,
         scope: str = "GLOBAL",
+        *,
+        force_refresh: bool = False,
     ) -> StrategyComparisonReport:
-        """Run 3-way evaluation on all verified eligible forward snapshots and persist summary."""
-        audit = self.audit_snapshots(iter_jsonl(self.snapshot_logger.log_path))
-        report = self.evaluation_engine.evaluate_cohort(audit["eligible_samples"], scope_name=scope)
+        """Run full-cohort evaluation at most daily unless explicitly refreshed."""
+        now = time.time()
+        if not force_refresh and self._evaluation_report_cache.get("evaluation_scope") == scope:
+            if now - self._evaluation_report_cached_at < self.FORWARD_EVALUATION_REFRESH_SECONDS:
+                return self._evaluation_report_cache["report"]
 
-        # Persist summary JSON
-        try:
-            self.summary_path.write_text(
-                json.dumps(report.to_dict(), indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
-        except Exception as exc:
-            logger.warning("Failed to save evaluation summary: %s", exc)
+        with self._evaluation_report_lock:
+            now = time.time()
+            if not force_refresh and self._evaluation_report_cache.get("evaluation_scope") == scope:
+                if now - self._evaluation_report_cached_at < self.FORWARD_EVALUATION_REFRESH_SECONDS:
+                    return self._evaluation_report_cache["report"]
+
+            # Reuse a recent persisted result after process restarts so the first
+            # scheduled cycle does not rescan and bootstrap the entire cohort.
+            if not force_refresh:
+                try:
+                    if self.summary_path.exists() and (
+                        now - self.summary_path.stat().st_mtime
+                    ) < self.FORWARD_EVALUATION_REFRESH_SECONDS:
+                        payload = json.loads(self.summary_path.read_text(encoding="utf-8"))
+                        report = self._report_from_dict(payload)
+                        if report.evaluation_scope == scope:
+                            self._evaluation_report_cache = {"evaluation_scope": scope, "report": report}
+                            self._evaluation_report_cached_at = now
+                            return report
+                except (OSError, ValueError, TypeError, KeyError):
+                    logger.debug("Could not use cached forward evaluation summary", exc_info=True)
+
+            audit = self.audit_snapshots(iter_jsonl(self.snapshot_logger.log_path))
+            report = self.evaluation_engine.evaluate_cohort(audit["eligible_samples"], scope_name=scope)
+
+            try:
+                self.summary_path.write_text(
+                    json.dumps(report.to_dict(), indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            except Exception as exc:
+                logger.warning("Failed to save evaluation summary: %s", exc)
+            self._evaluation_report_cache = {"evaluation_scope": scope, "report": report}
+            self._evaluation_report_cached_at = now
 
         return report
+
+    @staticmethod
+    def _report_from_dict(payload: Dict[str, Any]) -> StrategyComparisonReport:
+        def metrics(value: Optional[Dict[str, Any]]) -> Optional[QuantitativeMetrics]:
+            if value is None:
+                return None
+            fields = dict(value)
+            for key in ("roi_ci_95", "brier_ci_95", "simulated_roi_ci_95"):
+                if fields.get(key) is not None:
+                    fields[key] = tuple(fields[key])
+            return QuantitativeMetrics(**fields)
+
+        return StrategyComparisonReport(
+            evaluation_scope=payload["evaluation_scope"],
+            as_of_utc=payload["as_of_utc"],
+            sample_size=payload["sample_size"],
+            paired_sample_size=payload["paired_sample_size"],
+            taiwan_market_baseline=metrics(payload["taiwan_market_baseline"]),
+            international_sharp_benchmark=metrics(payload["international_sharp_benchmark"]),
+            active_model_strategy=metrics(payload["active_model_strategy"]),
+            delta_roi_vs_taiwan_base_pp=payload.get("delta_roi_vs_taiwan_base_pp"),
+            delta_roi_vs_sharp_benchmark_pp=payload.get("delta_roi_vs_sharp_benchmark_pp"),
+            delta_brier_vs_sharp_benchmark=payload.get("delta_brier_vs_sharp_benchmark"),
+            delta_brier_ci_95=tuple(payload["delta_brier_ci_95"]) if payload.get("delta_brier_ci_95") else None,
+            champion_source=payload["champion_source"],
+            acceptance_gate_qualified=bool(payload["acceptance_gate_qualified"]),
+            status=payload["status"],
+            shadow_mode_recommendation=payload["shadow_mode_recommendation"],
+            international_market_benchmark=metrics(payload.get("international_market_benchmark")),
+            market_paired_sample_size=payload.get("market_paired_sample_size", 0),
+            sharp_paired_sample_size=payload.get("sharp_paired_sample_size", 0),
+            delta_brier_vs_market_benchmark=payload.get("delta_brier_vs_market_benchmark"),
+            delta_brier_market_ci_95=(
+                tuple(payload["delta_brier_market_ci_95"])
+                if payload.get("delta_brier_market_ci_95") else None
+            ),
+            data_quality_status=payload.get("data_quality_status", "UNKNOWN"),
+            evaluation_protocol_status=payload.get("evaluation_protocol_status", "UNKNOWN"),
+            statistical_evidence_status=payload.get("statistical_evidence_status", "UNKNOWN"),
+        )
 
     def run_full_cycle(
         self,
@@ -1024,7 +1180,7 @@ class MarketForwardPipeline:
         settle_res = self.run_settlement_cycle()
         settlement_duration_ms = round((time.perf_counter() - stage_started) * 1000)
         stage_started = time.perf_counter()
-        eval_report = self.generate_forward_evaluation_report()
+        eval_report = self.generate_forward_evaluation_report(force_refresh=not automated)
         evaluation_duration_ms = round((time.perf_counter() - stage_started) * 1000)
 
         snapshot_cycle_status = (
@@ -1032,7 +1188,11 @@ class MarketForwardPipeline:
             if snap_res.get("qualified_pending_candidate_count", 0) > 0
             else "NO_QUALIFIED_REAL_MARKET_DATA"
         )
-        operation_status = "PARTIAL" if settle_res.get("result_fetch_errors") else "SUCCESS"
+        operation_status = (
+            "PARTIAL"
+            if settle_res.get("result_fetch_errors") or settle_res.get("status") == "INDEX_MIGRATION_REQUIRED"
+            else "SUCCESS"
+        )
 
         return {
             # The operation may complete successfully even when no real aligned
@@ -1053,7 +1213,7 @@ class MarketForwardPipeline:
 
     def get_research_status_summary(self) -> Dict[str, Any]:
         """Retrieve aggregated research metrics for the UI."""
-        global _summary_cache_payload, _summary_cache_mtime, _summary_cache_time
+        global _summary_cache_payload, _summary_cache_key, _summary_cache_mtime, _summary_cache_time
 
         mtime_ns = 0
         try:
@@ -1063,12 +1223,13 @@ class MarketForwardPipeline:
             pass
 
         now_ts = time.time()
+        cache_key = str(self.snapshot_logger.log_path.resolve())
         cached_blocks = None
         with _summary_cache_lock:
             if (
                 _summary_cache_payload is not None
-                and _summary_cache_mtime == mtime_ns
-                and (now_ts - _summary_cache_time) < 120.0
+                and _summary_cache_key == cache_key
+                and (now_ts - _summary_cache_time) < self.FORWARD_EVALUATION_REFRESH_SECONDS
             ):
                 cached_blocks = _summary_cache_payload
 
@@ -1114,8 +1275,27 @@ class MarketForwardPipeline:
             }
             with _summary_cache_lock:
                 _summary_cache_payload = cached_blocks
+                _summary_cache_key = cache_key
                 _summary_cache_mtime = mtime_ns
                 _summary_cache_time = now_ts
+
+        # Keep live ledger counts fresh with a small indexed count query while
+        # reusing the more expensive integrity audit and evaluation for the day.
+        try:
+            from core.research_sqlite import research_index_counts, research_indexes_ready
+
+            if research_indexes_ready(self.snapshot_logger.log_path):
+                counts = research_index_counts(self.snapshot_logger.log_path.parent / "research.sqlite3")
+                snapshot_summary = dict(cached_blocks["snapshots"])
+                snapshot_summary.update({
+                    "total_count": counts.get("prediction_indexed_count", snapshot_summary.get("total_count")),
+                    "pending_count": counts.get("prediction_unsettled_count", snapshot_summary.get("pending_count")),
+                })
+                if snapshot_summary.get("total_count") is not None and snapshot_summary.get("pending_count") is not None:
+                    snapshot_summary["settled_count"] = snapshot_summary["total_count"] - snapshot_summary["pending_count"]
+                cached_blocks = {**cached_blocks, "snapshots": snapshot_summary}
+        except (OSError, sqlite3.Error, ValueError):
+            logger.debug("Indexed live snapshot counts are unavailable", exc_info=True)
 
         odds_status = self.odds_client.get_source_status()
         scheduler_status = None

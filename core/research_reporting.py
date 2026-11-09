@@ -205,13 +205,34 @@ class ResearchReportMixin:
 
     def _stage_report(self, stage_data: Path) -> dict[str, Any]:
         now = self.clock().astimezone(timezone.utc)
+        # Throttle the historical report so it does not scan the full prediction ledger on every cadence.
+        report_state_path = getattr(self, "data_root", Path("data/research_pipeline")) / "model_state" / "report_refresh.json"
+        refresh_state = _read_json(report_state_path, {})
+        last_success = parse_aware_time(refresh_state.get("last_success_utc"))
+        report_interval_hours = int((getattr(self, "config", {}) or {}).get("weekly_report_interval_hours", 24))
+        force_report = bool((getattr(self, "config", {}) or {}).get("force_weekly_report", False))
+        if not force_report and last_success and (now - last_success) < timedelta(hours=report_interval_hours):
+            result = {
+                "status": "FRESH_CACHE",
+                "message": f"Weekly report was generated {round((now - last_success).total_seconds() / 3600, 1)}h ago; full-snapshot re-evaluation skipped.",
+                "last_success_utc": last_success.isoformat(),
+                "report_json": refresh_state.get("report_json"),
+                "report_markdown": refresh_state.get("report_markdown"),
+            }
+            _write_json_atomic(stage_data / "weekly_report.json", result)
+            return result
+
         since = now - timedelta(days=7)
-        snapshots = self.snapshot_logger.get_all_snapshots()
-        recent = []
-        for row in snapshots:
-            stamp = parse_aware_time(row.get("recorded_at") or row.get("timestamp"))
-            if stamp and since <= stamp <= now:
-                recent.append(row)
+        from core.persistence import iter_jsonl
+        from core.research_sqlite import get_parlay_records_between, get_prediction_records_between
+        start_epoch, end_epoch = since.timestamp(), now.timestamp()
+        recent = get_prediction_records_between(self.snapshot_logger.log_path, start_epoch, end_epoch)
+        if recent is None:
+            recent = []
+            for row in iter_jsonl(self.snapshot_logger.log_path):
+                stamp = parse_aware_time(row.get("recorded_at") or row.get("snapshot_timestamp") or row.get("timestamp"))
+                if stamp and since <= stamp <= now:
+                    recent.append(row)
         known_rows = [row for row in recent if not row.get("is_settled") or (
             parse_aware_time(row.get("settled_at")) is not None
             and parse_aware_time(row.get("settled_at")) <= now)]
@@ -257,11 +278,15 @@ class ResearchReportMixin:
         candidate_metrics = self._binary_metrics(candidate_rows, "model_candidate_probability_fused")
         candidate_market_metrics = self._binary_metrics(candidate_rows, "market_fair_probability")
         candidate_ci = self._paired_cluster_ci(candidate_rows, model_probability_field="model_candidate_probability_fused")
-        parlay_records = []
-        for record in self.parlay_logger.get_all_parlay_snapshots():
-            stamp = parse_aware_time(record.get("timestamp") or record.get("date"))
-            if stamp and since <= stamp <= now:
-                parlay_records.append(record)
+        parlay_records = get_parlay_records_between(
+            self.parlay_logger.log_path, start_epoch, end_epoch,
+        )
+        if parlay_records is None:
+            parlay_records = []
+            for record in iter_jsonl(self.parlay_logger.log_path):
+                stamp = parse_aware_time(record.get("timestamp") or record.get("recorded_at") or record.get("date"))
+                if stamp and since <= stamp <= now:
+                    parlay_records.append(record)
         parlay_rows = [row for record in parlay_records for row in record.get("candidates", [])
                        if row.get("settled") and parse_aware_time(row.get("settled_at")) is not None
                        and parse_aware_time(row.get("settled_at")) <= now]
@@ -273,14 +298,15 @@ class ResearchReportMixin:
         source_counts = Counter()
         health_path = self.data_root / "source_health" / "playsport.jsonl"
         if health_path.exists():
-            for raw in health_path.read_text(encoding="utf-8").splitlines():
-                try:
-                    row = json.loads(raw)
-                    stamp = parse_aware_time(row.get("observed_at") or row.get("recorded_at") or row.get("attempted_at"))
-                    if stamp and since <= stamp <= now:
-                        source_counts[str(row.get("source_status", "UNKNOWN"))] += 1
-                except (ValueError, TypeError):
-                    continue
+            with health_path.open("r", encoding="utf-8") as stream:
+                for raw in stream:
+                    try:
+                        row = json.loads(raw)
+                        stamp = parse_aware_time(row.get("observed_at") or row.get("recorded_at") or row.get("attempted_at"))
+                        if stamp and since <= stamp <= now:
+                            source_counts[str(row.get("source_status", "UNKNOWN"))] += 1
+                    except (ValueError, TypeError):
+                        continue
         from core.parlay_validation import evaluate_parlay_forward
         parlay_eval = evaluate_parlay_forward(parlay_records, current_experiment_id, as_of=now)
         # Descriptive error dependence uses the same integrity-checked forward
@@ -294,8 +320,8 @@ class ResearchReportMixin:
             "generated_at_utc": now.isoformat(), "period_start_utc": since.isoformat(),
             "period_end_utc": now.isoformat(), "data_root": str(self.data_root),
             "experiment_identity": current_experiment_identity,
-            "shadow_research_coverage": self._shadow_research_coverage(
-                snapshots, now, current_experiment_id, stage_data.parent / "run.json",
+                "shadow_research_coverage": self._shadow_research_coverage(
+                recent, now, current_experiment_id, stage_data.parent / "run.json",
             ),
             "wallet_data_used": False,
             "single_leg": {"recorded_snapshots": len(recent), "settled_count": len(settled),
@@ -345,6 +371,11 @@ class ResearchReportMixin:
         _write_json_atomic(json_path, payload)
         md_path.parent.mkdir(parents=True, exist_ok=True)
         md_path.write_text(self._render_report(payload), encoding="utf-8")
+        _write_json_atomic(report_state_path, {
+            "last_success_utc": now.isoformat(),
+            "report_json": str(json_path),
+            "report_markdown": str(md_path),
+        })
         return {"report_json": str(json_path), "report_markdown": str(md_path),
                 "single_settled_n": len(settled), "model_cohort_n": len(paired_rows),
                 "parlay_settled_n": len(parlay_rows), "source_health_observations": sum(source_counts.values())}

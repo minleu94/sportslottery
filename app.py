@@ -596,15 +596,17 @@ elif active_tab == NAV_PARLAY:
         filter_choice = st.selectbox(
             "🛡️ 外部情報品質門檻：",
             [
-                "normal (標準: 排除無外部情報之關卡)",
-                "value_only (估計價值優先: 依可用 EV 與未校準機率條件篩選)",
+                "credible_value_only (嚴格價值: 僅顯示可信來源估計為正 EV 的組合)",
+                "normal (情報探索: 排除無外部情報之關卡)",
+                "value_only (價值探索: 可含未驗收機率或低賠熱門，不保證正 EV)",
                 "strict (嚴格: 僅限 2+ 獨立來源支持)",
                 "wild (狂野: 容許全部盤口)",
             ],
             index=0,
         )
         signal_filter_code = (
-            "value_only" if "value_only" in filter_choice
+            "credible_value_only" if "credible_value_only" in filter_choice
+            else "value_only" if "value_only" in filter_choice
             else "strict" if "strict" in filter_choice
             else "wild" if "wild" in filter_choice
             else "normal"

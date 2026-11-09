@@ -126,7 +126,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   const [selectedAlliances, setSelectedAlliances] = useState<string[]>(restoredSearch?.selectedAlliances ?? ["1", "3", "4"])
 
   // Quality & Smart Filters
-  const [signalFilter, setSignalFilter] = useState<string>(restoredSearch?.signalFilter ?? "value_only")
+  const [signalFilter, setSignalFilter] = useState<string>(restoredSearch?.signalFilter ?? "credible_value_only")
   const [excludeTraps, setExcludeTraps] = useState<boolean>(restoredSearch?.excludeTraps ?? false)
   const [preferSteam, setPreferSteam] = useState<boolean>(restoredSearch?.preferSteam ?? true)
 
@@ -199,13 +199,11 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       setTolerance(0.20)
       setMinLegs(1)
       setMaxLegs(3)
-      setSignalFilter("value_only")
     } else if (mode === "target") {
       setTargetOdds(20.0)
       setTolerance(0.20)
       setMinLegs(2)
       setMaxLegs(5)
-      setSignalFilter("normal")
     } else {
       setRangeMin(1.8)
       setRangeMax(4.0)

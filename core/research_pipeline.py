@@ -304,7 +304,10 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
                 ("source_fetch_health", lambda: self._stage_source(window_id, now, stage_data)),
                 ("pregame_snapshots", lambda: self._stage_snapshots(window_id, self._current_utc(), stage_data)),
                 ("odds_observations", lambda: self._stage_observations(window_id, stage_data)),
-                ("parlay_candidates", lambda: self._stage_parlays(window_id, state["run_id"], stage_data)),
+                ("parlay_candidates", lambda: self._run_interval_stage(
+                    "parlay_candidates", int(self.config.get("parlay_candidates_interval_minutes", 60)),
+                    lambda: self._stage_parlays(window_id, state["run_id"], stage_data), stage_data,
+                )),
                 ("multi_sport_settlement", lambda: self._stage_settlement(stage_data)),
                 ("weekly_report", lambda: self._stage_report(stage_data)),
             ]
@@ -316,7 +319,7 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
                                                  "error": "Fresh source stage failed; dependent observation not attempted."}
                         continue
                     existing = state["stages"].get(name, {})
-                    if existing.get("status") in {"SUCCEEDED", "SKIPPED"}:
+                    if existing.get("status") in {"SUCCEEDED", "SKIPPED", "DEFERRED"}:
                         continue
                     attempts = int(existing.get("attempts", 0))
                     if attempts >= max_attempts:
@@ -358,6 +361,38 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
             self._record_operation_alerts(run_dir, state_path, state)
             return {"status": state["status"], "run_id": state["run_id"], "run_window_id": window_id,
                     "stages": state["stages"]}
+
+    def _run_interval_stage(self, stage_name: str, interval_minutes: int,
+                            function: Callable[[], dict[str, Any]], stage_data: Path) -> dict[str, Any]:
+        """Throttle expensive optional stages while keeping quote polling cadence unchanged."""
+        interval_minutes = max(0, int(interval_minutes))
+        if interval_minutes <= 0:
+            result = function()
+        else:
+            refresh_path = self.data_root / "model_state" / "stage_refresh.json"
+            refresh = _read_json(refresh_path, {})
+            last_success = parse_aware_time((refresh.get("stages") or {}).get(stage_name))
+            now = self._current_utc()
+            if last_success and now - last_success < timedelta(minutes=interval_minutes):
+                result = {
+                    "_stage_status": "SKIPPED",
+                    "status": "FRESH_CACHE",
+                    "last_success_utc": last_success.isoformat(),
+                    "refresh_interval_minutes": interval_minutes,
+                    "message": f"{stage_name} was refreshed recently; optional work skipped for this cadence.",
+                }
+            else:
+                result = function()
+                if result.get("_stage_status") not in {"DEFERRED", "FAILED"}:
+                    stages = refresh.get("stages") if isinstance(refresh.get("stages"), dict) else {}
+                    stages[stage_name] = self._current_utc().isoformat()
+                    _write_json_atomic(refresh_path, {"stages": stages})
+        status = result.get("status")
+        if status in {"FRESH_CACHE", "INDEX_MIGRATION_REQUIRED"}:
+            _write_json_atomic(stage_data / f"{stage_name}.json", {
+                key: value for key, value in result.items() if key != "_stage_status"
+            })
+        return result
 
     def _record_operation_alerts(self, run_dir, state_path, state):
         try:
@@ -703,8 +738,22 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
                                                     "global_top_guarantee":False,"visited_nodes":0}
                 tiers[tier["name"]] = {"high_consensus":[],"aggressive":[],"moonshot":[]}
         _write_json_atomic(stage_data / "parlay_search_diagnostics.json", search_diagnostics)
+        snapshot_ids = [str(value) for value in _read_json(stage_data / "snapshot_ids.json", []) if value]
+        from core.research_sqlite import database_for_ledger, get_predictions_by_ids
+        snapshots_by_id = get_predictions_by_ids(self.snapshot_logger.log_path, snapshot_ids)
+        if not database_for_ledger(self.snapshot_logger.log_path):
+            from core.persistence import iter_jsonl
+            found_ids = set(snapshots_by_id)
+            wanted_ids = set(snapshot_ids) - found_ids
+            for snapshot in iter_jsonl(self.snapshot_logger.log_path):
+                snapshot_id = str(snapshot.get("snapshot_id") or "")
+                if snapshot_id in wanted_ids:
+                    snapshots_by_id[snapshot_id] = snapshot
+                    wanted_ids.discard(snapshot_id)
+                if not wanted_ids:
+                    break
         records = self.parlay_logger.log_daily_parlays(
-            tiers, prediction_snapshots=self.snapshot_logger.get_all_snapshots(),
+            tiers, prediction_snapshots=list(snapshots_by_id.values()),
             run_window_id=window_id, run_id=run_id,
         )
         _write_json_atomic(stage_data / "parlay_entry_ids.json", [row.get("snapshot_id") for row in records])
@@ -714,19 +763,62 @@ class ResearchPipeline(ResearchReportMixin, MLBResearchMixin):
 
     def _stage_settlement(self, stage_data: Path) -> dict[str, Any]:
         from scripts.settle_results import settle_snapshot_results
-        from core.persistence import iter_jsonl
-        snapshots = iter_jsonl(self.snapshot_logger.log_path)
-        result = settle_snapshot_results(self._result_engine, snapshots, now=self.clock())
+        from core.research_sqlite import (
+            defer_parlay_candidates,
+            defer_predictions,
+            get_due_predictions,
+            research_index_counts,
+            research_indexes_ready,
+        )
+
+        if not research_indexes_ready(self.snapshot_logger.log_path):
+            return {
+                "_stage_status": "DEFERRED",
+                "status": "INDEX_MIGRATION_REQUIRED",
+                "message": "Large-ledger settlement is paused until the resumable SQLite indexes are built.",
+                "index_build_command": "python scripts/upgrade_research_indexes.py",
+            }
+
+        now = self._current_utc()
+        due_limit = max(1, int(self.config.get("settlement_batch_size", 500)))
+        snapshots = get_due_predictions(
+            self.snapshot_logger.log_path, now_epoch=now.timestamp(), limit=due_limit,
+        ) or []
+        snapshot_ids = [str(row.get("snapshot_id")) for row in snapshots if row.get("snapshot_id")]
+        result = settle_snapshot_results(self._result_engine, snapshots, now=now)
         _write_json_atomic(stage_data / "settlement_audit.json", result)
-        parlay_result = self._result_engine.settle_parlays_against_snapshots()
-        if any(row.get("fetch_status") == "FETCH_ERROR" for row in result.get("coverage", {}).values()):
-            raise RuntimeError("至少一個賽果來源抓取失敗；結算摘要已保存，需重試。")
-        return {"settled_snapshots": result.get("settled", 0), "unresolved_snapshots": result.get("unresolved", 0),
+        fetch_error = any(row.get("fetch_status") == "FETCH_ERROR" for row in result.get("coverage", {}).values())
+        retry_minutes = max(15, int(self.config.get("settlement_fetch_retry_minutes", 15))) if fetch_error else max(
+            60, int(self.config.get("settlement_retry_minutes", 360)),
+        )
+        retry_epoch = now.timestamp() + retry_minutes * 60
+        defer_predictions(self.snapshot_logger.log_path, snapshot_ids, due_epoch=retry_epoch)
+
+        candidate_limit = max(1, int(self.config.get("parlay_settlement_batch_size", 500)))
+        parlay_result = self._result_engine.settle_parlays_against_snapshots(
+            candidate_limit=candidate_limit, now=now,
+        )
+        if parlay_result.get("deferred_candidate_ids"):
+            defer_parlay_candidates(
+                self.parlay_logger.log_path,
+                parlay_result["deferred_candidate_ids"],
+                due_epoch=now.timestamp() + max(24, int(self.config.get("parlay_settlement_retry_hours", 720))) * 3600,
+            )
+        counts = research_index_counts(self.snapshot_logger.log_path.parent / "research.sqlite3")
+        output = {"settled_snapshots": result.get("settled", 0), "unresolved_snapshots": result.get("unresolved", 0),
                 "deferred_snapshots": result.get("deferred_snapshots", 0),
                 "deferred_observations": result.get("deferred_observations", []),
                 "result_games": result.get("games", 0), "coverage": result.get("coverage", {}),
                 "unmatched_observations_sampled": result.get("unmatched_observations_sampled", 0),
-                "settled_parlay_candidates": parlay_result.get("settled_candidates", 0)}
+                "settled_parlay_candidates": parlay_result.get("settled_candidates", 0),
+                "prediction_batch_size": len(snapshots), "prediction_due_count_after_batch": counts.get("prediction_due_count"),
+                "parlay_batch_size": parlay_result.get("candidate_batch_size", 0),
+                "parlay_deferred_count": parlay_result.get("deferred_candidate_count", 0)}
+        if fetch_error:
+            output["_stage_status"] = "DEFERRED"
+            output["status"] = "RESULT_SOURCE_UNAVAILABLE"
+            output["message"] = "Some result providers failed; this bounded batch will retry on a later cadence."
+        return output
 
 
 

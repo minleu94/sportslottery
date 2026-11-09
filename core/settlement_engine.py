@@ -447,25 +447,54 @@ class SettlementEngine:
             return False
         return bool(provider_a_result != provider_b_result)
 
-    def settle_parlays_against_snapshots(self) -> Dict[str, int]:
+    def settle_parlays_against_snapshots(self, *, candidate_limit: Optional[int] = None,
+                                         now: Optional[datetime] = None) -> Dict[str, Any]:
         """Settle parlay candidates and shadow tickets using official Taiwan VOID logic."""
         settled_candidates_count = 0
         candidate_settlements: Dict[str, Dict[str, Any]] = {}
         unsettled_candidates = []
-        for p_snap in iter_jsonl(self.parlay_logger.log_path):
-            for cand in p_snap.get("candidates", []):
-                if cand.get("settled"):
-                    continue
-
+        deferred_candidate_ids: list[str] = []
+        indexed_batch = None
+        if candidate_limit is not None:
+            from core.research_sqlite import get_due_parlay_candidates
+            indexed_batch = get_due_parlay_candidates(
+                self.parlay_logger.log_path,
+                now_epoch=(now.astimezone(timezone.utc).timestamp() if now else datetime.now(timezone.utc).timestamp()),
+                limit=max(1, int(candidate_limit)),
+            )
+            if indexed_batch is None:
+                return {"settled_parlay_candidates": 0, "settled_shadow_tickets": 0,
+                        "candidate_batch_size": 0, "deferred_candidate_count": 0,
+                        "deferred_candidate_ids": [], "status": "INDEX_MIGRATION_REQUIRED"}
+            for row in indexed_batch:
+                cand = row["candidate"]
                 legs = cand.get("legs", [])
-                if not legs:
+                candidate_id = str(cand.get("candidate_id") or row.get("candidate_id") or "")
+                if not legs or any(not (leg.get("snapshot_id") or (leg.get("signal_evidence") or {}).get("snapshot_id"))
+                                   for leg in legs):
+                    if candidate_id:
+                        deferred_candidate_ids.append(candidate_id)
                     continue
-                unsettled_candidates.append({
-                    "candidate_id": cand.get("candidate_id"),
-                    "legs": legs,
-                })
+                unsettled_candidates.append({"candidate_id": candidate_id, "legs": legs})
+        else:
+            for p_snap in iter_jsonl(self.parlay_logger.log_path):
+                for cand in p_snap.get("candidates", []):
+                    if cand.get("settled"):
+                        continue
+
+                    legs = cand.get("legs", [])
+                    if not legs:
+                        continue
+                    unsettled_candidates.append({
+                        "candidate_id": cand.get("candidate_id"),
+                        "legs": legs,
+                    })
 
         open_tickets = [t for t in self.shadow_portfolio.get_recent_tickets(200) if t["status"] == "OPEN"]
+        if candidate_limit is not None:
+            # Legacy tickets without sealed snapshot IDs require a historical
+            # full-ledger identity scan; keep those for the manual settlement path.
+            open_tickets = [t for t in open_tickets if self._ticket_has_snapshot_ids(t)]
         target_legs = [leg for candidate in unsettled_candidates for leg in candidate.get("legs", [])]
         for ticket in open_tickets:
             try:
@@ -485,7 +514,7 @@ class SettlementEngine:
         )
         if database_for_ledger(self.snapshot_logger.log_path) and not has_legacy_legs:
             all_snaps = get_predictions_by_ids(self.snapshot_logger.log_path, snapshot_ids)
-        elif has_legacy_legs:
+        elif has_legacy_legs and candidate_limit is None:
             all_snaps = self.snapshot_logger.get_all_snapshots()
         else:
             all_snaps = {
@@ -528,6 +557,8 @@ class SettlementEngine:
                         "virtual_stake": 10.0,
                         "leg_result_snapshots": leg_result_snapshots,
                     }
+            elif candidate_limit is not None and cand.get("candidate_id"):
+                deferred_candidate_ids.append(str(cand["candidate_id"]))
 
         if candidate_settlements:
             settled = self.parlay_logger.settle_parlay_candidates_with_taiwan_rules(candidate_settlements)
@@ -604,4 +635,19 @@ class SettlementEngine:
         return {
             "settled_parlay_candidates": settled_candidates_count,
             "settled_shadow_tickets": settled_shadow_count,
+            "candidate_batch_size": len(indexed_batch or []),
+            "deferred_candidate_count": len(set(deferred_candidate_ids)),
+            "deferred_candidate_ids": list(dict.fromkeys(deferred_candidate_ids)),
         }
+
+    @staticmethod
+    def _ticket_has_snapshot_ids(ticket: dict) -> bool:
+        try:
+            legs = json.loads(ticket["legs_json"]) if isinstance(ticket.get("legs_json"), str) else ticket.get("legs_json")
+        except (TypeError, ValueError):
+            return False
+        return bool(legs) and all(
+            isinstance(leg, dict)
+            and (leg.get("snapshot_id") or (leg.get("signal_evidence") or {}).get("snapshot_id"))
+            for leg in legs
+        )

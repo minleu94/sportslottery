@@ -24,6 +24,29 @@ with Taiwan rules, updates the isolated MLB Elo state when initialized, and
 writes a wallet-free weekly report. Partial source health, shadow research
 coverage, and result coverage are recorded with each run.
 
+The 15-minute cadence keeps live collection and settlement responsive while
+bounding its heavier work. Parlay candidate generation runs at most hourly,
+weekly report generation runs once every 168 hours, and prediction/parlay
+settlement processes batches of at most 500 records per cycle. Unresolved rows
+are scheduled for a later retry; completed records are not rescanned.
+
+### One-time SQLite queue index upgrade
+
+After upgrading to indexed settlement queues, run this once while the app and
+scheduled pipeline are stopped:
+
+```powershell
+python scripts/upgrade_research_indexes.py
+```
+
+The backfill is resumable and adds indexed metadata tables to
+`research.sqlite3`. It preserves the prediction/parlay payloads and JSONL
+archives. The first pass reads the existing ledgers to populate those side
+tables; subsequent scheduled settlement cycles fetch only bounded due batches.
+The command prints progress and asks for confirmation before starting. Pass
+`--yes` only when you have independently confirmed the app and scheduled task
+are stopped.
+
 ### Lead time windows and observation scope
 
 - **Formal qualification window** (`pregame_lead_minutes`, default 60 minutes):

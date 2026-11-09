@@ -1,3 +1,4 @@
+weekly_report_interval_hours: 168
 # Wallet-free scheduled research pipeline. The data root is intentionally
 # separate from data/cache, data/historical, model artifacts, and the wallet.
 cadence_minutes: 15
@@ -9,9 +10,15 @@ max_odds_age_minutes: 15
 max_attempts_per_stage: 3
 force_refresh: true
 desktop_notifications: true
-parlay_total_node_budget: 1000000
-parlay_batch_node_budget: 25000
-parlay_total_seconds: 120
+parlay_candidates_interval_minutes: 60
+parlay_total_node_budget: 5000
+parlay_batch_node_budget: 1250
+parlay_total_seconds: 10
+settlement_batch_size: 500
+settlement_retry_minutes: 360
+settlement_fetch_retry_minutes: 15
+parlay_settlement_batch_size: 500
+parlay_settlement_retry_hours: 720
 data_root: data/research_pipeline
 
 # Alliance IDs verified from the archived Playsport navigation fixture:

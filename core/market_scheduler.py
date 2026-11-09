@@ -290,6 +290,7 @@ class MarketScheduler:
                 "unique_candidate_event_count": snapshot_cycle.get("unique_candidate_event_count", 0),
                 "real_market_quote_count": snapshot_cycle.get("real_market_quote_count", 0),
                 "real_matched_count": snapshot_cycle.get("real_matched_count", 0),
+                "real_matched_event_count": snapshot_cycle.get("real_matched_event_count", 0),
                 "complete_market_benchmark_count": snapshot_cycle.get("complete_market_benchmark_count", 0),
                 "sharp_qualified_count": snapshot_cycle.get("sharp_qualified_count", 0),
                 "ev_count": snapshot_cycle.get("ev_count", 0),
