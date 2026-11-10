@@ -1,0 +1,16 @@
+services:
+  sportslottery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sportslottery-server
+    restart: unless-stopped
+    ports:
+      - "8100:8100"
+    environment:
+      - PORT=8100
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # 持久化資料庫、快取與設定檔
+      - ./data:/app/data
+      - ./config:/app/config

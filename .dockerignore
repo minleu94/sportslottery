@@ -1,0 +1,16 @@
+.git
+.github
+.pytest*
+node_modules
+frontend/node_modules
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+dist
+build
+*.egg-info
+.DS_Store
+Thumbs.db
