@@ -527,6 +527,14 @@ class LineNotifier:
         return self._profile_manager_instance
 
     def _runtime_system_url(self) -> Optional[str]:
+        # Cloud deployments provide a stable public origin via environment.
+        # Local tray-managed deployments continue to discover their active tunnel.
+        configured_url = os.environ.get("SPORTSLOTTERY_PUBLIC_URL", "").strip()
+        if configured_url:
+            parts = urlsplit(configured_url)
+            if parts.scheme.lower() == "https" and parts.hostname and not parts.username and not parts.password:
+                return configured_url.rstrip("/")
+
         runtime = load_active_runtime(ROOT_DIR / "data" / "line_bot_runtime.json")
         url = str(runtime.get("tunnel_url") or "").strip()
         parts = urlsplit(url)

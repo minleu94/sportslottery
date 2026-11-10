@@ -11,6 +11,7 @@ services:
       - PORT=8100
       - PYTHONUNBUFFERED=1
       - SPORTSLOTTERY_DATA_ROOT=/app/data
+      - SPORTSLOTTERY_PUBLIC_URL=${SPORTSLOTTERY_PUBLIC_URL:-}
     volumes:
       # 持久化資料庫、快取與設定檔
       - ./data:/app/data
