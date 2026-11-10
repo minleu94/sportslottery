@@ -60,20 +60,28 @@ def get_fallback_user_data_dir() -> Path:
 
 def get_configured_storage_root() -> Path:
     """Read the active storage root from config, or fallback to sensible default."""
+    env_root = os.environ.get("SPORTSLOTTERY_DATA_ROOT", "").strip()
+    if env_root:
+        return Path(env_root).resolve()
+
     if STORAGE_CONFIG_FILE.exists():
         try:
             payload = yaml.safe_load(STORAGE_CONFIG_FILE.read_text(encoding="utf-8"))
             if isinstance(payload, dict) and payload.get("data_root"):
-                path = Path(payload["data_root"])
-                if path.is_absolute():
-                    # Check if drive / root actually exists on the host machine
-                    drive_available = True
-                    if os.name == "nt" and path.drive:
-                        drive_available = Path(f"{path.drive}\\").exists()
-                    if drive_available and (path.exists() or Path(path.anchor).exists()):
-                        return path
+                raw_data_root = str(payload["data_root"])
+                if not _is_windows() and re.match(r"^[A-Za-z]:", raw_data_root):
+                    pass
                 else:
-                    return (PROJECT_ROOT / path).resolve()
+                    path = Path(raw_data_root)
+                    if path.is_absolute():
+                        # Check if drive / root actually exists on the host machine
+                        drive_available = True
+                        if os.name == "nt" and path.drive:
+                            drive_available = Path(f"{path.drive}\\").exists()
+                        if drive_available and (path.exists() or Path(path.anchor).exists()):
+                            return path
+                    else:
+                        return (PROJECT_ROOT / path).resolve()
         except Exception:
             pass
     if DEFAULT_F_PATH.exists():
