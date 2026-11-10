@@ -565,7 +565,7 @@ export const ResearchView: React.FC = () => {
                 <span className="text-slate-400">下次預計:</span>
                 <span className="font-mono font-medium text-sky-600 dark:text-sky-400">
                   {sched?.enabled && sched?.next_run_utc
-                    ? new Date(sched.next_run_utc).toLocaleTimeString()
+                    ? new Date(sched.next_run_utc).toLocaleString()
                     : "排程暫停中"}
                 </span>
               </div>

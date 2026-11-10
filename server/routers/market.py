@@ -102,8 +102,10 @@ def get_market_research_summary():
     """Retrieve unified Phase 4.5 operational and prospective verification summary."""
     from core.market_forward_pipeline import MarketForwardPipeline
     pipeline = MarketForwardPipeline()
+    scheduler = get_market_scheduler()
+    pipeline.scheduler_status_provider = scheduler.get_status
     summary = pipeline.get_research_status_summary()
-    summary["scheduler"] = get_market_scheduler().get_status()
+    summary["scheduler"] = scheduler.get_status()
     return summary
 
 

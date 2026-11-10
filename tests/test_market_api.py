@@ -200,6 +200,7 @@ def test_get_market_research_summary():
         "server.routers.market.get_market_scheduler", return_value=MagicMock(get_status=lambda: {"enabled": False})
     ):
         resp = client.get("/api/market/research-summary")
+    assert pipeline.scheduler_status_provider() == {"enabled": False}
     assert resp.status_code == 200
     data = resp.json()
     assert "live_status" in data
