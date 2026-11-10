@@ -267,15 +267,15 @@ NBA_TEAMS: List[CanonicalTeam] = [
     CanonicalTeam("NBA_DET", "basketball", "NBA", "DET", "Detroit Pistons", "底特律活塞", "活塞", ["ESPN_TEAM_8"]),
     CanonicalTeam("NBA_MIN", "basketball", "NBA", "MIN", "Minnesota Timberwolves", "明尼蘇達灰狼", "灰狼", ["ESPN_TEAM_16"]),
     CanonicalTeam("NBA_NO", "basketball", "NBA", "NO", "New Orleans Pelicans", "紐奧良鵜鶘", "鵜鶘", ["ESPN_TEAM_3"]),
-    CanonicalTeam("NBA_DAL", "basketball", "NBA", "DAL", "Dallas Mavericks", "達拉斯獨行俠", "獨行俠", ["ESPN_TEAM_6"]),
+    CanonicalTeam("NBA_DAL", "basketball", "NBA", "DAL", "Dallas Mavericks", "達拉斯獨行俠", "獨行俠", ["ESPN_TEAM_6", "小牛", "達拉斯小牛"]),
     CanonicalTeam("NBA_DEN", "basketball", "NBA", "DEN", "Denver Nuggets", "丹佛金塊", "金塊", ["ESPN_TEAM_7"]),
-    CanonicalTeam("NBA_LAC", "basketball", "NBA", "LAC", "LA Clippers", "洛杉磯快艇", "快艇", ["ESPN_TEAM_12"]),
+    CanonicalTeam("NBA_LAC", "basketball", "NBA", "LAC", "LA Clippers", "洛杉磯快艇", "快艇", ["ESPN_TEAM_12", "快艇隊"]),
     # The Elo engine has ratings for every NBA team. Keep the shared identity
     # registry equally complete so ESPN results and model inputs can resolve
     # the same franchises without accepting unknown-team fallbacks.
     CanonicalTeam("NBA_OKC", "basketball", "NBA", "OKC", "Oklahoma City Thunder", "奧克拉荷馬雷霆", "雷霆", ["Thunder"]),
     CanonicalTeam("NBA_NYK", "basketball", "NBA", "NYK", "New York Knicks", "紐約尼克", "尼克", ["Knicks"]),
-    CanonicalTeam("NBA_PHI", "basketball", "NBA", "PHI", "Philadelphia 76ers", "費城七六人", "七六人", ["Sixers", "76ers"]),
+    CanonicalTeam("NBA_PHI", "basketball", "NBA", "PHI", "Philadelphia 76ers", "費城七六人", "七六人", ["Sixers", "76ers", "76人", "費城76人"]),
     CanonicalTeam("NBA_IND", "basketball", "NBA", "IND", "Indiana Pacers", "印第安納溜馬", "溜馬", ["Pacers"]),
     CanonicalTeam("NBA_CLE", "basketball", "NBA", "CLE", "Cleveland Cavaliers", "克里夫蘭騎士", "騎士", ["Cavaliers", "Cavs"]),
     CanonicalTeam("NBA_ORL", "basketball", "NBA", "ORL", "Orlando Magic", "奧蘭多魔術", "魔術", ["Magic"]),

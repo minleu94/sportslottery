@@ -3,9 +3,9 @@
 
 Compiles into 'sportslottery.exe'.
 Coordinates single-port 3-in-1 resident services in Windows System Tray:
-1. Modern Desktop React UI (http://localhost:8000)
-2. Mobile Public HTTPS Web (Cloudflare Tunnel to Port 8000)
-3. LINE Bot Interactive Webhook Server (/callback on Port 8000)
+1. Modern Desktop React UI (http://localhost:8100)
+2. Mobile Public HTTPS Web (Cloudflare Tunnel to Port 8100)
+3. LINE Bot Interactive Webhook Server (/callback on Port 8100)
 4. Windows Notification Area Tray Icon (pystray)
 """
 
@@ -28,7 +28,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 LOCK_PORT = 28501
-PORT = 8000
+PORT = 8100
 
 
 def hide_console():

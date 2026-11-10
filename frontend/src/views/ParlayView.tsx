@@ -21,7 +21,50 @@ import {
   ChevronDown,
   ChevronUp,
   Search,
+  Info,
 } from "lucide-react"
+
+interface SignalFilterMeta {
+  label: string
+  badge: string
+  desc: string
+  bestFor: string
+  warning?: string
+}
+
+const SIGNAL_FILTER_EXPLANATIONS: Record<string, SignalFilterMeta> = {
+  value_only: {
+    label: "探索候選（含低賠率／高估計機率）",
+    badge: "🔍 探索候選（LINE Bot 與網頁預設）",
+    desc: "放寬納入去水勝率較高、賠率較低 (<= 2.0x) 的熱門盤口，方便在 1.5~6x 銀行家模式下穩定產出過關票。",
+    bestFor: "【預設推薦模式】與 LINE 機器人完全同步，能穩定找出低倍過關組合。",
+    warning: "⚠️ 高勝率不等於賺錢！若整體估計為負 EV 卡片會標紅提示，下注前務必看抽屜。",
+  },
+  credible_value_only: {
+    label: "合格來源支持的正 EV",
+    badge: "⭐ 嚴格正期望值",
+    desc: "只挑選具備國際頂級 Sharp 盤口（如 Pinnacle 去水）或已驗證量化模型背書，且期望值大於 0 (EV > 0) 的有利比賽。",
+    bestFor: "追求嚴格正期望值獲利的玩家。（當台彩整體抽水過深時，可能顯示查無合格組合）",
+  },
+  normal: {
+    label: "標準 (排除無情報關卡)",
+    badge: "⚖️ 均衡防禦模式",
+    desc: "只要盤口具備台彩完整去水市場基準或基本情報就納入，過濾掉完全查無資料的冷門外圍聯賽。",
+    bestFor: "日常廣泛瀏覽各類運動與主流賽事。",
+  },
+  strict: {
+    label: "嚴格 (2+ 獨立情報支持)",
+    badge: "🛡️ 雙重保險模式",
+    desc: "一場比賽必須同時獲得至少 2 個獨立可靠的情報支持（例如模型預測 + 國際資金大盤跳水）才准入選。",
+    bestFor: "極度保守、只要最扎實高把握度的核心玩家（候選單最少，但每一關情報最硬）。",
+  },
+  wild: {
+    label: "全量 (容納所有可能盤口)",
+    badge: "🎲 自由開放自選",
+    desc: "不設任何演算法情報門檻，當前台彩開出的所有合法盤口全部納入排列組合。",
+    bestFor: "想要完全自訂搭配、不受任何演算法情報過濾限制的玩家。",
+  },
+}
 
 interface ParlayViewProps {
   wallet: WalletStatus | null
@@ -126,7 +169,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
   const [selectedAlliances, setSelectedAlliances] = useState<string[]>(restoredSearch?.selectedAlliances ?? ["1", "3", "4"])
 
   // Quality & Smart Filters
-  const [signalFilter, setSignalFilter] = useState<string>(restoredSearch?.signalFilter ?? "credible_value_only")
+  const [signalFilter, setSignalFilter] = useState<string>(restoredSearch?.signalFilter ?? "value_only")
   const [excludeTraps, setExcludeTraps] = useState<boolean>(restoredSearch?.excludeTraps ?? false)
   const [preferSteam, setPreferSteam] = useState<boolean>(restoredSearch?.preferSteam ?? true)
 
@@ -199,11 +242,13 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       setTolerance(0.20)
       setMinLegs(1)
       setMaxLegs(3)
+
     } else if (mode === "target") {
       setTargetOdds(20.0)
       setTolerance(0.20)
       setMinLegs(2)
       setMaxLegs(5)
+
     } else {
       setRangeMin(1.8)
       setRangeMax(4.0)
@@ -300,13 +345,19 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
     if (params.get("tab") !== "parlay") return
     const mode = params.get("mode")
     const target = Number(params.get("target_odds"))
+    const filterParam = params.get("signal_filter")
+    if (filterParam) {
+      setSignalFilter(filterParam)
+    } else if (mode === "banker") {
+      setSignalFilter("value_only")
+    }
     if (mode === "banker") {
       setOddsMode("banker")
       setTargetOdds(3.75)
       setTolerance(0.2)
       setMinLegs(1)
       setMaxLegs(3)
-      setSignalFilter("value_only")
+
       setMinLegsCustomized(false)
     } else if (mode === "target") {
       setOddsMode("target")
@@ -314,7 +365,7 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
       setTolerance(0.2)
       setMinLegs(2)
       setMaxLegs(5)
-      setSignalFilter("normal")
+
       setMinLegsCustomized(false)
     }
     if (params.get("run_search") === "1") setPendingDeepLinkSearch(true)
@@ -611,26 +662,64 @@ export const ParlayView: React.FC<ParlayViewProps> = ({ wallet, onWalletUpdate }
                   </div>
                 </div>
 
-                <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
-                  <label htmlFor="candidate-signal-filter" className="text-slate-600 dark:text-slate-400">
-                    情報門檻
-                  </label>
-                  <select
-                    id="candidate-signal-filter"
-                    value={signalFilter}
-                    onChange={(e) => setSignalFilter(e.target.value)}
-                    className="w-full min-w-0 min-h-[44px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                  >
-                    <option value="value_only">探索候選（含低賠率／高估計機率）</option>
-                    <option value="credible_value_only">合格來源支持的正 EV</option>
-                    <option value="normal">標準 (排除無情報關卡)</option>
-                    <option value="strict">嚴格 (2+ 獨立情報支持)</option>
-                    <option value="wild">全量 (容納所有可能盤口)</option>
-                  </select>
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2">
+                    <label htmlFor="candidate-signal-filter" className="text-slate-600 dark:text-slate-400 font-medium">
+                      情報門檻
+                    </label>
+                    <select
+                      id="candidate-signal-filter"
+                      value={signalFilter}
+                      onChange={(e) => setSignalFilter(e.target.value)}
+                      className="w-full min-w-0 min-h-[44px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium"
+                    >
+                      <option value="value_only" title="放寬納入去水勝率高、賠率低 (<= 2.0x) 的熱門盤，方便湊出銀行家串關。注意：負 EV 會標紅提示。">
+                        探索候選（含低賠率／高估計機率）· LINE Bot 預設
+                      </option>
+                      <option value="credible_value_only" title="只挑選具備國際頂級 Sharp 盤口或量化模型支持、且期望值大於 0 (EV > 0) 的優質比賽。">
+                        合格來源支持的正 EV
+                      </option>
+                      <option value="normal" title="只要具有台彩完整去水或基本情報即納入，過濾掉完全查無資料的冷門外圍賽事。">
+                        標準 (排除無情報關卡)
+                      </option>
+                      <option value="strict" title="必須同時獲得 2 個以上獨立可靠情報背書（如模型 + 國際跳水）。">
+                        嚴格 (2+ 獨立情報支持)
+                      </option>
+                      <option value="wild" title="完全不設限，台彩當前開出的所有合法盤口全部納入。">
+                        全量 (容納所有可能盤口)
+                      </option>
+                    </select>
+                  </div>
+
+                  {/* Dynamic Plain-Language Explanation Card */}
+                  {(() => {
+                    const meta = SIGNAL_FILTER_EXPLANATIONS[signalFilter] || SIGNAL_FILTER_EXPLANATIONS.normal
+                    return (
+                      <div className="mt-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/70 p-2.5 text-xs space-y-1.5 transition-all">
+                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                          <span className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                            <Info className="w-3.5 h-3.5 shrink-0" />
+                            {meta.badge}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            代碼: {signalFilter}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                          {meta.desc}
+                        </p>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          <strong className="text-slate-700 dark:text-slate-300 font-semibold">適合選取：</strong>{meta.bestFor}
+                        </div>
+                        {meta.warning && (
+                          <div className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded p-1.5 leading-relaxed">
+                            {meta.warning}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
-                <p className="pl-[4.25rem] text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                  探索候選或高估計機率不等於正 EV；來源與驗證狀態請看「分析依據」。
-                </p>
               </div>
             </div>
 

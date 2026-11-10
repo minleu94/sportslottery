@@ -547,13 +547,13 @@ def test_cors_configuration():
     res_allowed = client.options(
         "/api/health",
         headers={
-            "Origin": "http://localhost:5173",
+            "Origin": "http://localhost:5174",
             "Access-Control-Request-Method": "GET",
             "Access-Control-Request-Headers": "content-type,x-session-mode",
         },
     )
     assert res_allowed.status_code == 200
-    assert res_allowed.headers.get("access-control-allow-origin") == "http://localhost:5173"
+    assert res_allowed.headers.get("access-control-allow-origin") == "http://localhost:5174"
     assert res_allowed.headers.get("access-control-allow-credentials") == "true"
     assert "x-session-mode" in res_allowed.headers.get("access-control-allow-headers", "").lower()
     # Never wildcard with credentials

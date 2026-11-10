@@ -83,7 +83,7 @@ def render_terminal_qr(url: str) -> None:
 def print_mobile_banner(
     lan_ip: str,
     tailscale_ip: str | None,
-    port: int = 8000,
+    port: int = 8100,
     qr_target: str = "auto",
     network_access_allowed: bool = True,
 ) -> str:
@@ -136,12 +136,12 @@ def print_mobile_banner(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="瘋狗流運彩 iPhone / 行動端啟動服務器")
-    parser.add_argument("--port", type=int, default=8000, help="FastAPI 監聽埠號 (預設: 8000)")
+    parser.add_argument("--port", type=int, default=8100, help="FastAPI 監聽埠號 (預設: 8100)")
     parser.add_argument("--qr-target", choices=["auto", "local", "tailscale"], default="auto", help="QR Code 目標網路")
     parser.add_argument("--dry-run", action="store_true", help="僅印出網路資訊與 QR Code，不啟動服務")
     args = parser.parse_args()
-    if not args.dry_run and args.port != 8000:
-        parser.error("手機、桌面與 LINE 共用 Port 8000；請勿另外指定服務埠。")
+    if not args.dry_run and args.port != 8100:
+        parser.error("手機、桌面與 LINE 共用 Port 8100；請勿另外指定服務埠。")
 
     from core.bootstrap_security import network_access_enabled
 

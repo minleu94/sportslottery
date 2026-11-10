@@ -365,6 +365,26 @@ class PlaysportScraper:
         try:
             resp = self.session.get(url, timeout=10)
             if resp.status_code == 200:
+                # Detect redirection to another alliance (Playsport redirects off-season leagues to active leagues like NBA)
+                resp_url = getattr(resp, "url", None)
+                if resp_url:
+                    import urllib.parse
+                    parsed_url = urllib.parse.urlparse(resp_url)
+                    query_params = urllib.parse.parse_qs(parsed_url.query)
+                    redirected_alliance = query_params.get("allianceid", [None])[0]
+                    if redirected_alliance and str(redirected_alliance) != str(alliance_id):
+                        logger.info("Playsport alliance %s redirected to %s; treating as LIVE_NO_EVENTS", alliance_id, redirected_alliance)
+                        now_iso = datetime.now(timezone.utc).isoformat()
+                        self._write_no_event_cache(cache_key, url, now_iso)
+                        self._store_scale_source_status(alliance_id, {
+                            "source_status": "LIVE_NO_EVENTS", "source_url": url,
+                            "observed_at": now_iso, "cache_age_minutes": 0.0,
+                            "attempted_at": attempted_at, "failure_status": None, "error": None,
+                            "no_events_confirmed": True, "match_count": 0, "market_match_count": 0, "option_count": 0,
+                            "placeholder_identity_count": 0, "placeholder_identity_option_count": 0,
+                        }, [])
+                        return []
+
                 soup = BeautifulSoup(resp.text, "html.parser")
                 table = soup.find("table", class_="predictgame-table")
                 if table:

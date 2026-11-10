@@ -33,7 +33,7 @@ def system_deep_link(base_url: str | None, tab: str, **params: Any) -> str | Non
     if tab not in {"radar", "parlay", "wallet", "profile", "research"}:
         return None
     query: dict[str, str] = {"tab": tab}
-    allowed_params = {"mode", "target_odds", "profile_id", "run_search"}
+    allowed_params = {"mode", "target_odds", "profile_id", "run_search", "signal_filter"}
     for key, value in params.items():
         if key in allowed_params and value is not None and str(value) != "":
             query[key] = str(value)
@@ -266,7 +266,14 @@ def build_parlay_flex(parlay: dict[str, Any], *, system_url: str | None, banker:
     if index + 1 >= count:
         rows.append("本次搜尋沒有其他合格組合。" if search_complete else "本次搜尋尚未完成，可能還有其他組合。")
     target = parlay.get("target_odds") or parlay.get("total_odds")
-    details_url = system_deep_link(system_url, "parlay", mode="banker" if banker else "target", target_odds=target, run_search="1")
+    details_url = system_deep_link(
+        system_url,
+        "parlay",
+        mode="banker" if banker else "target",
+        target_odds=target,
+        run_search="1",
+        signal_filter="value_only" if banker else "normal",
+    )
     footer = []
     if index + 1 < count:
         footer.append(_message_button("🎲 換一組", "換一組"))

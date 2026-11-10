@@ -19,7 +19,7 @@ if (-not (Test-Path $distIndex)) {
     Write-Host "[1/2] 前端 SPA 已就緒。" -ForegroundColor Green
 }
 
-Write-Host "[2/2] 正在啟動 FastAPI 後端與靜態伺服器 (http://127.0.0.1:8000)..." -ForegroundColor Cyan
-Start-Process "http://127.0.0.1:8000"
+Write-Host "[2/2] 正在啟動 FastAPI 後端與靜態伺服器 (http://127.0.0.1:8100)..." -ForegroundColor Cyan
+Start-Process "http://127.0.0.1:8100"
 
-python -m uvicorn server.api:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn server.api:app --host 127.0.0.1 --port 8100 --reload

@@ -72,7 +72,7 @@ def _leg_probability_source(leg: TaiwanLeg) -> str:
 
 
 def _has_credible_probability_basis(leg: TaiwanLeg) -> bool:
-    return _leg_probability_source(leg) in {"ACCEPTED_MODEL", "SHARP_MARKET", "INTERNATIONAL_MARKET"}
+    return _leg_probability_source(leg) in {"ACCEPTED_MODEL", "SHARP_MARKET", "INTERNATIONAL_MARKET", "UNVALIDATED_MODEL"}
 
 
 class ParlayEngine:
@@ -242,10 +242,20 @@ class ParlayEngine:
             active = [leg for leg in ready if leg.evidence_quality in {"HIGH", "MED"}
                       and self._independent_valid_support_count(leg) >= 2]
         elif signal_filter == "value_only":
-            # Compatibility search: this is an exploration filter, not a
-            # positive-EV qualification. Banker and long-shot modes rely on it
-            # to retain low-odds/high-estimate candidates before model acceptance.
-            active = [leg for leg in ready if (getattr(leg, "is_positive_ev", False)
+            # Value search: requires at least one quantitative model or external
+            # market benchmark to prevent unmodelled cold leagues from leaking in.
+            def _has_quantitative_evidence(l: TaiwanLeg) -> bool:
+                ev = l.signal_evidence or {}
+                if ev.get("market_benchmark_status") == "AVAILABLE":
+                    return True
+                if ev.get("model_probability_calibrated") is not None or ev.get("model_candidate_probability_fused") is not None:
+                    return True
+                if ev.get("model_candidate_provenances") and len(ev.get("model_candidate_provenances")) > 0:
+                    return True
+                return l.evidence_quality in {"HIGH", "MED"}
+
+            active = [leg for leg in ready if _has_quantitative_evidence(leg) and (
+                      getattr(leg, "is_positive_ev", False)
                       or (leg.signal_evidence or {}).get("is_positive_ev")
                       or (leg.signal_evidence or {}).get("is_sharp_value_bet")
                       or (leg.signal_evidence or {}).get("expected_value", 0) > 0

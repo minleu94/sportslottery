@@ -2,8 +2,8 @@
 """Windows System Tray Manager for 台灣運彩瘋狗流決策台 (v2.3.0 Dev).
 
 Coordinates single-port modern services without any visible console windows:
-1. Modern FastAPI Backend + React SPA (http://localhost:8000)
-2. Single Cloudflare Secure HTTPS Tunnel (Port 8000 -> Web + LINE Webhook)
+1. Modern FastAPI Backend + React SPA (http://localhost:8100)
+2. Single Cloudflare Secure HTTPS Tunnel (Port 8100 -> Web + LINE Webhook)
 3. LINE Messaging API Webhook Auto-Registration
 4. Windows System Tray Resident Icon with 1-click browser launch and URL copying
 """
@@ -69,8 +69,8 @@ LOCAL_LOG_DIR = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / 
 if os.environ.get("SPORTSLOTTERY_LOG_DIR", "").strip():
     LOCAL_LOG_DIR = Path(os.environ["SPORTSLOTTERY_LOG_DIR"].strip())
 LOCK_PORT = 28501  # Socket port used to ensure single instance
-PORT = 8000
-CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+PORT = 8100
+CREATE_NO_WINDOW = 0x08100000 if sys.platform == "win32" else 0
 
 CLOUDFLARED_PATHS = [
     r"C:\Program Files (x86)\cloudflared\cloudflared.exe",

@@ -165,7 +165,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                             )}
                           </span>
                         ) : (
-                          <span className="text-slate-400">研究待採集</span>
+                          <span className="text-slate-400 text-xs font-normal">未開通付費源 (以大眾盤為主)</span>
                         )}
                       </div>
                     </div>

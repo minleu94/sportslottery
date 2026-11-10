@@ -135,7 +135,7 @@ def main() -> int:
         return 1
 
     print("[2/2] Starting the Tray manager; FastAPI health and app build are verified before ready.")
-    print("  Local UI: http://127.0.0.1:8000")
+    print("  Local UI: http://127.0.0.1:8100")
     print(f"  Startup diagnostics: {STARTUP_LOG}")
 
     from scripts.tray_manager import AppTrayManager
